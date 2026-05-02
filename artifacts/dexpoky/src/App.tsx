@@ -12,6 +12,7 @@ import Categories from "@/pages/categories/index";
 import Marketplace from "@/pages/marketplace/index";
 import ListingDetail from "@/pages/marketplace/[id]";
 import Sell from "@/pages/sell";
+import Scan from "@/pages/scan";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/marketplace/:id" component={ListingDetail} />
       <Route path="/sell" component={Sell} />
+      <Route path="/scan" component={Scan} />
       <Route component={NotFound} />
     </Switch>
   );

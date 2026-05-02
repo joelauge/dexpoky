@@ -8,7 +8,8 @@ import {
   PlusCircle,
   Menu,
   Tags,
-  Hexagon
+  Hexagon,
+  ScanLine
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -30,6 +31,7 @@ export function Layout({ children }: LayoutProps) {
   ];
 
   const quickActions = [
+    { href: "/scan", label: "Scan Card", icon: ScanLine },
     { href: "/collection/new", label: "Add Card", icon: PlusCircle },
     { href: "/sell", label: "Sell Card", icon: Tags },
   ];
