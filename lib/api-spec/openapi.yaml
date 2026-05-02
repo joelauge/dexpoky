@@ -3,20 +3,30 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: DexPoky API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: cards
+    description: Pokemon card operations
+  - name: categories
+    description: Card category operations
+  - name: marketplace
+    description: Marketplace listing operations
+  - name: inventory
+    description: Inventory stats and tracking
+  - name: pokemon
+    description: Pokemon reference data lookup
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +34,384 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /cards:
+    get:
+      operationId: listCards
+      tags: [cards]
+      summary: List all cards in the collection
+      parameters:
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: forSale
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: rarity
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of cards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Card"
+    post:
+      operationId: createCard
+      tags: [cards]
+      summary: Add a new card to collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCardBody"
+      responses:
+        "201":
+          description: Created card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+
+  /cards/{id}:
+    get:
+      operationId: getCard
+      tags: [cards]
+      summary: Get a single card
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "404":
+          description: Not found
+    put:
+      operationId: updateCard
+      tags: [cards]
+      summary: Update a card
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCardBody"
+      responses:
+        "200":
+          description: Updated card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+    delete:
+      operationId: deleteCard
+      tags: [cards]
+      summary: Delete a card from collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: List all card categories
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+    post:
+      operationId: createCategory
+      tags: [categories]
+      summary: Create a new category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCategoryBody"
+      responses:
+        "201":
+          description: Created category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+
+  /categories/{id}:
+    get:
+      operationId: getCategory
+      tags: [categories]
+      summary: Get a single category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+    put:
+      operationId: updateCategory
+      tags: [categories]
+      summary: Update a category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCategoryBody"
+      responses:
+        "200":
+          description: Updated category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+    delete:
+      operationId: deleteCategory
+      tags: [categories]
+      summary: Delete a category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /marketplace:
+    get:
+      operationId: listListings
+      tags: [marketplace]
+      summary: List all active marketplace listings
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, sold, cancelled]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: minPrice
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Listing"
+    post:
+      operationId: createListing
+      tags: [marketplace]
+      summary: Create a new listing to sell a card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateListingBody"
+      responses:
+        "201":
+          description: Created listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+
+  /marketplace/{id}:
+    get:
+      operationId: getListing
+      tags: [marketplace]
+      summary: Get a single marketplace listing
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+    put:
+      operationId: updateListing
+      tags: [marketplace]
+      summary: Update a listing (e.g. mark as sold, cancel)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateListingBody"
+      responses:
+        "200":
+          description: Updated listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Listing"
+    delete:
+      operationId: deleteListing
+      tags: [marketplace]
+      summary: Remove a listing
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /inventory/stats:
+    get:
+      operationId: getInventoryStats
+      tags: [inventory]
+      summary: Get inventory summary stats
+      responses:
+        "200":
+          description: Inventory statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryStats"
+
+  /inventory/value-by-category:
+    get:
+      operationId: getValueByCategory
+      tags: [inventory]
+      summary: Get total estimated value grouped by category
+      responses:
+        "200":
+          description: Value breakdown by category
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryValue"
+
+  /inventory/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [inventory]
+      summary: Get recently added cards
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent cards
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Card"
+
+  /pokemon/search:
+    get:
+      operationId: searchPokemon
+      tags: [pokemon]
+      summary: Search for Pokemon by name for card identification
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pokemon search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PokemonResult"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +422,328 @@ components:
       required:
         - status
 
+    Card:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        pokemonName:
+          type: string
+        setName:
+          type: string
+        cardNumber:
+          type: string
+        rarity:
+          type: string
+          enum: [common, uncommon, rare, holo_rare, ultra_rare, secret_rare, promo]
+        condition:
+          type: string
+          enum: [mint, near_mint, excellent, good, light_played, played, poor]
+        imageUrl:
+          type: string
+          nullable: true
+        estimatedValue:
+          type: number
+          nullable: true
+        acquiredDate:
+          type: string
+          format: date-time
+          nullable: true
+        categoryId:
+          type: integer
+          nullable: true
+        categoryName:
+          type: string
+          nullable: true
+        forSale:
+          type: boolean
+        listingPrice:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - pokemonName
+        - rarity
+        - condition
+        - forSale
+        - createdAt
+        - updatedAt
+
+    CreateCardBody:
+      type: object
+      properties:
+        name:
+          type: string
+        pokemonName:
+          type: string
+        setName:
+          type: string
+        cardNumber:
+          type: string
+        rarity:
+          type: string
+          enum: [common, uncommon, rare, holo_rare, ultra_rare, secret_rare, promo]
+        condition:
+          type: string
+          enum: [mint, near_mint, excellent, good, light_played, played, poor]
+        imageUrl:
+          type: string
+          nullable: true
+        estimatedValue:
+          type: number
+          nullable: true
+        acquiredDate:
+          type: string
+          format: date-time
+          nullable: true
+        categoryId:
+          type: integer
+          nullable: true
+        forSale:
+          type: boolean
+        listingPrice:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - name
+        - pokemonName
+        - rarity
+        - condition
+        - forSale
+
+    UpdateCardBody:
+      type: object
+      properties:
+        name:
+          type: string
+        pokemonName:
+          type: string
+        setName:
+          type: string
+        cardNumber:
+          type: string
+        rarity:
+          type: string
+          enum: [common, uncommon, rare, holo_rare, ultra_rare, secret_rare, promo]
+        condition:
+          type: string
+          enum: [mint, near_mint, excellent, good, light_played, played, poor]
+        imageUrl:
+          type: string
+          nullable: true
+        estimatedValue:
+          type: number
+          nullable: true
+        acquiredDate:
+          type: string
+          format: date-time
+          nullable: true
+        categoryId:
+          type: integer
+          nullable: true
+        forSale:
+          type: boolean
+        listingPrice:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        cardCount:
+          type: integer
+        totalValue:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - cardCount
+        - totalValue
+        - createdAt
+
+    CreateCategoryBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+      required:
+        - name
+
+    UpdateCategoryBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+
+    Listing:
+      type: object
+      properties:
+        id:
+          type: integer
+        cardId:
+          type: integer
+        card:
+          $ref: "#/components/schemas/Card"
+        price:
+          type: number
+        status:
+          type: string
+          enum: [active, sold, cancelled]
+        description:
+          type: string
+          nullable: true
+        viewCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - cardId
+        - card
+        - price
+        - status
+        - viewCount
+        - createdAt
+        - updatedAt
+
+    CreateListingBody:
+      type: object
+      properties:
+        cardId:
+          type: integer
+        price:
+          type: number
+        description:
+          type: string
+          nullable: true
+      required:
+        - cardId
+        - price
+
+    UpdateListingBody:
+      type: object
+      properties:
+        price:
+          type: number
+        status:
+          type: string
+          enum: [active, sold, cancelled]
+        description:
+          type: string
+          nullable: true
+
+    InventoryStats:
+      type: object
+      properties:
+        totalCards:
+          type: integer
+        totalValue:
+          type: number
+        forSaleCount:
+          type: integer
+        forSaleValue:
+          type: number
+        totalListings:
+          type: integer
+        categoryCount:
+          type: integer
+        rarityBreakdown:
+          type: object
+          additionalProperties:
+            type: integer
+        conditionBreakdown:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+        - totalCards
+        - totalValue
+        - forSaleCount
+        - forSaleValue
+        - totalListings
+        - categoryCount
+        - rarityBreakdown
+        - conditionBreakdown
+
+    CategoryValue:
+      type: object
+      properties:
+        categoryId:
+          type: integer
+          nullable: true
+        categoryName:
+          type: string
+        cardCount:
+          type: integer
+        totalValue:
+          type: number
+      required:
+        - categoryName
+        - cardCount
+        - totalValue
+
+    PokemonResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        spriteUrl:
+          type: string
+        types:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - name
+        - spriteUrl
+        - types

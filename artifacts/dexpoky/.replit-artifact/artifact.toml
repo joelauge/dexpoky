@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "DexPoky"
+version = "1.0.0"
+id = "artifacts/dexpoky"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24858
+
+[services.development]
+run = "pnpm --filter @workspace/dexpoky run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/dexpoky", "run", "build" ]
+publicDir = "artifacts/dexpoky/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24858"
+BASE_PATH = "/"

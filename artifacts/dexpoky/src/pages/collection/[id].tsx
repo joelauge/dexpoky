@@ -1,0 +1,278 @@
+import { Layout } from "@/components/layout";
+import { useGetCard, useDeleteCard, useUpdateCard, UpdateCardBodyStatus } from "@workspace/api-client-react";
+import { useRoute, useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
+import { ArrowLeft, Edit, Trash2, Store, Tag, ImageIcon } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+export default function CardDetail() {
+  const [, params] = useRoute("/collection/:id");
+  const id = params?.id ? parseInt(params.id) : 0;
+  const [, setLocation] = useLocation();
+
+  const { data: card, isLoading } = useGetCard(id, {
+    query: { enabled: !!id, queryKey: ['/api/cards', id] }
+  });
+
+  const deleteCard = useDeleteCard();
+  const updateCard = useUpdateCard();
+  const [sellPrice, setSellPrice] = useState<string>("");
+  const [isSellOpen, setIsSellOpen] = useState(false);
+
+  const handleDelete = () => {
+    deleteCard.mutate({ id }, {
+      onSuccess: () => {
+        toast.success("Card deleted");
+        setLocation("/collection");
+      },
+      onError: () => toast.error("Failed to delete card")
+    });
+  };
+
+  const handleSell = () => {
+    if (!sellPrice || parseFloat(sellPrice) <= 0) {
+      toast.error("Please enter a valid price");
+      return;
+    }
+    updateCard.mutate({
+      id,
+      data: {
+        forSale: true,
+        listingPrice: parseFloat(sellPrice)
+      }
+    }, {
+      onSuccess: () => {
+        toast.success("Card listed for sale");
+        setIsSellOpen(false);
+      },
+      onError: () => toast.error("Failed to list card")
+    });
+  };
+
+  const handleDelist = () => {
+    updateCard.mutate({
+      id,
+      data: {
+        forSale: false,
+        listingPrice: null
+      }
+    }, {
+      onSuccess: () => toast.success("Card removed from marketplace"),
+      onError: () => toast.error("Failed to update card")
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="max-w-5xl mx-auto px-4 py-8">
+          <Skeleton className="h-8 w-40 mb-8" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <Skeleton className="aspect-[3/4] w-full rounded-2xl" />
+            <div className="space-y-6">
+              <Skeleton className="h-12 w-3/4" />
+              <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!card) {
+    return (
+      <Layout>
+        <div className="text-center py-20">
+          <h2 className="text-2xl font-bold">Card not found</h2>
+          <Button className="mt-4" onClick={() => setLocation("/collection")}>Back to Collection</Button>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20">
+        <Button variant="ghost" onClick={() => setLocation("/collection")} className="mb-6 -ml-4 text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4 mr-2" /> Back to Collection
+        </Button>
+
+        <div className="flex flex-col lg:flex-row gap-12">
+          {/* Card Image Area */}
+          <div className="w-full lg:w-1/2 lg:max-w-md mx-auto">
+            <div className="relative aspect-[3/4] bg-muted/30 border rounded-2xl overflow-hidden shadow-xl group">
+              {card.imageUrl ? (
+                <img 
+                  src={card.imageUrl} 
+                  alt={card.name} 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <ImageIcon className="h-20 w-20 mb-4 opacity-50" />
+                  <span className="font-medium uppercase tracking-widest opacity-50">No Image Available</span>
+                </div>
+              )}
+              {card.forSale && (
+                <div className="absolute top-4 right-4">
+                  <Badge className="bg-primary text-primary-foreground font-bold shadow-lg border-white/20 text-sm px-3 py-1">
+                    Listed for {formatCurrency(card.listingPrice)}
+                  </Badge>
+                </div>
+              )}
+              
+              {/* Fake holo overlay effect on hover */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 mix-blend-overlay transition-opacity duration-700 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Details Area */}
+          <div className="w-full lg:w-1/2 flex flex-col">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <h1 className="text-4xl font-black tracking-tight text-foreground mb-2">{card.name}</h1>
+                <p className="text-xl text-muted-foreground font-medium">
+                  {card.pokemonName} {card.setName ? `• ${card.setName}` : ""}
+                  {card.cardNumber && <span className="ml-2 text-sm bg-secondary px-2 py-1 rounded text-foreground">{card.cardNumber}</span>}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete {card.name} from your collection.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 my-6">
+              <Badge className={`text-sm px-3 py-1 border-0 shadow-sm ${RARITY_COLORS[card.rarity] || ""}`}>
+                {formatLabel(card.rarity)}
+              </Badge>
+              <Badge variant="outline" className={`text-sm px-3 py-1 ${CONDITION_COLORS[card.condition] || ""}`}>
+                {formatLabel(card.condition)} Condition
+              </Badge>
+              {card.categoryName && (
+                <Badge variant="secondary" className="text-sm px-3 py-1">
+                  {card.categoryName}
+                </Badge>
+              )}
+            </div>
+
+            <div className="bg-card border shadow-sm rounded-xl p-6 mb-8">
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Estimated Value</p>
+              <h2 className="text-5xl font-black tracking-tighter text-foreground">
+                {formatCurrency(card.estimatedValue)}
+              </h2>
+            </div>
+
+            <div className="space-y-6 flex-1">
+              {card.notes && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Collector's Notes</h3>
+                  <div className="bg-muted/30 p-4 rounded-lg border text-sm leading-relaxed">
+                    {card.notes}
+                  </div>
+                </div>
+              )}
+              
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Details</h3>
+                <div className="grid grid-cols-2 gap-y-3 text-sm">
+                  <div className="text-muted-foreground">Acquired Date</div>
+                  <div className="font-medium text-right">{card.acquiredDate ? new Date(card.acquiredDate).toLocaleDateString() : 'Unknown'}</div>
+                  <div className="text-muted-foreground">Added to DexPoky</div>
+                  <div className="font-medium text-right">{new Date(card.createdAt).toLocaleDateString()}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row gap-4">
+              {card.forSale ? (
+                <Button variant="secondary" size="lg" className="flex-1" onClick={handleDelist} disabled={updateCard.isPending}>
+                  <Store className="h-5 w-5 mr-2" /> Remove from Marketplace
+                </Button>
+              ) : (
+                <Dialog open={isSellOpen} onOpenChange={setIsSellOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="lg" className="flex-1 shadow-md bg-primary hover:bg-primary/90 text-primary-foreground">
+                      <Tag className="h-5 w-5 mr-2" /> Sell on Marketplace
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>List Card for Sale</DialogTitle>
+                      <DialogDescription>
+                        Set your price to list {card.name} on the global marketplace.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <label className="block text-sm font-medium mb-2">Listing Price ($)</label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder={card.estimatedValue?.toString() || "0.00"}
+                        value={sellPrice}
+                        onChange={(e) => setSellPrice(e.target.value)}
+                        className="text-lg py-6"
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Estimated value: {formatCurrency(card.estimatedValue)}
+                      </p>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsSellOpen(false)}>Cancel</Button>
+                      <Button onClick={handleSell} disabled={updateCard.isPending}>Confirm Listing</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}

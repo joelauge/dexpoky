@@ -1,0 +1,106 @@
+import { useState } from "react";
+import { Layout } from "@/components/layout";
+import { useListListings, ListListingsStatus } from "@workspace/api-client-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Search, Store, ArrowRight } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "wouter";
+import { formatCurrency, formatLabel, RARITY_COLORS } from "@/lib/constants";
+import { Badge } from "@/components/ui/badge";
+
+export default function Marketplace() {
+  const [search, setSearch] = useState("");
+  
+  const { data: listings, isLoading } = useListListings({
+    status: ListListingsStatus.active,
+    search: search || undefined
+  });
+
+  return (
+    <Layout>
+      <div className="bg-primary/5 border-b">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="flex items-center gap-4 text-primary mb-4">
+            <Store className="h-8 w-8" />
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Global Marketplace</h1>
+          </div>
+          <p className="text-lg text-muted-foreground max-w-2xl mb-8">
+            Buy, sell, and discover rare cards from collectors around the world.
+          </p>
+          
+          <div className="relative max-w-xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input 
+              placeholder="Search for specific cards, sets, or pokemon..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-12 py-6 text-lg bg-background border-border shadow-sm rounded-xl"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold tracking-tight">Active Listings</h2>
+          <div className="text-sm text-muted-foreground">
+            {listings?.length || 0} items available
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+              <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
+            ))}
+          </div>
+        ) : listings && listings.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {listings.map(listing => (
+              <Link key={listing.id} href={`/marketplace/${listing.id}`}>
+                <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col h-full group">
+                  <div className="aspect-[3/4] bg-muted/50 border-b relative overflow-hidden">
+                    {listing.card.imageUrl ? (
+                      <img src={listing.card.imageUrl} alt={listing.card.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-muted-foreground">No Image</div>
+                    )}
+                    <div className="absolute bottom-2 left-2 flex gap-1">
+                      <Badge className={`text-[10px] uppercase font-bold tracking-wider border-0 ${RARITY_COLORS[listing.card.rarity] || ""}`}>
+                        {formatLabel(listing.card.rarity)}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="p-4 flex flex-col flex-1">
+                    <h3 className="font-bold text-foreground line-clamp-1">{listing.card.name}</h3>
+                    <p className="text-sm text-muted-foreground mb-3">{listing.card.pokemonName}</p>
+                    <div className="mt-auto flex items-end justify-between">
+                      <div className="text-xl font-black text-primary">
+                        {formatCurrency(listing.price)}
+                      </div>
+                      <Button size="sm" variant="secondary" className="rounded-full">
+                        View <ArrowRight className="ml-1 w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-20 px-4 border-2 border-dashed rounded-xl bg-muted/5">
+            <Store className="h-12 w-12 mx-auto text-muted-foreground opacity-50 mb-4" />
+            <h3 className="text-xl font-bold mb-2">No listings found</h3>
+            <p className="text-muted-foreground mb-6">
+              {search ? "No cards match your search criteria." : "There are currently no cards for sale in the marketplace."}
+            </p>
+            <Link href="/sell">
+              <Button>List a Card for Sale</Button>
+            </Link>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
