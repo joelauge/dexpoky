@@ -249,22 +249,37 @@ export default function NewCard() {
                                 </FormControl>
                               </PopoverTrigger>
                               {searchResults && searchResults.length > 0 && searchQuery.length > 2 && (
-                                <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]" align="start">
-                                  <div className="max-h-60 overflow-y-auto">
-                                    {searchResults.map(pokemon => (
+                                <PopoverContent className="p-0 w-80" align="start">
+                                  <div className="max-h-72 overflow-y-auto divide-y divide-border">
+                                    {searchResults.map(card => (
                                       <div 
-                                        key={pokemon.id} 
-                                        className="flex items-center gap-3 p-2 hover:bg-muted cursor-pointer"
+                                        key={card.id} 
+                                        className="flex items-center gap-3 p-3 hover:bg-muted cursor-pointer transition-colors"
                                         onClick={() => {
-                                          form.setValue("pokemonName", pokemon.name);
+                                          form.setValue("pokemonName", card.name.toLowerCase());
                                           if (!form.getValues("name")) {
-                                            form.setValue("name", pokemon.name);
+                                            form.setValue("name", card.name);
                                           }
+                                          if (card.setName) form.setValue("setName", card.setName);
+                                          if (card.cardNumber) form.setValue("cardNumber", card.cardNumber);
+                                          if (card.imageUrl && !capturedImage) form.setValue("imageUrl", card.imageUrl);
                                           setSearchQuery("");
                                         }}
                                       >
-                                        <img src={pokemon.spriteUrl} alt={pokemon.name} className="w-10 h-10 object-contain bg-muted rounded" />
-                                        <span className="font-medium capitalize">{pokemon.name}</span>
+                                        <div className="w-12 h-16 shrink-0 rounded overflow-hidden bg-muted border">
+                                          {card.imageUrl ? (
+                                            <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover" />
+                                          ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                              <ImageIcon className="h-4 w-4" />
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="font-semibold text-sm leading-tight truncate">{card.name}</p>
+                                          <p className="text-xs text-muted-foreground truncate">{card.setName}</p>
+                                          <p className="text-xs text-muted-foreground font-mono">#{card.cardNumber}</p>
+                                        </div>
                                       </div>
                                     ))}
                                   </div>

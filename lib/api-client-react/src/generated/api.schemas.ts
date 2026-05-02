@@ -223,10 +223,13 @@ export interface CategoryValue {
 }
 
 export interface PokemonResult {
-  id: number;
+  id: string;
   name: string;
-  spriteUrl: string;
-  types: string[];
+  imageUrl: string;
+  setName: string;
+  setId: string;
+  cardNumber: string;
+  rarity?: string | null;
 }
 
 export type ListCardsParams = {

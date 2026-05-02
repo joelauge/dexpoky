@@ -563,9 +563,12 @@ export const SearchPokemonQueryParams = zod.object({
 });
 
 export const SearchPokemonResponseItem = zod.object({
-  id: zod.number(),
+  id: zod.string(),
   name: zod.string(),
-  spriteUrl: zod.string(),
-  types: zod.array(zod.string()),
+  imageUrl: zod.string(),
+  setName: zod.string(),
+  setId: zod.string(),
+  cardNumber: zod.string(),
+  rarity: zod.string().nullish(),
 });
 export const SearchPokemonResponse = zod.array(SearchPokemonResponseItem);

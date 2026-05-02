@@ -1,56 +1,85 @@
 import { Router } from "express";
 
 const router = Router();
+const TCGDEX_BASE = "https://api.tcgdex.net/v2/en";
+
+interface CardBrief {
+  id: string;
+  localId: string;
+  name: string;
+  image?: string;
+}
+
+interface SetBrief {
+  id: string;
+  name: string;
+}
 
 router.get("/pokemon/search", async (req, res) => {
-  const query = String(req.query.query ?? "").toLowerCase().trim();
-  if (!query) {
+  const query = String(req.query.query ?? "").trim();
+  if (!query || query.length < 2) {
     res.json([]);
     return;
   }
 
   try {
-    const response = await fetch(
-      `https://pokeapi.co/api/v2/pokemon?limit=1000`,
+    const searchRes = await fetch(
+      `${TCGDEX_BASE}/cards?name=*${encodeURIComponent(query)}*`,
     );
-    if (!response.ok) {
-      res.status(502).json({ error: "Failed to fetch from PokeAPI" });
+    if (!searchRes.ok) {
+      res.json([]);
       return;
     }
-    const data = (await response.json()) as { results: Array<{ name: string; url: string }> };
 
-    const matches = data.results
-      .filter((p) => p.name.includes(query))
-      .slice(0, 10);
+    const cards = (await searchRes.json()) as CardBrief[];
+    if (!Array.isArray(cards) || cards.length === 0) {
+      res.json([]);
+      return;
+    }
 
-    const details = await Promise.all(
-      matches.map(async (p) => {
-        const parts = p.url.split("/").filter(Boolean);
-        const id = parseInt(parts[parts.length - 1] ?? "0");
+    const limited = cards.slice(0, 12);
+
+    const setIds = [
+      ...new Set(limited.map((c) => c.id.split("-")[0]).filter(Boolean)),
+    ] as string[];
+
+    const setMap: Record<string, string> = {};
+    await Promise.all(
+      setIds.map(async (setId) => {
         try {
-          const detailRes = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
-          if (!detailRes.ok) return null;
-          const detail = (await detailRes.json()) as {
-            id: number;
-            name: string;
-            types: Array<{ type: { name: string } }>;
-            sprites: { front_default: string | null };
-          };
-          return {
-            id: detail.id,
-            name: detail.name,
-            spriteUrl: detail.sprites.front_default ?? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${detail.id}.png`,
-            types: detail.types.map((t) => t.type.name),
-          };
+          const setRes = await fetch(`${TCGDEX_BASE}/sets/${setId}`);
+          if (setRes.ok) {
+            const setData = (await setRes.json()) as SetBrief;
+            setMap[setId] = setData.name ?? setId;
+          } else {
+            setMap[setId] = setId;
+          }
         } catch {
-          return null;
+          setMap[setId] = setId;
         }
       }),
     );
 
-    res.json(details.filter(Boolean));
-  } catch {
-    res.status(502).json({ error: "Failed to search Pokemon" });
+    const results = limited.map((card) => {
+      const setId = card.id.split("-")[0] ?? "";
+      const cardNumber = card.localId ?? card.id.split("-")[1] ?? "";
+      const imageUrl = card.image ? `${card.image}/high.png` : "";
+
+      return {
+        id: card.id,
+        name: card.name,
+        imageUrl,
+        setName: setMap[setId] ?? setId,
+        setId,
+        cardNumber,
+        rarity: null,
+      };
+    });
+
+    res.json(results);
+  } catch (err) {
+    req.log?.error({ err }, "TCGdex search failed");
+    res.status(502).json({ error: "Failed to search cards" });
   }
 });
 

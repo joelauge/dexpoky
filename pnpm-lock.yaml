@@ -166,6 +166,9 @@ importers:
 
   artifacts/api-server:
     dependencies:
+      '@tcgdex/sdk':
+        specifier: ^2.9.0
+        version: 2.9.0
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -736,6 +739,15 @@ packages:
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
 
+  '@cachex/core@1.0.1':
+    resolution: {integrity: sha512-sHynwjF9hKIvwg8rTUdvA7MOUMcUC5Mq0dpynPBILRS+IPvsHcE4Cb2uRSs0/I2nxO7NQp9p+xHYistdfJJSwg==}
+
+  '@cachex/memory@1.0.1':
+    resolution: {integrity: sha512-KWUTdCCXhIlAkJaVZMhUh9kD0uq8PxC3Z34Q3lMGZOAV6FXP/cOMW89ALrWX3VkoRrrM4R6MIMO+amZNOvEqgw==}
+
+  '@cachex/web-storage@1.0.1':
+    resolution: {integrity: sha512-E8Xa9qDZgNgr+lcj3eixowg7PH2CVZbp3huuoc5xVVTtwYrZi5YqbHBG12yG3r6C6Fts/2Yoq6cbVBSm6c8VRA==}
+
   '@commander-js/extra-typings@14.0.0':
     resolution: {integrity: sha512-hIn0ncNaJRLkZrxBIp5AsW/eXEHNKYQBh0aPdoUqNgD+Io3NIykQqpKFyKcuasZhicGaEZJX/JBSIkZ4e5x8Dg==}
     peerDependencies:
@@ -746,6 +758,9 @@ packages:
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
+
+  '@dzeio/object-util@1.9.2':
+    resolution: {integrity: sha512-L3EBaHnDmf/+LAC61eCgWzcGXjbaOoFB4ml3eeOFxKlVlO6IZ2BpdstoqgAfLNKqdy4Ixp7TlP5z4ohdPxfSLg==}
 
   '@esbuild/linux-x64@0.27.3':
     resolution: {integrity: sha512-Czi8yzXUWIQYAtL/2y6vogER8pvcsOsk5cpwL4Gk5nJqH5UZiVByIY8Eorm5R13gq+DQKYg0+JyQoytLQas4dA==}
@@ -1625,6 +1640,10 @@ packages:
     resolution: {integrity: sha512-0Lu6y5t+tvlTJMTO7oh5NSpJfpg/5D41LlThfepTixPYkJ0sE2Jj0m0f6yYqujBwIXlId87e234+MxG3D3g7kg==}
     peerDependencies:
       react: ^18 || ^19
+
+  '@tcgdex/sdk@2.9.0':
+    resolution: {integrity: sha512-bSX4Bvj3jtxgpEgX/9gW9MOQk64tWozEF1Am1NJd7ruRqpich8wgf6rZkyQsHWy0Gnl7BBNWZCIDe4+izCcwXA==}
+    engines: {node: '>=18'}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -3300,6 +3319,18 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
+  '@cachex/core@1.0.1':
+    dependencies:
+      '@dzeio/object-util': 1.9.2
+
+  '@cachex/memory@1.0.1':
+    dependencies:
+      '@cachex/core': 1.0.1
+
+  '@cachex/web-storage@1.0.1':
+    dependencies:
+      '@cachex/core': 1.0.1
+
   '@commander-js/extra-typings@14.0.0(commander@14.0.3)':
     dependencies:
       commander: 14.0.3
@@ -3307,6 +3338,8 @@ snapshots:
   '@date-fns/tz@1.4.1': {}
 
   '@drizzle-team/brocli@0.10.2': {}
+
+  '@dzeio/object-util@1.9.2': {}
 
   '@esbuild/linux-x64@0.27.3':
     optional: true
@@ -4304,6 +4337,12 @@ snapshots:
     dependencies:
       '@tanstack/query-core': 5.90.20
       react: 19.1.0
+
+  '@tcgdex/sdk@2.9.0':
+    dependencies:
+      '@cachex/memory': 1.0.1
+      '@cachex/web-storage': 1.0.1
+      '@dzeio/object-util': 1.9.2
 
   '@types/babel__core@7.20.5':
     dependencies:
