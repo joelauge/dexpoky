@@ -63,6 +63,55 @@ async function searchTcgdex(query: string) {
   }
 }
 
+/** Phase 1 — OpenAI vision only, no TCGdex lookup. Fast. */
+router.post("/cards/identify", async (req, res) => {
+  const { imageData } = req.body as { imageData?: string };
+  if (!imageData || typeof imageData !== "string") {
+    res.status(400).json({ error: "imageData is required" });
+    return;
+  }
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5-mini",
+      max_completion_tokens: 150,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: imageData, detail: "low" } },
+            {
+              type: "text",
+              text: `You are a Pokemon trading card expert. Look at this image and respond ONLY with a JSON object (no markdown):
+{"detected":true/false,"confidence":"high"|"medium"|"low","pokemonName":"Charizard or null"}
+If no Pokemon card is clearly visible in the frame, set detected to false.`,
+            },
+          ],
+        },
+      ],
+    });
+    const raw = (completion.choices[0]?.message?.content ?? "{}").trim();
+    const cleaned = raw.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "");
+    let parsed: { detected?: boolean; confidence?: string; pokemonName?: string | null } = {};
+    try { parsed = JSON.parse(cleaned); } catch { /* ignore */ }
+    res.json({
+      detected: !!parsed.detected && !!parsed.pokemonName,
+      confidence: parsed.confidence ?? "low",
+      pokemonName: parsed.pokemonName ?? null,
+    });
+  } catch (err) {
+    req.log?.error({ err }, "Card identify failed");
+    res.status(500).json({ error: "Identify failed" });
+  }
+});
+
+/** Phase 2 — TCGdex lookup by pokemon name, returns card + variants. */
+router.get("/cards/lookup", async (req, res) => {
+  const name = String(req.query.name ?? "").trim();
+  if (!name) { res.status(400).json({ error: "name is required" }); return; }
+  const variants = await searchTcgdex(name);
+  res.json({ card: variants[0] ?? null, variants });
+});
+
 router.post("/cards/detect", async (req, res) => {
   const { imageData } = req.body as { imageData?: string };
 
