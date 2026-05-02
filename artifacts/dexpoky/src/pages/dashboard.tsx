@@ -40,56 +40,56 @@ export default function Dashboard() {
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="shadow-sm border-border/50">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="bg-primary/10 p-3 rounded-xl">
-                  <DollarSign className="h-6 w-6 text-primary" />
+              <CardContent className="p-5 flex items-center gap-3">
+                <div className="bg-primary/10 p-3 rounded-xl shrink-0">
+                  <DollarSign className="h-5 w-5 text-primary" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Value</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Value</p>
                   {statsLoading ? <Skeleton className="h-7 w-24 mt-1" /> : (
-                    <h3 className="text-2xl font-bold tracking-tight">{formatCurrency(stats?.totalValue)}</h3>
+                    <h3 className="text-xl font-bold tracking-tight truncate">{formatCurrency(stats?.totalValue)}</h3>
                   )}
                 </div>
               </CardContent>
             </Card>
             
             <Card className="shadow-sm border-border/50">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="bg-blue-500/10 p-3 rounded-xl">
-                  <CreditCard className="h-6 w-6 text-blue-500" />
+              <CardContent className="p-5 flex items-center gap-3">
+                <div className="bg-blue-500/10 p-3 rounded-xl shrink-0">
+                  <CreditCard className="h-5 w-5 text-blue-500" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Cards</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Cards</p>
                   {statsLoading ? <Skeleton className="h-7 w-16 mt-1" /> : (
-                    <h3 className="text-2xl font-bold tracking-tight">{stats?.totalCards || 0}</h3>
+                    <h3 className="text-xl font-bold tracking-tight">{stats?.totalCards || 0}</h3>
                   )}
                 </div>
               </CardContent>
             </Card>
 
             <Card className="shadow-sm border-border/50">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="bg-emerald-500/10 p-3 rounded-xl">
-                  <TrendingUp className="h-6 w-6 text-emerald-500" />
+              <CardContent className="p-5 flex items-center gap-3">
+                <div className="bg-emerald-500/10 p-3 rounded-xl shrink-0">
+                  <TrendingUp className="h-5 w-5 text-emerald-500" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">For Sale Value</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">For Sale Value</p>
                   {statsLoading ? <Skeleton className="h-7 w-24 mt-1" /> : (
-                    <h3 className="text-2xl font-bold tracking-tight">{formatCurrency(stats?.forSaleValue)}</h3>
+                    <h3 className="text-xl font-bold tracking-tight truncate">{formatCurrency(stats?.forSaleValue)}</h3>
                   )}
                 </div>
               </CardContent>
             </Card>
 
             <Card className="shadow-sm border-border/50">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="bg-purple-500/10 p-3 rounded-xl">
-                  <Layers className="h-6 w-6 text-purple-500" />
+              <CardContent className="p-5 flex items-center gap-3">
+                <div className="bg-purple-500/10 p-3 rounded-xl shrink-0">
+                  <Layers className="h-5 w-5 text-purple-500" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Active Listings</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active Listings</p>
                   {statsLoading ? <Skeleton className="h-7 w-16 mt-1" /> : (
-                    <h3 className="text-2xl font-bold tracking-tight">{stats?.totalListings || 0}</h3>
+                    <h3 className="text-xl font-bold tracking-tight">{stats?.totalListings || 0}</h3>
                   )}
                 </div>
               </CardContent>
