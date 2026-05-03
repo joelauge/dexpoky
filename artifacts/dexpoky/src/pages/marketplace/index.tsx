@@ -3,7 +3,7 @@ import { Layout } from "@/components/layout";
 import { useListListings, ListListingsStatus } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Store, ArrowRight, Gavel, Sparkles } from "lucide-react";
+import { Search, Store, ArrowRight, Gavel } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Show } from "@clerk/react";
@@ -30,9 +30,11 @@ export default function Marketplace() {
       <Show when="signed-out">
         <div className="bg-gradient-to-br from-primary/15 via-primary/5 to-background border-b">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 text-center">
-            <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-primary text-primary-foreground shadow-lg mb-6">
-              <Sparkles className="h-7 w-7" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="DexPoky"
+              className="h-32 w-32 sm:h-40 sm:w-40 object-contain mx-auto mb-6 drop-shadow-xl"
+            />
             <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">
               Welcome to <span className="text-primary">DexPoky</span>!
             </h1>
