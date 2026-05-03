@@ -62,6 +62,7 @@ export interface PricingData {
   trendPrice: number | null;
   source: "tcgplayer" | "cardmarket" | null;
   psaEstimates: Record<number, number> | null;
+  isFallback?: boolean;
 }
 
 function extractPricing(card: PtcgCard): PricingData {
@@ -112,22 +113,39 @@ async function fetchPricing(cardName: string): Promise<PricingData> {
  * Fetch pricing for a specific printing using its TCGdex card ID (e.g. "xy8-024").
  * Converts to PTCG.io format by stripping leading zeros from the number segment.
  */
-export async function fetchPricingById(tcgdexId: string): Promise<PricingData> {
+export async function fetchPricingById(tcgdexId: string, fallbackName?: string): Promise<PricingData> {
   const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
   try {
     const dashIdx = tcgdexId.lastIndexOf("-");
     if (dashIdx === -1) return empty;
     const setId = tcgdexId.slice(0, dashIdx);
     const rawNum = tcgdexId.slice(dashIdx + 1);
-    // PTCG.io strips leading zeros; also try original in case num is non-numeric (e.g. "SWSH001")
-    const stripped = String(parseInt(rawNum, 10));
-    const candidates = stripped === "NaN" ? [tcgdexId] : [`${setId}-${stripped}`, tcgdexId];
+    // Strip leading zeros from card number (e.g. "028" → "28")
+    const strippedNum = String(parseInt(rawNum, 10));
+    // Also strip leading zeros from the numeric suffix of the set prefix
+    // e.g. TCGdex uses "me03" but PTCG.io uses "me3"
+    const setIdNorm = setId.replace(/([a-z]+)0+(\d)/i, "$1$2");
+    const seen = new Set<string>();
+    const candidates: string[] = [];
+    for (const sid of [setIdNorm, setId]) {
+      for (const num of strippedNum === "NaN" ? [rawNum] : [strippedNum, rawNum]) {
+        const id = `${sid}-${num}`;
+        if (!seen.has(id)) { seen.add(id); candidates.push(id); }
+      }
+    }
     for (const id of candidates) {
       const res = await fetch(`${PTCGIO_BASE}/cards/${id}`);
       if (res.ok) {
         const data = (await res.json()) as { data: PtcgCard };
         const pricing = extractPricing(data.data);
         if (pricing.marketPrice != null || pricing.lowPrice != null) return pricing;
+      }
+    }
+    // No prices found for this specific printing — fall back to name-based search
+    if (fallbackName) {
+      const namePricing = await fetchPricing(fallbackName);
+      if (namePricing.marketPrice != null || namePricing.lowPrice != null) {
+        return { ...namePricing, isFallback: true };
       }
     }
     return empty;

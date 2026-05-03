@@ -116,9 +116,10 @@ router.get("/cards/lookup", async (req, res) => {
 
 router.get("/cards/pricing", async (req, res) => {
   const cardId = String(req.query.cardId ?? "").trim();
+  const name = String(req.query.name ?? "").trim() || undefined;
   if (!cardId) { res.status(400).json({ error: "cardId is required" }); return; }
   res.setHeader("Cache-Control", "no-store");
-  const pricing = await fetchPricingById(cardId);
+  const pricing = await fetchPricingById(cardId, name);
   res.json({ pricing });
 });
 

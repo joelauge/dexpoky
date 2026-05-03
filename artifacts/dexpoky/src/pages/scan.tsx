@@ -34,6 +34,7 @@ interface PricingData {
   trendPrice: number | null;
   source: "tcgplayer" | "cardmarket" | null;
   psaEstimates: Record<string, number> | null;
+  isFallback?: boolean;
 }
 
 type Phase = "idle" | "scanning" | "confirming" | "done";
@@ -217,7 +218,7 @@ export default function ScanPage() {
     setPricingLoading(true);
     try {
       const res = await fetch(
-        `${BASE}/api/cards/pricing?cardId=${encodeURIComponent(v.id)}`,
+        `${BASE}/api/cards/pricing?cardId=${encodeURIComponent(v.id)}&name=${encodeURIComponent(v.name)}`,
         { cache: "no-store" },
       );
       if (res.ok) {
@@ -422,9 +423,14 @@ export default function ScanPage() {
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-primary" />
                       <h3 className="font-semibold text-sm">Market Value</h3>
-                      {pricing?.source && (
-                        <span className="text-[10px] text-muted-foreground ml-auto capitalize">{pricing.source === "tcgplayer" ? "TCGPlayer" : "CardMarket"}</span>
-                      )}
+                      <div className="ml-auto flex items-center gap-1.5">
+                        {pricing?.isFallback && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">similar printing</span>
+                        )}
+                        {pricing?.source && (
+                          <span className="text-[10px] text-muted-foreground capitalize">{pricing.source === "tcgplayer" ? "TCGPlayer" : "CardMarket"}</span>
+                        )}
+                      </div>
                     </div>
                     {pricing && (pricing.marketPrice != null || pricing.lowPrice != null) ? (
                       <div className="grid grid-cols-3 gap-3">
