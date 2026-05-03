@@ -20,9 +20,27 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Loader2, Check, ScanLine } from "lucide-react";
+import { ArrowLeft, Loader2, Check, ScanLine, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { formatLabel } from "@/lib/constants";
+
+const LAST_CAT_KEY = "dexpoky:lastCategoryId";
+
+function readLastCategoryId(): number | undefined {
+  try {
+    const v = localStorage.getItem(LAST_CAT_KEY);
+    const n = v ? parseInt(v, 10) : NaN;
+    return isNaN(n) ? undefined : n;
+  } catch {
+    return undefined;
+  }
+}
+
+function saveLastCategoryId(id: number | undefined) {
+  try {
+    if (id != null) localStorage.setItem(LAST_CAT_KEY, String(id));
+  } catch { /* ignore */ }
+}
 
 const cardSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -82,6 +100,7 @@ export default function NewCard() {
       rarity:         CreateCardBodyRarity.common,
       condition:      CreateCardBodyCondition.near_mint,
       estimatedValue: scanValue ? Number(scanValue) : undefined,
+      categoryId:     readLastCategoryId(),
       forSale:        false,
       notes:          "",
       imageUrl:       scanImage     || null,
@@ -94,6 +113,7 @@ export default function NewCard() {
   const onSubmit = (data: CardFormValues) => {
     createCard.mutate({ data }, {
       onSuccess: (newCard) => {
+        saveLastCategoryId(data.categoryId);
         toast.success("Card added to your collection!");
         setLocation(`/collection/${newCard.id}`);
       },
@@ -146,9 +166,9 @@ export default function NewCard() {
             </div>
           </div>
 
-          {/* Condition picker */}
+          {/* Condition + Category */}
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div>
                 <p className="text-sm font-semibold mb-3">What condition is your card in?</p>
                 <div className="space-y-2">
@@ -177,10 +197,47 @@ export default function NewCard() {
                 </div>
               </div>
 
+              {/* Category picker */}
+              {categories && categories.length > 0 && (
+                <FormField
+                  control={form.control}
+                  name="categoryId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center gap-2 mb-2">
+                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                        <FormLabel className="text-sm font-semibold !mb-0">File in category</FormLabel>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {categories.map((cat) => {
+                          const active = field.value === cat.id;
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => field.onChange(active ? undefined : cat.id)}
+                              className={`px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
+                                active
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-background hover:border-primary/50 hover:bg-muted/30"
+                              }`}
+                            >
+                              {active && <Check className="inline h-3 w-3 mr-1 -mt-0.5" />}
+                              {cat.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <Button
                 type="submit"
                 disabled={createCard.isPending}
-                className="w-full rounded-xl h-12 mt-6 text-base font-semibold shadow-md"
+                className="w-full rounded-xl h-12 text-base font-semibold shadow-md"
               >
                 {createCard.isPending
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
