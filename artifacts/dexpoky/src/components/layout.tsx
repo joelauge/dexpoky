@@ -13,6 +13,7 @@ import {
   User,
   LogOut,
   LogIn,
+  Scan,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -297,6 +298,19 @@ export function Layout({ children }: LayoutProps) {
         <main className="flex-1 min-w-0 max-w-[100vw]">
           {children}
         </main>
+
+        {/* Floating Scan FAB — hidden on /scan page */}
+        {location !== "/scan" && (
+          <Link href="/scan">
+            <button
+              className="fixed bottom-6 right-5 z-50 flex items-center gap-2 bg-primary text-primary-foreground shadow-xl rounded-full px-5 py-3.5 font-bold text-sm active:scale-95 transition-transform hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              aria-label="Scan a card"
+            >
+              <Scan className="h-5 w-5" />
+              <span>Scan</span>
+            </button>
+          </Link>
+        )}
       </div>
     </TooltipProvider>
   );

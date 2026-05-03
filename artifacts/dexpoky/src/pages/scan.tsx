@@ -230,7 +230,11 @@ export default function ScanPage() {
     }
   }, []);
 
-  useEffect(() => () => stopStream(), [stopStream]);
+  // Auto-start camera when the page first mounts
+  useEffect(() => {
+    startCamera();
+    return () => stopStream();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayCard = selectedVariant ?? card;
   const scanning    = phase === "scanning";
