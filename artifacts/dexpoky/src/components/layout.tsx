@@ -103,7 +103,7 @@ export function Layout({ children }: LayoutProps) {
       <aside className="hidden md:flex flex-col w-64 border-r bg-card h-screen sticky top-0">
         <div className="p-5 border-b">
           <Link href="/">
-            <img src="/logo.png" alt="DexPoky" className="h-14 w-14 object-contain cursor-pointer" />
+            <img src="/logo.png" alt="DexPoky" className="h-40 w-40 object-contain cursor-pointer" />
           </Link>
         </div>
         <ScrollArea className="flex-1 px-4 py-6">
