@@ -1,4 +1,5 @@
 import { Layout } from "@/components/layout";
+import { HoloCard } from "@/components/holo-card";
 import { useGetCard, useDeleteCard, useUpdateCard, UpdateCardBodyStatus } from "@workspace/api-client-react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -149,19 +150,7 @@ export default function CardDetail() {
         <div className="flex flex-col lg:flex-row gap-12">
           {/* Card Image Area */}
           <div className="w-full lg:w-1/2 lg:max-w-md mx-auto">
-            <div className="relative aspect-[3/4] bg-muted/30 border rounded-2xl overflow-hidden shadow-xl group">
-              {card.imageUrl ? (
-                <img 
-                  src={card.imageUrl} 
-                  alt={card.name} 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                  <ImageIcon className="h-20 w-20 mb-4 opacity-50" />
-                  <span className="font-medium uppercase tracking-widest opacity-50">No Image Available</span>
-                </div>
-              )}
+            <HoloCard imageUrl={card.imageUrl} name={card.name}>
               {card.forSale && (
                 <div className="absolute top-4 right-4">
                   <Badge className="bg-primary text-primary-foreground font-bold shadow-lg border-white/20 text-sm px-3 py-1">
@@ -169,10 +158,7 @@ export default function CardDetail() {
                   </Badge>
                 </div>
               )}
-              
-              {/* Fake holo overlay effect on hover */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 mix-blend-overlay transition-opacity duration-700 pointer-events-none" />
-            </div>
+            </HoloCard>
           </div>
 
           {/* Details Area */}
