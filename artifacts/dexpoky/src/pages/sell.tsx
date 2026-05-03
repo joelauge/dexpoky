@@ -16,7 +16,9 @@ export default function Sell() {
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
 
-  const { data: cards, isLoading } = useListCards({ forSale: false });
+  const { data: allCards, isLoading } = useListCards({});
+  // Exclude cards already listed for sale
+  const cards = allCards?.filter(c => !c.forSale);
   const createListing = useCreateListing();
 
   const selectedCard = cards?.find(c => c.id === selectedCardId);
