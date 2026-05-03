@@ -111,6 +111,12 @@ export default function Profile() {
     enabled: !!user?.id,
   });
 
+  const { data: adminCheck } = useQuery<{ isAdmin: boolean }>({
+    queryKey: ["/api/admin/me"],
+    queryFn: () => fetch("/api/admin/me").then(r => r.json()),
+    enabled: !!user,
+  });
+
   const { data: earnings } = useQuery<EarningsData>({
     queryKey: ["/api/users/me/earnings"],
     queryFn: () => fetch("/api/users/me/earnings").then(r => r.json()),
@@ -367,6 +373,18 @@ export default function Profile() {
               </p>
             )}
           </div>
+
+          {adminCheck?.isAdmin && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-amber-900">Admin Tools</div>
+                <p className="text-xs text-amber-800/80">Process pending seller payout requests.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setLocation("/admin/payouts")}>
+                Open payouts
+              </Button>
+            </div>
+          )}
 
           {/* Earnings & Payouts */}
           <div className="bg-card border rounded-2xl p-6 mb-6 space-y-4">

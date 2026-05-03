@@ -13,6 +13,7 @@ import priceHistoryRouter from "./price-history";
 import storageRouter from "./storage";
 import shortenRouter from "./shorten";
 import billingRouter from "./billing";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(priceHistoryRouter);
 router.use(storageRouter);
 router.use(shortenRouter);
 router.use(billingRouter);
+router.use(adminRouter);
 
 export default router;
