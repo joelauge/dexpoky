@@ -158,11 +158,11 @@ importers:
   .:
     dependencies:
       stripe:
-        specifier: ^22.1.0
-        version: 22.1.0(@types/node@25.3.5)
+        specifier: ^20.0.0
+        version: 20.0.0(@types/node@25.3.5)
       stripe-replit-sync:
         specifier: ^1.0.0
-        version: 1.0.0(stripe@22.1.0(@types/node@25.3.5))
+        version: 1.0.0(stripe@20.0.0(@types/node@25.3.5))
     devDependencies:
       prettier:
         specifier: ^3.8.1
@@ -698,8 +698,11 @@ importers:
   scripts:
     dependencies:
       stripe:
-        specifier: ^17
-        version: 17.7.0
+        specifier: ^20
+        version: 20.0.0(@types/node@25.3.5)
+      stripe-replit-sync:
+        specifier: '*'
+        version: 1.0.0(stripe@20.0.0(@types/node@25.3.5))
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -3416,11 +3419,11 @@ packages:
     resolution: {integrity: sha512-aT2BU9KkizY9SATf14WhhYVv2uOapBWX0OFWF4xvcj1mPaNotlSc2CsxpS4DS46ZueSppmCF5BX1sNYBtwBvfw==}
     engines: {node: '>=12.*'}
 
-  stripe@22.1.0:
-    resolution: {integrity: sha512-w/xHyJGxXWnLPbNHG13sz/fae0MrFGC80Oz7YbICQymbfpqfEcsoG+6yG+9BWb81PWc4rrkeSO4wmTcmefmbLw==}
-    engines: {node: '>=18'}
+  stripe@20.0.0:
+    resolution: {integrity: sha512-EaZeWpbJOCcDytdjKSwdrL5BxzbDGNueiCfHjHXlPdBQvLqoxl6AAivC35SPzTmVXJb5duXQlXFGS45H0+e6Gg==}
+    engines: {node: '>=16'}
     peerDependencies:
-      '@types/node': '>=18'
+      '@types/node': '>=16'
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -6542,11 +6545,11 @@ snapshots:
       - pg-native
       - utf-8-validate
 
-  stripe-replit-sync@1.0.0(stripe@22.1.0(@types/node@25.3.5)):
+  stripe-replit-sync@1.0.0(stripe@20.0.0(@types/node@25.3.5)):
     dependencies:
       pg: 8.20.0
       pg-node-migrations: 0.0.8
-      stripe: 22.1.0(@types/node@25.3.5)
+      stripe: 20.0.0(@types/node@25.3.5)
       ws: 8.20.0
       yesql: 7.0.0
     transitivePeerDependencies:
@@ -6559,7 +6562,9 @@ snapshots:
       '@types/node': 25.3.5
       qs: 6.15.0
 
-  stripe@22.1.0(@types/node@25.3.5):
+  stripe@20.0.0(@types/node@25.3.5):
+    dependencies:
+      qs: 6.15.0
     optionalDependencies:
       '@types/node': 25.3.5
 
