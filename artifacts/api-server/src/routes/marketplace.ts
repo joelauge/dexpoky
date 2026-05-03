@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { listingsTable, cardsTable, categoriesTable } from "@workspace/db";
-import { eq, sql, ilike, and, gte, lte, type SQL } from "drizzle-orm";
+import { eq, sql, and, gte, lte, type SQL } from "drizzle-orm";
+import { getAuth } from "@clerk/express";
 import {
   ListListingsQueryParams,
   CreateListingBody,
@@ -41,7 +42,12 @@ async function enrichListing(listing: typeof listingsTable.$inferSelect) {
     .where(eq(cardsTable.id, listing.cardId));
   return {
     ...listing,
-    price: parseFloat(listing.price),
+    price: parseFloat(String(listing.price)),
+    currentBid: listing.currentBid ? parseFloat(String(listing.currentBid)) : null,
+    reservePrice: listing.reservePrice ? parseFloat(String(listing.reservePrice)) : null,
+    startingBid: listing.startingBid ? parseFloat(String(listing.startingBid)) : null,
+    buyNowPrice: listing.buyNowPrice ? parseFloat(String(listing.buyNowPrice)) : null,
+    minBidIncrement: listing.minBidIncrement ? parseFloat(String(listing.minBidIncrement)) : null,
     card: card ?? null,
   };
 }
@@ -83,14 +89,32 @@ router.post("/marketplace", async (req, res) => {
     res.status(400).json({ error: "Invalid request body", details: parsed.error });
     return;
   }
+
+  const auth = getAuth(req as never);
+  const sellerClerkId = auth?.userId ?? null;
+
+  const listingType = req.body.listingType === "auction" ? "auction" : "buy_now";
+
+  const values: Record<string, unknown> = {
+    cardId: parsed.data.cardId,
+    price: String(parsed.data.price),
+    description: parsed.data.description ?? null,
+    status: "active",
+    listingType,
+    sellerClerkId,
+  };
+
+  if (listingType === "auction") {
+    if (req.body.startingBid) values.startingBid = String(req.body.startingBid);
+    if (req.body.reservePrice) values.reservePrice = String(req.body.reservePrice);
+    if (req.body.auctionEndTime) values.auctionEndTime = new Date(req.body.auctionEndTime);
+    if (req.body.minBidIncrement) values.minBidIncrement = String(req.body.minBidIncrement);
+    if (req.body.buyNowPrice) values.buyNowPrice = String(req.body.buyNowPrice);
+  }
+
   const [listing] = await db
     .insert(listingsTable)
-    .values({
-      cardId: parsed.data.cardId,
-      price: String(parsed.data.price),
-      description: parsed.data.description ?? null,
-      status: "active",
-    })
+    .values(values as Parameters<typeof db.insert>[0] extends never ? never : never)
     .returning();
 
   await db

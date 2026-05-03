@@ -1,5 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useUser, useClerk, Show } from "@clerk/react";
 import {
   LayoutDashboard,
   Layers,
@@ -9,6 +10,9 @@ import {
   Menu,
   Tags,
   ScanLine,
+  User,
+  LogOut,
+  LogIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -29,6 +33,88 @@ function PokeBallIcon({ className }: { className?: string }) {
       <circle cx="20" cy="20" r="5.5" fill="white" stroke="#1e293b" strokeWidth="2.5" />
       <circle cx="20" cy="20" r="2.5" fill="#f8fafc" />
     </svg>
+  );
+}
+
+function UserWidget({ collapsed }: { collapsed: boolean }) {
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const [, setLocation] = useLocation();
+
+  return (
+    <Show
+      when="signed-in"
+      fallback={
+        collapsed ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/sign-in">
+                <div className="flex items-center justify-center p-2.5 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer transition-colors">
+                  <LogIn className="h-5 w-5 shrink-0" />
+                </div>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">Sign In</TooltipContent>
+          </Tooltip>
+        ) : (
+          <div className="px-2 space-y-1">
+            <Link href="/sign-in">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer transition-colors text-sm">
+                <LogIn className="h-4 w-4 shrink-0" />
+                Sign In
+              </div>
+            </Link>
+            <Link href="/sign-up">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer transition-colors text-sm font-medium">
+                <User className="h-4 w-4 shrink-0" />
+                Create Account
+              </div>
+            </Link>
+          </div>
+        )
+      }
+    >
+      {collapsed ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link href="/profile">
+              <div className="flex items-center justify-center p-2.5 rounded-md cursor-pointer hover:bg-secondary transition-colors">
+                {user?.imageUrl ? (
+                  <img src={user.imageUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                ) : (
+                  <User className="h-5 w-5 text-muted-foreground" />
+                )}
+              </div>
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right">{user?.firstName ?? "Profile"}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <div className="mx-2 rounded-xl border bg-muted/30 p-3">
+          <Link href="/profile">
+            <div className="flex items-center gap-2.5 cursor-pointer mb-2 hover:opacity-80 transition-opacity">
+              {user?.imageUrl ? (
+                <img src={user.imageUrl} alt="" className="h-8 w-8 rounded-full object-cover border border-border shrink-0" />
+              ) : (
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground truncate">{user?.firstName ?? "My Profile"}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{user?.primaryEmailAddress?.emailAddress}</p>
+              </div>
+            </div>
+          </Link>
+          <button
+            onClick={() => signOut(() => setLocation("/"))}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+          >
+            <LogOut className="h-3 w-3" /> Sign Out
+          </button>
+        </div>
+      )}
+    </Show>
   );
 }
 
@@ -67,7 +153,7 @@ export function Layout({ children }: LayoutProps) {
           );
         })}
       </div>
-      <div className="space-y-1">
+      <div className="space-y-1 mb-8">
         <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Actions</h3>
         {quickActions.map((item) => (
           <Link key={item.href} href={item.href}>
@@ -77,6 +163,34 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </Link>
         ))}
+      </div>
+      <div className="space-y-1">
+        <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Account</h3>
+        <Show
+          when="signed-in"
+          fallback={
+            <>
+              <Link href="/sign-in">
+                <div className="flex items-center gap-3 px-4 py-2.5 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer transition-colors">
+                  <LogIn className="h-5 w-5" /><span>Sign In</span>
+                </div>
+              </Link>
+              <Link href="/sign-up">
+                <div className="flex items-center gap-3 px-4 py-2.5 rounded-md text-primary hover:bg-secondary cursor-pointer transition-colors font-medium">
+                  <User className="h-5 w-5" /><span>Create Account</span>
+                </div>
+              </Link>
+            </>
+          }
+        >
+          <Link href="/profile">
+            <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
+              location === "/profile" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}>
+              <User className="h-5 w-5" /><span>Profile</span>
+            </div>
+          </Link>
+        </Show>
       </div>
     </>
   );
@@ -110,12 +224,7 @@ export function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Desktop Sidebar */}
-        <aside
-          className={`hidden md:flex flex-col border-r bg-card h-screen sticky top-0 transition-all duration-300 ${
-            collapsed ? "w-16" : "w-64"
-          }`}
-        >
-          {/* Logo + toggle button */}
+        <aside className={`hidden md:flex flex-col border-r bg-card h-screen sticky top-0 transition-all duration-300 ${collapsed ? "w-16" : "w-64"}`}>
           <div className={`border-b flex flex-col items-center transition-all duration-300 ${collapsed ? "p-3 gap-2" : "p-5 gap-3"}`}>
             {!collapsed && (
               <Link href="/">
@@ -127,19 +236,12 @@ export function Layout({ children }: LayoutProps) {
               className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-secondary transition-colors"
               aria-label={collapsed ? "Expand menu" : "Collapse menu"}
             >
-              {collapsed
-                ? <PokeBallIcon className="h-7 w-7" />
-                : <Menu className="h-4 w-4 text-muted-foreground" />
-              }
+              {collapsed ? <PokeBallIcon className="h-7 w-7" /> : <Menu className="h-4 w-4 text-muted-foreground" />}
             </button>
           </div>
 
-          {/* Nav items */}
           <ScrollArea className="flex-1 py-4">
-            {/* Section label */}
-            {!collapsed && (
-              <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Menu</p>
-            )}
+            {!collapsed && <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Menu</p>}
             <div className={`space-y-1 mb-6 ${collapsed ? "px-2" : "px-2"}`}>
               {navItems.map((item) => {
                 const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -162,9 +264,7 @@ export function Layout({ children }: LayoutProps) {
               })}
             </div>
 
-            {!collapsed && (
-              <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Actions</p>
-            )}
+            {!collapsed && <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Actions</p>}
             <div className={`space-y-1 ${collapsed ? "px-2" : "px-2"}`}>
               {quickActions.map((item) => {
                 const btn = (
@@ -186,6 +286,11 @@ export function Layout({ children }: LayoutProps) {
               })}
             </div>
           </ScrollArea>
+
+          {/* User widget at bottom */}
+          <div className="border-t py-3">
+            <UserWidget collapsed={collapsed} />
+          </div>
         </aside>
 
         {/* Main Content */}
