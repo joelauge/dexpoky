@@ -381,7 +381,7 @@ export default function CardDetail() {
         </div>
 
         {/* ── DETAILS ────────────────────────────────────────────────────── */}
-        <div className="flex flex-col lg:flex-row gap-10 mt-10">
+        <div className="flex flex-col lg:flex-row gap-10 mt-4">
 
           {/* ── LEFT: Sell CTA ─────────────────────────────────────────── */}
           <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0">
@@ -491,7 +491,7 @@ export default function CardDetail() {
           </div>
 
           {/* ── RIGHT: Chart + Printings ──────────────────────────────── */}
-          <div className="flex-1 min-w-0 pt-6">
+          <div className="flex-1 min-w-0">
             {/* Price history chart */}
             <PriceHistoryChart cardId={id} />
 
