@@ -73,7 +73,7 @@ router.post("/cards/identify", async (req, res) => {
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-5-mini",
-      max_completion_tokens: 150,
+      max_completion_tokens: 2000,
       messages: [
         {
           role: "user",
@@ -97,6 +97,7 @@ Rules:
       ],
     });
     const raw = (completion.choices[0]?.message?.content ?? "{}").trim();
+    req.log.info({ imageSizeKB: Math.round((imageData.length * 3) / 4 / 1024), rawResponse: raw }, "identify response");
     const cleaned = raw.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "");
     let parsed: { detected?: boolean; confidence?: string; pokemonName?: string | null } = {};
     try { parsed = JSON.parse(cleaned); } catch { /* ignore */ }

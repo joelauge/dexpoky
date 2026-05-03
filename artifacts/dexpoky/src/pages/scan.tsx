@@ -196,7 +196,7 @@ export default function ScanPage() {
             muted
             className="absolute inset-0 w-full h-full object-cover"
           />
-          <canvas ref={canvasRef} className="hidden" />
+          <canvas ref={canvasRef} style={{ position: "absolute", top: -9999, left: -9999, width: 1, height: 1 }} />
 
           {/* Vignette outside guide */}
           {scanning && (
