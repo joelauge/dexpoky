@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -41,8 +42,22 @@ export default function CardDetail() {
 
   const deleteCard = useDeleteCard();
   const updateCard = useUpdateCard();
+  const qc = useQueryClient();
   const [sellPrice, setSellPrice] = useState<string>("");
   const [isSellOpen, setIsSellOpen] = useState(false);
+
+  const delistCard = useMutation({
+    mutationFn: async (cardId: number) => {
+      const res = await fetch(`/api/cards/${cardId}/listing`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) throw new Error("Failed to delist");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/cards", id] });
+      qc.invalidateQueries({ queryKey: ["/api/marketplace"] });
+      toast.success("Card removed from marketplace");
+    },
+    onError: () => toast.error("Failed to remove listing"),
+  });
 
   const handleDelete = () => {
     deleteCard.mutate({ id }, {
@@ -75,16 +90,7 @@ export default function CardDetail() {
   };
 
   const handleDelist = () => {
-    updateCard.mutate({
-      id,
-      data: {
-        forSale: false,
-        listingPrice: null
-      }
-    }, {
-      onSuccess: () => toast.success("Card removed from marketplace"),
-      onError: () => toast.error("Failed to update card")
-    });
+    delistCard.mutate(id);
   };
 
   if (isLoading) {
@@ -231,8 +237,8 @@ export default function CardDetail() {
 
             <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row gap-4">
               {card.forSale ? (
-                <Button variant="secondary" size="lg" className="flex-1" onClick={handleDelist} disabled={updateCard.isPending}>
-                  <Store className="h-5 w-5 mr-2" /> Remove from Marketplace
+                <Button variant="secondary" size="lg" className="flex-1" onClick={handleDelist} disabled={delistCard.isPending}>
+                  <Store className="h-5 w-5 mr-2" /> {delistCard.isPending ? "Removing…" : "Remove from Marketplace"}
                 </Button>
               ) : (
                 <Dialog open={isSellOpen} onOpenChange={setIsSellOpen}>

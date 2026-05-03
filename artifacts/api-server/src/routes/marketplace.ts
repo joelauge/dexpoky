@@ -182,6 +182,35 @@ router.put("/marketplace/:id", async (req, res) => {
   res.json(await enrichListing(updated));
 });
 
+router.delete("/cards/:cardId/listing", async (req, res) => {
+  const cardId = parseInt(req.params.cardId);
+  if (isNaN(cardId)) {
+    res.status(400).json({ error: "Invalid card id" });
+    return;
+  }
+  const [listing] = await db
+    .select()
+    .from(listingsTable)
+    .where(and(eq(listingsTable.cardId, cardId), eq(listingsTable.status, "active")));
+
+  if (!listing) {
+    res.status(404).json({ error: "No active listing found for this card" });
+    return;
+  }
+
+  await db
+    .update(listingsTable)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(eq(listingsTable.id, listing.id));
+
+  await db
+    .update(cardsTable)
+    .set({ forSale: false, listingPrice: null })
+    .where(eq(cardsTable.id, cardId));
+
+  res.status(204).send();
+});
+
 router.delete("/marketplace/:id", async (req, res) => {
   const parsed = DeleteListingParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
