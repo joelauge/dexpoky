@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
-import { ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink, ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2 } from "lucide-react";
+import {
+  ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink,
+  ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2, Calendar, Clock,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -54,7 +57,7 @@ export default function CardDetail() {
   const [, setLocation] = useLocation();
 
   const { data: card, isLoading } = useGetCard(id, {
-    query: { enabled: !!id, queryKey: ['/api/cards', id] }
+    query: { enabled: !!id, queryKey: ["/api/cards", id] },
   });
 
   const deleteCard = useDeleteCard();
@@ -64,7 +67,7 @@ export default function CardDetail() {
   const [isSellOpen, setIsSellOpen] = useState(false);
   const [listedId, setListedId] = useState<number | null>(null);
 
-  // ── Other Printings ─────────────────────────────────────────────────────────
+  // ── Other Printings ────────────────────────────────────────────────────────
   const [printings, setPrintings] = useState<TcgVariant[]>([]);
   const [printingsLoading, setPrintingsLoading] = useState(false);
   const [selectedPrinting, setSelectedPrinting] = useState<TcgVariant | null>(null);
@@ -95,9 +98,9 @@ export default function CardDetail() {
     setPrintingPricing(null);
     setPrintingPricingLoading(true);
     try {
-      const params = new URLSearchParams({ cardId: v.id, name: v.name });
-      if (card?.rarity) params.set("rarity", card.rarity);
-      const res = await fetch(`/api/cards/pricing?${params}`, { cache: "no-store" });
+      const p = new URLSearchParams({ cardId: v.id, name: v.name });
+      if (card?.rarity) p.set("rarity", card.rarity);
+      const res = await fetch(`/api/cards/pricing?${p}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json() as { pricing: PrintingPricing };
         setPrintingPricing(data.pricing ?? null);
@@ -106,22 +109,20 @@ export default function CardDetail() {
       setPrintingPricingLoading(false);
     }
   }, [selectedPrinting?.id, card?.rarity]);
-  // ────────────────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
 
-  // ── Navigation ──────────────────────────────────────────────────────────────
+  // ── Navigation ────────────────────────────────────────────────────────────
   const { data: allCards } = useListCards();
   const [navScope, setNavScope] = useState<"category" | "all">("category");
 
-  // Once the card loads, default to category scope only if it has one
   useEffect(() => {
     if (card) setNavScope(card.categoryId ? "category" : "all");
   }, [card?.id]);
 
   const navList = useMemo(() => {
     if (!allCards) return [];
-    if (navScope === "category" && card?.categoryId) {
+    if (navScope === "category" && card?.categoryId)
       return allCards.filter((c) => c.categoryId === card.categoryId);
-    }
     return allCards;
   }, [allCards, navScope, card?.categoryId]);
 
@@ -139,7 +140,7 @@ export default function CardDetail() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [prevCard, nextCard]);
-  // ────────────────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
 
   const listCard = useMutation({
     mutationFn: async ({ cardId, price }: { cardId: number; price: number }) => {
@@ -178,43 +179,39 @@ export default function CardDetail() {
         toast.success("Card deleted");
         setLocation("/collection");
       },
-      onError: () => toast.error("Failed to delete card")
+      onError: () => toast.error("Failed to delete card"),
     });
   };
 
   const handleSell = () => {
     const price = parseFloat(sellPrice);
-    if (!sellPrice || price <= 0) {
-      toast.error("Please enter a valid price");
-      return;
-    }
+    if (!sellPrice || price <= 0) { toast.error("Please enter a valid price"); return; }
     listCard.mutate({ cardId: id, price });
   };
 
   const handleSellDialogChange = (open: boolean) => {
     setIsSellOpen(open);
-    if (!open) {
-      setSellPrice("");
-      setListedId(null);
-      listCard.reset();
-    }
+    if (!open) { setSellPrice(""); setListedId(null); listCard.reset(); }
   };
 
-  const handleDelist = () => {
-    delistCard.mutate(id);
-  };
-
+  // ── Loading skeleton ───────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <Layout>
-        <div className="max-w-5xl mx-auto px-4 py-8">
-          <Skeleton className="h-8 w-40 mb-8" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            <Skeleton className="aspect-[3/4] w-full rounded-2xl" />
-            <div className="space-y-6">
-              <Skeleton className="h-12 w-3/4" />
-              <Skeleton className="h-6 w-1/2" />
-              <Skeleton className="h-24 w-full" />
+        <div className="relative overflow-hidden bg-slate-900/80 animate-pulse">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16">
+            <Skeleton className="h-8 w-32 mb-8 bg-white/10" />
+            <div className="flex flex-col lg:flex-row gap-10">
+              <Skeleton className="w-full lg:w-[340px] aspect-[3/4] rounded-2xl bg-white/10" />
+              <div className="flex-1 space-y-5 pt-2">
+                <Skeleton className="h-12 w-3/4 bg-white/10" />
+                <Skeleton className="h-6 w-1/2 bg-white/10" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-7 w-20 rounded-full bg-white/10" />
+                  <Skeleton className="h-7 w-24 rounded-full bg-white/10" />
+                </div>
+                <Skeleton className="h-28 w-full rounded-2xl bg-white/10" />
+              </div>
             </div>
           </div>
         </div>
@@ -225,9 +222,11 @@ export default function CardDetail() {
   if (!card) {
     return (
       <Layout>
-        <div className="text-center py-20">
-          <h2 className="text-2xl font-bold">Card not found</h2>
-          <Button className="mt-4" onClick={() => setLocation("/collection")}>Back to Collection</Button>
+        <div className="text-center py-24">
+          <p className="text-5xl mb-4">🃏</p>
+          <h2 className="text-2xl font-bold mb-2">Card not found</h2>
+          <p className="text-muted-foreground mb-6">This card may have been deleted.</p>
+          <Button onClick={() => setLocation("/collection")}>Back to Collection</Button>
         </div>
       </Layout>
     );
@@ -235,150 +234,313 @@ export default function CardDetail() {
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20">
-        <Button variant="ghost" onClick={() => setLocation("/collection")} className="mb-6 -ml-4 text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back to Collection
-        </Button>
+      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden bg-slate-950">
+        {/* Blurred backdrop from card image */}
+        {card.imageUrl && (
+          <div
+            className="absolute inset-0 scale-125"
+            style={{
+              backgroundImage: `url(${card.imageUrl})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center top",
+              filter: "blur(50px) saturate(1.6) brightness(0.35)",
+            }}
+          />
+        )}
+        {/* Gradient overlay — fades to background at bottom */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
 
-        <div className="flex flex-col lg:flex-row gap-12">
-          {/* Card Image Area */}
-          <div className="w-full lg:w-1/2 lg:max-w-md mx-auto flex flex-col gap-3">
-            <HoloCard imageUrl={card.imageUrl} name={card.name}>
-              {card.forSale && (
-                <div className="absolute top-4 right-4">
-                  <Badge className="bg-primary text-primary-foreground font-bold shadow-lg border-white/20 text-sm px-3 py-1">
-                    Listed for {formatCurrency(card.listingPrice)}
-                  </Badge>
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-10">
+          {/* Back nav */}
+          <button
+            onClick={() => setLocation("/collection")}
+            className="inline-flex items-center gap-1.5 text-white/70 hover:text-white text-sm font-medium transition-colors mb-8 -ml-1"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to Collection
+          </button>
+
+          <div className="flex flex-col lg:flex-row gap-10 items-start">
+            {/* ── Card Image + Nav ──────────────────────────────────────── */}
+            <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0">
+              <HoloCard imageUrl={card.imageUrl} name={card.name}>
+                {card.forSale && (
+                  <div className="absolute top-3 right-3">
+                    <Badge className="bg-primary text-primary-foreground font-bold shadow-lg text-xs px-2.5 py-1">
+                      Listed {formatCurrency(card.listingPrice)}
+                    </Badge>
+                  </div>
+                )}
+              </HoloCard>
+
+              {/* Prev / Next */}
+              {navList.length > 1 && (
+                <div className="flex items-center gap-2 mt-3">
+                  <button
+                    onClick={() => prevCard && setLocation(`/collection/${prevCard.id}`)}
+                    disabled={!prevCard}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white/70 hover:text-white text-xs font-medium transition-all disabled:opacity-25 disabled:cursor-not-allowed flex-1 min-w-0"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{prevCard?.name ?? "—"}</span>
+                  </button>
+
+                  <div className="flex flex-col items-center shrink-0 gap-0.5">
+                    <span className="text-xs font-bold text-white/80 tabular-nums whitespace-nowrap">
+                      {currentIndex + 1} / {navList.length}
+                    </span>
+                    {hasCategoryScope && (
+                      <button
+                        onClick={() => setNavScope(s => s === "category" ? "all" : "category")}
+                        className="flex items-center gap-0.5 text-[9px] text-white/40 hover:text-white/70 transition-colors"
+                      >
+                        {navScope === "category"
+                          ? <><FolderOpen className="h-2.5 w-2.5" />{card.categoryName}</>
+                          : <><LayoutList className="h-2.5 w-2.5" />All</>}
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => nextCard && setLocation(`/collection/${nextCard.id}`)}
+                    disabled={!nextCard}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white/70 hover:text-white text-xs font-medium transition-all disabled:opacity-25 disabled:cursor-not-allowed flex-1 min-w-0 justify-end"
+                  >
+                    <span className="truncate">{nextCard?.name ?? "—"}</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                  </button>
                 </div>
               )}
-            </HoloCard>
+            </div>
 
-            {/* Prev / Next navigation */}
-            {navList.length > 1 && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => prevCard && setLocation(`/collection/${prevCard.id}`)}
-                  disabled={!prevCard}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-card text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-muted/50 hover:border-primary/30 min-w-0 flex-1 justify-start"
-                  title={prevCard?.name}
-                >
-                  <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate text-xs text-muted-foreground">{prevCard?.name ?? "—"}</span>
-                </button>
-
-                <div className="flex flex-col items-center shrink-0 gap-1">
-                  <span className="text-xs font-semibold tabular-nums text-center whitespace-nowrap">
-                    {currentIndex + 1} / {navList.length}
-                  </span>
-                  {hasCategoryScope && (
-                    <button
-                      onClick={() => setNavScope(navScope === "category" ? "all" : "category")}
-                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
-                      title={navScope === "category" ? "Switch to all cards" : "Switch to category"}
-                    >
-                      {navScope === "category"
-                        ? <><FolderOpen className="h-3 w-3" />{card.categoryName}</>
-                        : <><LayoutList className="h-3 w-3" />All cards</>
-                      }
-                    </button>
-                  )}
+            {/* ── Identity + Value (hero panel) ─────────────────────────── */}
+            <div className="flex-1 min-w-0 text-white">
+              {/* Name + actions */}
+              <div className="flex items-start justify-between gap-4 mb-1">
+                <h1 className="text-4xl xl:text-5xl font-black tracking-tight leading-tight drop-shadow-lg">
+                  {card.name}
+                </h1>
+                <div className="flex gap-2 shrink-0 mt-1">
+                  <button
+                    onClick={() => setLocation(`/collection/${id}/edit`)}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white/70 hover:text-white transition-all"
+                    title="Edit"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <button
+                        className="p-2 rounded-xl bg-white/10 hover:bg-red-500/30 border border-white/15 text-white/50 hover:text-red-300 transition-all"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this card?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently remove <strong>{card.name}</strong> from your collection. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
+              </div>
 
-                <button
-                  onClick={() => nextCard && setLocation(`/collection/${nextCard.id}`)}
-                  disabled={!nextCard}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-card text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-muted/50 hover:border-primary/30 min-w-0 flex-1 justify-end"
-                  title={nextCard?.name}
+              {/* Subtitle */}
+              <p className="text-base xl:text-lg text-white/60 font-medium mb-5">
+                {card.pokemonName}
+                {card.setName && <span className="mx-1.5 text-white/30">•</span>}
+                {card.setName}
+                {card.cardNumber && (
+                  <span className="ml-2 text-xs bg-white/10 border border-white/15 px-2 py-0.5 rounded-md font-mono">
+                    {card.cardNumber}
+                  </span>
+                )}
+              </p>
+
+              {/* Badges */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                <span className={`inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full border ${RARITY_COLORS[card.rarity] || "bg-muted text-muted-foreground"}`}>
+                  {formatLabel(card.rarity)}
+                </span>
+                <span className={`inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full border ${CONDITION_COLORS[card.condition] || "bg-muted text-muted-foreground"}`}>
+                  {formatLabel(card.condition)} Condition
+                </span>
+                {card.categoryName && (
+                  <span className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-white/80">
+                    {card.categoryName}
+                  </span>
+                )}
+              </div>
+
+              {/* Value panel — glassmorphic */}
+              <div className="bg-white/8 backdrop-blur-md border border-white/15 rounded-2xl p-5 mb-4">
+                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Estimated Value</p>
+                <p className="text-5xl xl:text-6xl font-black tracking-tighter text-white drop-shadow">
+                  {formatCurrency(card.estimatedValue)}
+                </p>
+              </div>
+
+              {/* Quick meta */}
+              <div className="flex gap-4 text-xs text-white/40">
+                {card.acquiredDate && (
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Acquired {new Date(card.acquiredDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </span>
+                )}
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Added {new Date(card.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── DETAILS SECTION ───────────────────────────────────────────────── */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
+        <div className="flex flex-col lg:flex-row gap-10">
+
+          {/* ── LEFT: Sell CTA (aligned with card above) ──────────────── */}
+          <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0 pt-6">
+            {card.forSale ? (
+              <div className="space-y-3">
+                <div className="bg-primary/8 border border-primary/20 rounded-2xl px-4 py-3 flex items-center gap-3">
+                  <Store className="h-4 w-4 text-primary shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-primary">Listed on Marketplace</p>
+                    <p className="text-sm font-bold text-foreground">{formatCurrency(card.listingPrice)}</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => delistCard.mutate(id)}
+                  disabled={delistCard.isPending}
                 >
-                  <span className="truncate text-xs text-muted-foreground">{nextCard?.name ?? "—"}</span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </button>
+                  <Store className="h-4 w-4 mr-2" />
+                  {delistCard.isPending ? "Removing…" : "Remove from Marketplace"}
+                </Button>
+              </div>
+            ) : (
+              <Dialog open={isSellOpen} onOpenChange={handleSellDialogChange}>
+                <DialogTrigger asChild>
+                  <Button size="lg" className="w-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground h-12 text-base font-bold">
+                    <Tag className="h-5 w-5 mr-2" /> Sell on Marketplace
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  {listedId ? (
+                    <>
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Listed Successfully!
+                        </DialogTitle>
+                        <DialogDescription>
+                          <span className="font-medium text-foreground">{card.name}</span> is now live on the marketplace for {formatCurrency(parseFloat(sellPrice))}.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter className="mt-2 gap-2 sm:gap-0">
+                        <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Close</Button>
+                        <Button onClick={() => { handleSellDialogChange(false); setLocation(`/marketplace/${listedId}`); }}>
+                          <ExternalLink className="h-4 w-4 mr-2" /> View Listing
+                        </Button>
+                      </DialogFooter>
+                    </>
+                  ) : (
+                    <>
+                      <DialogHeader>
+                        <DialogTitle>List Card for Sale</DialogTitle>
+                        <DialogDescription>
+                          Set your asking price for <span className="font-medium text-foreground">{card.name}</span>.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4 space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium mb-1.5">Asking Price ($)</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder={card.estimatedValue?.toString() ?? "0.00"}
+                            value={sellPrice}
+                            onChange={(e) => setSellPrice(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleSell()}
+                            className="text-xl py-5 font-bold"
+                            autoFocus
+                          />
+                        </div>
+                        {card.estimatedValue && (
+                          <div className="flex items-center justify-between text-sm bg-muted/40 rounded-lg px-3 py-2">
+                            <span className="text-muted-foreground">Estimated value</span>
+                            <span className="font-semibold">{formatCurrency(card.estimatedValue)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Cancel</Button>
+                        <Button onClick={handleSell} disabled={listCard.isPending}>
+                          {listCard.isPending ? "Listing…" : "Confirm Listing"}
+                        </Button>
+                      </DialogFooter>
+                    </>
+                  )}
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* Also sell via auction link */}
+            <p className="text-center text-xs text-muted-foreground mt-3">
+              Want to auction instead?{" "}
+              <button
+                onClick={() => setLocation("/sell")}
+                className="text-primary underline underline-offset-2 hover:no-underline font-medium"
+              >
+                Use Sell page
+              </button>
+            </p>
+
+            {/* Notes */}
+            {card.notes && (
+              <div className="mt-6 bg-amber-50 border border-amber-200/70 rounded-2xl p-4">
+                <p className="text-xs font-bold text-amber-700/70 uppercase tracking-wider mb-1.5">Collector's Notes</p>
+                <p className="text-sm text-amber-900 leading-relaxed">{card.notes}</p>
               </div>
             )}
           </div>
 
-          {/* Details Area */}
-          <div className="w-full lg:w-1/2 flex flex-col">
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <h1 className="text-4xl font-black tracking-tight text-foreground mb-2">{card.name}</h1>
-                <p className="text-xl text-muted-foreground font-medium">
-                  {card.pokemonName} {card.setName ? `• ${card.setName}` : ""}
-                  {card.cardNumber && <span className="ml-2 text-sm bg-secondary px-2 py-1 rounded text-foreground">{card.cardNumber}</span>}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setLocation(`/collection/${id}/edit`)}
-                  title="Edit card"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete {card.name} from your collection.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 my-6">
-              <Badge className={`text-sm px-3 py-1 border-0 shadow-sm ${RARITY_COLORS[card.rarity] || ""}`}>
-                {formatLabel(card.rarity)}
-              </Badge>
-              <Badge variant="outline" className={`text-sm px-3 py-1 ${CONDITION_COLORS[card.condition] || ""}`}>
-                {formatLabel(card.condition)} Condition
-              </Badge>
-              {card.categoryName && (
-                <Badge variant="secondary" className="text-sm px-3 py-1">
-                  {card.categoryName}
-                </Badge>
-              )}
-            </div>
-
-            <div className="bg-card border shadow-sm rounded-xl p-6 mb-6">
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Estimated Value</p>
-              <h2 className="text-5xl font-black tracking-tighter text-foreground">
-                {formatCurrency(card.estimatedValue)}
-              </h2>
-            </div>
-
+          {/* ── RIGHT: Chart + Printings ──────────────────────────────── */}
+          <div className="flex-1 min-w-0 pt-6">
+            {/* Price history chart */}
             <PriceHistoryChart cardId={id} />
 
             {/* Other Printings */}
             {(printingsLoading || printings.length > 0) && (
-              <div className="mb-8">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5" /> Other Printings
+              <div className="mb-6">
+                <h3 className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">
+                  <Layers className="h-3.5 w-3.5" />
+                  Other Printings
                   {!printingsLoading && <span className="font-normal">({printings.length})</span>}
                 </h3>
 
                 {printingsLoading ? (
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {[1, 2, 3, 4].map((i) => (
-                      <Skeleton key={i} className="shrink-0 w-14 h-[78px] rounded-lg" />
+                  <div className="flex gap-2 pb-1">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Skeleton key={i} className="shrink-0 w-14 h-[82px] rounded-xl" />
                     ))}
                   </div>
                 ) : (
-                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+                  <div className="flex gap-2 overflow-x-auto pb-2 -mx-0.5 px-0.5 scrollbar-thin">
                     {printings.map((v) => {
                       const isCurrent = v.setName === card.setName && v.cardNumber === card.cardNumber;
                       const isSelected = selectedPrinting?.id === v.id;
@@ -387,11 +549,11 @@ export default function CardDetail() {
                           key={v.id}
                           onClick={() => selectPrinting(v)}
                           title={`${v.setName} · ${v.cardNumber}`}
-                          className={`shrink-0 w-14 rounded-lg border-2 overflow-hidden flex flex-col transition-all focus:outline-none ${
+                          className={`group shrink-0 w-14 rounded-xl border-2 overflow-hidden flex flex-col transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                             isSelected
-                              ? "border-primary shadow-md scale-105"
+                              ? "border-primary shadow-lg shadow-primary/20 scale-105"
                               : isCurrent
-                              ? "border-emerald-500 ring-1 ring-emerald-300"
+                              ? "border-emerald-500 ring-1 ring-emerald-300/50"
                               : "border-transparent hover:border-border hover:shadow-sm"
                           }`}
                         >
@@ -402,7 +564,7 @@ export default function CardDetail() {
                               <ImageIcon className="h-3 w-3 text-muted-foreground" />
                             </div>
                           )}
-                          <p className="text-[8px] leading-tight text-center text-muted-foreground px-0.5 py-0.5 truncate w-full">
+                          <p className="text-[8px] leading-tight text-center text-muted-foreground px-0.5 py-1 truncate w-full font-medium">
                             {isCurrent ? "★ " : ""}{v.setName}
                           </p>
                         </button>
@@ -411,19 +573,19 @@ export default function CardDetail() {
                   </div>
                 )}
 
-                {/* Pricing panel for selected printing */}
+                {/* Selected printing pricing */}
                 {selectedPrinting && (
-                  <div className="mt-3 bg-muted/40 border rounded-xl p-3">
-                    <div className="flex items-center gap-2 mb-2">
+                  <div className="mt-3 bg-card border rounded-2xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
                       <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="text-xs font-semibold truncate">{selectedPrinting.setName}</span>
-                      <span className="text-[10px] text-muted-foreground shrink-0">{selectedPrinting.cardNumber}</span>
+                      <span className="text-sm font-semibold truncate">{selectedPrinting.setName}</span>
+                      <span className="text-xs text-muted-foreground font-mono shrink-0">{selectedPrinting.cardNumber}</span>
                       <div className="ml-auto flex items-center gap-1.5 shrink-0">
                         {printingPricing?.isFallback && (
                           <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">est.</span>
                         )}
                         {printingPricing?.source && (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                             {printingPricing.source === "tcgplayer" ? "TCGPlayer" : "CardMarket"}
                           </span>
                         )}
@@ -432,117 +594,30 @@ export default function CardDetail() {
                     {printingPricingLoading ? (
                       <div className="flex items-center gap-2 py-1">
                         <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        <span className="text-xs text-muted-foreground">Loading price…</span>
+                        <span className="text-sm text-muted-foreground">Fetching price…</span>
                       </div>
                     ) : printingPricing?.marketPrice != null || printingPricing?.lowPrice != null ? (
-                      <div className="flex gap-4">
+                      <div className="flex gap-6">
                         {printingPricing.marketPrice != null && (
                           <div>
-                            <p className="text-[10px] text-muted-foreground">Market</p>
-                            <p className="text-lg font-black">{formatCurrency(printingPricing.marketPrice)}</p>
+                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Market</p>
+                            <p className="text-2xl font-black">{formatCurrency(printingPricing.marketPrice)}</p>
                           </div>
                         )}
                         {printingPricing.lowPrice != null && (
                           <div>
-                            <p className="text-[10px] text-muted-foreground">Low</p>
-                            <p className="text-lg font-semibold text-muted-foreground">{formatCurrency(printingPricing.lowPrice)}</p>
+                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Low</p>
+                            <p className="text-2xl font-semibold text-muted-foreground">{formatCurrency(printingPricing.lowPrice)}</p>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">No market price available for this printing.</p>
+                      <p className="text-sm text-muted-foreground">No market price found for this printing.</p>
                     )}
                   </div>
                 )}
               </div>
             )}
-
-            <div className="space-y-6 flex-1">
-              {card.notes && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Collector's Notes</h3>
-                  <div className="bg-muted/30 p-4 rounded-lg border text-sm leading-relaxed">
-                    {card.notes}
-                  </div>
-                </div>
-              )}
-              
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Details</h3>
-                <div className="grid grid-cols-2 gap-y-3 text-sm">
-                  <div className="text-muted-foreground">Acquired Date</div>
-                  <div className="font-medium text-right">{card.acquiredDate ? new Date(card.acquiredDate).toLocaleDateString() : 'Unknown'}</div>
-                  <div className="text-muted-foreground">Added to DexPoky</div>
-                  <div className="font-medium text-right">{new Date(card.createdAt).toLocaleDateString()}</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row gap-4">
-              {card.forSale ? (
-                <Button variant="secondary" size="lg" className="flex-1" onClick={handleDelist} disabled={delistCard.isPending}>
-                  <Store className="h-5 w-5 mr-2" /> {delistCard.isPending ? "Removing…" : "Remove from Marketplace"}
-                </Button>
-              ) : (
-                <Dialog open={isSellOpen} onOpenChange={handleSellDialogChange}>
-                  <DialogTrigger asChild>
-                    <Button size="lg" className="flex-1 shadow-md bg-primary hover:bg-primary/90 text-primary-foreground">
-                      <Tag className="h-5 w-5 mr-2" /> Sell on Marketplace
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    {listedId ? (
-                      <>
-                        <DialogHeader>
-                          <DialogTitle className="flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Listed Successfully!
-                          </DialogTitle>
-                          <DialogDescription>
-                            <span className="font-medium text-foreground">{card.name}</span> is now live on the marketplace for {formatCurrency(parseFloat(sellPrice))}.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter className="mt-2 gap-2 sm:gap-0">
-                          <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Close</Button>
-                          <Button onClick={() => { handleSellDialogChange(false); setLocation(`/marketplace/${listedId}`); }}>
-                            <ExternalLink className="h-4 w-4 mr-2" /> View Listing
-                          </Button>
-                        </DialogFooter>
-                      </>
-                    ) : (
-                      <>
-                        <DialogHeader>
-                          <DialogTitle>List Card for Sale</DialogTitle>
-                          <DialogDescription>
-                            Set your price to list {card.name} on the global marketplace.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="py-4">
-                          <label className="block text-sm font-medium mb-2">Listing Price ($)</label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder={card.estimatedValue?.toString() || "0.00"}
-                            value={sellPrice}
-                            onChange={(e) => setSellPrice(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleSell()}
-                            className="text-lg py-6"
-                          />
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Estimated value: {formatCurrency(card.estimatedValue)}
-                          </p>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Cancel</Button>
-                          <Button onClick={handleSell} disabled={listCard.isPending}>
-                            {listCard.isPending ? "Listing…" : "Confirm Listing"}
-                          </Button>
-                        </DialogFooter>
-                      </>
-                    )}
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
           </div>
         </div>
       </div>
