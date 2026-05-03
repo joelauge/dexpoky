@@ -20,6 +20,9 @@ import SharePage from "@/pages/share";
 import Scan from "@/pages/scan";
 import Profile from "@/pages/profile";
 import SellerProfile from "@/pages/seller/[clerkId]";
+import PublicCardView from "@/pages/view/card/[id]";
+import PublicCategoryView from "@/pages/view/category/[id]";
+import PublicCollectionView from "@/pages/view/collection";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -175,6 +178,9 @@ function ClerkProviderWithRoutes() {
             <Route path="/scan" component={Scan} />
             <Route path="/profile" component={Profile} />
             <Route path="/seller/:clerkId" component={SellerProfile} />
+            <Route path="/view/card/:id" component={PublicCardView} />
+            <Route path="/view/category/:id" component={PublicCategoryView} />
+            <Route path="/view/collection" component={PublicCollectionView} />
             <Route component={NotFound} />
           </Switch>
           <Toaster />

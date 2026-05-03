@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useUser } from "@clerk/react";
 import {
   Dialog,
   DialogContent,
@@ -24,11 +25,13 @@ interface ShareModalProps {
   target: ShareTarget;
 }
 
-function getShareLink(target: ShareTarget): string {
+function getShareLink(target: ShareTarget, clerkId?: string | null): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "https://dexpoky.com";
-  if (target.type === "card") return `${origin}/collection/${target.id}`;
-  if (target.type === "category") return `${origin}/collection?category=${target.id}`;
-  return `${origin}/collection`;
+  const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+  const owner = clerkId ? `?owner=${clerkId}` : "";
+  if (target.type === "card") return `${origin}${base}/view/card/${target.id}${owner}`;
+  if (target.type === "category") return `${origin}${base}/view/category/${target.id}${owner}`;
+  return `${origin}${base}/view/collection${owner}`;
 }
 
 function getSharePath(target: ShareTarget): string {
@@ -41,8 +44,9 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
   const [, setLocation] = useLocation();
   const [mode, setMode] = useState<"pick" | "link">("pick");
   const [copied, setCopied] = useState(false);
+  const { user } = useUser();
 
-  const shareLink = getShareLink(target);
+  const shareLink = getShareLink(target, user?.id);
   const sharePath = getSharePath(target);
 
   const targetLabel =
