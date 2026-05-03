@@ -7,8 +7,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Share2, Tag, Link2, Copy, Check,
+  Share2, Link2, Copy, Check,
   Mail, MessageCircle, Package, FolderOpen, Layers, ArrowLeft,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -30,19 +31,19 @@ function getShareLink(target: ShareTarget): string {
   return `${origin}/collection`;
 }
 
-function getSellPath(target: ShareTarget): string {
-  if (target.type === "card") return `/sell?card=${target.id}`;
-  if (target.type === "category") return `/sell?categoryId=${target.id}`;
-  return "/sell";
+function getSharePath(target: ShareTarget): string {
+  if (target.type === "card") return `/share?card=${target.id}`;
+  if (target.type === "category") return `/share?categoryId=${target.id}`;
+  return "/share";
 }
 
 export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
   const [, setLocation] = useLocation();
-  const [mode, setMode] = useState<"pick" | "share">("pick");
+  const [mode, setMode] = useState<"pick" | "link">("pick");
   const [copied, setCopied] = useState(false);
 
   const shareLink = getShareLink(target);
-  const sellPath = getSellPath(target);
+  const sharePath = getSharePath(target);
 
   const targetLabel =
     target.type === "card" ? target.name
@@ -54,6 +55,17 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
     : target.type === "category" ? FolderOpen
     : Layers;
 
+  const typeDescription =
+    target.type === "card" ? "card"
+    : target.type === "category" ? "category"
+    : "collection";
+
+  const handleCreateShareLink = () => {
+    onClose();
+    setMode("pick");
+    setLocation(sharePath);
+  };
+
   const handleCopy = () => {
     navigator.clipboard.writeText(shareLink).then(() => {
       setCopied(true);
@@ -61,20 +73,9 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
     });
   };
 
-  const handleSell = () => {
-    onClose();
-    setMode("pick");
-    setLocation(sellPath);
-  };
-
   const handleOpenChange = (open: boolean) => {
     if (!open) { onClose(); setMode("pick"); }
   };
-
-  const typeDescription =
-    target.type === "card" ? "card"
-    : target.type === "category" ? "category"
-    : "collection";
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -103,40 +104,45 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
         {/* ── Mode: pick ── */}
         {mode === "pick" && (
           <div className="space-y-2.5 pt-1">
+            {/* PRIMARY: Create share link */}
             <button
-              onClick={() => setMode("share")}
-              className="w-full text-left p-4 rounded-2xl border-2 border-transparent hover:border-blue-200 bg-muted/20 hover:bg-blue-50/60 transition-all"
-            >
-              <div className="flex items-center gap-3 mb-1">
-                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center border border-blue-200 shrink-0">
-                  <Link2 className="h-4 w-4" />
-                </div>
-                <p className="font-semibold text-foreground">Share a link</p>
-              </div>
-              <p className="text-xs text-muted-foreground pl-12 leading-snug">
-                Let anyone browse this {typeDescription} — no strings attached.
-              </p>
-            </button>
-
-            <button
-              onClick={handleSell}
-              className="w-full text-left p-4 rounded-2xl border-2 border-transparent hover:border-violet-200 bg-muted/20 hover:bg-violet-50/60 transition-all"
+              onClick={handleCreateShareLink}
+              className="w-full text-left p-4 rounded-2xl border-2 border-violet-200 bg-violet-50/60 hover:bg-violet-50 hover:border-violet-300 transition-all relative"
             >
               <div className="flex items-center gap-3 mb-1">
                 <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center border border-violet-200 shrink-0">
-                  <Tag className="h-4 w-4" />
+                  <Sparkles className="h-4 w-4" />
                 </div>
-                <p className="font-semibold text-foreground">Create selling page</p>
+                <div>
+                  <p className="font-semibold text-foreground">Create share link</p>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-violet-500">Recommended</span>
+                </div>
               </div>
               <p className="text-xs text-muted-foreground pl-12 leading-snug">
-                Set a price and get a checkout link buyers can pay directly on the marketplace.
+                Set a price, pick shipping, and get a checkout link buyers can pay in seconds.
+              </p>
+            </button>
+
+            {/* SECONDARY: Quick view link */}
+            <button
+              onClick={() => setMode("link")}
+              className="w-full text-left p-4 rounded-2xl border-2 border-transparent hover:border-border bg-muted/20 hover:bg-muted/40 transition-all"
+            >
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 shrink-0">
+                  <Link2 className="h-4 w-4" />
+                </div>
+                <p className="font-semibold text-foreground">Copy view link</p>
+              </div>
+              <p className="text-xs text-muted-foreground pl-12 leading-snug">
+                Share a quick view-only link for this {typeDescription} — no selling or pricing.
               </p>
             </button>
           </div>
         )}
 
-        {/* ── Mode: share link ── */}
-        {mode === "share" && (
+        {/* ── Mode: quick copy link ── */}
+        {mode === "link" && (
           <div className="space-y-4 pt-1">
             <button
               onClick={() => setMode("pick")}
@@ -146,7 +152,7 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
             </button>
 
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Your link</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">View link</p>
               <div className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-2.5 border">
                 <span className="text-xs text-muted-foreground flex-1 truncate font-mono">{shareLink}</span>
                 <button

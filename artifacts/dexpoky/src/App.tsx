@@ -16,6 +16,7 @@ import Categories from "@/pages/categories/index";
 import Marketplace from "@/pages/marketplace/index";
 import ListingDetail from "@/pages/marketplace/[id]";
 import Sell from "@/pages/sell";
+import SharePage from "@/pages/share";
 import Scan from "@/pages/scan";
 import Profile from "@/pages/profile";
 import SellerProfile from "@/pages/seller/[clerkId]";
@@ -170,6 +171,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/marketplace/:id" component={ListingDetail} />
             <Route path="/sell" component={Sell} />
+            <Route path="/share" component={SharePage} />
             <Route path="/scan" component={Scan} />
             <Route path="/profile" component={Profile} />
             <Route path="/seller/:clerkId" component={SellerProfile} />

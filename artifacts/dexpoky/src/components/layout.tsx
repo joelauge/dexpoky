@@ -6,7 +6,7 @@ import {
   Layers,
   FolderTree,
   Store,
-  Tag,
+  Share2,
   PlusCircle,
   Menu,
   ScanLine,
@@ -128,7 +128,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/collection", label: "Collection", icon: Layers },
     { href: "/categories", label: "Categories", icon: FolderTree },
     { href: "/marketplace", label: "Marketplace", icon: Store },
-    { href: "/sell", label: "Sell Card", icon: Tag },
+    { href: "/share", label: "Share", icon: Share2 },
   ];
 
   const quickActions = [
