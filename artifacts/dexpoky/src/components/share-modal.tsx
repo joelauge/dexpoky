@@ -153,8 +153,8 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
 
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">View link</p>
-              <div className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-2.5 border">
-                <span className="text-xs text-muted-foreground flex-1 truncate font-mono">{shareLink}</span>
+              <div className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-2.5 border overflow-hidden">
+                <span className="text-xs text-muted-foreground flex-1 truncate font-mono min-w-0">{shareLink}</span>
                 <button
                   onClick={handleCopy}
                   className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all ${
