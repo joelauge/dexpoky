@@ -11,6 +11,8 @@ import {
   UpdateListingParams,
   DeleteListingParams,
 } from "@workspace/api-zod";
+import { getUncachableStripeClient } from "../stripeClient.js";
+import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 
 const router = Router();
 
@@ -291,6 +293,152 @@ router.delete("/cards/:cardId/listing", async (req, res) => {
   });
 
   res.status(204).send();
+});
+
+router.post("/marketplace/:id/checkout", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid listing id" });
+    return;
+  }
+  const buyerClerkId = (req as AuthRequest).userId;
+  const { mode } = (req.body ?? {}) as { mode?: "buy_now" | "fixed_price" };
+
+  const [listing] = await db
+    .select()
+    .from(listingsTable)
+    .where(eq(listingsTable.id, id));
+
+  if (!listing) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+  if (listing.status !== "active") {
+    res.status(400).json({ error: "Listing is not active" });
+    return;
+  }
+  if (listing.sellerClerkId === buyerClerkId) {
+    res.status(400).json({ error: "You cannot purchase your own listing" });
+    return;
+  }
+  if (listing.auctionEndTime && new Date(listing.auctionEndTime) < new Date()) {
+    res.status(400).json({ error: "Auction has ended" });
+    return;
+  }
+
+  let amountUsd: number;
+  if (listing.listingType === "auction") {
+    if (!listing.buyNowPrice) {
+      res.status(400).json({ error: "This auction has no Buy Now price" });
+      return;
+    }
+    amountUsd = parseFloat(String(listing.buyNowPrice));
+  } else {
+    amountUsd = parseFloat(String(listing.price));
+  }
+
+  const [card] = await db
+    .select({ name: cardsTable.name, imageUrl: cardsTable.imageUrl, pokemonName: cardsTable.pokemonName })
+    .from(cardsTable)
+    .where(eq(cardsTable.id, listing.cardId));
+
+  const stripe = await getUncachableStripeClient();
+  const origin = `${req.protocol}://${req.get("host")}`;
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+          unit_amount: Math.round(amountUsd * 100),
+          product_data: {
+            name: card?.name ?? "Pokémon Card",
+            description: card?.pokemonName ?? undefined,
+            images: card?.imageUrl ? [card.imageUrl] : undefined,
+          },
+        },
+      },
+    ],
+    metadata: {
+      kind: "marketplace_purchase",
+      listingId: String(listing.id),
+      buyerClerkId,
+      sellerClerkId: listing.sellerClerkId ?? "",
+      mode: mode ?? (listing.listingType === "auction" ? "buy_now" : "fixed_price"),
+    },
+    success_url: `${origin}/marketplace/${listing.id}?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${origin}/marketplace/${listing.id}?purchase=cancelled`,
+  });
+
+  res.json({ url: session.url });
+});
+
+router.post("/marketplace/:id/confirm-purchase", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const { sessionId } = (req.body ?? {}) as { sessionId?: string };
+  if (!Number.isFinite(id) || !sessionId) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const buyerClerkId = (req as AuthRequest).userId;
+
+  const stripe = await getUncachableStripeClient();
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+  if (session.payment_status !== "paid") {
+    res.status(400).json({ error: "Payment not completed", payment_status: session.payment_status });
+    return;
+  }
+  if (session.metadata?.listingId !== String(id) || session.metadata?.buyerClerkId !== buyerClerkId) {
+    res.status(403).json({ error: "Session does not match this listing/buyer" });
+    return;
+  }
+
+  const [listing] = await db.select().from(listingsTable).where(eq(listingsTable.id, id));
+  if (!listing) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+
+  if (listing.status === "sold") {
+    res.json({ ok: true, alreadyMarked: true });
+    return;
+  }
+
+  const [updated] = await db
+    .update(listingsTable)
+    .set({ status: "sold", updatedAt: new Date() })
+    .where(eq(listingsTable.id, id))
+    .returning();
+
+  await db
+    .update(cardsTable)
+    .set({ forSale: false, listingPrice: null })
+    .where(eq(cardsTable.id, updated.cardId));
+
+  const [card] = await db
+    .select({ name: cardsTable.name, imageUrl: cardsTable.imageUrl })
+    .from(cardsTable)
+    .where(eq(cardsTable.id, updated.cardId));
+
+  await db.insert(activityEventsTable).values({
+    type: "listing_sold",
+    clerkId: buyerClerkId,
+    cardId: updated.cardId,
+    listingId: updated.id,
+    metadata: {
+      name: card?.name ?? null,
+      imageUrl: card?.imageUrl ?? null,
+      price: parseFloat(String(updated.price)),
+      listingType: updated.listingType,
+      stripeSessionId: sessionId,
+    },
+  });
+
+  res.json({ ok: true });
 });
 
 router.delete("/marketplace/:id", async (req, res) => {

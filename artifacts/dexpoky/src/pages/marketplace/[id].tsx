@@ -264,19 +264,65 @@ export default function ListingDetail() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const checkout = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/marketplace/${id}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Checkout failed");
+      return data as { url: string };
+    },
+    onSuccess: (data) => {
+      window.location.href = data.url;
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const handleBuy = () => {
-    if (!listing) return;
-    updateListing.mutate(
-      { id, data: { status: UpdateListingBodyStatus.sold } },
-      {
-        onSuccess: () => {
-          toast.success(`You purchased ${listing.card.name}!`);
-          setLocation("/marketplace");
-        },
-        onError: () => toast.error("Failed to complete purchase"),
-      }
-    );
+    if (!user) {
+      setLocation("/sign-in");
+      return;
+    }
+    checkout.mutate();
   };
+
+  // Confirm purchase after Stripe Checkout redirect
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const purchase = url.searchParams.get("purchase");
+    const sessionId = url.searchParams.get("session_id");
+    if (purchase === "cancelled") {
+      toast.info("Purchase cancelled");
+      url.searchParams.delete("purchase");
+      window.history.replaceState({}, "", url.pathname + url.search);
+      return;
+    }
+    if (purchase === "success" && sessionId && id) {
+      (async () => {
+        try {
+          const res = await fetch(`/api/marketplace/${id}/confirm-purchase`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error ?? "Could not confirm purchase");
+          toast.success("Purchase confirmed! The card is yours.");
+          refetch();
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Confirmation failed");
+        } finally {
+          url.searchParams.delete("purchase");
+          url.searchParams.delete("session_id");
+          window.history.replaceState({}, "", url.pathname + url.search);
+        }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const handleBid = () => {
     const amount = parseFloat(bidAmount);
@@ -449,8 +495,9 @@ export default function ListingDetail() {
                       <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Buy It Now</p>
                       <div className="flex items-center justify-between">
                         <p className="text-2xl font-black">{formatCurrency(extListing.buyNowPrice)}</p>
-                        <Button onClick={handleBuy} disabled={updateListing.isPending} className="font-bold">
-                          <ShoppingCart className="w-4 h-4 mr-2" /> Buy Now
+                        <Button onClick={handleBuy} disabled={checkout.isPending} className="font-bold">
+                          {checkout.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-2" />}
+                          {checkout.isPending ? "Redirecting…" : "Buy Now"}
                         </Button>
                       </div>
                     </div>
@@ -517,11 +564,11 @@ export default function ListingDetail() {
                         <Button
                           size="lg"
                           className="h-14 px-8 text-lg font-bold shadow-lg"
-                          disabled={!isActive || updateListing.isPending}
+                          disabled={!isActive || checkout.isPending}
                           onClick={handleBuy}
                         >
-                          <ShoppingCart className="w-5 h-5 mr-2" />
-                          {isActive ? "Purchase Card" : "Unavailable"}
+                          {checkout.isPending ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <ShoppingCart className="w-5 h-5 mr-2" />}
+                          {checkout.isPending ? "Redirecting…" : isActive ? "Purchase Card" : "Unavailable"}
                         </Button>
                       ) : (
                         <Link href="/sign-in">
