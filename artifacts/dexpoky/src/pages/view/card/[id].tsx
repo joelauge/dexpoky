@@ -1,6 +1,7 @@
 import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
+import { HoloCard } from "@/components/holo-card";
 import { User } from "lucide-react";
 
 interface Card {
@@ -66,26 +67,15 @@ export default function PublicCardView() {
       {/* Card showcase */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 gap-5">
 
-        {/* Card with glow */}
-        <div className="relative">
-          {card?.imageUrl ? (
-            <>
-              <div
-                className="absolute inset-0 scale-[1.15] blur-3xl opacity-25 rounded-3xl"
-                style={{ background: "radial-gradient(circle at 50% 60%, #6366f1 0%, #8b5cf6 40%, transparent 70%)" }}
-              />
-              <img
-                src={card.imageUrl}
-                alt={card?.name ?? "Card"}
-                className="relative w-64 sm:w-72 md:w-80 rounded-2xl shadow-2xl shadow-indigo-900/60 border border-white/10"
-                draggable={false}
-              />
-            </>
-          ) : (
-            <div className="w-64 h-[356px] rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-              <span className="text-white/30 text-4xl">🃏</span>
-            </div>
-          )}
+        {/* Card with 3D holo effect */}
+        <div className="relative w-64 sm:w-72 md:w-80">
+          <div
+            className="absolute inset-0 scale-[1.15] blur-3xl opacity-25 rounded-3xl pointer-events-none"
+            style={{ background: "radial-gradient(circle at 50% 60%, #6366f1 0%, #8b5cf6 40%, transparent 70%)" }}
+          />
+          <div className="relative">
+            <HoloCard imageUrl={card?.imageUrl} name={card?.name ?? "Card"} />
+          </div>
         </div>
 
         {/* Card info */}
