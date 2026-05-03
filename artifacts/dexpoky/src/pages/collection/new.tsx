@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { formatLabel } from "@/lib/constants";
 
 const LAST_CAT_KEY = "dexpoky:lastCategoryId";
+const LAST_CONDITION_KEY = "dexpoky:lastCondition";
 
 function readLastCategoryId(): number | undefined {
   try {
@@ -39,6 +40,22 @@ function readLastCategoryId(): number | undefined {
 function saveLastCategoryId(id: number | undefined) {
   try {
     if (id != null) localStorage.setItem(LAST_CAT_KEY, String(id));
+  } catch { /* ignore */ }
+}
+
+function readLastCondition(): CreateCardBodyCondition {
+  try {
+    const v = localStorage.getItem(LAST_CONDITION_KEY);
+    if (v && Object.values(CreateCardBodyCondition).includes(v as CreateCardBodyCondition)) {
+      return v as CreateCardBodyCondition;
+    }
+  } catch { /* ignore */ }
+  return CreateCardBodyCondition.near_mint;
+}
+
+function saveLastCondition(condition: CreateCardBodyCondition) {
+  try {
+    localStorage.setItem(LAST_CONDITION_KEY, condition);
   } catch { /* ignore */ }
 }
 
@@ -99,7 +116,7 @@ export default function NewCard() {
       setName:        scanSet       || "",
       cardNumber:     scanNumber    || "",
       rarity:         CreateCardBodyRarity.common,
-      condition:      CreateCardBodyCondition.near_mint,
+      condition:      readLastCondition(),
       estimatedValue: scanValue ? Number(scanValue) : undefined,
       categoryId:     readLastCategoryId(),
       forSale:        false,
@@ -115,6 +132,7 @@ export default function NewCard() {
     createCard.mutate({ data }, {
       onSuccess: (newCard) => {
         saveLastCategoryId(data.categoryId);
+        saveLastCondition(data.condition);
         toast.success("Card added to your collection!");
         setLocation(`/collection/${newCard.id}`);
       },
