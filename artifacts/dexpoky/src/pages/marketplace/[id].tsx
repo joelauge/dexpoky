@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { HoloCard } from "@/components/holo-card";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
-import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, isPast, intervalToDuration } from "date-fns";
 
@@ -44,12 +45,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   return (
     <div className="flex gap-1">
       {[1, 2, 3, 4, 5].map(s => (
-        <button
-          key={s}
-          type="button"
-          onClick={() => onChange(s)}
-          className="focus:outline-none"
-        >
+        <button key={s} type="button" onClick={() => onChange(s)} className="focus:outline-none">
           <Star className={`h-7 w-7 transition-colors ${s <= value ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40 hover:text-amber-300"}`} />
         </button>
       ))}
@@ -69,7 +65,6 @@ function StarDisplay({ score }: { score: number }) {
 
 function AuctionCountdown({ endTime }: { endTime: string }) {
   const [, setTick] = useState(0);
-
   useEffect(() => {
     const t = setInterval(() => setTick(n => n + 1), 1000);
     return () => clearInterval(t);
@@ -79,13 +74,118 @@ function AuctionCountdown({ endTime }: { endTime: string }) {
   if (isPast(end)) return <span className="text-destructive font-bold">Ended</span>;
 
   const dur = intervalToDuration({ start: new Date(), end });
-  const parts: string[] = [];
-  if (dur.days) parts.push(`${dur.days}d`);
-  if (dur.hours) parts.push(`${dur.hours}h`);
-  if (dur.minutes) parts.push(`${dur.minutes}m`);
-  if (!dur.days) parts.push(`${dur.seconds ?? 0}s`);
+  const days = dur.days ?? 0;
+  const hours = dur.hours ?? 0;
+  const minutes = dur.minutes ?? 0;
+  const seconds = dur.seconds ?? 0;
+  const endingSoon = days === 0 && hours === 0 && minutes < 10;
 
-  return <span className="font-mono font-bold text-primary">{parts.join(" ")}</span>;
+  const blocks = days > 0
+    ? [{ val: days, label: "d" }, { val: hours, label: "h" }, { val: minutes, label: "m" }]
+    : [{ val: hours, label: "h" }, { val: minutes, label: "m" }, { val: seconds, label: "s" }];
+
+  return (
+    <div className={`flex items-center gap-1.5 ${endingSoon ? "animate-pulse" : ""}`}>
+      {blocks.map((b, i) => (
+        <span key={b.label} className={`font-mono font-black text-lg tabular-nums ${endingSoon ? "text-red-500" : "text-primary"}`}>
+          {i > 0 && <span className="opacity-50 mr-1">:</span>}
+          {String(b.val).padStart(2, "0")}<span className="text-xs font-semibold ml-0.5 opacity-60">{b.label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AuctionCountdownLarge({ endTime }: { endTime: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const end = new Date(endTime);
+  if (isPast(end)) {
+    return (
+      <div className="text-center py-3">
+        <span className="text-destructive font-black text-xl">Auction Ended</span>
+      </div>
+    );
+  }
+
+  const dur = intervalToDuration({ start: new Date(), end });
+  const days = dur.days ?? 0;
+  const hours = dur.hours ?? 0;
+  const minutes = dur.minutes ?? 0;
+  const seconds = dur.seconds ?? 0;
+  const endingSoon = days === 0 && hours === 0 && minutes < 10;
+
+  const blocks = days > 0
+    ? [{ val: days, label: "days" }, { val: hours, label: "hrs" }, { val: minutes, label: "min" }]
+    : [{ val: hours, label: "hrs" }, { val: minutes, label: "min" }, { val: seconds, label: "sec" }];
+
+  return (
+    <div className={`flex items-center justify-center gap-2 ${endingSoon ? "animate-pulse" : ""}`}>
+      {blocks.map((b, i) => (
+        <div key={b.label} className="flex items-center gap-2">
+          <div className={`flex flex-col items-center px-3 py-2 rounded-xl border ${endingSoon ? "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800/30" : "bg-muted/40 border-border"}`}>
+            <span className={`font-black text-3xl tabular-nums leading-none ${endingSoon ? "text-red-500" : "text-foreground"}`}>
+              {String(b.val).padStart(2, "0")}
+            </span>
+            <span className="text-muted-foreground text-[9px] uppercase tracking-widest mt-0.5 font-bold">{b.label}</span>
+          </div>
+          {i < blocks.length - 1 && (
+            <span className={`font-black text-xl mb-3 ${endingSoon ? "text-red-400" : "text-muted-foreground/40"}`}>:</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ShareButton({ listingId, cardName }: { listingId: number; cardName: string }) {
+  const { user } = useUser();
+  const [state, setState] = useState<"idle" | "loading" | "copied">("idle");
+  const [shortUrl, setShortUrl] = useState<string | null>(null);
+
+  const handleShare = async () => {
+    if (shortUrl) {
+      await navigator.clipboard.writeText(shortUrl);
+      setState("copied");
+      setTimeout(() => setState("idle"), 2500);
+      return;
+    }
+    setState("loading");
+    const origin = window.location.origin;
+    const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+    const targetUrl = `${origin}${base}/view/listing/${listingId}`;
+    try {
+      const res = await fetch("/api/s", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUrl, clerkId: user?.id }),
+      });
+      const data = await res.json() as { shortUrl?: string };
+      if (data.shortUrl) {
+        setShortUrl(data.shortUrl);
+        await navigator.clipboard.writeText(data.shortUrl);
+        setState("copied");
+        toast.success("Share link copied!");
+        setTimeout(() => setState("idle"), 2500);
+      }
+    } catch {
+      toast.error("Failed to generate share link");
+      setState("idle");
+    }
+  };
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleShare} disabled={state === "loading"} className="gap-1.5">
+      {state === "loading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        : state === "copied" ? <Check className="h-3.5 w-3.5 text-emerald-500" />
+        : <Share2 className="h-3.5 w-3.5" />}
+      {state === "copied" ? "Copied!" : "Share"}
+    </Button>
+  );
 }
 
 export default function ListingDetail() {
@@ -96,16 +196,18 @@ export default function ListingDetail() {
   const qc = useQueryClient();
 
   const { data: listing, isLoading, refetch } = useGetListing(id, {
-    query: { enabled: !!id, queryKey: ["/api/marketplace", id], refetchInterval: 15000 },
+    query: { enabled: !!id, queryKey: ["/api/marketplace", id], refetchInterval: 8000 },
   });
 
   const extListing = listing as (typeof listing & AuctionListing) | undefined;
+  const isAuction = extListing?.listingType === "auction";
+  const auctionEnded = isAuction && extListing?.auctionEndTime && isPast(new Date(extListing.auctionEndTime));
 
   const { data: bids, refetch: refetchBids } = useQuery<Bid[]>({
     queryKey: ["/api/marketplace/bids", id],
     queryFn: () => fetch(`/api/marketplace/${id}/bids`).then(r => r.json()),
-    enabled: !!id && extListing?.listingType === "auction",
-    refetchInterval: 15000,
+    enabled: !!id && isAuction,
+    refetchInterval: isAuction && !auctionEnded ? 8000 : false,
   });
 
   const { data: myRatings } = useQuery<Rating[]>({
@@ -178,10 +280,7 @@ export default function ListingDetail() {
 
   const handleBid = () => {
     const amount = parseFloat(bidAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error("Enter a valid bid amount");
-      return;
-    }
+    if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid bid amount"); return; }
     const body: Record<string, unknown> = { amount };
     if (showProxyBid && maxBidAmount) {
       const maxAmt = parseFloat(maxBidAmount);
@@ -220,8 +319,6 @@ export default function ListingDetail() {
   }
 
   const { card } = listing;
-  const isAuction = extListing?.listingType === "auction";
-  const auctionEnded = isAuction && extListing?.auctionEndTime && isPast(new Date(extListing.auctionEndTime));
   const isSold = listing.status === "sold";
   const isActive = listing.status === "active";
   const isMyListing = user?.id && extListing?.sellerClerkId === user.id;
@@ -230,31 +327,53 @@ export default function ListingDetail() {
   const minIncrement = extListing?.minBidIncrement ?? 1;
   const minBid = currentBid ? currentBid + minIncrement : (startingBid ?? 0);
   const reserveMet = !extListing?.reservePrice || (currentBid && currentBid >= extListing.reservePrice);
-
   const alreadyRatedAsSeller = myRatings?.some(r => r.type === "buyer_to_seller");
+  const endingSoon = isAuction && extListing?.auctionEndTime && !auctionEnded &&
+    intervalToDuration({ start: new Date(), end: new Date(extListing.auctionEndTime) }).days === 0 &&
+    (intervalToDuration({ start: new Date(), end: new Date(extListing.auctionEndTime) }).hours ?? 0) === 0 &&
+    (intervalToDuration({ start: new Date(), end: new Date(extListing.auctionEndTime) }).minutes ?? 60) < 10;
 
   return (
     <Layout>
       <div className="bg-background min-h-screen">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20">
-          <Button variant="ghost" onClick={() => setLocation("/marketplace")} className="mb-6 -ml-4 text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back to Marketplace
-          </Button>
+          <div className="flex items-center justify-between mb-6">
+            <Button variant="ghost" onClick={() => setLocation("/marketplace")} className="-ml-4 text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="h-4 w-4 mr-2" /> Back to Marketplace
+            </Button>
+            <ShareButton listingId={id} cardName={card.name} />
+          </div>
 
           <div className="flex flex-col lg:flex-row gap-12">
-            {/* Card Image */}
-            <div className="w-full lg:w-1/2 lg:max-w-md mx-auto">
-              <div className="relative aspect-[3/4] bg-muted/30 border rounded-2xl overflow-hidden shadow-2xl">
-                {card.imageUrl ? (
-                  <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">No Image Available</div>
+            {/* Card Image — 3D holo effect */}
+            <div className="w-full lg:w-1/2 lg:max-w-sm mx-auto">
+              <div className="relative">
+                {isAuction && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                    <Badge className={`font-bold shadow-lg text-sm px-3 py-1 flex items-center gap-1 ${endingSoon ? "bg-red-500 text-white animate-pulse" : "bg-amber-500 text-white"}`}>
+                      <Gavel className="h-3 w-3" />
+                      {auctionEnded ? "AUCTION ENDED" : endingSoon ? "ENDING SOON" : "LIVE AUCTION"}
+                    </Badge>
+                  </div>
                 )}
-                <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
-                  {isSold && <Badge className="bg-destructive text-white font-bold shadow-lg text-sm px-3 py-1">SOLD</Badge>}
-                  {isAuction && <Badge className="bg-amber-500 text-white font-bold shadow-lg text-sm px-3 py-1 flex items-center gap-1"><Gavel className="h-3 w-3" /> AUCTION</Badge>}
-                </div>
+                {isSold && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                    <Badge className="bg-destructive text-white font-bold shadow-lg text-sm px-3 py-1">SOLD</Badge>
+                  </div>
+                )}
+                <HoloCard imageUrl={card.imageUrl} name={card.name} />
               </div>
+
+              {/* Auction countdown under card on mobile — large blocks */}
+              {isAuction && extListing?.auctionEndTime && isActive && (
+                <div className={`mt-6 rounded-2xl border p-4 ${endingSoon ? "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800/40" : "bg-muted/30 border-border"}`}>
+                  <p className={`text-xs font-bold uppercase tracking-widest text-center mb-3 flex items-center justify-center gap-1.5 ${endingSoon ? "text-red-500" : "text-muted-foreground"}`}>
+                    <Timer className="h-3.5 w-3.5" />
+                    {auctionEnded ? "Auction ended" : "Time remaining"}
+                  </p>
+                  <AuctionCountdownLarge endTime={extListing.auctionEndTime} />
+                </div>
+              )}
             </div>
 
             {/* Details */}
@@ -291,11 +410,15 @@ export default function ListingDetail() {
 
               {/* Price / Bid Panel */}
               {isAuction ? (
-                <div className="bg-card border shadow-md rounded-2xl p-6 mb-6 border-amber-200 space-y-4">
+                <div className={`bg-card border shadow-md rounded-2xl p-6 mb-6 space-y-4 transition-colors ${endingSoon ? "border-red-300 dark:border-red-800/50 shadow-red-100 dark:shadow-red-950/20" : "border-amber-200"}`}>
                   {extListing?.auctionEndTime && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Timer className="h-4 w-4" />
-                      {auctionEnded ? "Auction ended" : <>Ends in <AuctionCountdown endTime={extListing.auctionEndTime} /></>}
+                      <Timer className={`h-4 w-4 ${endingSoon ? "text-red-500" : ""}`} />
+                      {auctionEnded ? "Auction ended" : (
+                        <span className="flex items-center gap-2">
+                          Ends in <AuctionCountdown endTime={extListing.auctionEndTime} />
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -305,14 +428,17 @@ export default function ListingDetail() {
                         {currentBid ? "Current Bid" : "Starting Bid"}
                       </p>
                       <p className="text-3xl font-black text-foreground">{formatCurrency(currentBid ?? startingBid ?? 0)}</p>
+                      {bids && bids.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">{bids.length} bid{bids.length !== 1 ? "s" : ""}</p>
+                      )}
                     </div>
                     {extListing?.reservePrice && (
                       <div>
                         <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Reserve</p>
                         <p className="text-sm font-medium mt-1">
                           {reserveMet
-                            ? <span className="text-green-600">Met ✓</span>
-                            : <span className="text-amber-600">Not met</span>}
+                            ? <span className="text-green-600 font-bold">Met ✓</span>
+                            : <span className="text-amber-600 font-bold">Not met</span>}
                         </p>
                       </div>
                     )}
@@ -344,7 +470,7 @@ export default function ListingDetail() {
                           onChange={e => setBidAmount(e.target.value)}
                           className="text-lg font-bold"
                         />
-                        <Button onClick={handleBid} disabled={placeBid.isPending} className="shrink-0">
+                        <Button onClick={handleBid} disabled={placeBid.isPending} className="shrink-0 bg-amber-500 hover:bg-amber-400 text-white">
                           <Gavel className="w-4 h-4 mr-1" /> Bid
                         </Button>
                       </div>
@@ -410,14 +536,18 @@ export default function ListingDetail() {
               {/* Bid History */}
               {isAuction && bids && bids.length > 0 && (
                 <div className="bg-muted/20 rounded-xl border p-4 mb-6">
-                  <h3 className="text-sm font-bold mb-3">Bid History ({bids.length})</h3>
+                  <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
+                    <Gavel className="h-3.5 w-3.5 text-amber-500" />
+                    Bid History
+                    <span className="text-muted-foreground font-normal">({bids.length})</span>
+                  </h3>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {bids.map((bid, i) => (
                       <div key={bid.id} className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">
-                          {i === 0 ? "👑 " : ""}Bidder {bid.bidderClerkId.slice(-4)}
+                          {i === 0 ? "👑 " : ""}Bidder ···{bid.bidderClerkId.slice(-4)}
                         </span>
-                        <span className="font-bold">{formatCurrency(bid.amount)}</span>
+                        <span className={`font-bold ${i === 0 ? "text-amber-600" : ""}`}>{formatCurrency(bid.amount)}</span>
                       </div>
                     ))}
                   </div>
@@ -448,7 +578,7 @@ export default function ListingDetail() {
                 </div>
               </div>
 
-              {/* Rating form — only after purchase */}
+              {/* Rating form */}
               {isSold && user && extListing?.sellerClerkId && extListing.sellerClerkId !== user.id && !alreadyRatedAsSeller && (
                 <div className="mt-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
                   <h3 className="font-semibold mb-3 flex items-center gap-2">
