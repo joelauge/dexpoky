@@ -58,11 +58,11 @@ export function CardItem({ card, href, showPrice = false }: CardItemProps) {
           {card.pokemonName}{card.setName ? ` • ${card.setName}` : ""}
         </p>
 
-        <div className="mt-auto pt-2 border-t flex items-center justify-between gap-1">
-          <Badge variant="outline" className={`text-[10px] shrink-0 ${CONDITION_COLORS[card.condition] || ""}`}>
+        <div className="mt-auto pt-2 border-t flex flex-col gap-1">
+          <Badge variant="outline" className={`text-[10px] self-start ${CONDITION_COLORS[card.condition] || ""}`}>
             {formatLabel(card.condition)}
           </Badge>
-          <span className="font-bold text-sm text-foreground truncate text-right">
+          <span className="font-bold text-sm text-foreground">
             {formatCurrency(showPrice ? card.listingPrice : card.estimatedValue)}
           </span>
         </div>
