@@ -7,8 +7,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { User, Star, Edit3, LogOut, Save, X, Shield, Camera, Loader2 } from "lucide-react";
+import { User, Star, Edit3, LogOut, Save, X, Shield, Camera, Loader2, Wallet, Banknote } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface PayoutEntry {
+  id: number;
+  kind: string;
+  amountCents: number;
+  status: string;
+  listingId: number | null;
+  payoutMethod: string | null;
+  payoutDestination: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+interface EarningsData {
+  availableCents: number;
+  pendingCents: number;
+  lifetimeEarnedCents: number;
+  lifetimePaidOutCents: number;
+  payoutMethod: string | null;
+  payoutDestination: string | null;
+  entries: PayoutEntry[];
+}
+
+function fmtUsd(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
 
 interface UserProfile {
   clerkId: string;
@@ -83,6 +110,72 @@ export default function Profile() {
     queryFn: () => fetch(`/api/ratings/user/${user!.id}`).then(r => r.json()),
     enabled: !!user?.id,
   });
+
+  const { data: earnings } = useQuery<EarningsData>({
+    queryKey: ["/api/users/me/earnings"],
+    queryFn: () => fetch("/api/users/me/earnings").then(r => r.json()),
+    enabled: !!user,
+  });
+
+  const [payoutForm, setPayoutForm] = useState<{ method: "paypal" | "stripe" | "bank"; destination: string }>({
+    method: "paypal",
+    destination: "",
+  });
+  const [editingPayout, setEditingPayout] = useState(false);
+  const [payoutAmount, setPayoutAmount] = useState("");
+
+  const savePayoutMethod = useMutation({
+    mutationFn: (data: { payoutMethod: string; payoutDestination: string }) =>
+      fetch("/api/users/me/payout-method", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then(async r => {
+        if (!r.ok) throw new Error((await r.json()).error ?? "Failed");
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/users/me/earnings"] });
+      setEditingPayout(false);
+      toast.success("Payout method saved!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const requestPayout = useMutation({
+    mutationFn: (amountCents: number) =>
+      fetch("/api/users/me/payouts/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountCents }),
+      }).then(async r => {
+        if (!r.ok) throw new Error((await r.json()).error ?? "Failed");
+        return r.json();
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/users/me/earnings"] });
+      setPayoutAmount("");
+      toast.success("Payout requested! We'll process it within 3 business days.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleEditPayout = () => {
+    setPayoutForm({
+      method: (earnings?.payoutMethod as "paypal" | "stripe" | "bank") ?? "paypal",
+      destination: earnings?.payoutDestination ?? "",
+    });
+    setEditingPayout(true);
+  };
+
+  const handleRequestPayout = () => {
+    const amt = parseFloat(payoutAmount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    requestPayout.mutate(Math.round(amt * 100));
+  };
 
   const updateProfile = useMutation({
     mutationFn: (data: Partial<UserProfile>) =>
@@ -272,6 +365,144 @@ export default function Profile() {
               <p className="text-sm text-muted-foreground leading-relaxed">
                 {profile?.sellerDetails ?? "No seller details set."}
               </p>
+            )}
+          </div>
+
+          {/* Earnings & Payouts */}
+          <div className="bg-card border rounded-2xl p-6 mb-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-primary" />
+              <h3 className="font-semibold text-foreground">Earnings & Payouts</h3>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-primary/5 rounded-xl p-3 border border-primary/20">
+                <div className="text-xs text-muted-foreground">Available</div>
+                <div className="text-lg font-bold text-primary">{fmtUsd(earnings?.availableCents ?? 0)}</div>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-3 border">
+                <div className="text-xs text-muted-foreground">Pending</div>
+                <div className="text-lg font-bold">{fmtUsd(earnings?.pendingCents ?? 0)}</div>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-3 border">
+                <div className="text-xs text-muted-foreground">Lifetime earned</div>
+                <div className="text-lg font-bold">{fmtUsd(earnings?.lifetimeEarnedCents ?? 0)}</div>
+              </div>
+              <div className="bg-muted/30 rounded-xl p-3 border">
+                <div className="text-xs text-muted-foreground">Paid out</div>
+                <div className="text-lg font-bold">{fmtUsd(earnings?.lifetimePaidOutCents ?? 0)}</div>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              You earn 90% of each sale (10% platform fee). Funds become available as soon as a buyer's payment is captured.
+            </p>
+
+            {/* Payout method */}
+            <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Banknote className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">Payout method</span>
+                </div>
+                {!editingPayout ? (
+                  <Button variant="outline" size="sm" onClick={handleEditPayout}>
+                    <Edit3 className="h-3 w-3 mr-1" />
+                    {earnings?.payoutMethod ? "Change" : "Add"}
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditingPayout(false)}>
+                      <X className="h-3 w-3 mr-1" /> Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => savePayoutMethod.mutate({ payoutMethod: payoutForm.method, payoutDestination: payoutForm.destination })}
+                      disabled={savePayoutMethod.isPending || payoutForm.destination.length < 3}
+                    >
+                      {savePayoutMethod.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                      Save
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {editingPayout ? (
+                <div className="space-y-3">
+                  <Select value={payoutForm.method} onValueChange={(v) => setPayoutForm(f => ({ ...f, method: v as "paypal" | "stripe" | "bank" }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="paypal">PayPal</SelectItem>
+                      <SelectItem value="stripe">Stripe (email)</SelectItem>
+                      <SelectItem value="bank">Bank / Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={payoutForm.destination}
+                    onChange={e => setPayoutForm(f => ({ ...f, destination: e.target.value }))}
+                    placeholder={
+                      payoutForm.method === "paypal"
+                        ? "you@paypal.com"
+                        : payoutForm.method === "stripe"
+                        ? "Stripe account email"
+                        : "Bank details / Venmo / Zelle / etc."
+                    }
+                  />
+                </div>
+              ) : earnings?.payoutMethod ? (
+                <div className="text-sm">
+                  <Badge variant="outline" className="mr-2 capitalize">{earnings.payoutMethod}</Badge>
+                  <span className="text-muted-foreground">{earnings.payoutDestination}</span>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No payout method set. Add one to withdraw your earnings.</p>
+              )}
+            </div>
+
+            {/* Request payout */}
+            {earnings?.payoutMethod && (earnings?.availableCents ?? 0) > 0 && (
+              <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                <div className="font-medium text-sm">Request a payout</div>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder={`Up to $${((earnings?.availableCents ?? 0) / 100).toFixed(2)}`}
+                    value={payoutAmount}
+                    onChange={e => setPayoutAmount(e.target.value)}
+                  />
+                  <Button onClick={handleRequestPayout} disabled={requestPayout.isPending}>
+                    {requestPayout.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    Request
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Payouts are processed manually within 3 business days to your saved {earnings.payoutMethod} account.
+                </p>
+              </div>
+            )}
+
+            {/* History */}
+            {earnings && earnings.entries.length > 0 && (
+              <div className="space-y-2">
+                <div className="font-medium text-sm">History</div>
+                <div className="divide-y rounded-xl border bg-muted/10 overflow-hidden">
+                  {earnings.entries.slice(0, 10).map(e => (
+                    <div key={e.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                      <div className="min-w-0">
+                        <div className="truncate">{e.note ?? e.kind}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(e.createdAt).toLocaleDateString()} · <span className="capitalize">{e.status}</span>
+                        </div>
+                      </div>
+                      <div className={`font-mono font-semibold ${e.kind === "sale_credit" ? "text-emerald-600" : "text-amber-600"}`}>
+                        {e.kind === "sale_credit" ? "+" : "−"}{fmtUsd(e.amountCents)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 

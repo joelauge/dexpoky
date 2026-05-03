@@ -11,6 +11,8 @@ export const usersTable = pgTable("users", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   freeTrialActivated: boolean("free_trial_activated").default(false).notNull(),
   freeTrialScansUsed: integer("free_trial_scans_used").default(0).notNull(),
+  payoutMethod: text("payout_method"),
+  payoutDestination: text("payout_destination"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

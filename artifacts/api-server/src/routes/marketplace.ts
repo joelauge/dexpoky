@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { listingsTable, cardsTable, categoriesTable, activityEventsTable } from "@workspace/db";
+import { listingsTable, cardsTable, categoriesTable, activityEventsTable, sellerPayoutsTable } from "@workspace/db";
 import { eq, sql, and, gte, lte, type SQL } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import {
@@ -437,6 +437,21 @@ router.post("/marketplace/:id/confirm-purchase", requireAuth, async (req, res) =
       stripeSessionId: sessionId,
     },
   });
+
+  if (updated.sellerClerkId) {
+    const grossCents = Math.round(parseFloat(String(updated.price)) * 100);
+    const platformFeeCents = Math.round(grossCents * 0.1);
+    const netCents = grossCents - platformFeeCents;
+    await db.insert(sellerPayoutsTable).values({
+      sellerClerkId: updated.sellerClerkId,
+      kind: "sale_credit",
+      amountCents: netCents,
+      status: "completed",
+      listingId: updated.id,
+      stripeSessionId: sessionId,
+      note: `Sale of ${card?.name ?? "card"} ($${(grossCents / 100).toFixed(2)} − 10% fee)`,
+    });
+  }
 
   res.json({ ok: true });
 });

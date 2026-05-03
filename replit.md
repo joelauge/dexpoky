@@ -64,6 +64,8 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - `users` — User profiles (clerk_id, username, bio, avatar_url, seller_details)
 - `ratings` — Buyer/seller ratings (rater_clerk_id, rated_clerk_id, listing_id, score 1-5, comment, type)
 - `auction_bids` — All bids (listing_id, bidder_clerk_id, amount, max_amount for proxy bidding)
+- `seller_payouts` — Seller earnings ledger (kind: sale_credit | payout_request, amount_cents, status, listing_id, stripe_session_id, payout_method, payout_destination)
+- `users.payout_method` + `users.payout_destination` — saved payout destination (paypal | stripe | bank)
 
 ### Object Storage
 - Bucket provisioned via `setupObjectStorage()`
@@ -83,6 +85,11 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - `GET /users/me` — get own profile (auth required; auto-creates if first visit)
 - `PUT /users/me` — update own profile (auth required)
 - `GET /users/:clerkId` — public seller profile (seller_details hidden unless requester has bid)
+- `POST /marketplace/:id/checkout` — create Stripe Checkout session for Buy Now (auth)
+- `POST /marketplace/:id/confirm-purchase` — verify Stripe session, mark sold, credit seller 90% (auth)
+- `GET /users/me/earnings` — seller balance + ledger history (auth)
+- `PUT /users/me/payout-method` — set paypal/stripe/bank destination (auth)
+- `POST /users/me/payouts/request` — request a payout from available balance (auth)
 - `GET /ratings/user/:clerkId` — get all ratings for a user
 - `POST /ratings` — submit rating (auth required; listing must be status=sold)
 - `GET /inventory/stats` — portfolio summary stats
