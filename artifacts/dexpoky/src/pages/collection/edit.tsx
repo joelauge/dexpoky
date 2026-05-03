@@ -33,6 +33,20 @@ function saveLastCategoryId(id: number | undefined | null) {
   } catch { /* ignore */ }
 }
 
+// Map any legacy condition strings (stored before enum was finalised) to current values
+const LEGACY_CONDITION: Record<string, UpdateCardBodyCondition> = {
+  lightly_played:    UpdateCardBodyCondition.light_played,
+  moderately_played: UpdateCardBodyCondition.played,
+  heavily_played:    UpdateCardBodyCondition.poor,
+  damaged:           UpdateCardBodyCondition.poor,
+};
+
+function normalizeCondition(raw: string | null | undefined): UpdateCardBodyCondition {
+  if (!raw) return UpdateCardBodyCondition.near_mint;
+  if (raw in UpdateCardBodyCondition) return raw as UpdateCardBodyCondition;
+  return LEGACY_CONDITION[raw] ?? UpdateCardBodyCondition.near_mint;
+}
+
 const editSchema = z.object({
   name: z.string().min(1, "Name is required"),
   pokemonName: z.string().min(1, "Pokémon name is required"),
@@ -83,13 +97,13 @@ export default function EditCard() {
       setName: card.setName ?? "",
       cardNumber: card.cardNumber ?? "",
       rarity: (card.rarity as UpdateCardBodyRarity) ?? UpdateCardBodyRarity.common,
-      condition: (card.condition as UpdateCardBodyCondition) ?? UpdateCardBodyCondition.near_mint,
+      condition: normalizeCondition(card.condition),
       estimatedValue: card.estimatedValue != null ? Number(card.estimatedValue) : undefined,
       categoryId: card.categoryId ?? undefined,
       notes: card.notes ?? "",
       imageUrl: card.imageUrl ?? null,
     });
-  }, [card]);
+  }, [card?.id]);
 
   const onSubmit = (data: EditFormValues) => {
     updateCard.mutate(
@@ -247,7 +261,11 @@ export default function EditCard() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Condition</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select
+                            key={field.value}
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select condition" />
@@ -269,7 +287,11 @@ export default function EditCard() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Rarity</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select
+                            key={field.value}
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select rarity" />
@@ -313,8 +335,9 @@ export default function EditCard() {
                         <FormItem>
                           <FormLabel>Category</FormLabel>
                           <Select
+                            key={field.value ?? "none"}
                             onValueChange={(val) => field.onChange(val === "none" ? null : parseInt(val))}
-                            value={field.value != null ? field.value.toString() : "none"}
+                            defaultValue={field.value != null ? field.value.toString() : "none"}
                           >
                             <FormControl>
                               <SelectTrigger>

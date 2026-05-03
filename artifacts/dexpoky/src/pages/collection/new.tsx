@@ -63,12 +63,13 @@ const cardSchema = z.object({
 type CardFormValues = z.infer<typeof cardSchema>;
 
 const CONDITIONS: { value: CreateCardBodyCondition; label: string; desc: string }[] = [
-  { value: CreateCardBodyCondition.mint,       label: "Mint",        desc: "Perfect, pack-fresh condition" },
-  { value: CreateCardBodyCondition.near_mint,  label: "Near Mint",   desc: "Slight handling, no visible wear" },
-  { value: CreateCardBodyCondition.lightly_played, label: "Lightly Played", desc: "Minor scratches or edge wear" },
-  { value: CreateCardBodyCondition.moderately_played, label: "Moderately Played", desc: "Visible wear on surface or edges" },
-  { value: CreateCardBodyCondition.heavily_played, label: "Heavily Played", desc: "Significant wear or creases" },
-  { value: CreateCardBodyCondition.damaged,    label: "Damaged",     desc: "Tears, heavy creases, or bends" },
+  { value: CreateCardBodyCondition.mint,         label: "Mint",           desc: "Perfect, pack-fresh condition" },
+  { value: CreateCardBodyCondition.near_mint,    label: "Near Mint",      desc: "Slight handling, no visible wear" },
+  { value: CreateCardBodyCondition.excellent,    label: "Excellent",      desc: "Minor surface marks, bright gloss" },
+  { value: CreateCardBodyCondition.good,         label: "Good",           desc: "Visible wear on surface or edges" },
+  { value: CreateCardBodyCondition.light_played, label: "Lightly Played", desc: "Noticeable scratches or edge wear" },
+  { value: CreateCardBodyCondition.played,       label: "Played",         desc: "Heavy wear, creases or whitening" },
+  { value: CreateCardBodyCondition.poor,         label: "Poor",           desc: "Tears, heavy creases, or bends" },
 ];
 
 function getParam(search: string, key: string): string {
