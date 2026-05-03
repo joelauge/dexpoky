@@ -8,7 +8,6 @@ import {
   PlusCircle,
   Menu,
   Tags,
-  Hexagon,
   ScanLine
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -77,10 +76,7 @@ export function Layout({ children }: LayoutProps) {
       {/* Mobile Header */}
       <header className="md:hidden flex items-center justify-between p-4 border-b bg-card sticky top-0 z-30">
         <div className="flex items-center gap-2">
-          <div className="bg-primary p-1.5 rounded-md">
-            <Hexagon className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="font-bold text-xl tracking-tight text-foreground">DexPoky</span>
+          <img src="/logo.png" alt="DexPoky" className="h-9 w-9 object-contain" />
         </div>
         <Sheet>
           <SheetTrigger asChild>
@@ -94,12 +90,7 @@ export function Layout({ children }: LayoutProps) {
               <SheetDescription>Main navigation for DexPoky app</SheetDescription>
             </VisuallyHidden.Root>
             <div className="p-6 border-b">
-              <div className="flex items-center gap-2">
-                <div className="bg-primary p-1.5 rounded-md">
-                  <Hexagon className="h-6 w-6 text-primary-foreground" />
-                </div>
-                <span className="font-bold text-2xl tracking-tight">DexPoky</span>
-              </div>
+              <img src="/logo.png" alt="DexPoky" className="h-12 w-12 object-contain" />
             </div>
             <ScrollArea className="h-[calc(100vh-80px)] px-4 py-6">
               <NavLinks />
@@ -110,14 +101,9 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 border-r bg-card h-screen sticky top-0">
-        <div className="p-6 border-b">
+        <div className="p-5 border-b">
           <Link href="/">
-            <div className="flex items-center gap-2 cursor-pointer">
-              <div className="bg-primary p-1.5 rounded-md shadow-sm">
-                <Hexagon className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <span className="font-bold text-2xl tracking-tight text-foreground">DexPoky</span>
-            </div>
+            <img src="/logo.png" alt="DexPoky" className="h-14 w-14 object-contain cursor-pointer" />
           </Link>
         </div>
         <ScrollArea className="flex-1 px-4 py-6">

@@ -16,13 +16,13 @@ export function CardItem({ card, href, showPrice = false }: CardItemProps) {
     <motion.div
       whileHover={{ y: -5, scale: 1.02 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="bg-card rounded-xl border shadow-sm overflow-hidden flex flex-col h-full hover:shadow-md transition-shadow cursor-pointer"
+      className="bg-card rounded-xl border shadow-sm flex flex-col h-full hover:shadow-md transition-shadow cursor-pointer"
     >
-      <div className="aspect-[3/4] relative bg-muted/50 border-b flex items-center justify-center overflow-hidden">
+      <div className="aspect-[3/4] relative bg-muted/50 border-b flex items-center justify-center overflow-hidden rounded-t-xl">
         {card.imageUrl ? (
-          <img 
-            src={card.imageUrl} 
-            alt={card.name} 
+          <img
+            src={card.imageUrl}
+            alt={card.name}
             className="w-full h-full object-cover object-center"
           />
         ) : (
@@ -44,29 +44,27 @@ export function CardItem({ card, href, showPrice = false }: CardItemProps) {
           </Badge>
         </div>
       </div>
-      <div className="p-4 flex flex-col flex-1">
-        <div className="flex justify-between items-start mb-1 gap-2">
-          <h3 className="font-bold text-foreground line-clamp-1 flex-1">{card.name}</h3>
+
+      <div className="p-3 flex flex-col flex-1">
+        <div className="flex justify-between items-start gap-1 mb-0.5">
+          <h3 className="font-bold text-foreground text-sm line-clamp-1 flex-1 leading-tight">{card.name}</h3>
           {card.cardNumber && (
-            <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-mono text-muted-foreground bg-secondary px-1 py-0.5 rounded shrink-0">
               {card.cardNumber}
             </span>
           )}
         </div>
-        <p className="text-sm text-muted-foreground mb-3">{card.pokemonName} {card.setName ? `• ${card.setName}` : ""}</p>
-        
-        <div className="mt-auto pt-3 border-t flex items-center justify-between">
-          <Badge variant="outline" className={`text-xs ${CONDITION_COLORS[card.condition] || ""}`}>
+        <p className="text-xs text-muted-foreground line-clamp-1 mb-2">
+          {card.pokemonName}{card.setName ? ` • ${card.setName}` : ""}
+        </p>
+
+        <div className="mt-auto pt-2 border-t flex items-center justify-between gap-1">
+          <Badge variant="outline" className={`text-[10px] shrink-0 ${CONDITION_COLORS[card.condition] || ""}`}>
             {formatLabel(card.condition)}
           </Badge>
-          <div className="text-right">
-            <span className="text-xs text-muted-foreground block">
-              {showPrice ? "Price" : "Value"}
-            </span>
-            <span className="font-bold text-foreground">
-              {formatCurrency(showPrice ? card.listingPrice : card.estimatedValue)}
-            </span>
-          </div>
+          <span className="font-bold text-sm text-foreground truncate text-right">
+            {formatCurrency(showPrice ? card.listingPrice : card.estimatedValue)}
+          </span>
         </div>
       </div>
     </motion.div>

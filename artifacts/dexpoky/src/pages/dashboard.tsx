@@ -15,8 +15,11 @@ export default function Dashboard() {
   const { data: recentActivity, isLoading: activityLoading } = useGetRecentActivity({ limit: 5 });
   const { data: recentCards, isLoading: cardsLoading } = useListCards({ categoryId: undefined });
 
-  // Use the most recent 4 cards for the preview
-  const recentCardsSlice = recentCards?.slice(0, 4) || [];
+  // Sort recent cards by estimated value descending, then take top 4
+  const recentCardsSlice = (recentCards ?? [])
+    .slice()
+    .sort((a, b) => (b.estimatedValue ?? 0) - (a.estimatedValue ?? 0))
+    .slice(0, 4);
 
   const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
