@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const categoriesTable = pgTable("categories", {
   id: serial("id").primaryKey(),
+  ownerClerkId: text("owner_clerk_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   color: text("color"),

@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { cardsTable, categoriesTable, listingsTable, activityEventsTable } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and } from "drizzle-orm";
+import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 
 const router = Router();
 
-router.get("/inventory/stats", async (req, res) => {
+router.get("/inventory/stats", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
+
   const [totals] = await db
     .select({
       totalCards: sql<number>`count(*)::int`,
@@ -13,16 +16,18 @@ router.get("/inventory/stats", async (req, res) => {
       forSaleCount: sql<number>`count(*) filter (where ${cardsTable.forSale} = true)::int`,
       forSaleValue: sql<number>`coalesce(sum(${cardsTable.estimatedValue}::numeric) filter (where ${cardsTable.forSale} = true), 0)::float`,
     })
-    .from(cardsTable);
+    .from(cardsTable)
+    .where(eq(cardsTable.ownerClerkId, userId));
 
   const [listingStats] = await db
     .select({ totalListings: sql<number>`count(*)::int` })
     .from(listingsTable)
-    .where(eq(listingsTable.status, "active"));
+    .where(and(eq(listingsTable.status, "active"), eq(listingsTable.sellerClerkId, userId)));
 
   const [{ categoryCount }] = await db
     .select({ categoryCount: sql<number>`count(*)::int` })
-    .from(categoriesTable);
+    .from(categoriesTable)
+    .where(eq(categoriesTable.ownerClerkId, userId));
 
   const rarityRows = await db
     .select({
@@ -30,6 +35,7 @@ router.get("/inventory/stats", async (req, res) => {
       count: sql<number>`count(*)::int`,
     })
     .from(cardsTable)
+    .where(eq(cardsTable.ownerClerkId, userId))
     .groupBy(cardsTable.rarity);
 
   const conditionRows = await db
@@ -38,6 +44,7 @@ router.get("/inventory/stats", async (req, res) => {
       count: sql<number>`count(*)::int`,
     })
     .from(cardsTable)
+    .where(eq(cardsTable.ownerClerkId, userId))
     .groupBy(cardsTable.condition);
 
   const rarityBreakdown = Object.fromEntries(
@@ -56,7 +63,8 @@ router.get("/inventory/stats", async (req, res) => {
   });
 });
 
-router.get("/inventory/value-by-category", async (req, res) => {
+router.get("/inventory/value-by-category", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
   const rows = await db
     .select({
       categoryId: cardsTable.categoryId,
@@ -66,6 +74,7 @@ router.get("/inventory/value-by-category", async (req, res) => {
     })
     .from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .where(eq(cardsTable.ownerClerkId, userId))
     .groupBy(cardsTable.categoryId, categoriesTable.name)
     .orderBy(sql`coalesce(sum(${cardsTable.estimatedValue}::numeric), 0) desc`);
 
@@ -76,12 +85,14 @@ router.get("/inventory/value-by-category", async (req, res) => {
   res.json(result);
 });
 
-router.get("/inventory/recent-activity", async (req, res) => {
+router.get("/inventory/recent-activity", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
   const limit = Math.min(Number(req.query.limit ?? 10), 50);
 
   const events = await db
     .select()
     .from(activityEventsTable)
+    .where(eq(activityEventsTable.clerkId, userId))
     .orderBy(desc(activityEventsTable.createdAt))
     .limit(limit);
 

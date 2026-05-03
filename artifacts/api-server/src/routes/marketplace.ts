@@ -85,15 +85,27 @@ router.get("/marketplace", async (req, res) => {
   res.json(enriched);
 });
 
-router.post("/marketplace", async (req, res) => {
+router.post("/marketplace", requireAuth, async (req, res) => {
   const parsed = CreateListingBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request body", details: parsed.error });
     return;
   }
 
-  const auth = getAuth(req as never);
-  const sellerClerkId = auth?.userId ?? null;
+  const sellerClerkId = (req as AuthRequest).userId;
+
+  const [card] = await db
+    .select({ ownerClerkId: cardsTable.ownerClerkId })
+    .from(cardsTable)
+    .where(eq(cardsTable.id, parsed.data.cardId));
+  if (!card) {
+    res.status(404).json({ error: "Card not found" });
+    return;
+  }
+  if (card.ownerClerkId !== sellerClerkId) {
+    res.status(403).json({ error: "You can only list cards you own" });
+    return;
+  }
 
   const listingType = req.body.listingType === "auction" ? "auction" : "buy_now";
 
@@ -166,7 +178,7 @@ router.get("/marketplace/:id", async (req, res) => {
   res.json(await enrichListing({ ...listing, viewCount: listing.viewCount + 1 }));
 });
 
-router.put("/marketplace/:id", async (req, res) => {
+router.put("/marketplace/:id", requireAuth, async (req, res) => {
   const paramsParsed = UpdateListingParams.safeParse({ id: Number(req.params.id) });
   const bodyParsed = UpdateListingBody.safeParse(req.body);
   if (!paramsParsed.success || !bodyParsed.success) {
@@ -174,8 +186,20 @@ router.put("/marketplace/:id", async (req, res) => {
     return;
   }
 
-  const auth = getAuth(req as never);
-  const clerkId = auth?.userId ?? null;
+  const clerkId = (req as AuthRequest).userId;
+
+  const [existingListing] = await db
+    .select({ sellerClerkId: listingsTable.sellerClerkId })
+    .from(listingsTable)
+    .where(eq(listingsTable.id, paramsParsed.data.id));
+  if (!existingListing) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+  if (existingListing.sellerClerkId !== clerkId) {
+    res.status(403).json({ error: "You can only edit your own listings" });
+    return;
+  }
 
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (bodyParsed.data.price !== undefined) updateData.price = String(bodyParsed.data.price);
@@ -244,15 +268,14 @@ router.get("/cards/:cardId/listing", async (req, res) => {
   res.json({ ...listing, price: parseFloat(String(listing.price)) });
 });
 
-router.delete("/cards/:cardId/listing", async (req, res) => {
-  const cardId = parseInt(req.params.cardId);
+router.delete("/cards/:cardId/listing", requireAuth, async (req, res) => {
+  const cardId = parseInt(String(req.params.cardId), 10);
   if (isNaN(cardId)) {
     res.status(400).json({ error: "Invalid card id" });
     return;
   }
 
-  const auth = getAuth(req as never);
-  const clerkId = auth?.userId ?? null;
+  const clerkId = (req as AuthRequest).userId;
 
   const [listing] = await db
     .select()
@@ -261,6 +284,10 @@ router.delete("/cards/:cardId/listing", async (req, res) => {
 
   if (!listing) {
     res.status(404).json({ error: "No active listing found for this card" });
+    return;
+  }
+  if (listing.sellerClerkId !== clerkId) {
+    res.status(403).json({ error: "You can only cancel your own listings" });
     return;
   }
 
@@ -456,22 +483,29 @@ router.post("/marketplace/:id/confirm-purchase", requireAuth, async (req, res) =
   res.json({ ok: true });
 });
 
-router.delete("/marketplace/:id", async (req, res) => {
+router.delete("/marketplace/:id", requireAuth, async (req, res) => {
   const parsed = DeleteListingParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
+  const clerkId = (req as AuthRequest).userId;
   const [listing] = await db
     .select()
     .from(listingsTable)
     .where(eq(listingsTable.id, parsed.data.id));
-  if (listing) {
-    await db
-      .update(cardsTable)
-      .set({ forSale: false, listingPrice: null })
-      .where(eq(cardsTable.id, listing.cardId));
+  if (!listing) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
   }
+  if (listing.sellerClerkId !== clerkId) {
+    res.status(403).json({ error: "You can only delete your own listings" });
+    return;
+  }
+  await db
+    .update(cardsTable)
+    .set({ forSale: false, listingPrice: null })
+    .where(eq(cardsTable.id, listing.cardId));
   await db.delete(listingsTable).where(eq(listingsTable.id, parsed.data.id));
   res.status(204).send();
 });

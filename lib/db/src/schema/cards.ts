@@ -33,6 +33,7 @@ export const conditionEnum = [
 
 export const cardsTable = pgTable("cards", {
   id: serial("id").primaryKey(),
+  ownerClerkId: text("owner_clerk_id").notNull(),
   name: text("name").notNull(),
   pokemonName: text("pokemon_name").notNull(),
   setName: text("set_name"),

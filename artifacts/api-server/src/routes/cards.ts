@@ -4,6 +4,7 @@ import { cardsTable, categoriesTable, activityEventsTable } from "@workspace/db"
 import { searchTcgdex, fetchPricingById } from "./detect-helpers.js";
 import { eq, sql, ilike, and, type SQL } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
+import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import {
   ListCardsQueryParams,
   CreateCardBody,
@@ -31,18 +32,20 @@ const cardSelect = {
   forSale: cardsTable.forSale,
   listingPrice: sql<number | null>`${cardsTable.listingPrice}::float`,
   notes: cardsTable.notes,
+  ownerClerkId: cardsTable.ownerClerkId,
   createdAt: cardsTable.createdAt,
   updatedAt: cardsTable.updatedAt,
 };
 
-router.get("/cards", async (req, res) => {
+router.get("/cards", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
   const parsed = ListCardsQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid query params" });
     return;
   }
   const { categoryId, forSale, search, rarity } = parsed.data;
-  const conditions: SQL[] = [];
+  const conditions: SQL[] = [eq(cardsTable.ownerClerkId, userId)];
   if (categoryId !== undefined) conditions.push(eq(cardsTable.categoryId, categoryId));
   if (forSale !== undefined) conditions.push(eq(cardsTable.forSale, forSale));
   if (search) conditions.push(ilike(cardsTable.name, `%${search}%`));
@@ -52,24 +55,35 @@ router.get("/cards", async (req, res) => {
     .select(cardSelect)
     .from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(cardsTable.createdAt);
 
   res.json(cards);
 });
 
-router.post("/cards", async (req, res) => {
+router.post("/cards", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
   const parsed = CreateCardBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request body", details: parsed.error });
     return;
   }
   const data = parsed.data;
-  const auth = getAuth(req as never);
-  const clerkId = auth?.userId ?? null;
   const source = (req.body.source as string | undefined) ?? "manual";
 
+  if (data.categoryId != null) {
+    const [cat] = await db
+      .select({ id: categoriesTable.id })
+      .from(categoriesTable)
+      .where(and(eq(categoriesTable.id, data.categoryId), eq(categoriesTable.ownerClerkId, userId)));
+    if (!cat) {
+      res.status(400).json({ error: "Invalid category" });
+      return;
+    }
+  }
+
   const [card] = await db.insert(cardsTable).values({
+    ownerClerkId: userId,
     name: data.name,
     pokemonName: data.pokemonName,
     rarity: data.rarity,
@@ -93,7 +107,7 @@ router.post("/cards", async (req, res) => {
 
   await db.insert(activityEventsTable).values({
     type: source === "scan" ? "card_scanned" : "card_added",
-    clerkId,
+    clerkId: userId,
     cardId: card.id,
     metadata: {
       name: card.name,
@@ -140,20 +154,39 @@ router.get("/cards/:id", async (req, res) => {
     res.status(404).json({ error: "Card not found" });
     return;
   }
+
+  const auth = getAuth(req as never);
+  const requesterId = auth?.userId ?? null;
+  if (card.ownerClerkId !== requesterId && !card.forSale) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   res.json(card);
 });
 
-router.put("/cards/:id", async (req, res) => {
+router.put("/cards/:id", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
   const paramsParsed = UpdateCardParams.safeParse({ id: Number(req.params.id) });
   const bodyParsed = UpdateCardBody.safeParse(req.body);
   if (!paramsParsed.success || !bodyParsed.success) {
     res.status(400).json({ error: "Invalid request" });
     return;
   }
-  const data = bodyParsed.data;
-  const auth = getAuth(req as never);
-  const clerkId = auth?.userId ?? null;
 
+  const [existing] = await db
+    .select({ ownerClerkId: cardsTable.ownerClerkId })
+    .from(cardsTable)
+    .where(eq(cardsTable.id, paramsParsed.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Card not found" });
+    return;
+  }
+  if (existing.ownerClerkId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const data = bodyParsed.data;
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (data.name !== undefined) updateData.name = data.name;
   if (data.pokemonName !== undefined) updateData.pokemonName = data.pokemonName;
@@ -180,14 +213,9 @@ router.put("/cards/:id", async (req, res) => {
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
     .where(eq(cardsTable.id, paramsParsed.data.id));
 
-  if (!updated) {
-    res.status(404).json({ error: "Card not found" });
-    return;
-  }
-
   await db.insert(activityEventsTable).values({
     type: "card_updated",
-    clerkId,
+    clerkId: userId,
     cardId: updated.id,
     metadata: {
       name: updated.name,
@@ -200,10 +228,23 @@ router.put("/cards/:id", async (req, res) => {
   res.json(updated);
 });
 
-router.delete("/cards/:id", async (req, res) => {
+router.delete("/cards/:id", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
   const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [existing] = await db
+    .select({ ownerClerkId: cardsTable.ownerClerkId })
+    .from(cardsTable)
+    .where(eq(cardsTable.id, parsed.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Card not found" });
+    return;
+  }
+  if (existing.ownerClerkId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
     return;
   }
   await db.delete(cardsTable).where(eq(cardsTable.id, parsed.data.id));
