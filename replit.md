@@ -55,6 +55,7 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - **User profiles**: username, bio, seller details (gated to qualifying bidders), avatar via Clerk
 - **Ratings**: buyer-to-seller and seller-to-buyer ratings, only after completed transactions (status=sold)
 - Dashboard with portfolio stats and Recharts bar chart
+- **Image upload**: `CardImageUpload` component on edit and new card forms; presigned-URL upload to GCS via Replit Object Storage; served at `/api/storage/objects/*`
 
 ### Database Tables
 - `categories` — Card categories with name, description, color
@@ -63,6 +64,13 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - `users` — User profiles (clerk_id, username, bio, avatar_url, seller_details)
 - `ratings` — Buyer/seller ratings (rater_clerk_id, rated_clerk_id, listing_id, score 1-5, comment, type)
 - `auction_bids` — All bids (listing_id, bidder_clerk_id, amount, max_amount for proxy bidding)
+
+### Object Storage
+- Bucket provisioned via `setupObjectStorage()`
+- Server templates: `artifacts/api-server/src/lib/objectStorage.ts`, `objectAcl.ts`, `routes/storage.ts`
+- Routes: `POST /api/storage/uploads/request-url` (get presigned URL), `GET /api/storage/objects/*` (serve uploads)
+- Client component: `artifacts/dexpoky/src/components/card-image-upload.tsx` — card-shaped uploader with XHR progress, preview, replace/remove
+- Upload flow: POST metadata → get presigned URL → PUT file directly to GCS → store objectPath in DB
 
 ### API Routes (all at `/api`)
 - `GET/POST /cards` — list and create cards

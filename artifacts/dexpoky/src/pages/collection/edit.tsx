@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { formatLabel } from "@/lib/constants";
+import { CardImageUpload } from "@/components/card-image-upload";
 
 const LAST_CAT_KEY = "dexpoky:lastCategoryId";
 
@@ -240,9 +241,12 @@ export default function EditCard() {
                       name="imageUrl"
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
-                          <FormLabel>Image URL</FormLabel>
+                          <FormLabel>Card Image</FormLabel>
                           <FormControl>
-                            <Input placeholder="https://..." {...field} value={field.value || ""} />
+                            <CardImageUpload
+                              value={field.value}
+                              onChange={field.onChange}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

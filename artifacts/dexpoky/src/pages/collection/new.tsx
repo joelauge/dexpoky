@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, Loader2, Check, ScanLine, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { formatLabel } from "@/lib/constants";
+import { CardImageUpload } from "@/components/card-image-upload";
 
 const LAST_CAT_KEY = "dexpoky:lastCategoryId";
 const LAST_CONDITION_KEY = "dexpoky:lastCondition";
@@ -295,6 +296,22 @@ export default function NewCard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-6 md:col-span-2">
                     <h3 className="text-lg font-semibold border-b pb-2">Basic Details</h3>
+                    <FormField
+                      control={form.control}
+                      name="imageUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Card Image</FormLabel>
+                          <FormControl>
+                            <CardImageUpload
+                              value={field.value}
+                              onChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <FormField
                         control={form.control}
