@@ -89,6 +89,14 @@ router.post("/cards", async (req, res) => {
   res.status(201).json(withCat);
 });
 
+router.get("/cards/lookup", async (req, res) => {
+  const { searchTcgdex } = await import("./detect-helpers.js") as { searchTcgdex: (q: string) => Promise<unknown[]> };
+  const name = String(req.query.name ?? "").trim();
+  if (!name) { res.status(400).json({ error: "name is required" }); return; }
+  const variants = await searchTcgdex(name);
+  res.json({ card: variants[0] ?? null, variants });
+});
+
 router.get("/cards/:id", async (req, res) => {
   const parsed = GetCardParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
