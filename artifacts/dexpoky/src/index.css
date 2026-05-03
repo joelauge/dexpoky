@@ -236,9 +236,8 @@
 
 @layer utilities {
   .touch-scroll-x {
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
     overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
