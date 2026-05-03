@@ -79,7 +79,7 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm w-[calc(100vw-2rem)] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Share2 className="h-4 w-4 text-primary" />
@@ -143,7 +143,7 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
 
         {/* ── Mode: quick copy link ── */}
         {mode === "link" && (
-          <div className="space-y-4 pt-1">
+          <div className="space-y-4 pt-1 w-full min-w-0">
             <button
               onClick={() => setMode("pick")}
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
