@@ -14,6 +14,7 @@ import {
   LogOut,
   LogIn,
   Scan,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -37,6 +38,39 @@ function PokeBallIcon({ className }: { className?: string }) {
   );
 }
 
+function JoinCTA({ collapsed }: { collapsed?: boolean }) {
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link href="/sign-up">
+            <div className="flex items-center justify-center p-2.5 rounded-md bg-primary text-primary-foreground cursor-pointer hover:bg-primary/90 transition-colors">
+              <Sparkles className="h-5 w-5 shrink-0" />
+            </div>
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="right">Join DexPoky</TooltipContent>
+      </Tooltip>
+    );
+  }
+  return (
+    <div className="mx-2 space-y-2">
+      <Link href="/sign-up">
+        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm cursor-pointer hover:bg-primary/90 transition-colors shadow-sm">
+          <Sparkles className="h-4 w-4 shrink-0" />
+          Join DexPoky — free
+        </div>
+      </Link>
+      <Link href="/sign-in">
+        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer transition-colors text-sm">
+          <LogIn className="h-4 w-4 shrink-0" />
+          Sign In
+        </div>
+      </Link>
+    </div>
+  );
+}
+
 function UserWidget({ collapsed }: { collapsed: boolean }) {
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -57,22 +91,7 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
             </TooltipTrigger>
             <TooltipContent side="right">Sign In</TooltipContent>
           </Tooltip>
-        ) : (
-          <div className="px-2 space-y-1">
-            <Link href="/sign-in">
-              <div className="flex items-center gap-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer transition-colors text-sm">
-                <LogIn className="h-4 w-4 shrink-0" />
-                Sign In
-              </div>
-            </Link>
-            <Link href="/sign-up">
-              <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer transition-colors text-sm font-medium">
-                <User className="h-4 w-4 shrink-0" />
-                Create Account
-              </div>
-            </Link>
-          </div>
-        )
+        ) : null
       }
     >
       {collapsed ? (
@@ -108,7 +127,7 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
             </div>
           </Link>
           <button
-            onClick={() => signOut(() => setLocation("/"))}
+            onClick={() => signOut(() => setLocation("/marketplace"))}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
           >
             <LogOut className="h-3 w-3" /> Sign Out
@@ -122,12 +141,16 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { isSignedIn } = useUser();
 
-  const navItems = [
+  const publicNavItems = [
+    { href: "/marketplace", label: "Marketplace", icon: Store },
+  ];
+
+  const authNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/collection", label: "Collection", icon: Layers },
     { href: "/categories", label: "Categories", icon: FolderTree },
-    { href: "/marketplace", label: "Marketplace", icon: Store },
     { href: "/share", label: "Share", icon: Share2 },
   ];
 
@@ -136,11 +159,15 @@ export function Layout({ children }: LayoutProps) {
     { href: "/collection/new", label: "Add Card", icon: PlusCircle },
   ];
 
+  const visibleNavItems = isSignedIn
+    ? [...authNavItems, ...publicNavItems]
+    : publicNavItems;
+
   const MobileNavLinks = () => (
     <>
       <div className="space-y-1 mb-8">
         <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Menu</h3>
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           return (
             <Link key={item.href} href={item.href}>
@@ -154,31 +181,35 @@ export function Layout({ children }: LayoutProps) {
           );
         })}
       </div>
-      <div className="space-y-1 mb-8">
-        <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Actions</h3>
-        {quickActions.map((item) => (
-          <Link key={item.href} href={item.href}>
-            <div className="flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer">
-              <item.icon className="h-5 w-5" />
-              <span>{item.label}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
+
+      {isSignedIn && (
+        <div className="space-y-1 mb-8">
+          <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Actions</h3>
+          {quickActions.map((item) => (
+            <Link key={item.href} href={item.href}>
+              <div className="flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer">
+                <item.icon className="h-5 w-5" />
+                <span>{item.label}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-1">
         <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Account</h3>
         <Show
           when="signed-in"
           fallback={
             <>
-              <Link href="/sign-in">
-                <div className="flex items-center gap-3 px-4 py-2.5 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground cursor-pointer transition-colors">
-                  <LogIn className="h-5 w-5" /><span>Sign In</span>
+              <Link href="/sign-up">
+                <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer transition-colors font-semibold text-sm">
+                  <Sparkles className="h-5 w-5" /><span>Join DexPoky — free</span>
                 </div>
               </Link>
-              <Link href="/sign-up">
-                <div className="flex items-center gap-3 px-4 py-2.5 rounded-md text-primary hover:bg-secondary cursor-pointer transition-colors font-medium">
-                  <User className="h-5 w-5" /><span>Create Account</span>
+              <Link href="/sign-in">
+                <div className="flex items-center gap-3 px-4 py-2.5 rounded-md text-muted-foreground hover:bg-secondary cursor-pointer transition-colors text-sm mt-1">
+                  <LogIn className="h-5 w-5" /><span>Sign In</span>
                 </div>
               </Link>
             </>
@@ -228,7 +259,7 @@ export function Layout({ children }: LayoutProps) {
         <aside className={`hidden md:flex flex-col border-r bg-card h-screen sticky top-0 transition-all duration-300 ${collapsed ? "w-16" : "w-64"}`}>
           <div className={`border-b flex flex-col items-center transition-all duration-300 ${collapsed ? "p-3 gap-2" : "p-5 gap-3"}`}>
             {!collapsed && (
-              <Link href="/">
+              <Link href={isSignedIn ? "/" : "/marketplace"}>
                 <img src="/logo.png" alt="DexPoky" className="h-40 w-40 object-contain cursor-pointer" />
               </Link>
             )}
@@ -244,7 +275,7 @@ export function Layout({ children }: LayoutProps) {
           <ScrollArea className="flex-1 py-4">
             {!collapsed && <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Menu</p>}
             <div className={`space-y-1 mb-6 ${collapsed ? "px-2" : "px-2"}`}>
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                 const btn = (
                   <Link key={item.href} href={item.href}>
@@ -265,27 +296,43 @@ export function Layout({ children }: LayoutProps) {
               })}
             </div>
 
-            {!collapsed && <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Actions</p>}
-            <div className={`space-y-1 ${collapsed ? "px-2" : "px-2"}`}>
-              {quickActions.map((item) => {
-                const btn = (
-                  <Link key={item.href} href={item.href}>
-                    <div className={`flex items-center rounded-md transition-colors cursor-pointer text-muted-foreground hover:bg-secondary hover:text-foreground ${
-                      collapsed ? "justify-center p-2.5" : "gap-3 px-4 py-2.5"
-                    }`}>
-                      <item.icon className="h-5 w-5 shrink-0" />
-                      {!collapsed && <span>{item.label}</span>}
-                    </div>
-                  </Link>
-                );
-                return collapsed ? (
-                  <Tooltip key={item.href}>
-                    <TooltipTrigger asChild>{btn}</TooltipTrigger>
-                    <TooltipContent side="right">{item.label}</TooltipContent>
-                  </Tooltip>
-                ) : btn;
-              })}
-            </div>
+            {isSignedIn && (
+              <>
+                {!collapsed && <p className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Actions</p>}
+                <div className={`space-y-1 ${collapsed ? "px-2" : "px-2"}`}>
+                  {quickActions.map((item) => {
+                    const btn = (
+                      <Link key={item.href} href={item.href}>
+                        <div className={`flex items-center rounded-md transition-colors cursor-pointer text-muted-foreground hover:bg-secondary hover:text-foreground ${
+                          collapsed ? "justify-center p-2.5" : "gap-3 px-4 py-2.5"
+                        }`}>
+                          <item.icon className="h-5 w-5 shrink-0" />
+                          {!collapsed && <span>{item.label}</span>}
+                        </div>
+                      </Link>
+                    );
+                    return collapsed ? (
+                      <Tooltip key={item.href}>
+                        <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                        <TooltipContent side="right">{item.label}</TooltipContent>
+                      </Tooltip>
+                    ) : btn;
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Join CTA for logged-out users */}
+            {!isSignedIn && !collapsed && (
+              <div className="px-2 mt-4">
+                <JoinCTA collapsed={false} />
+              </div>
+            )}
+            {!isSignedIn && collapsed && (
+              <div className="px-2 mt-2">
+                <JoinCTA collapsed={true} />
+              </div>
+            )}
           </ScrollArea>
 
           {/* User widget at bottom */}
@@ -299,8 +346,8 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </main>
 
-        {/* Floating Scan FAB — hidden on /scan page */}
-        {location !== "/scan" && (
+        {/* Floating Scan FAB — only when signed in, hidden on /scan page */}
+        {isSignedIn && location !== "/scan" && (
           <Link href="/scan">
             <button
               className="fixed bottom-6 right-5 z-50 flex items-center gap-2 bg-primary text-primary-foreground shadow-xl rounded-full px-5 py-3.5 font-bold text-sm active:scale-95 transition-transform hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"

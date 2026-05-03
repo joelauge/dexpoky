@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, useClerk } from "@clerk/react";
+import { useEffect, useRef, type ComponentType } from "react";
+import { ClerkProvider, SignIn, SignUp, useClerk, useUser } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -125,6 +125,30 @@ function SignUpPage() {
   );
 }
 
+function ProtectedRoute({ component: Component }: { component: ComponentType }) {
+  const { isLoaded, isSignedIn } = useUser();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) setLocation("/marketplace");
+  }, [isLoaded, isSignedIn]);
+
+  if (!isLoaded || !isSignedIn) return null;
+  return <Component />;
+}
+
+function HomeRoute() {
+  const { isLoaded, isSignedIn } = useUser();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) setLocation("/marketplace");
+  }, [isLoaded, isSignedIn]);
+
+  if (!isLoaded || !isSignedIn) return null;
+  return <Dashboard />;
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -165,20 +189,20 @@ function ClerkProviderWithRoutes() {
         <TooltipProvider>
           <ClerkQueryClientCacheInvalidator />
           <Switch>
-            <Route path="/" component={Dashboard} />
+            <Route path="/" component={HomeRoute} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
-            <Route path="/collection" component={Collection} />
-            <Route path="/collection/new" component={NewCard} />
-            <Route path="/collection/:id/edit" component={EditCard} />
-            <Route path="/collection/:id" component={CardDetail} />
-            <Route path="/categories" component={Categories} />
+            <Route path="/collection" component={() => <ProtectedRoute component={Collection} />} />
+            <Route path="/collection/new" component={() => <ProtectedRoute component={NewCard} />} />
+            <Route path="/collection/:id/edit" component={() => <ProtectedRoute component={EditCard} />} />
+            <Route path="/collection/:id" component={() => <ProtectedRoute component={CardDetail} />} />
+            <Route path="/categories" component={() => <ProtectedRoute component={Categories} />} />
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/marketplace/:id" component={ListingDetail} />
-            <Route path="/sell" component={Sell} />
-            <Route path="/share" component={SharePage} />
-            <Route path="/scan" component={Scan} />
-            <Route path="/profile" component={Profile} />
+            <Route path="/sell" component={() => <ProtectedRoute component={Sell} />} />
+            <Route path="/share" component={() => <ProtectedRoute component={SharePage} />} />
+            <Route path="/scan" component={() => <ProtectedRoute component={Scan} />} />
+            <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
             <Route path="/seller/:clerkId" component={SellerProfile} />
             <Route path="/view/card/:id" component={PublicCardView} />
             <Route path="/view/category/:id" component={PublicCategoryView} />
