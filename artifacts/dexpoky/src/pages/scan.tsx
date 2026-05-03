@@ -216,7 +216,10 @@ export default function ScanPage() {
     setSelectedVariant(v);
     setPricingLoading(true);
     try {
-      const res = await fetch(`${BASE}/api/cards/lookup?name=${encodeURIComponent(v.name)}`);
+      const res = await fetch(
+        `${BASE}/api/cards/pricing?cardId=${encodeURIComponent(v.id)}`,
+        { cache: "no-store" },
+      );
       if (res.ok) {
         const data = await res.json() as { pricing: PricingData };
         setPricing(data.pricing ?? null);

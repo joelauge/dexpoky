@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { cardsTable, categoriesTable, activityEventsTable } from "@workspace/db";
-import { searchTcgdex } from "./detect-helpers.js";
+import { searchTcgdex, fetchPricingById } from "./detect-helpers.js";
 import { eq, sql, ilike, and, type SQL } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import {
@@ -112,6 +112,14 @@ router.get("/cards/lookup", async (req, res) => {
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
   const { variants, pricing } = await searchTcgdex(name);
   res.json({ card: variants[0] ?? null, variants, pricing });
+});
+
+router.get("/cards/pricing", async (req, res) => {
+  const cardId = String(req.query.cardId ?? "").trim();
+  if (!cardId) { res.status(400).json({ error: "cardId is required" }); return; }
+  res.setHeader("Cache-Control", "no-store");
+  const pricing = await fetchPricingById(cardId);
+  res.json({ pricing });
 });
 
 router.get("/cards/:id", async (req, res) => {

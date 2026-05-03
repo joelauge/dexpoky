@@ -64,6 +64,31 @@ export interface PricingData {
   psaEstimates: Record<number, number> | null;
 }
 
+function extractPricing(card: PtcgCard): PricingData {
+  const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
+  if (!card) return empty;
+  const tcgPrices = card.tcgplayer?.prices ?? {};
+  const tcgVariants = Object.values(tcgPrices);
+  const tcgMarket = tcgVariants.find((v) => v.market != null)?.market ?? null;
+  const tcgLow = tcgVariants.find((v) => v.low != null)?.low ?? null;
+  const cm = card.cardmarket?.prices;
+  const cmMarket = cm?.trendPrice ?? cm?.averageSellPrice ?? null;
+  const cmLow = cm?.lowPrice ?? null;
+  const marketPrice = tcgMarket ?? cmMarket;
+  const lowPrice = tcgLow ?? cmLow;
+  const trendPrice = cm?.trendPrice ?? null;
+  const source: PricingData["source"] = tcgMarket != null ? "tcgplayer" : cmMarket != null ? "cardmarket" : null;
+  const psaEstimates = marketPrice != null
+    ? Object.fromEntries(
+        Object.entries(PSA_MULTIPLIERS).map(([grade, mult]) => [
+          Number(grade),
+          Math.round(marketPrice * mult * 100) / 100,
+        ]),
+      )
+    : null;
+  return { marketPrice, lowPrice, trendPrice, source, psaEstimates };
+}
+
 async function fetchPricing(cardName: string): Promise<PricingData> {
   const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
   try {
@@ -75,36 +100,37 @@ async function fetchPricing(cardName: string): Promise<PricingData> {
     const data = (await res.json()) as { data: PtcgCard[] };
     const cards = data.data ?? [];
     if (cards.length === 0) return empty;
-
-    // Find the best name match
     const nameLower = cardName.toLowerCase();
     const match = cards.find((c) => c.name.toLowerCase() === nameLower) ?? cards[0];
+    return extractPricing(match);
+  } catch {
+    return empty;
+  }
+}
 
-    // Prefer TCGPlayer market, fall back to CardMarket
-    const tcgPrices = match.tcgplayer?.prices ?? {};
-    const tcgVariants = Object.values(tcgPrices);
-    const tcgMarket = tcgVariants.find((v) => v.market != null)?.market ?? null;
-    const tcgLow = tcgVariants.find((v) => v.low != null)?.low ?? null;
-
-    const cm = match.cardmarket?.prices;
-    const cmMarket = cm?.trendPrice ?? cm?.averageSellPrice ?? null;
-    const cmLow = cm?.lowPrice ?? null;
-
-    const marketPrice = tcgMarket ?? cmMarket;
-    const lowPrice = tcgLow ?? cmLow;
-    const trendPrice = cm?.trendPrice ?? null;
-    const source: PricingData["source"] = tcgMarket != null ? "tcgplayer" : cmMarket != null ? "cardmarket" : null;
-
-    const psaEstimates = marketPrice != null
-      ? Object.fromEntries(
-          Object.entries(PSA_MULTIPLIERS).map(([grade, mult]) => [
-            Number(grade),
-            Math.round(marketPrice * mult * 100) / 100,
-          ]),
-        )
-      : null;
-
-    return { marketPrice, lowPrice, trendPrice, source, psaEstimates };
+/**
+ * Fetch pricing for a specific printing using its TCGdex card ID (e.g. "xy8-024").
+ * Converts to PTCG.io format by stripping leading zeros from the number segment.
+ */
+export async function fetchPricingById(tcgdexId: string): Promise<PricingData> {
+  const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
+  try {
+    const dashIdx = tcgdexId.lastIndexOf("-");
+    if (dashIdx === -1) return empty;
+    const setId = tcgdexId.slice(0, dashIdx);
+    const rawNum = tcgdexId.slice(dashIdx + 1);
+    // PTCG.io strips leading zeros; also try original in case num is non-numeric (e.g. "SWSH001")
+    const stripped = String(parseInt(rawNum, 10));
+    const candidates = stripped === "NaN" ? [tcgdexId] : [`${setId}-${stripped}`, tcgdexId];
+    for (const id of candidates) {
+      const res = await fetch(`${PTCGIO_BASE}/cards/${id}`);
+      if (res.ok) {
+        const data = (await res.json()) as { data: PtcgCard };
+        const pricing = extractPricing(data.data);
+        if (pricing.marketPrice != null || pricing.lowPrice != null) return pricing;
+      }
+    }
+    return empty;
   } catch {
     return empty;
   }
