@@ -261,7 +261,7 @@ export function SellerShareFlow() {
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Your link</p>
               <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-200">
                 <span className="text-sm text-slate-600 flex-1 truncate font-mono">
-                  dexpoky.app/sell/<span className="text-violet-600 font-bold">ch4r1z4rd-vmax</span>
+                  dexpoky.com/sell/<span className="text-violet-600 font-bold">ch4r1z4rd-vmax</span>
                 </span>
                 <button
                   onClick={handleCopy}
