@@ -10,6 +10,7 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Collection from "@/pages/collection/index";
 import NewCard from "@/pages/collection/new";
+import EditCard from "@/pages/collection/edit";
 import CardDetail from "@/pages/collection/[id]";
 import Categories from "@/pages/categories/index";
 import Marketplace from "@/pages/marketplace/index";
@@ -163,6 +164,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/sign-up/*?" component={SignUpPage} />
             <Route path="/collection" component={Collection} />
             <Route path="/collection/new" component={NewCard} />
+            <Route path="/collection/:id/edit" component={EditCard} />
             <Route path="/collection/:id" component={CardDetail} />
             <Route path="/categories" component={Categories} />
             <Route path="/marketplace" component={Marketplace} />
