@@ -156,7 +156,7 @@ export function ScanPaywall({ open, onClose, reason }: ScanPaywallProps) {
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
             {isTrialNotActivated &&
-              "Add a payment method to unlock 10 free scans. No charge today — cancel anytime."}
+              "You have 10 free scans to get started — no payment method required."}
             {isTrialExhausted &&
               "You've used all 10 free scans. Upgrade for more."}
             {isMonthlyLimit &&

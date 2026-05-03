@@ -137,14 +137,18 @@ export class StripeService {
           : null;
 
     let canScan = false;
+    let freeTrialActivated = user.freeTrialActivated;
     if (planTier === "pro") {
       canScan = true;
     } else if (planTier === "collector") {
       canScan = monthlyScansUsed < COLLECTOR_SCAN_LIMIT;
     } else {
-      canScan =
-        user.freeTrialActivated &&
-        user.freeTrialScansUsed < FREE_TRIAL_SCAN_LIMIT;
+      // Free trial is auto-activated for all free users — no payment method required.
+      if (!freeTrialActivated) {
+        await stripeStorage.activateFreeTrial(clerkId);
+        freeTrialActivated = true;
+      }
+      canScan = user.freeTrialScansUsed < FREE_TRIAL_SCAN_LIMIT;
     }
 
     return {
@@ -152,7 +156,7 @@ export class StripeService {
       subscriptionStatus,
       monthlyScansUsed,
       monthlyScansLimit,
-      freeTrialActivated: user.freeTrialActivated,
+      freeTrialActivated,
       freeTrialScansUsed: user.freeTrialScansUsed,
       freeTrialScansLimit: FREE_TRIAL_SCAN_LIMIT,
       canScan,
@@ -177,8 +181,9 @@ export class StripeService {
       return { allowed: true };
     }
 
+    // Auto-activate the free trial on first scan attempt — no payment method required.
     if (!status.freeTrialActivated) {
-      return { allowed: false, reason: "trial_not_activated" };
+      await stripeStorage.activateFreeTrial(clerkId);
     }
 
     if (status.freeTrialScansUsed >= FREE_TRIAL_SCAN_LIMIT) {
