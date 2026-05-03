@@ -317,13 +317,25 @@ export default function CardDetail() {
               {card.forSale ? (
                 <div className="space-y-3">
                   {activeListing && (
-                    <Button
-                      size="lg"
-                      className="w-full h-12 text-base font-bold shadow-lg"
-                      onClick={() => setLocation(`/marketplace/${activeListing.id}`)}
-                    >
-                      <ExternalLink className="h-5 w-5 mr-2" /> View Marketplace Listing
-                    </Button>
+                    <>
+                      <Button
+                        size="lg"
+                        className="w-full h-12 text-base font-bold shadow-lg"
+                        onClick={() => setLocation(`/marketplace/${activeListing.id}`)}
+                      >
+                        <ExternalLink className="h-5 w-5 mr-2" /> View Marketplace Listing
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center -mt-1">
+                        Listed {formatCurrency(activeListing.price)} · You put this up on{" "}
+                        {new Date(activeListing.createdAt).toLocaleDateString("en-US", {
+                          month: "short", day: "numeric", year: "numeric",
+                        })}{" "}
+                        at{" "}
+                        {new Date(activeListing.createdAt).toLocaleTimeString("en-US", {
+                          hour: "numeric", minute: "2-digit",
+                        })}
+                      </p>
+                    </>
                   )}
                   <Button
                     variant="outline"
@@ -334,18 +346,6 @@ export default function CardDetail() {
                     <Store className="h-4 w-4 mr-2" />
                     {delistCard.isPending ? "Removing…" : "Remove from Marketplace"}
                   </Button>
-                  {activeListing && (
-                    <p className="text-xs text-muted-foreground text-center">
-                      Listed {formatCurrency(activeListing.price)} · You listed this on{" "}
-                      {new Date(activeListing.createdAt).toLocaleDateString("en-US", {
-                        month: "short", day: "numeric", year: "numeric",
-                      })}{" "}
-                      at{" "}
-                      {new Date(activeListing.createdAt).toLocaleTimeString("en-US", {
-                        hour: "numeric", minute: "2-digit",
-                      })}
-                    </p>
-                  )}
                 </div>
               ) : (
                 <Dialog open={isSellOpen} onOpenChange={handleSellDialogChange}>
