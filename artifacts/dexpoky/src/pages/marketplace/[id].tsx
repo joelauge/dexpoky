@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
-import { useGetListing, useUpdateListing, UpdateListingBodyStatus } from "@workspace/api-client-react";
+import { useGetListing } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, useLocation, Link } from "wouter";
@@ -216,7 +216,6 @@ export default function ListingDetail() {
     enabled: !!user && extListing?.status === "sold",
   });
 
-  const updateListing = useUpdateListing();
   const [bidAmount, setBidAmount] = useState("");
   const [maxBidAmount, setMaxBidAmount] = useState("");
   const [showProxyBid, setShowProxyBid] = useState(false);
