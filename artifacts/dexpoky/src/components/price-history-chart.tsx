@@ -8,7 +8,6 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   ReferenceLine,
-  Dot,
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
 import { formatCurrency } from "@/lib/constants";
@@ -24,6 +23,14 @@ interface Props {
   cardId: number;
 }
 
+type Window = "7D" | "30D" | "1Y";
+
+const WINDOWS: { label: Window; days: number }[] = [
+  { label: "7D", days: 7 },
+  { label: "30D", days: 30 },
+  { label: "1Y", days: 365 },
+];
+
 function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -32,16 +39,6 @@ function formatDate(iso: string) {
 function formatDateFull(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function CustomDot(props: Record<string, unknown>) {
-  const { cx, cy, index, dataLength, color } = props as {
-    cx?: number; cy?: number; index?: number; dataLength?: number; color?: string;
-  };
-  if (cx == null || cy == null) return null;
-  const isLast = index === (dataLength ?? 1) - 1;
-  if (!isLast) return null;
-  return <circle cx={cx} cy={cy} r={5} fill={color} stroke="white" strokeWidth={2} />;
 }
 
 interface TooltipProps {
@@ -63,10 +60,20 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   );
 }
 
+function filterByWindow(history: PricePoint[], days: number): PricePoint[] {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const inWindow = history.filter(h => new Date(h.recordedAt) >= cutoff);
+  if (inWindow.length > 0) return inWindow;
+  // If nothing falls in the window, return just the most recent point
+  return history.slice(-1);
+}
+
 export function PriceHistoryChart({ cardId }: Props) {
   const [history, setHistory] = useState<PricePoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeWindow, setActiveWindow] = useState<Window>("1Y");
 
   const load = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -96,7 +103,10 @@ export function PriceHistoryChart({ cardId }: Props) {
 
   if (history.length === 0) return null;
 
-  const prices = history.map((h) => h.price);
+  const windowDays = WINDOWS.find(w => w.label === activeWindow)!.days;
+  const visible = filterByWindow(history, windowDays);
+
+  const prices = visible.map(h => h.price);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
   const latestPrice = prices[prices.length - 1];
@@ -109,24 +119,29 @@ export function PriceHistoryChart({ cardId }: Props) {
   const trendColor = isUp ? "#22c55e" : isDown ? "#ef4444" : "#3b82f6";
   const gradientId = `priceGrad-${cardId}`;
 
-  // Pad Y axis min/max a bit for visual breathing room
   const yPad = Math.max((maxPrice - minPrice) * 0.15, maxPrice * 0.05, 0.02);
   const yMin = Math.max(0, minPrice - yPad);
   const yMax = maxPrice + yPad;
 
-  const chartData = history.map((h) => ({
+  const chartData = visible.map(h => ({
     ...h,
     date: formatDate(h.recordedAt),
   }));
 
+  // Determine if the card has fewer days of data than the selected window
+  const oldestPoint = new Date(history[0].recordedAt);
+  const cardAgeDays = Math.round((Date.now() - oldestPoint.getTime()) / 86_400_000);
+  const windowCoversMore = windowDays > cardAgeDays;
+
   return (
     <div className="bg-card border shadow-sm rounded-xl p-5 mb-6">
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Value History</p>
             <div className="flex items-center gap-2">
-              {history.length > 1 && (
+              {visible.length > 1 && (
                 <div className={`flex items-center gap-1 text-sm font-semibold ${isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-blue-500"}`}>
                   {isUp ? <TrendingUp className="h-3.5 w-3.5" /> : isDown ? <TrendingDown className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
                   {isUp ? "+" : ""}{formatCurrency(change)}
@@ -138,14 +153,33 @@ export function PriceHistoryChart({ cardId }: Props) {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => load(true)}
-          disabled={refreshing}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-40"
-          title="Refresh price"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-        </button>
+
+        <div className="flex items-center gap-1.5">
+          {/* Window toggles */}
+          <div className="flex items-center bg-muted/50 rounded-lg p-0.5 gap-0.5">
+            {WINDOWS.map(w => (
+              <button
+                key={w.label}
+                onClick={() => setActiveWindow(w.label)}
+                className={`text-xs font-semibold px-2.5 py-1 rounded-md transition-all ${
+                  activeWindow === w.label
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => load(true)}
+            disabled={refreshing}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-40"
+            title="Refresh price"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       <ResponsiveContainer width="100%" height={140}>
@@ -184,9 +218,12 @@ export function PriceHistoryChart({ cardId }: Props) {
             }
           />
 
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: trendColor, strokeWidth: 1, strokeDasharray: "4 2", strokeOpacity: 0.6 }} />
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{ stroke: trendColor, strokeWidth: 1, strokeDasharray: "4 2", strokeOpacity: 0.6 }}
+          />
 
-          {history.length === 1 && (
+          {visible.length === 1 && (
             <ReferenceLine y={latestPrice} stroke={trendColor} strokeDasharray="4 3" strokeOpacity={0.4} />
           )}
 
@@ -203,15 +240,16 @@ export function PriceHistoryChart({ cardId }: Props) {
               return <circle key={String(props.key ?? index)} cx={cx} cy={cy} r={5} fill={trendColor} stroke="white" strokeWidth={2} />;
             }}
             activeDot={{ r: 5, fill: trendColor, stroke: "white", strokeWidth: 2 }}
-            animationDuration={600}
+            animationDuration={400}
             animationEasing="ease-out"
           />
         </AreaChart>
       </ResponsiveContainer>
 
-      {history.length === 1 && (
+      {/* Footnote */}
+      {windowCoversMore && (
         <p className="text-[10px] text-muted-foreground text-center mt-2">
-          More data points will appear as you view this card over time
+          Showing all available data — tracked since {formatDate(history[0].recordedAt)}
         </p>
       )}
     </div>
