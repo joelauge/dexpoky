@@ -12,12 +12,14 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, SlidersHorizontal, X } from "lucide-react";
+import { Search, Plus, SlidersHorizontal, X, Share2 } from "lucide-react";
+import { ShareModal } from "@/components/share-modal";
 import { Link } from "wouter";
 import { formatLabel } from "@/lib/constants";
 
 export default function Collection() {
   const [search, setSearch] = useState("");
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [categoryId, setCategoryId] = useState<string>("all");
   const [rarity, setRarity] = useState<string>("all");
   const [condition, setCondition] = useState<string>("all");
@@ -43,11 +45,16 @@ export default function Collection() {
             <h1 className="text-3xl font-bold tracking-tight mb-2">My Collection</h1>
             <p className="text-muted-foreground">Manage and track all your Pokémon cards</p>
           </div>
-          <Link href="/collection/new">
-            <Button className="gap-2 shrink-0 shadow-md hover:shadow-lg transition-all">
-              <Plus className="h-4 w-4" /> Add Card
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" className="gap-2" onClick={() => setIsShareOpen(true)}>
+              <Share2 className="h-4 w-4" /> Share
             </Button>
-          </Link>
+            <Link href="/collection/new">
+              <Button className="gap-2 shadow-md hover:shadow-lg transition-all">
+                <Plus className="h-4 w-4" /> Add Card
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <div className="bg-card border rounded-xl p-4 shadow-sm mb-8">
@@ -145,6 +152,11 @@ export default function Collection() {
           </div>
         )}
       </div>
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        target={{ type: "collection", cardCount: filteredCards?.length }}
+      />
     </Layout>
   );
 }

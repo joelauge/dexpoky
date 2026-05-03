@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Layout } from "@/components/layout";
 import { useListCards } from "@workspace/api-client-react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,9 +56,19 @@ function StepIndicator({ step }: { step: number }) {
 
 export default function Sell() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const qc = useQueryClient();
-  const [step, setStep] = useState(1);
-  const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+
+  const { preCardId, preCategoryId } = useMemo(() => {
+    const p = new URLSearchParams(search);
+    return {
+      preCardId: p.get("card") ? parseInt(p.get("card")!) : null,
+      preCategoryId: p.get("categoryId") ? parseInt(p.get("categoryId")!) : null,
+    };
+  }, [search]);
+
+  const [step, setStep] = useState(() => (preCardId ? 2 : 1));
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(() => preCardId);
   const [listingType, setListingType] = useState<ListingType>("buy_now");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
@@ -70,8 +80,10 @@ export default function Sell() {
   const [createdListing, setCreatedListing] = useState<CreatedListing | null>(null);
 
   const { data: allCards, isLoading } = useListCards({});
-  const cards = allCards?.filter(c => !c.forSale);
-  const selectedCard = cards?.find(c => c.id === selectedCardId);
+  const cards = allCards?.filter(c =>
+    !c.forSale && (!preCategoryId || c.categoryId === preCategoryId)
+  );
+  const selectedCard = allCards?.find(c => c.id === selectedCardId);
 
   const createListing = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {

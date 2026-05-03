@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, FolderTree, Trash2 } from "lucide-react";
+import { Plus, FolderTree, Trash2, Share2 } from "lucide-react";
+import { ShareModal, ShareTarget } from "@/components/share-modal";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,6 +29,7 @@ export default function Categories() {
   const [isOpen, setIsOpen] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [newCatDesc, setNewCatDesc] = useState("");
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
 
   const handleCreate = () => {
     if (!newCatName.trim()) {
@@ -117,9 +119,19 @@ export default function Categories() {
                       <CardDescription>{category.description}</CardDescription>
                     )}
                   </div>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive -mt-2" onClick={() => handleDelete(category.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1 -mt-2">
+                    <Button
+                      variant="ghost" size="icon"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => setShareTarget({ type: "category", id: category.id, name: category.name, cardCount: category.cardCount ?? 0 })}
+                      title="Share"
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => handleDelete(category.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="mt-4 pt-4 border-t flex justify-between items-center text-sm">
@@ -144,6 +156,13 @@ export default function Categories() {
           </div>
         )}
       </div>
+      {shareTarget && (
+        <ShareModal
+          isOpen={true}
+          onClose={() => setShareTarget(null)}
+          target={shareTarget}
+        />
+      )}
     </Layout>
   );
 }

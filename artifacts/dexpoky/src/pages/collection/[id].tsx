@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout";
 import { HoloCard } from "@/components/holo-card";
-import { useGetCard, useDeleteCard, useUpdateCard, useListCards, UpdateCardBodyStatus } from "@workspace/api-client-react";
+import { useGetCard, useDeleteCard, useUpdateCard, useListCards } from "@workspace/api-client-react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,9 @@ import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/
 import {
   ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink,
   ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2, Calendar, Clock,
+  Share2,
 } from "lucide-react";
+import { ShareModal } from "@/components/share-modal";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -66,6 +68,7 @@ export default function CardDetail() {
   const [sellPrice, setSellPrice] = useState<string>("");
   const [isSellOpen, setIsSellOpen] = useState(false);
   const [listedId, setListedId] = useState<number | null>(null);
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   // ── Other Printings ────────────────────────────────────────────────────────
   const [printings, setPrintings] = useState<TcgVariant[]>([]);
@@ -408,6 +411,9 @@ export default function CardDetail() {
                 {card.name}
               </h1>
               <div className="flex gap-2 shrink-0 mt-1">
+                <Button variant="outline" size="icon" onClick={() => setIsShareOpen(true)} title="Share">
+                  <Share2 className="h-4 w-4" />
+                </Button>
                 <Button variant="outline" size="icon" onClick={() => setLocation(`/collection/${id}/edit`)} title="Edit">
                   <Edit2 className="h-4 w-4" />
                 </Button>
@@ -584,6 +590,13 @@ export default function CardDetail() {
           </div>
         </div>
       </div>
+      {card && (
+        <ShareModal
+          isOpen={isShareOpen}
+          onClose={() => setIsShareOpen(false)}
+          target={{ type: "card", id: card.id, name: card.name, imageUrl: card.imageUrl, setName: card.setName }}
+        />
+      )}
     </Layout>
   );
 }
