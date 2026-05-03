@@ -539,7 +539,17 @@ export default function CardDetail() {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin min-w-0 max-w-full touch-scroll-x">
+                  <div
+                    className="flex gap-2 pb-2 scrollbar-thin"
+                    style={{
+                      width: "100%",
+                      maxWidth: "100%",
+                      minWidth: 0,
+                      overflowX: "scroll",
+                      WebkitOverflowScrolling: "touch",
+                      overscrollBehaviorX: "contain",
+                    }}
+                  >
                     {printings.map((v) => {
                       const isCurrent = v.setName === card.setName && v.cardNumber === card.cardNumber;
                       const isSelected = selectedPrinting?.id === v.id;
