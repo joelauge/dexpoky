@@ -3,7 +3,7 @@ import { ClerkProvider, SignIn, SignUp, useClerk } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
