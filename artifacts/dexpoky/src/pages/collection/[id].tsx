@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
-import { ArrowLeft, Edit, Trash2, Store, Tag, ImageIcon } from "lucide-react";
+import { ArrowLeft, Edit, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -45,6 +45,25 @@ export default function CardDetail() {
   const qc = useQueryClient();
   const [sellPrice, setSellPrice] = useState<string>("");
   const [isSellOpen, setIsSellOpen] = useState(false);
+  const [listedId, setListedId] = useState<number | null>(null);
+
+  const listCard = useMutation({
+    mutationFn: async ({ cardId, price }: { cardId: number; price: number }) => {
+      const res = await fetch("/api/marketplace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId, price, listingType: "buy_now" }),
+      });
+      if (!res.ok) throw new Error("Failed to create listing");
+      return res.json() as Promise<{ id: number }>;
+    },
+    onSuccess: (data) => {
+      setListedId(data.id);
+      qc.invalidateQueries({ queryKey: ["/api/cards", id] });
+      qc.invalidateQueries({ queryKey: ["/api/marketplace"] });
+    },
+    onError: () => toast.error("Failed to list card — please try again."),
+  });
 
   const delistCard = useMutation({
     mutationFn: async (cardId: number) => {
@@ -70,23 +89,21 @@ export default function CardDetail() {
   };
 
   const handleSell = () => {
-    if (!sellPrice || parseFloat(sellPrice) <= 0) {
+    const price = parseFloat(sellPrice);
+    if (!sellPrice || price <= 0) {
       toast.error("Please enter a valid price");
       return;
     }
-    updateCard.mutate({
-      id,
-      data: {
-        forSale: true,
-        listingPrice: parseFloat(sellPrice)
-      }
-    }, {
-      onSuccess: () => {
-        toast.success("Card listed for sale");
-        setIsSellOpen(false);
-      },
-      onError: () => toast.error("Failed to list card")
-    });
+    listCard.mutate({ cardId: id, price });
+  };
+
+  const handleSellDialogChange = (open: boolean) => {
+    setIsSellOpen(open);
+    if (!open) {
+      setSellPrice("");
+      setListedId(null);
+      listCard.reset();
+    }
   };
 
   const handleDelist = () => {
@@ -241,37 +258,61 @@ export default function CardDetail() {
                   <Store className="h-5 w-5 mr-2" /> {delistCard.isPending ? "Removing…" : "Remove from Marketplace"}
                 </Button>
               ) : (
-                <Dialog open={isSellOpen} onOpenChange={setIsSellOpen}>
+                <Dialog open={isSellOpen} onOpenChange={handleSellDialogChange}>
                   <DialogTrigger asChild>
                     <Button size="lg" className="flex-1 shadow-md bg-primary hover:bg-primary/90 text-primary-foreground">
                       <Tag className="h-5 w-5 mr-2" /> Sell on Marketplace
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>List Card for Sale</DialogTitle>
-                      <DialogDescription>
-                        Set your price to list {card.name} on the global marketplace.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                      <label className="block text-sm font-medium mb-2">Listing Price ($)</label>
-                      <Input 
-                        type="number" 
-                        step="0.01" 
-                        placeholder={card.estimatedValue?.toString() || "0.00"}
-                        value={sellPrice}
-                        onChange={(e) => setSellPrice(e.target.value)}
-                        className="text-lg py-6"
-                      />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Estimated value: {formatCurrency(card.estimatedValue)}
-                      </p>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsSellOpen(false)}>Cancel</Button>
-                      <Button onClick={handleSell} disabled={updateCard.isPending}>Confirm Listing</Button>
-                    </DialogFooter>
+                    {listedId ? (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Listed Successfully!
+                          </DialogTitle>
+                          <DialogDescription>
+                            <span className="font-medium text-foreground">{card.name}</span> is now live on the marketplace for {formatCurrency(parseFloat(sellPrice))}.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="mt-2 gap-2 sm:gap-0">
+                          <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Close</Button>
+                          <Button onClick={() => { handleSellDialogChange(false); setLocation(`/marketplace/${listedId}`); }}>
+                            <ExternalLink className="h-4 w-4 mr-2" /> View Listing
+                          </Button>
+                        </DialogFooter>
+                      </>
+                    ) : (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle>List Card for Sale</DialogTitle>
+                          <DialogDescription>
+                            Set your price to list {card.name} on the global marketplace.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4">
+                          <label className="block text-sm font-medium mb-2">Listing Price ($)</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder={card.estimatedValue?.toString() || "0.00"}
+                            value={sellPrice}
+                            onChange={(e) => setSellPrice(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleSell()}
+                            className="text-lg py-6"
+                          />
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Estimated value: {formatCurrency(card.estimatedValue)}
+                          </p>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Cancel</Button>
+                          <Button onClick={handleSell} disabled={listCard.isPending}>
+                            {listCard.isPending ? "Listing…" : "Confirm Listing"}
+                          </Button>
+                        </DialogFooter>
+                      </>
+                    )}
                   </DialogContent>
                 </Dialog>
               )}
