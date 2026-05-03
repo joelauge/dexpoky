@@ -1,21 +1,57 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout";
 import { useListCards } from "@workspace/api-client-react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { CardItem } from "@/components/ui/card-item";
-import { Tag, ArrowRight, CheckCircle2, ShoppingBag, Gavel } from "lucide-react";
+import {
+  Tag, ArrowRight, CheckCircle2, ShoppingBag, Gavel,
+  Store, PlusCircle, ExternalLink, Check,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 type ListingType = "buy_now" | "auction";
+
+interface CreatedListing {
+  id: number;
+  price: string | number;
+  listingType: string;
+  startingBid?: string | number | null;
+}
 
 function addHoursFromNow(hours: number) {
   const d = new Date();
   d.setHours(d.getHours() + hours);
   return d.toISOString().slice(0, 16);
+}
+
+function StepIndicator({ step }: { step: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-8">
+      {[1, 2, 3].map((n) => (
+        <div key={n} className="flex items-center gap-2 flex-1 last:flex-none">
+          <div
+            className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm shrink-0 transition-colors ${
+              step > n
+                ? "bg-primary text-primary-foreground"
+                : step === n
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {step > n ? <Check className="h-4 w-4" /> : n}
+          </div>
+          {n < 3 && (
+            <div className={`h-1 flex-1 rounded-full transition-colors ${step > n ? "bg-primary" : "bg-muted"}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function Sell() {
@@ -31,6 +67,7 @@ export default function Sell() {
   const [buyNowPrice, setBuyNowPrice] = useState("");
   const [minBidIncrement, setMinBidIncrement] = useState("1.00");
   const [auctionEndTime, setAuctionEndTime] = useState(addHoursFromNow(72));
+  const [createdListing, setCreatedListing] = useState<CreatedListing | null>(null);
 
   const { data: allCards, isLoading } = useListCards({});
   const cards = allCards?.filter(c => !c.forSale);
@@ -49,37 +86,20 @@ export default function Sell() {
     onSuccess: (newListing) => {
       qc.invalidateQueries({ queryKey: ["/api/marketplace"] });
       qc.invalidateQueries({ queryKey: ["/api/cards"] });
-      toast.success("Card listed successfully!");
-      setLocation(`/marketplace/${newListing.id}`);
+      setCreatedListing(newListing);
+      setStep(3);
     },
     onError: () => toast.error("Failed to list card"),
   });
 
   const handlePublish = () => {
-    if (!selectedCardId) {
-      toast.error("Please select a card");
-      return;
-    }
+    if (!selectedCardId) { toast.error("Please select a card"); return; }
     if (listingType === "buy_now") {
-      if (!price || parseFloat(price) <= 0) {
-        toast.error("Please enter a valid price");
-        return;
-      }
-      createListing.mutate({
-        cardId: selectedCardId,
-        price: parseFloat(price),
-        description: description || undefined,
-        listingType: "buy_now",
-      });
+      if (!price || parseFloat(price) <= 0) { toast.error("Please enter a valid price"); return; }
+      createListing.mutate({ cardId: selectedCardId, price: parseFloat(price), description: description || undefined, listingType: "buy_now" });
     } else {
-      if (!startingBid || parseFloat(startingBid) <= 0) {
-        toast.error("Please enter a valid starting bid");
-        return;
-      }
-      if (!auctionEndTime) {
-        toast.error("Please set an auction end time");
-        return;
-      }
+      if (!startingBid || parseFloat(startingBid) <= 0) { toast.error("Please enter a valid starting bid"); return; }
+      if (!auctionEndTime) { toast.error("Please set an auction end time"); return; }
       createListing.mutate({
         cardId: selectedCardId,
         price: parseFloat(startingBid),
@@ -94,6 +114,20 @@ export default function Sell() {
     }
   };
 
+  const resetForm = () => {
+    setStep(1);
+    setSelectedCardId(null);
+    setListingType("buy_now");
+    setPrice("");
+    setDescription("");
+    setStartingBid("");
+    setReservePrice("");
+    setBuyNowPrice("");
+    setMinBidIncrement("1.00");
+    setAuctionEndTime(addHoursFromNow(72));
+    setCreatedListing(null);
+  };
+
   return (
     <Layout>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20">
@@ -102,15 +136,9 @@ export default function Sell() {
           <p className="text-muted-foreground">List a card from your collection on the global marketplace.</p>
         </div>
 
-        <div className="flex items-center gap-4 mb-8">
-          {[1, 2].map((n) => (
-            <div key={n} className="flex items-center gap-4 flex-1 last:flex-none">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${step >= n ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{n}</div>
-              {n < 2 && <div className={`h-1 flex-1 rounded-full ${step >= 2 ? "bg-primary" : "bg-muted"}`} />}
-            </div>
-          ))}
-        </div>
+        <StepIndicator step={step} />
 
+        {/* ── Step 1: Pick a card ── */}
         {step === 1 && (
           <div className="space-y-6">
             <h2 className="text-xl font-bold">Select a card from your collection</h2>
@@ -147,12 +175,12 @@ export default function Sell() {
           </div>
         )}
 
+        {/* ── Step 2: Listing details ── */}
         {step === 2 && selectedCard && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             <div>
               <h2 className="text-xl font-bold mb-6">Listing Details</h2>
 
-              {/* Listing Type */}
               <div className="mb-6">
                 <label className="text-sm font-medium mb-2 block">Listing Type</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -162,9 +190,7 @@ export default function Sell() {
                     className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${listingType === "buy_now" ? "border-primary bg-primary/5" : "border-border hover:border-border/80"}`}
                   >
                     <ShoppingBag className={`h-6 w-6 ${listingType === "buy_now" ? "text-primary" : "text-muted-foreground"}`} />
-                    <span className={`text-sm font-medium ${listingType === "buy_now" ? "text-primary" : "text-muted-foreground"}`}>
-                      Buy Now
-                    </span>
+                    <span className={`text-sm font-medium ${listingType === "buy_now" ? "text-primary" : "text-muted-foreground"}`}>Buy Now</span>
                   </button>
                   <button
                     type="button"
@@ -172,9 +198,7 @@ export default function Sell() {
                     className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${listingType === "auction" ? "border-primary bg-primary/5" : "border-border hover:border-border/80"}`}
                   >
                     <Gavel className={`h-6 w-6 ${listingType === "auction" ? "text-primary" : "text-muted-foreground"}`} />
-                    <span className={`text-sm font-medium ${listingType === "auction" ? "text-primary" : "text-muted-foreground"}`}>
-                      Auction
-                    </span>
+                    <span className={`text-sm font-medium ${listingType === "auction" ? "text-primary" : "text-muted-foreground"}`}>Auction</span>
                   </button>
                 </div>
               </div>
@@ -184,11 +208,9 @@ export default function Sell() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Selling Price ($)</label>
                     <Input
-                      type="number"
-                      step="0.01"
+                      type="number" step="0.01"
                       placeholder={selectedCard.estimatedValue?.toString() ?? "0.00"}
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
+                      value={price} onChange={e => setPrice(e.target.value)}
                       className="text-2xl py-6 font-bold"
                     />
                     {selectedCard.estimatedValue && (
@@ -199,51 +221,24 @@ export default function Sell() {
                   <>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Starting Bid ($) <span className="text-destructive">*</span></label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="1.00"
-                        value={startingBid}
-                        onChange={(e) => setStartingBid(e.target.value)}
-                      />
+                      <Input type="number" step="0.01" placeholder="1.00" value={startingBid} onChange={e => setStartingBid(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Reserve Price ($) <span className="text-muted-foreground text-xs">(Optional — minimum to sell)</span></label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="No reserve"
-                        value={reservePrice}
-                        onChange={(e) => setReservePrice(e.target.value)}
-                      />
+                      <Input type="number" step="0.01" placeholder="No reserve" value={reservePrice} onChange={e => setReservePrice(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Buy It Now Price ($) <span className="text-muted-foreground text-xs">(Optional)</span></label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="Skip auction if buyer pays this"
-                        value={buyNowPrice}
-                        onChange={(e) => setBuyNowPrice(e.target.value)}
-                      />
+                      <Input type="number" step="0.01" placeholder="Skip auction if buyer pays this" value={buyNowPrice} onChange={e => setBuyNowPrice(e.target.value)} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Min Bid Increment ($)</label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={minBidIncrement}
-                          onChange={(e) => setMinBidIncrement(e.target.value)}
-                        />
+                        <Input type="number" step="0.01" value={minBidIncrement} onChange={e => setMinBidIncrement(e.target.value)} />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Auction Ends</label>
-                        <Input
-                          type="datetime-local"
-                          value={auctionEndTime}
-                          onChange={(e) => setAuctionEndTime(e.target.value)}
-                        />
+                        <Input type="datetime-local" value={auctionEndTime} onChange={e => setAuctionEndTime(e.target.value)} />
                       </div>
                     </div>
                   </>
@@ -253,8 +248,7 @@ export default function Sell() {
                   <label className="text-sm font-medium">Description (Optional)</label>
                   <Textarea
                     placeholder="Describe the card's condition, flaws, or why you're selling..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    value={description} onChange={e => setDescription(e.target.value)}
                     className="min-h-[100px]"
                   />
                 </div>
@@ -262,13 +256,9 @@ export default function Sell() {
 
               <div className="flex gap-4 mt-8">
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button
-                  className="flex-1 shadow-md"
-                  onClick={handlePublish}
-                  disabled={createListing.isPending}
-                >
+                <Button className="flex-1 shadow-md" onClick={handlePublish} disabled={createListing.isPending}>
                   <Tag className="mr-2 w-4 h-4" />
-                  {listingType === "auction" ? "Start Auction" : "Publish Listing"}
+                  {createListing.isPending ? "Publishing…" : listingType === "auction" ? "Start Auction" : "Publish Listing"}
                 </Button>
               </div>
             </div>
@@ -278,6 +268,66 @@ export default function Sell() {
               <div className="pointer-events-none opacity-90 max-w-[280px]">
                 <CardItem card={selectedCard} />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: Listed! ── */}
+        {step === 3 && createdListing && selectedCard && (
+          <div className="max-w-lg mx-auto text-center space-y-8">
+            <div>
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-2xl font-black tracking-tight mb-1">Your card is live!</h2>
+              <p className="text-muted-foreground">
+                {selectedCard.name} is now listed on the marketplace and ready for buyers.
+              </p>
+            </div>
+
+            {/* Card + listing summary */}
+            <div className="bg-card border rounded-2xl p-5 flex items-center gap-4 text-left">
+              {selectedCard.imageUrl && (
+                <img
+                  src={selectedCard.imageUrl}
+                  alt={selectedCard.name}
+                  className="w-16 h-20 object-contain rounded-lg shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-foreground truncate">{selectedCard.name}</p>
+                <p className="text-sm text-muted-foreground truncate">{selectedCard.setName}</p>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <Badge variant="outline" className="text-xs capitalize">
+                    {createdListing.listingType === "buy_now" ? "Buy Now" : "Auction"}
+                  </Badge>
+                  <span className="text-sm font-bold text-primary">
+                    ${parseFloat(String(createdListing.listingType === "auction" ? createdListing.startingBid : createdListing.price)).toFixed(2)}
+                    {createdListing.listingType === "auction" ? " starting bid" : ""}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Destinations */}
+            <div className="space-y-3">
+              <Link href={`/marketplace/${createdListing.id}`}>
+                <Button size="lg" className="w-full h-13 text-base font-semibold shadow-md">
+                  <Store className="mr-2 h-5 w-5" />
+                  View on Marketplace
+                  <ExternalLink className="ml-2 h-4 w-4 opacity-60" />
+                </Button>
+              </Link>
+              <Link href="/marketplace">
+                <Button variant="outline" size="lg" className="w-full h-12">
+                  <Store className="mr-2 h-4 w-4" />
+                  Browse All Listings
+                </Button>
+              </Link>
+              <Button variant="ghost" size="lg" className="w-full h-12 text-muted-foreground" onClick={resetForm}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                List Another Card
+              </Button>
             </div>
           </div>
         )}
