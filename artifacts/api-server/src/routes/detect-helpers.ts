@@ -1,5 +1,7 @@
 const TCGDEX_BASE = "https://api.tcgdex.net/v2/en";
 const PTCGIO_BASE = "https://api.pokemontcg.io/v2";
+const PTCGIO_TCGPLAYER_BASE = "https://prices.pokemontcg.io/tcgplayer";
+const MPAPI_BASE = "https://mpapi.tcgplayer.com/v2/product";
 
 const STOP_WORDS = new Set(["the", "a", "an", "of", "and", "or", "ex", "v", "gx", "vmax", "vstar"]);
 
@@ -32,6 +34,13 @@ interface PtcgCard {
   cardmarket?: { prices?: { trendPrice?: number; averageSellPrice?: number; lowPrice?: number; avg30?: number } };
 }
 
+interface TcgPlayerPricePoint {
+  printingType: string;
+  marketPrice: number | null;
+  buylistMarketPrice: number | null;
+  listedMedianPrice: number | null;
+}
+
 async function fetchSetName(setId: string): Promise<string> {
   try {
     const res = await fetch(`${TCGDEX_BASE}/sets/${setId}`);
@@ -45,7 +54,6 @@ async function fetchSetName(setId: string): Promise<string> {
 
 async function fetchCards(namePattern: string): Promise<CardBrief[]> {
   try {
-    // Encode only the text segments, leaving * wildcards unencoded
     const encoded = namePattern.split("*").map(encodeURIComponent).join("*");
     const res = await fetch(`${TCGDEX_BASE}/cards?name=${encoded}`);
     if (!res.ok) return [];
@@ -65,6 +73,16 @@ export interface PricingData {
   isFallback?: boolean;
 }
 
+function buildPsaEstimates(marketPrice: number | null): Record<number, number> | null {
+  if (marketPrice == null) return null;
+  return Object.fromEntries(
+    Object.entries(PSA_MULTIPLIERS).map(([grade, mult]) => [
+      Number(grade),
+      Math.round(marketPrice * mult * 100) / 100,
+    ]),
+  );
+}
+
 function extractPricing(card: PtcgCard): PricingData {
   const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
   if (!card) return empty;
@@ -79,15 +97,81 @@ function extractPricing(card: PtcgCard): PricingData {
   const lowPrice = tcgLow ?? cmLow;
   const trendPrice = cm?.trendPrice ?? null;
   const source: PricingData["source"] = tcgMarket != null ? "tcgplayer" : cmMarket != null ? "cardmarket" : null;
-  const psaEstimates = marketPrice != null
-    ? Object.fromEntries(
-        Object.entries(PSA_MULTIPLIERS).map(([grade, mult]) => [
-          Number(grade),
-          Math.round(marketPrice * mult * 100) / 100,
-        ]),
-      )
-    : null;
-  return { marketPrice, lowPrice, trendPrice, source, psaEstimates };
+  return { marketPrice, lowPrice, trendPrice, source, psaEstimates: buildPsaEstimates(marketPrice) };
+}
+
+/**
+ * Resolve a PTCG.io card ID to a TCGPlayer product ID by following the PTCG.io redirect.
+ * Returns null if the product ID cannot be determined.
+ *
+ * The redirect chain:
+ *   https://prices.pokemontcg.io/tcgplayer/{ptcgioId}
+ *   → https://tcgplayer.pxf.io/scrydex?u=https://tcgplayer.com/product/{productId}
+ *
+ * We grab the product ID from the `u=` query param in the first Location header.
+ */
+async function resolveTCGPlayerProductId(ptcgioId: string): Promise<number | null> {
+  try {
+    const res = await fetch(`${PTCGIO_TCGPLAYER_BASE}/${ptcgioId}`, {
+      method: "GET",
+      redirect: "manual",
+    });
+    if (res.status !== 302 && res.status !== 301) return null;
+    const location = res.headers.get("location") ?? "";
+    // Location looks like: https://tcgplayer.pxf.io/scrydex?u=https://tcgplayer.com/product/684398
+    const match = location.match(/tcgplayer\.com\/product\/(\d+)/i);
+    if (!match) return null;
+    return parseInt(match[1], 10);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch pricing directly from TCGPlayer's internal marketplace API using a product ID.
+ * Returns null if the product has no price data.
+ */
+async function fetchTCGPlayerPricePoints(productId: number): Promise<PricingData | null> {
+  try {
+    const res = await fetch(`${MPAPI_BASE}/${productId}/pricepoints`, {
+      headers: {
+        "Origin": "https://www.tcgplayer.com",
+        "Referer": "https://www.tcgplayer.com/",
+      },
+    });
+    if (!res.ok) return null;
+    const points = (await res.json()) as TcgPlayerPricePoint[];
+    if (!Array.isArray(points) || points.length === 0) return null;
+
+    const normal = points.find((p) => p.printingType === "Normal");
+    const foil = points.find((p) => p.printingType === "Foil");
+
+    // Pick best available market price: Normal first, then Foil, then any variant
+    const marketPrice =
+      normal?.marketPrice ??
+      foil?.marketPrice ??
+      points.find((p) => p.marketPrice != null)?.marketPrice ??
+      null;
+
+    // Pick best available low/median price from the same priority
+    const lowPrice =
+      normal?.listedMedianPrice ??
+      foil?.listedMedianPrice ??
+      points.find((p) => p.listedMedianPrice != null)?.listedMedianPrice ??
+      null;
+
+    if (marketPrice == null && lowPrice == null) return null;
+
+    return {
+      marketPrice,
+      lowPrice,
+      trendPrice: null,
+      source: "tcgplayer",
+      psaEstimates: buildPsaEstimates(marketPrice),
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchPricing(cardName: string, rarity?: string): Promise<PricingData> {
@@ -107,7 +191,6 @@ async function fetchPricing(cardName: string, rarity?: string): Promise<PricingD
   }
 
   try {
-    // If we have a rarity hint, try rarity-scoped search first for a closer price match
     if (rarity) {
       const p = await query(`name:"${cardName}" rarity:${rarity}`);
       if (p.marketPrice != null || p.lowPrice != null) return p;
@@ -119,8 +202,12 @@ async function fetchPricing(cardName: string, rarity?: string): Promise<PricingD
 }
 
 /**
- * Fetch pricing for a specific printing using its TCGdex card ID (e.g. "xy8-024").
- * Converts to PTCG.io format by stripping leading zeros from the number segment.
+ * Fetch pricing for a specific printing using its TCGdex card ID (e.g. "me03-028").
+ *
+ * Priority:
+ *  1. TCGPlayer direct via PTCG.io redirect → mpapi.tcgplayer.com pricepoints (most accurate)
+ *  2. PTCG.io inline tcgplayer/cardmarket prices (works for many older sets)
+ *  3. Fallback name+rarity search (returns isFallback: true)
  */
 export async function fetchPricingById(tcgdexId: string, fallbackName?: string, fallbackRarity?: string): Promise<PricingData> {
   const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
@@ -129,11 +216,11 @@ export async function fetchPricingById(tcgdexId: string, fallbackName?: string, 
     if (dashIdx === -1) return empty;
     const setId = tcgdexId.slice(0, dashIdx);
     const rawNum = tcgdexId.slice(dashIdx + 1);
-    // Strip leading zeros from card number (e.g. "028" → "28")
     const strippedNum = String(parseInt(rawNum, 10));
-    // Also strip leading zeros from the numeric suffix of the set prefix
-    // e.g. TCGdex uses "me03" but PTCG.io uses "me3"
+    // Strip leading zeros from set prefix: "me03" → "me3"
     const setIdNorm = setId.replace(/([a-z]+)0+(\d)/i, "$1$2");
+
+    // Build PTCG.io candidate IDs (normalized first, then raw)
     const seen = new Set<string>();
     const candidates: string[] = [];
     for (const sid of [setIdNorm, setId]) {
@@ -142,6 +229,17 @@ export async function fetchPricingById(tcgdexId: string, fallbackName?: string, 
         if (!seen.has(id)) { seen.add(id); candidates.push(id); }
       }
     }
+
+    // --- Priority 1: TCGPlayer direct via redirect resolution ---
+    for (const ptcgioId of candidates) {
+      const productId = await resolveTCGPlayerProductId(ptcgioId);
+      if (productId != null) {
+        const pricing = await fetchTCGPlayerPricePoints(productId);
+        if (pricing != null) return pricing;
+      }
+    }
+
+    // --- Priority 2: PTCG.io inline prices ---
     for (const id of candidates) {
       const res = await fetch(`${PTCGIO_BASE}/cards/${id}`);
       if (res.ok) {
@@ -150,7 +248,8 @@ export async function fetchPricingById(tcgdexId: string, fallbackName?: string, 
         if (pricing.marketPrice != null || pricing.lowPrice != null) return pricing;
       }
     }
-    // No prices found for this specific printing — fall back to name+rarity search
+
+    // --- Priority 3: Name+rarity fallback ---
     if (fallbackName) {
       const namePricing = await fetchPricing(fallbackName, fallbackRarity);
       if (namePricing.marketPrice != null || namePricing.lowPrice != null) {
@@ -174,7 +273,6 @@ export interface TcgResult {
 }
 
 async function buildResults(cards: CardBrief[]): Promise<TcgResult[]> {
-  // Filter out "tk" promo token cards — they have no images and aren't real printings
   const filtered = cards.filter((c) => !c.id.startsWith("tk")).slice(0, 20);
   const setIds = [...new Set(filtered.map((c) => c.id.split("-")[0]).filter(Boolean))] as string[];
   const setMap: Record<string, string> = {};
@@ -196,10 +294,8 @@ async function buildResults(cards: CardBrief[]): Promise<TcgResult[]> {
 export async function searchTcgdex(query: string): Promise<{ variants: TcgResult[]; pricing: PricingData }> {
   const emptyPricing: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
   try {
-    // Strategy 1: exact wildcard on the full query
     let cards = await fetchCards(`*${query}*`);
 
-    // Strategy 2: per-word fallback if full phrase gives nothing
     if (cards.filter((c) => !c.id.startsWith("tk")).length === 0) {
       const words = query
         .toLowerCase()
@@ -225,24 +321,18 @@ export async function searchTcgdex(query: string): Promise<{ variants: TcgResult
       }
     }
 
-    // Best match = first non-tk card by name similarity
     const bestMatch = cards.find((c) => !c.id.startsWith("tk"));
     const bestName = bestMatch?.name ?? query;
 
-    // For per-word fallback: filter merged results to cards actually related to the best match
-    // (prevents generic "Grass Energy", "Water Energy" etc flooding when searching "Telepathic Energy")
     const bestWords = bestName
       .toLowerCase()
       .split(/\s+/)
       .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-    // Require cards to contain the MOST DISTINCTIVE word (first significant word of best match).
-    // e.g. "Telepathic Psychic Energy" → anchor = "telepathic", so "Grass Energy" is excluded.
     const anchorWord = bestWords[0];
     const filteredCards = anchorWord
       ? cards.filter((c) => c.name.toLowerCase().includes(anchorWord))
       : cards;
 
-    // Fetch variants + pricing in parallel
     const [variants, pricing] = await Promise.all([
       buildResults(filteredCards),
       fetchPricing(bestName),
