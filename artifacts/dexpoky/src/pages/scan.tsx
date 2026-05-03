@@ -412,7 +412,7 @@ export default function ScanPage() {
                 </div>
 
                 {/* Market value */}
-                {(pricing && (pricing.marketPrice != null || pricing.lowPrice != null)) || pricingLoading ? (
+                {(pricing != null || pricingLoading) && (
                   <div className="relative bg-card border rounded-2xl p-4 space-y-3">
                     {pricingLoading && (
                       <div className="absolute inset-0 rounded-2xl bg-background/60 flex items-center justify-center z-10">
@@ -426,28 +426,32 @@ export default function ScanPage() {
                         <span className="text-[10px] text-muted-foreground ml-auto capitalize">{pricing.source === "tcgplayer" ? "TCGPlayer" : "CardMarket"}</span>
                       )}
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {pricing?.marketPrice != null && (
-                        <div className="text-center">
-                          <p className="text-xs text-muted-foreground mb-0.5">Market</p>
-                          <p className="font-bold text-base">{fmt(pricing.marketPrice)}</p>
-                        </div>
-                      )}
-                      {pricing?.lowPrice != null && (
-                        <div className="text-center">
-                          <p className="text-xs text-muted-foreground mb-0.5">Low</p>
-                          <p className="font-semibold text-base text-muted-foreground">{fmt(pricing.lowPrice)}</p>
-                        </div>
-                      )}
-                      {pricing?.trendPrice != null && (
-                        <div className="text-center">
-                          <p className="text-xs text-muted-foreground mb-0.5">Trend</p>
-                          <p className="font-semibold text-base">{fmt(pricing.trendPrice)}</p>
-                        </div>
-                      )}
-                    </div>
+                    {pricing && (pricing.marketPrice != null || pricing.lowPrice != null) ? (
+                      <div className="grid grid-cols-3 gap-3">
+                        {pricing.marketPrice != null && (
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground mb-0.5">Market</p>
+                            <p className="font-bold text-base">{fmt(pricing.marketPrice)}</p>
+                          </div>
+                        )}
+                        {pricing.lowPrice != null && (
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground mb-0.5">Low</p>
+                            <p className="font-semibold text-base text-muted-foreground">{fmt(pricing.lowPrice)}</p>
+                          </div>
+                        )}
+                        {pricing.trendPrice != null && (
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground mb-0.5">Trend</p>
+                            <p className="font-semibold text-base">{fmt(pricing.trendPrice)}</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : !pricingLoading && (
+                      <p className="text-sm text-muted-foreground">No market value available for this printing.</p>
+                    )}
                   </div>
-                ) : null}
+                )}
 
                 {/* PSA grades */}
                 {(pricing?.psaEstimates || pricingLoading) ? (
