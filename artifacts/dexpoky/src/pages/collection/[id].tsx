@@ -198,20 +198,18 @@ export default function CardDetail() {
   if (isLoading) {
     return (
       <Layout>
-        <div className="relative overflow-hidden bg-slate-900/80 animate-pulse">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16">
-            <Skeleton className="h-8 w-32 mb-8 bg-white/10" />
-            <div className="flex flex-col lg:flex-row gap-10">
-              <Skeleton className="w-full lg:w-[340px] aspect-[3/4] rounded-2xl bg-white/10" />
-              <div className="flex-1 space-y-5 pt-2">
-                <Skeleton className="h-12 w-3/4 bg-white/10" />
-                <Skeleton className="h-6 w-1/2 bg-white/10" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-7 w-20 rounded-full bg-white/10" />
-                  <Skeleton className="h-7 w-24 rounded-full bg-white/10" />
-                </div>
-                <Skeleton className="h-28 w-full rounded-2xl bg-white/10" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16">
+          <Skeleton className="h-8 w-32 mb-8" />
+          <div className="flex flex-col lg:flex-row gap-10">
+            <Skeleton className="w-full lg:w-[340px] aspect-[3/4] rounded-2xl" />
+            <div className="flex-1 space-y-5 pt-2">
+              <Skeleton className="h-12 w-3/4" />
+              <Skeleton className="h-6 w-1/2" />
+              <div className="flex gap-2">
+                <Skeleton className="h-7 w-20 rounded-full" />
+                <Skeleton className="h-7 w-24 rounded-full" />
               </div>
+              <Skeleton className="h-28 w-full rounded-2xl" />
             </div>
           </div>
         </div>
@@ -234,186 +232,159 @@ export default function CardDetail() {
 
   return (
     <Layout>
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden bg-slate-950">
-        {/* Blurred backdrop from card image */}
-        {card.imageUrl && (
-          <div
-            className="absolute inset-0 scale-125"
-            style={{
-              backgroundImage: `url(${card.imageUrl})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center top",
-              filter: "blur(50px) saturate(1.6) brightness(0.35)",
-            }}
-          />
-        )}
-        {/* Gradient overlay — fades to background at bottom */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24">
+        {/* Back nav */}
+        <button
+          onClick={() => setLocation("/collection")}
+          className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-sm font-medium transition-colors mb-6 -ml-1"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Collection
+        </button>
 
-        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-10">
-          {/* Back nav */}
-          <button
-            onClick={() => setLocation("/collection")}
-            className="inline-flex items-center gap-1.5 text-white/70 hover:text-white text-sm font-medium transition-colors mb-8 -ml-1"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to Collection
-          </button>
-
-          <div className="flex flex-col lg:flex-row gap-10 items-start">
-            {/* ── Card Image + Nav ──────────────────────────────────────── */}
-            <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0">
-              <HoloCard imageUrl={card.imageUrl} name={card.name}>
-                {card.forSale && (
-                  <div className="absolute top-3 right-3">
-                    <Badge className="bg-primary text-primary-foreground font-bold shadow-lg text-xs px-2.5 py-1">
-                      Listed {formatCurrency(card.listingPrice)}
-                    </Badge>
-                  </div>
-                )}
-              </HoloCard>
-
-              {/* Prev / Next */}
-              {navList.length > 1 && (
-                <div className="flex items-center gap-2 mt-3">
-                  <button
-                    onClick={() => prevCard && setLocation(`/collection/${prevCard.id}`)}
-                    disabled={!prevCard}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white/70 hover:text-white text-xs font-medium transition-all disabled:opacity-25 disabled:cursor-not-allowed flex-1 min-w-0"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{prevCard?.name ?? "—"}</span>
-                  </button>
-
-                  <div className="flex flex-col items-center shrink-0 gap-0.5">
-                    <span className="text-xs font-bold text-white/80 tabular-nums whitespace-nowrap">
-                      {currentIndex + 1} / {navList.length}
-                    </span>
-                    {hasCategoryScope && (
-                      <button
-                        onClick={() => setNavScope(s => s === "category" ? "all" : "category")}
-                        className="flex items-center gap-0.5 text-[9px] text-white/40 hover:text-white/70 transition-colors"
-                      >
-                        {navScope === "category"
-                          ? <><FolderOpen className="h-2.5 w-2.5" />{card.categoryName}</>
-                          : <><LayoutList className="h-2.5 w-2.5" />All</>}
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => nextCard && setLocation(`/collection/${nextCard.id}`)}
-                    disabled={!nextCard}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white/70 hover:text-white text-xs font-medium transition-all disabled:opacity-25 disabled:cursor-not-allowed flex-1 min-w-0 justify-end"
-                  >
-                    <span className="truncate">{nextCard?.name ?? "—"}</span>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                  </button>
+        <div className="flex flex-col lg:flex-row gap-10 items-start">
+          {/* ── Card Image + Nav ──────────────────────────────────────── */}
+          <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0">
+            <HoloCard imageUrl={card.imageUrl} name={card.name}>
+              {card.forSale && (
+                <div className="absolute top-3 right-3">
+                  <Badge className="bg-primary text-primary-foreground font-bold shadow-lg text-xs px-2.5 py-1">
+                    Listed {formatCurrency(card.listingPrice)}
+                  </Badge>
                 </div>
+              )}
+            </HoloCard>
+
+            {/* Prev / Next */}
+            {navList.length > 1 && (
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={() => prevCard && setLocation(`/collection/${prevCard.id}`)}
+                  disabled={!prevCard}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-card hover:bg-muted/50 text-muted-foreground hover:text-foreground text-xs font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-1 min-w-0"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{prevCard?.name ?? "—"}</span>
+                </button>
+
+                <div className="flex flex-col items-center shrink-0 gap-0.5">
+                  <span className="text-xs font-bold tabular-nums whitespace-nowrap">
+                    {currentIndex + 1} / {navList.length}
+                  </span>
+                  {hasCategoryScope && (
+                    <button
+                      onClick={() => setNavScope(s => s === "category" ? "all" : "category")}
+                      className="flex items-center gap-0.5 text-[9px] text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      {navScope === "category"
+                        ? <><FolderOpen className="h-2.5 w-2.5" />{card.categoryName}</>
+                        : <><LayoutList className="h-2.5 w-2.5" />All</>}
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => nextCard && setLocation(`/collection/${nextCard.id}`)}
+                  disabled={!nextCard}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-card hover:bg-muted/50 text-muted-foreground hover:text-foreground text-xs font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed flex-1 min-w-0 justify-end"
+                >
+                  <span className="truncate">{nextCard?.name ?? "—"}</span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Identity + Value ──────────────────────────────────────── */}
+          <div className="flex-1 min-w-0">
+            {/* Name + actions */}
+            <div className="flex items-start justify-between gap-4 mb-1">
+              <h1 className="text-4xl xl:text-5xl font-black tracking-tight leading-tight text-foreground">
+                {card.name}
+              </h1>
+              <div className="flex gap-2 shrink-0 mt-1">
+                <Button variant="outline" size="icon" onClick={() => setLocation(`/collection/${id}/edit`)} title="Edit">
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20" title="Delete">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete this card?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently remove <strong>{card.name}</strong> from your collection. This cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+
+            {/* Subtitle */}
+            <p className="text-base xl:text-lg text-muted-foreground font-medium mb-5">
+              {card.pokemonName}
+              {card.setName && <span className="mx-1.5">•</span>}
+              {card.setName}
+              {card.cardNumber && (
+                <span className="ml-2 text-xs bg-secondary px-2 py-0.5 rounded-md font-mono text-foreground">
+                  {card.cardNumber}
+                </span>
+              )}
+            </p>
+
+            {/* Badges */}
+            <div className="flex flex-wrap gap-2 mb-6">
+              <span className={`inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full border ${RARITY_COLORS[card.rarity] || "bg-muted text-muted-foreground"}`}>
+                {formatLabel(card.rarity)}
+              </span>
+              <span className={`inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full border ${CONDITION_COLORS[card.condition] || "bg-muted text-muted-foreground"}`}>
+                {formatLabel(card.condition)} Condition
+              </span>
+              {card.categoryName && (
+                <span className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full bg-secondary border border-border text-foreground">
+                  {card.categoryName}
+                </span>
               )}
             </div>
 
-            {/* ── Identity + Value (hero panel) ─────────────────────────── */}
-            <div className="flex-1 min-w-0 text-white">
-              {/* Name + actions */}
-              <div className="flex items-start justify-between gap-4 mb-1">
-                <h1 className="text-4xl xl:text-5xl font-black tracking-tight leading-tight drop-shadow-lg">
-                  {card.name}
-                </h1>
-                <div className="flex gap-2 shrink-0 mt-1">
-                  <button
-                    onClick={() => setLocation(`/collection/${id}/edit`)}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white/70 hover:text-white transition-all"
-                    title="Edit"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <button
-                        className="p-2 rounded-xl bg-white/10 hover:bg-red-500/30 border border-white/15 text-white/50 hover:text-red-300 transition-all"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete this card?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently remove <strong>{card.name}</strong> from your collection. This cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </div>
-
-              {/* Subtitle */}
-              <p className="text-base xl:text-lg text-white/60 font-medium mb-5">
-                {card.pokemonName}
-                {card.setName && <span className="mx-1.5 text-white/30">•</span>}
-                {card.setName}
-                {card.cardNumber && (
-                  <span className="ml-2 text-xs bg-white/10 border border-white/15 px-2 py-0.5 rounded-md font-mono">
-                    {card.cardNumber}
-                  </span>
-                )}
+            {/* Value panel */}
+            <div className="bg-card border rounded-2xl p-5 mb-4 shadow-sm">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Estimated Value</p>
+              <p className="text-5xl xl:text-6xl font-black tracking-tighter text-foreground">
+                {formatCurrency(card.estimatedValue)}
               </p>
+            </div>
 
-              {/* Badges */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                <span className={`inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full border ${RARITY_COLORS[card.rarity] || "bg-muted text-muted-foreground"}`}>
-                  {formatLabel(card.rarity)}
-                </span>
-                <span className={`inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full border ${CONDITION_COLORS[card.condition] || "bg-muted text-muted-foreground"}`}>
-                  {formatLabel(card.condition)} Condition
-                </span>
-                {card.categoryName && (
-                  <span className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-white/80">
-                    {card.categoryName}
-                  </span>
-                )}
-              </div>
-
-              {/* Value panel — glassmorphic */}
-              <div className="bg-white/8 backdrop-blur-md border border-white/15 rounded-2xl p-5 mb-4">
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1.5">Estimated Value</p>
-                <p className="text-5xl xl:text-6xl font-black tracking-tighter text-white drop-shadow">
-                  {formatCurrency(card.estimatedValue)}
-                </p>
-              </div>
-
-              {/* Quick meta */}
-              <div className="flex gap-4 text-xs text-white/40">
-                {card.acquiredDate && (
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    Acquired {new Date(card.acquiredDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                  </span>
-                )}
+            {/* Quick meta */}
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              {card.acquiredDate && (
                 <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Added {new Date(card.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  <Calendar className="h-3 w-3" />
+                  Acquired {new Date(card.acquiredDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </span>
-              </div>
+              )}
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Added {new Date(card.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ── DETAILS SECTION ───────────────────────────────────────────────── */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
-        <div className="flex flex-col lg:flex-row gap-10">
+        {/* ── DETAILS ────────────────────────────────────────────────────── */}
+        <div className="flex flex-col lg:flex-row gap-10 mt-10">
 
-          {/* ── LEFT: Sell CTA (aligned with card above) ──────────────── */}
-          <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0 pt-6">
+          {/* ── LEFT: Sell CTA ─────────────────────────────────────────── */}
+          <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0">
             {card.forSale ? (
               <div className="space-y-3">
                 <div className="bg-primary/8 border border-primary/20 rounded-2xl px-4 py-3 flex items-center gap-3">
