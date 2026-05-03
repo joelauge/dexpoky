@@ -50,20 +50,14 @@ export default function ScanPage() {
 
   /* ── helpers ── */
 
-  const captureGuideRegion = useCallback((): string | null => {
+  const captureFrame = useCallback((): string | null => {
     const video  = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.readyState < 2 || video.videoWidth === 0) return null;
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    const sx = vw * (1 - GUIDE_W) / 2;
-    const sy = vh * (1 - GUIDE_H) / 2;
-    const sw = vw * GUIDE_W;
-    const sh = vh * GUIDE_H;
-    canvas.width  = sw;
-    canvas.height = sh;
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+    ctx.drawImage(video, 0, 0);
     return canvas.toDataURL("image/jpeg", 0.8);
   }, []);
 
@@ -97,7 +91,7 @@ export default function ScanPage() {
   const runScan = useCallback(async () => {
     if (!activeRef.current) return;
 
-    const imageData = captureGuideRegion();
+    const imageData = captureFrame();
     if (!imageData) {
       loopRef.current = setTimeout(runScan, 800);
       return;
@@ -121,7 +115,7 @@ export default function ScanPage() {
     } catch { /* network hiccup — keep going */ }
 
     if (activeRef.current) loopRef.current = setTimeout(runScan, 2000);
-  }, [captureGuideRegion, stopStream, lookupCard]);
+  }, [captureFrame, stopStream, lookupCard]);
 
   /* ── start camera ── */
   const startCamera = async () => {

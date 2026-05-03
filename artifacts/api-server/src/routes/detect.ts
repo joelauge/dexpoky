@@ -81,9 +81,16 @@ router.post("/cards/identify", async (req, res) => {
             { type: "image_url", image_url: { url: imageData, detail: "low" } },
             {
               type: "text",
-              text: `You are a Pokemon trading card expert. Look at this image and respond ONLY with a JSON object (no markdown):
-{"detected":true/false,"confidence":"high"|"medium"|"low","pokemonName":"Charizard or null"}
-If no Pokemon card is clearly visible in the frame, set detected to false.`,
+              text: `You are a Pokemon trading card expert. Examine this image carefully.
+
+Respond with ONLY valid JSON, no markdown, no explanation:
+{"detected": true, "confidence": "high", "pokemonName": "Pikachu"}
+
+Rules:
+- Set "detected" to true if ANY Pokemon trading card is visible, even partially
+- "pokemonName": the Pokemon's name on the card (e.g. "Pikachu", "Charizard", "Mewtwo")
+- "confidence": "high" if clearly visible, "medium" if partially visible, "low" if uncertain but likely
+- If absolutely no Pokemon card is present, respond exactly: {"detected": false, "confidence": "low", "pokemonName": null}`,
             },
           ],
         },
