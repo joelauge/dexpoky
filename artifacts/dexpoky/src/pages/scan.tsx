@@ -545,10 +545,10 @@ export default function ScanPage() {
 
                 {/* Other printings */}
                 {variants.length > 1 && (
-                  <div className="w-full min-w-0 max-w-full overflow-hidden">
+                  <div className="w-full min-w-0 max-w-full" style={{ overflow: "clip" }}>
                     <h3 className="font-semibold text-sm mb-1">Other printings</h3>
                     <p className="text-xs text-muted-foreground mb-3">Tap the one you have.</p>
-                    <div className="flex gap-2 overflow-x-auto pb-2 min-w-0 max-w-full">
+                    <div className="flex gap-2 overflow-x-auto pb-2 min-w-0 max-w-full touch-scroll-x">
                       {variants.map((v) => {
                         const active = (selectedVariant?.id ?? card?.id) === v.id;
                         return (
