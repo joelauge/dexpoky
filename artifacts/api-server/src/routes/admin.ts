@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { sellerPayoutsTable, usersTable, cardsTable, categoriesTable, listingsTable } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
+import { syncAllUsersFromClerk } from "../lib/userSync.js";
 import bootstrapDump from "../data/bootstrap-import.json" with { type: "json" };
 
 const router = Router();
@@ -15,24 +16,43 @@ function getAdminIds(): string[] {
     .filter(Boolean);
 }
 
-function isAdmin(clerkId: string): boolean {
-  const ids = getAdminIds();
-  return ids.includes(clerkId);
+function getAdminEmails(): string[] {
+  return (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
 }
 
-function requireAdmin(req: AuthRequest, res: import("express").Response, next: import("express").NextFunction) {
-  if (!isAdmin(req.userId)) {
+async function isAdmin(clerkId: string): Promise<boolean> {
+  if (getAdminIds().includes(clerkId)) return true;
+  const adminEmails = getAdminEmails();
+  if (adminEmails.length === 0) return false;
+  const [u] = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.clerkId, clerkId));
+  if (!u?.email) return false;
+  return adminEmails.includes(u.email.toLowerCase());
+}
+
+async function requireAdmin(req: AuthRequest, res: import("express").Response, next: import("express").NextFunction) {
+  if (!(await isAdmin(req.userId))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
   next();
 }
 
-router.get("/admin/me", requireAuth, (req, res) => {
-  res.json({ isAdmin: isAdmin((req as AuthRequest).userId) });
+router.get("/admin/me", requireAuth, async (req, res) => {
+  res.json({ isAdmin: await isAdmin((req as AuthRequest).userId) });
 });
 
-router.get("/admin/payouts", requireAuth, (req, res, next) => requireAdmin(req as AuthRequest, res, next), async (req, res) => {
+router.post("/admin/sync-users", requireAuth, (req, res, next) => requireAdmin(req as AuthRequest, res, next).catch(next), async (_req, res) => {
+  const result = await syncAllUsersFromClerk();
+  res.json(result);
+});
+
+router.get("/admin/payouts", requireAuth, (req, res, next) => requireAdmin(req as AuthRequest, res, next).catch(next), async (req, res) => {
   const status = (req.query.status as string | undefined) ?? "pending";
   const entries = await db
     .select()
@@ -68,7 +88,7 @@ const MarkPaidBody = z.object({
   note: z.string().max(500).optional(),
 });
 
-router.post("/admin/payouts/:id/mark-paid", requireAuth, (req, res, next) => requireAdmin(req as AuthRequest, res, next), async (req, res) => {
+router.post("/admin/payouts/:id/mark-paid", requireAuth, (req, res, next) => requireAdmin(req as AuthRequest, res, next).catch(next), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -106,7 +126,7 @@ router.post("/admin/payouts/:id/mark-paid", requireAuth, (req, res, next) => req
   res.json(updated);
 });
 
-router.post("/admin/payouts/:id/cancel", requireAuth, (req, res, next) => requireAdmin(req as AuthRequest, res, next), async (req, res) => {
+router.post("/admin/payouts/:id/cancel", requireAuth, (req, res, next) => requireAdmin(req as AuthRequest, res, next).catch(next), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -131,7 +151,7 @@ router.post("/admin/payouts/:id/cancel", requireAuth, (req, res, next) => requir
 router.post(
   "/admin/import-bootstrap",
   requireAuth,
-  (req, res, next) => requireAdmin(req as AuthRequest, res, next),
+  (req, res, next) => requireAdmin(req as AuthRequest, res, next).catch(next),
   async (req, res) => {
     const userId = (req as AuthRequest).userId;
     const dryRun = req.query.dryRun === "1" || req.query.dryRun === "true";
