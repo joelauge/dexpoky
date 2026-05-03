@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { cardsTable, categoriesTable } from "@workspace/db";
+import { cardsTable, categoriesTable, activityEventsTable } from "@workspace/db";
 import { searchTcgdex } from "./detect-helpers.js";
 import { eq, sql, ilike, and, type SQL } from "drizzle-orm";
+import { getAuth } from "@clerk/express";
 import {
   ListCardsQueryParams,
   CreateCardBody,
@@ -64,6 +65,9 @@ router.post("/cards", async (req, res) => {
     return;
   }
   const data = parsed.data;
+  const auth = getAuth(req as never);
+  const clerkId = auth?.userId ?? null;
+  const source = (req.body.source as string | undefined) ?? "manual";
 
   const [card] = await db.insert(cardsTable).values({
     name: data.name,
@@ -86,6 +90,19 @@ router.post("/cards", async (req, res) => {
     .from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
     .where(eq(cardsTable.id, card.id));
+
+  await db.insert(activityEventsTable).values({
+    type: source === "scan" ? "card_scanned" : "card_added",
+    clerkId,
+    cardId: card.id,
+    metadata: {
+      name: card.name,
+      pokemonName: card.pokemonName,
+      imageUrl: card.imageUrl,
+      estimatedValue: card.estimatedValue,
+      setName: card.setName,
+    },
+  });
 
   res.status(201).json(withCat);
 });
@@ -124,6 +141,9 @@ router.put("/cards/:id", async (req, res) => {
     return;
   }
   const data = bodyParsed.data;
+  const auth = getAuth(req as never);
+  const clerkId = auth?.userId ?? null;
+
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (data.name !== undefined) updateData.name = data.name;
   if (data.pokemonName !== undefined) updateData.pokemonName = data.pokemonName;
@@ -154,6 +174,19 @@ router.put("/cards/:id", async (req, res) => {
     res.status(404).json({ error: "Card not found" });
     return;
   }
+
+  await db.insert(activityEventsTable).values({
+    type: "card_updated",
+    clerkId,
+    cardId: updated.id,
+    metadata: {
+      name: updated.name,
+      pokemonName: updated.pokemonName,
+      imageUrl: updated.imageUrl,
+      setName: updated.setName,
+    },
+  });
+
   res.json(updated);
 });
 

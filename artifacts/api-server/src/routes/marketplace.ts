@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { listingsTable, cardsTable, categoriesTable } from "@workspace/db";
+import { listingsTable, cardsTable, categoriesTable, activityEventsTable } from "@workspace/db";
 import { eq, sql, and, gte, lte, type SQL } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import {
@@ -122,7 +122,22 @@ router.post("/marketplace", async (req, res) => {
     .set({ forSale: true, listingPrice: String(parsed.data.price) })
     .where(eq(cardsTable.id, parsed.data.cardId));
 
-  res.status(201).json(await enrichListing(listing));
+  const enriched = await enrichListing(listing);
+
+  await db.insert(activityEventsTable).values({
+    type: "listing_created",
+    clerkId: sellerClerkId,
+    cardId: parsed.data.cardId,
+    listingId: listing.id,
+    metadata: {
+      name: enriched.card?.name ?? null,
+      imageUrl: enriched.card?.imageUrl ?? null,
+      price: parseFloat(String(listing.price)),
+      listingType,
+    },
+  });
+
+  res.status(201).json(enriched);
 });
 
 router.get("/marketplace/:id", async (req, res) => {
@@ -156,6 +171,10 @@ router.put("/marketplace/:id", async (req, res) => {
     res.status(400).json({ error: "Invalid request" });
     return;
   }
+
+  const auth = getAuth(req as never);
+  const clerkId = auth?.userId ?? null;
+
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (bodyParsed.data.price !== undefined) updateData.price = String(bodyParsed.data.price);
   if (bodyParsed.data.status !== undefined) updateData.status = bodyParsed.data.status;
@@ -179,7 +198,24 @@ router.put("/marketplace/:id", async (req, res) => {
       .where(eq(cardsTable.id, updated.cardId));
   }
 
-  res.json(await enrichListing(updated));
+  const enriched = await enrichListing(updated);
+
+  if (bodyParsed.data.status === "sold" || bodyParsed.data.status === "cancelled") {
+    await db.insert(activityEventsTable).values({
+      type: bodyParsed.data.status === "sold" ? "listing_sold" : "listing_cancelled",
+      clerkId,
+      cardId: updated.cardId,
+      listingId: updated.id,
+      metadata: {
+        name: enriched.card?.name ?? null,
+        imageUrl: enriched.card?.imageUrl ?? null,
+        price: parseFloat(String(updated.price)),
+        listingType: updated.listingType,
+      },
+    });
+  }
+
+  res.json(enriched);
 });
 
 router.delete("/cards/:cardId/listing", async (req, res) => {
@@ -188,6 +224,10 @@ router.delete("/cards/:cardId/listing", async (req, res) => {
     res.status(400).json({ error: "Invalid card id" });
     return;
   }
+
+  const auth = getAuth(req as never);
+  const clerkId = auth?.userId ?? null;
+
   const [listing] = await db
     .select()
     .from(listingsTable)
@@ -207,6 +247,24 @@ router.delete("/cards/:cardId/listing", async (req, res) => {
     .update(cardsTable)
     .set({ forSale: false, listingPrice: null })
     .where(eq(cardsTable.id, cardId));
+
+  const [card] = await db
+    .select({ name: cardsTable.name, imageUrl: cardsTable.imageUrl })
+    .from(cardsTable)
+    .where(eq(cardsTable.id, cardId));
+
+  await db.insert(activityEventsTable).values({
+    type: "listing_cancelled",
+    clerkId,
+    cardId,
+    listingId: listing.id,
+    metadata: {
+      name: card?.name ?? null,
+      imageUrl: card?.imageUrl ?? null,
+      price: parseFloat(String(listing.price)),
+      listingType: listing.listingType,
+    },
+  });
 
   res.status(204).send();
 });

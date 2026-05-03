@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { cardsTable, categoriesTable, listingsTable } from "@workspace/db";
+import { cardsTable, categoriesTable, listingsTable, activityEventsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 
 const router = Router();
@@ -78,32 +78,14 @@ router.get("/inventory/value-by-category", async (req, res) => {
 
 router.get("/inventory/recent-activity", async (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 10), 50);
-  const cards = await db
-    .select({
-      id: cardsTable.id,
-      name: cardsTable.name,
-      pokemonName: cardsTable.pokemonName,
-      setName: cardsTable.setName,
-      cardNumber: cardsTable.cardNumber,
-      rarity: cardsTable.rarity,
-      condition: cardsTable.condition,
-      imageUrl: cardsTable.imageUrl,
-      estimatedValue: sql<number | null>`${cardsTable.estimatedValue}::float`,
-      acquiredDate: cardsTable.acquiredDate,
-      categoryId: cardsTable.categoryId,
-      categoryName: categoriesTable.name,
-      forSale: cardsTable.forSale,
-      listingPrice: sql<number | null>`${cardsTable.listingPrice}::float`,
-      notes: cardsTable.notes,
-      createdAt: cardsTable.createdAt,
-      updatedAt: cardsTable.updatedAt,
-    })
-    .from(cardsTable)
-    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
-    .orderBy(desc(cardsTable.createdAt))
+
+  const events = await db
+    .select()
+    .from(activityEventsTable)
+    .orderBy(desc(activityEventsTable.createdAt))
     .limit(limit);
 
-  res.json(cards);
+  res.json(events);
 });
 
 export default router;

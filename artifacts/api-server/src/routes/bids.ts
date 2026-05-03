@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
-import { listingsTable, auctionBidsTable } from "@workspace/db";
+import { listingsTable, auctionBidsTable, cardsTable, activityEventsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
@@ -150,6 +150,24 @@ router.post("/marketplace/:id/bids", requireAuth, async (req, res) => {
     })
     .where(eq(listingsTable.id, listingId))
     .returning();
+
+  const [card] = await db
+    .select({ name: cardsTable.name, imageUrl: cardsTable.imageUrl })
+    .from(cardsTable)
+    .where(eq(cardsTable.id, listing.cardId));
+
+  await db.insert(activityEventsTable).values({
+    type: "bid_placed",
+    clerkId: userId,
+    cardId: listing.cardId,
+    listingId,
+    metadata: {
+      name: card?.name ?? null,
+      imageUrl: card?.imageUrl ?? null,
+      amount,
+      winningAmount,
+    },
+  });
 
   res.status(201).json({
     ...updatedListing,

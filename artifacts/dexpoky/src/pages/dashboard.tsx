@@ -2,23 +2,139 @@ import { useGetInventoryStats, useGetValueByCategory, useGetRecentActivity, useL
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/constants";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, AreaChart, Area } from "recharts";
-import { Activity, CreditCard, DollarSign, TrendingUp, Layers, ArrowRight } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
+import { Activity, CreditCard, DollarSign, TrendingUp, Layers, ArrowRight, PackagePlus, Edit3, ScanLine, Tag, ShoppingCart, XCircle, Gavel } from "lucide-react";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card-item";
+import { formatDistanceToNow } from "date-fns";
+
+type ActivityEventType =
+  | "card_added"
+  | "card_updated"
+  | "card_scanned"
+  | "listing_created"
+  | "listing_sold"
+  | "listing_cancelled"
+  | "bid_placed";
+
+interface ActivityEvent {
+  id: number;
+  type: ActivityEventType;
+  clerkId: string | null;
+  cardId: number | null;
+  listingId: number | null;
+  metadata: {
+    name?: string | null;
+    imageUrl?: string | null;
+    price?: number | null;
+    amount?: number | null;
+    listingType?: string | null;
+  } | null;
+  createdAt: string;
+}
+
+const EVENT_CONFIG: Record<ActivityEventType, {
+  icon: React.ElementType;
+  color: string;
+  bg: string;
+  label: (meta: ActivityEvent["metadata"]) => string;
+  href: (event: ActivityEvent) => string | null;
+}> = {
+  card_added: {
+    icon: PackagePlus,
+    color: "text-green-600",
+    bg: "bg-green-50",
+    label: (m) => `Added "${m?.name ?? "card"}" to collection`,
+    href: (e) => e.cardId ? `/collection/${e.cardId}` : null,
+  },
+  card_scanned: {
+    icon: ScanLine,
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+    label: (m) => `Scanned "${m?.name ?? "card"}"`,
+    href: (e) => e.cardId ? `/collection/${e.cardId}` : null,
+  },
+  card_updated: {
+    icon: Edit3,
+    color: "text-amber-600",
+    bg: "bg-amber-50",
+    label: (m) => `Updated "${m?.name ?? "card"}"`,
+    href: (e) => e.cardId ? `/collection/${e.cardId}` : null,
+  },
+  listing_created: {
+    icon: Tag,
+    color: "text-purple-600",
+    bg: "bg-purple-50",
+    label: (m) => `Listed "${m?.name ?? "card"}" for ${m?.price != null ? formatCurrency(m.price) : "?"}`,
+    href: (e) => e.listingId ? `/marketplace/${e.listingId}` : null,
+  },
+  listing_sold: {
+    icon: ShoppingCart,
+    color: "text-emerald-600",
+    bg: "bg-emerald-50",
+    label: (m) => `"${m?.name ?? "card"}" sold for ${m?.price != null ? formatCurrency(m.price) : "?"}`,
+    href: (e) => e.listingId ? `/marketplace/${e.listingId}` : null,
+  },
+  listing_cancelled: {
+    icon: XCircle,
+    color: "text-red-500",
+    bg: "bg-red-50",
+    label: (m) => `Listing cancelled for "${m?.name ?? "card"}"`,
+    href: (e) => e.cardId ? `/collection/${e.cardId}` : null,
+  },
+  bid_placed: {
+    icon: Gavel,
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
+    label: (m) => `Bid ${m?.amount != null ? formatCurrency(m.amount) : "?"} on "${m?.name ?? "card"}"`,
+    href: (e) => e.listingId ? `/marketplace/${e.listingId}` : null,
+  },
+};
+
+function ActivityEventRow({ event }: { event: ActivityEvent }) {
+  const config = EVENT_CONFIG[event.type] ?? EVENT_CONFIG.card_added;
+  const Icon = config.icon;
+  const href = config.href(event);
+  const label = config.label(event.metadata);
+  const imageUrl = event.metadata?.imageUrl;
+
+  const inner = (
+    <div className="p-4 hover:bg-muted/40 transition-colors cursor-pointer flex items-start gap-3">
+      {imageUrl ? (
+        <img src={imageUrl} alt="" className="h-10 w-10 object-contain flex-shrink-0 rounded" />
+      ) : (
+        <div className={`h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${config.bg}`}>
+          <Icon className={`h-5 w-5 ${config.color}`} />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium leading-snug truncate">{label}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {formatDistanceToNow(new Date(event.createdAt), { addSuffix: true })}
+        </p>
+      </div>
+    </div>
+  );
+
+  if (href) {
+    return <Link href={href}>{inner}</Link>;
+  }
+  return inner;
+}
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetInventoryStats();
   const { data: categoryData, isLoading: categoryLoading } = useGetValueByCategory();
-  const { data: recentActivity, isLoading: activityLoading } = useGetRecentActivity({ limit: 5 });
+  const { data: recentActivityRaw, isLoading: activityLoading } = useGetRecentActivity({ limit: 10 });
   const { data: recentCards, isLoading: cardsLoading } = useListCards({ categoryId: undefined });
 
-  // Sort recent cards by estimated value descending, then take top 4
+  const recentActivity = (recentActivityRaw ?? []) as unknown as ActivityEvent[];
+
   const recentCardsSlice = (recentCards ?? [])
     .slice()
-    .sort((a, b) => (b.estimatedValue ?? 0) - (a.estimatedValue ?? 0))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 4);
 
   const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
@@ -149,7 +265,7 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              {/* Recent Cards Preview */}
+              {/* Recent Additions — sorted by createdAt DESC */}
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold tracking-tight">Recent Additions</h2>
@@ -183,10 +299,10 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Sidebar / Activity Feed */}
+            {/* Activity Feed */}
             <div className="space-y-6">
-              <Card className="shadow-sm h-full max-h-[600px] flex flex-col">
-                <CardHeader className="pb-4 border-b">
+              <Card className="shadow-sm h-full max-h-[700px] flex flex-col">
+                <CardHeader className="pb-3 border-b">
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="h-5 w-5 text-primary" />
                     Recent Activity
@@ -195,37 +311,27 @@ export default function Dashboard() {
                 <CardContent className="p-0 overflow-auto flex-1">
                   {activityLoading ? (
                     <div className="p-6 space-y-4">
-                      {[1, 2, 3, 4].map(i => (
+                      {[1, 2, 3, 4, 5].map(i => (
                         <div key={i} className="flex gap-3">
-                          <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
+                          <Skeleton className="h-10 w-10 rounded-lg flex-shrink-0" />
                           <div className="space-y-2 flex-1">
                             <Skeleton className="h-4 w-full" />
-                            <Skeleton className="h-3 w-2/3" />
+                            <Skeleton className="h-3 w-1/2" />
                           </div>
                         </div>
                       ))}
                     </div>
-                  ) : recentActivity && recentActivity.length > 0 ? (
+                  ) : recentActivity.length > 0 ? (
                     <div className="divide-y">
-                      {recentActivity.map((card) => (
-                        <Link key={card.id} href={`/collection/${card.id}`}>
-                          <div className="p-4 hover:bg-muted/50 transition-colors cursor-pointer flex items-center gap-3">
-                            {card.imageUrl && <img src={card.imageUrl} alt={card.name} className="h-10 w-10 object-contain flex-shrink-0" />}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{card.name}</p>
-                              <div className="flex justify-between items-center mt-0.5">
-                                <p className="text-xs text-muted-foreground truncate">{card.setName ?? card.pokemonName}</p>
-                                <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">{card.createdAt ? new Date(card.createdAt).toLocaleDateString() : ""}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
+                      {recentActivity.map((event) => (
+                        <ActivityEventRow key={event.id} event={event} />
                       ))}
                     </div>
                   ) : (
                     <div className="p-8 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
                       <Activity className="h-8 w-8 mb-2 opacity-20" />
-                      <p className="text-sm">No recent activity</p>
+                      <p className="text-sm font-medium">No activity yet</p>
+                      <p className="text-xs mt-1">Events will appear as you add cards, list items, and place bids.</p>
                     </div>
                   )}
                 </CardContent>

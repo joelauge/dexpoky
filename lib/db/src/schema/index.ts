@@ -4,3 +4,4 @@ export * from "./listings";
 export * from "./users";
 export * from "./ratings";
 export * from "./auction_bids";
+export * from "./activity_events";
