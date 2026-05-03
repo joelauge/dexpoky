@@ -107,7 +107,7 @@ If no Pokemon card is clearly visible, return detected: false.`,
       res.json({ detected: false, confidence: parsed.confidence ?? "low", variants: [] }); return;
     }
     const searchName = parsed.cardName ?? parsed.pokemonName;
-    const variants = await searchTcgdex(searchName);
+    const { variants, pricing } = await searchTcgdex(searchName);
     res.json({
       detected: true,
       confidence: parsed.confidence ?? "medium",
@@ -117,6 +117,7 @@ If no Pokemon card is clearly visible, return detected: false.`,
       cardNumber: parsed.cardNumber,
       card: variants[0] ?? null,
       variants,
+      pricing,
     });
   } catch (err) {
     req.log?.error({ err }, "Card detection failed");

@@ -31,6 +31,15 @@ interface TcgCard {
   rarity: string | null;
 }
 
+interface EbaySoldPricing {
+  median: number | null;
+  average: number | null;
+  low: number | null;
+  high: number | null;
+  count: number;
+  searchUrl: string;
+}
+
 interface PricingData {
   marketPrice: number | null;
   lowPrice: number | null;
@@ -38,6 +47,7 @@ interface PricingData {
   source: "tcgplayer" | "cardmarket" | null;
   psaEstimates: Record<string, number> | null;
   isFallback?: boolean;
+  ebay?: EbaySoldPricing | null;
 }
 
 type Phase = "idle" | "capturing" | "analyzing" | "confirming" | "done";
@@ -505,6 +515,43 @@ export default function ScanPage() {
                       </div>
                     ) : !pricingLoading && (
                       <p className="text-sm text-muted-foreground">No market value available for this printing.</p>
+                    )}
+                    {pricing?.ebay && pricing.ebay.count >= 3 && (
+                      <div className="mt-3 pt-3 border-t border-border/60">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            eBay Sold ({pricing.ebay.count})
+                          </p>
+                          <a
+                            href={pricing.ebay.searchUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-primary hover:underline"
+                          >
+                            View on eBay →
+                          </a>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          {pricing.ebay.median != null && (
+                            <div className="text-center">
+                              <p className="text-[10px] text-muted-foreground mb-0.5">Median</p>
+                              <p className="font-bold text-base">{fmt(pricing.ebay.median)}</p>
+                            </div>
+                          )}
+                          {pricing.ebay.low != null && (
+                            <div className="text-center">
+                              <p className="text-[10px] text-muted-foreground mb-0.5">Low</p>
+                              <p className="font-semibold text-base text-muted-foreground">{fmt(pricing.ebay.low)}</p>
+                            </div>
+                          )}
+                          {pricing.ebay.high != null && (
+                            <div className="text-center">
+                              <p className="text-[10px] text-muted-foreground mb-0.5">High</p>
+                              <p className="font-semibold text-base">{fmt(pricing.ebay.high)}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}

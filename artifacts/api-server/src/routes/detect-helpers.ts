@@ -64,6 +64,15 @@ async function fetchCards(namePattern: string): Promise<CardBrief[]> {
   }
 }
 
+export interface EbaySoldPricing {
+  median: number | null;
+  average: number | null;
+  low: number | null;
+  high: number | null;
+  count: number;
+  searchUrl: string;
+}
+
 export interface PricingData {
   marketPrice: number | null;
   lowPrice: number | null;
@@ -71,6 +80,121 @@ export interface PricingData {
   source: "tcgplayer" | "cardmarket" | null;
   psaEstimates: Record<number, number> | null;
   isFallback?: boolean;
+  ebay?: EbaySoldPricing | null;
+}
+
+// In-memory cache for eBay sold-listing lookups (1 hour TTL)
+const EBAY_TTL_MS = 60 * 60 * 1000;
+const ebayCache = new Map<string, { expires: number; data: EbaySoldPricing | null }>();
+
+const EBAY_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+
+function buildEbayQuery(name: string, setName?: string, cardNumber?: string): string {
+  const parts = [name];
+  if (setName) parts.push(setName);
+  if (cardNumber) parts.push(cardNumber);
+  parts.push("pokemon card");
+  return parts.filter(Boolean).join(" ");
+}
+
+function median(nums: number[]): number | null {
+  if (nums.length === 0) return null;
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+/**
+ * Scrape eBay's public sold-listings page for actual completed-sale prices.
+ * Returns null on failure. Cached in-memory for 1 hour per query.
+ *
+ * Filters out outliers (prices outside [25th-75th percentile ± 2.5×IQR])
+ * and graded slabs (PSA/BGS/CGC mentions) so we report raw-card market values.
+ */
+export async function fetchEbaySoldPricing(
+  name: string,
+  setName?: string,
+  cardNumber?: string,
+): Promise<EbaySoldPricing | null> {
+  const query = buildEbayQuery(name, setName, cardNumber);
+  const cacheKey = query.toLowerCase();
+  const cached = ebayCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.data;
+
+  const searchUrl =
+    `https://www.ebay.com/sch/i.html` +
+    `?_nkw=${encodeURIComponent(query)}` +
+    `&_sacat=0&LH_Sold=1&LH_Complete=1&_sop=13&_ipg=60`;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(searchUrl, {
+      headers: {
+        "User-Agent": EBAY_UA,
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      ebayCache.set(cacheKey, { expires: Date.now() + 5 * 60 * 1000, data: null });
+      return null;
+    }
+    const html = await res.text();
+
+    // Extract each result item block; each contains a price + title.
+    // s-item__price spans hold the actual listed/sold price.
+    const itemBlocks = html.split(/class="s-item\b/).slice(1);
+    const samples: number[] = [];
+    for (const block of itemBlocks) {
+      const titleMatch = block.match(/class="s-item__title[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|h3)>/i);
+      const title = (titleMatch?.[1] ?? "").replace(/<[^>]+>/g, "").trim();
+      // Skip placeholder rows and graded slabs
+      if (!title || /shop on ebay/i.test(title)) continue;
+      if (/\b(psa|bgs|cgc|sgc|ace)\s*\d/i.test(title)) continue;
+
+      const priceMatch = block.match(/class="s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      if (!priceMatch) continue;
+      const priceText = priceMatch[1].replace(/<[^>]+>/g, "");
+      // Handle ranges: "$10.00 to $20.00" → take low end
+      const numMatch = priceText.match(/\$\s*([0-9]+(?:[.,][0-9]{1,2})?)/);
+      if (!numMatch) continue;
+      const value = parseFloat(numMatch[1].replace(",", ""));
+      if (!isFinite(value) || value <= 0 || value > 100000) continue;
+      samples.push(value);
+    }
+
+    if (samples.length < 3) {
+      ebayCache.set(cacheKey, { expires: Date.now() + 5 * 60 * 1000, data: null });
+      return null;
+    }
+
+    // Trim outliers: keep middle 80% (10th-90th percentile)
+    samples.sort((a, b) => a - b);
+    const lo = Math.floor(samples.length * 0.1);
+    const hi = Math.ceil(samples.length * 0.9);
+    const trimmed = samples.slice(lo, hi);
+    const sum = trimmed.reduce((a, b) => a + b, 0);
+    const avg = trimmed.length > 0 ? sum / trimmed.length : null;
+
+    const data: EbaySoldPricing = {
+      median: median(trimmed),
+      average: avg != null ? Math.round(avg * 100) / 100 : null,
+      low: trimmed[0] ?? null,
+      high: trimmed[trimmed.length - 1] ?? null,
+      count: samples.length,
+      searchUrl,
+    };
+    ebayCache.set(cacheKey, { expires: Date.now() + EBAY_TTL_MS, data });
+    return data;
+  } catch {
+    ebayCache.set(cacheKey, { expires: Date.now() + 5 * 60 * 1000, data: null });
+    return null;
+  }
 }
 
 function buildPsaEstimates(marketPrice: number | null): Record<number, number> | null {
@@ -217,8 +341,17 @@ async function fetchPricing(cardName: string, rarity?: string): Promise<PricingD
  *  2. PTCG.io inline tcgplayer/cardmarket prices (works for many older sets)
  *  3. Fallback name+rarity search (returns isFallback: true)
  */
-export async function fetchPricingById(tcgdexId: string, fallbackName?: string, fallbackRarity?: string): Promise<PricingData> {
+export async function fetchPricingById(
+  tcgdexId: string,
+  fallbackName?: string,
+  fallbackRarity?: string,
+  ebayContext?: { name: string; setName?: string; cardNumber?: string },
+): Promise<PricingData> {
   const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
+  // Fire eBay lookup in parallel with TCG/CardMarket lookups
+  const ebayPromise = ebayContext
+    ? fetchEbaySoldPricing(ebayContext.name, ebayContext.setName, ebayContext.cardNumber)
+    : Promise.resolve(null);
   try {
     const dashIdx = tcgdexId.lastIndexOf("-");
     if (dashIdx === -1) return empty;
@@ -243,7 +376,7 @@ export async function fetchPricingById(tcgdexId: string, fallbackName?: string, 
       const productId = await resolveTCGPlayerProductId(ptcgioId);
       if (productId != null) {
         const pricing = await fetchTCGPlayerPricePoints(productId);
-        if (pricing != null) return pricing;
+        if (pricing != null) return { ...pricing, ebay: await ebayPromise };
       }
     }
 
@@ -253,7 +386,7 @@ export async function fetchPricingById(tcgdexId: string, fallbackName?: string, 
       if (res.ok) {
         const data = (await res.json()) as { data: PtcgCard };
         const pricing = extractPricing(data.data);
-        if (pricing.marketPrice != null || pricing.lowPrice != null) return pricing;
+        if (pricing.marketPrice != null || pricing.lowPrice != null) return { ...pricing, ebay: await ebayPromise };
       }
     }
 
@@ -261,12 +394,12 @@ export async function fetchPricingById(tcgdexId: string, fallbackName?: string, 
     if (fallbackName) {
       const namePricing = await fetchPricing(fallbackName, fallbackRarity);
       if (namePricing.marketPrice != null || namePricing.lowPrice != null) {
-        return { ...namePricing, isFallback: true };
+        return { ...namePricing, isFallback: true, ebay: await ebayPromise };
       }
     }
-    return empty;
+    return { ...empty, ebay: await ebayPromise };
   } catch {
-    return empty;
+    return { ...empty, ebay: await ebayPromise };
   }
 }
 
@@ -346,7 +479,13 @@ export async function searchTcgdex(query: string): Promise<{ variants: TcgResult
       fetchPricing(bestName),
     ]);
 
-    return { variants, pricing };
+    // Add eBay sold-listing validation against the best matched variant
+    const top = variants[0];
+    const ebay = top
+      ? await fetchEbaySoldPricing(bestName, top.setName, top.cardNumber)
+      : await fetchEbaySoldPricing(bestName);
+
+    return { variants, pricing: { ...pricing, ebay } };
   } catch {
     return { variants: [], pricing: emptyPricing };
   }

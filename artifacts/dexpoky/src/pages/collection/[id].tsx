@@ -46,11 +46,21 @@ interface TcgVariant {
   cardNumber: string;
 }
 
+interface EbaySoldPricing {
+  median: number | null;
+  average: number | null;
+  low: number | null;
+  high: number | null;
+  count: number;
+  searchUrl: string;
+}
+
 interface PrintingPricing {
   marketPrice: number | null;
   lowPrice: number | null;
   source: "tcgplayer" | "cardmarket" | null;
   isFallback?: boolean;
+  ebay?: EbaySoldPricing | null;
 }
 
 export default function CardDetail() {
@@ -103,6 +113,8 @@ export default function CardDetail() {
     try {
       const p = new URLSearchParams({ cardId: v.id, name: v.name });
       if (card?.rarity) p.set("rarity", card.rarity);
+      if (v.setName) p.set("setName", v.setName);
+      if (v.cardNumber) p.set("cardNumber", v.cardNumber);
       const res = await fetch(`/api/cards/pricing?${p}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json() as { pricing: PrintingPricing };
@@ -625,6 +637,43 @@ export default function CardDetail() {
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">No market price found for this printing.</p>
+                    )}
+                    {printingPricing?.ebay && printingPricing.ebay.count >= 3 && (
+                      <div className="mt-3 pt-3 border-t border-border/60">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            eBay Sold ({printingPricing.ebay.count})
+                          </p>
+                          <a
+                            href={printingPricing.ebay.searchUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-primary hover:underline"
+                          >
+                            View on eBay →
+                          </a>
+                        </div>
+                        <div className="flex gap-6">
+                          {printingPricing.ebay.median != null && (
+                            <div>
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Median</p>
+                              <p className="text-xl font-bold">{formatCurrency(printingPricing.ebay.median)}</p>
+                            </div>
+                          )}
+                          {printingPricing.ebay.low != null && (
+                            <div>
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Low</p>
+                              <p className="text-xl font-semibold text-muted-foreground">{formatCurrency(printingPricing.ebay.low)}</p>
+                            </div>
+                          )}
+                          {printingPricing.ebay.high != null && (
+                            <div>
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-0.5">High</p>
+                              <p className="text-xl font-semibold">{formatCurrency(printingPricing.ebay.high)}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
