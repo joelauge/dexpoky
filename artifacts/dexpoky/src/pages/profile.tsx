@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useUser, useClerk, Show } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { User, Star, Edit3, LogOut, Save, X, Shield } from "lucide-react";
+import { User, Star, Edit3, LogOut, Save, X, Shield, Camera, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface UserProfile {
@@ -50,6 +50,27 @@ export default function Profile() {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ username: "", bio: "", sellerDetails: "" });
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      await user.setProfileImage({ file });
+      toast.success("Profile picture updated!");
+    } catch {
+      toast.error("Failed to update profile picture.");
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
 
   const { data: profile } = useQuery<UserProfile>({
     queryKey: ["/api/users/me"],
@@ -147,15 +168,41 @@ export default function Profile() {
           {/* Avatar + Identity */}
           <div className="bg-card border rounded-2xl p-6 mb-6 flex items-start gap-6">
             <div className="relative shrink-0">
-              {user?.imageUrl ? (
-                <img
-                  src={user.imageUrl}
-                  alt={user.fullName ?? ""}
-                  className="h-20 w-20 rounded-full object-cover border-2 border-primary/20"
-                />
-              ) : (
-                <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-8 w-8 text-primary" />
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="group relative h-20 w-20 rounded-full overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                title="Change profile picture"
+              >
+                {user?.imageUrl ? (
+                  <img
+                    src={user.imageUrl}
+                    alt={user.fullName ?? ""}
+                    className="h-full w-full object-cover border-2 border-primary/20 rounded-full"
+                  />
+                ) : (
+                  <div className="h-full w-full rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-8 w-8 text-primary" />
+                  </div>
+                )}
+                <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  {avatarUploading
+                    ? <Loader2 className="h-5 w-5 text-white animate-spin" />
+                    : <Camera className="h-5 w-5 text-white" />
+                  }
+                </div>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+              {!avatarUploading && (
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary border-2 border-background flex items-center justify-center pointer-events-none">
+                  <Camera className="h-3 w-3 text-white" />
                 </div>
               )}
             </div>
