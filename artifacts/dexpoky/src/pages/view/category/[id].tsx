@@ -122,6 +122,10 @@ export default function PublicCategoryView() {
         >
           Join DexPoky to share your collection like this! ✨
         </a>
+        <div className="flex items-center justify-center gap-2 mt-4 opacity-40">
+          <img src={`${basePath}/logo.png`} alt="DexPoky" className="h-5 w-5 rounded-full" />
+          <span className="text-white text-sm font-bold tracking-tight">DexPoky</span>
+        </div>
       </div>
     </div>
   );
