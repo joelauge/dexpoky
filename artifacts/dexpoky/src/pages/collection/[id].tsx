@@ -242,7 +242,7 @@ export default function CardDetail() {
         </button>
 
         <div className="flex flex-col lg:flex-row gap-10 items-start">
-          {/* ── Card Image + Nav ──────────────────────────────────────── */}
+          {/* ── LEFT: Card Image + Nav + Sell CTA + Notes ─────────────── */}
           <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0">
             <HoloCard imageUrl={card.imageUrl} name={card.name}>
               {card.forSale && (
@@ -292,9 +292,115 @@ export default function CardDetail() {
                 </button>
               </div>
             )}
+
+            {/* Sell CTA */}
+            <div className="mt-4">
+              {card.forSale ? (
+                <div className="space-y-3">
+                  <div className="bg-primary/8 border border-primary/20 rounded-2xl px-4 py-3 flex items-center gap-3">
+                    <Store className="h-4 w-4 text-primary shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-primary">Listed on Marketplace</p>
+                      <p className="text-sm font-bold text-foreground">{formatCurrency(card.listingPrice)}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => delistCard.mutate(id)}
+                    disabled={delistCard.isPending}
+                  >
+                    <Store className="h-4 w-4 mr-2" />
+                    {delistCard.isPending ? "Removing…" : "Remove from Marketplace"}
+                  </Button>
+                </div>
+              ) : (
+                <Dialog open={isSellOpen} onOpenChange={handleSellDialogChange}>
+                  <DialogTrigger asChild>
+                    <Button size="lg" className="w-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground h-12 text-base font-bold">
+                      <Tag className="h-5 w-5 mr-2" /> Sell on Marketplace
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    {listedId ? (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Listed Successfully!
+                          </DialogTitle>
+                          <DialogDescription>
+                            <span className="font-medium text-foreground">{card.name}</span> is now live on the marketplace for {formatCurrency(parseFloat(sellPrice))}.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="mt-2 gap-2 sm:gap-0">
+                          <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Close</Button>
+                          <Button onClick={() => { handleSellDialogChange(false); setLocation(`/marketplace/${listedId}`); }}>
+                            <ExternalLink className="h-4 w-4 mr-2" /> View Listing
+                          </Button>
+                        </DialogFooter>
+                      </>
+                    ) : (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle>List Card for Sale</DialogTitle>
+                          <DialogDescription>
+                            Set your asking price for <span className="font-medium text-foreground">{card.name}</span>.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4 space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">Asking Price ($)</label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder={card.estimatedValue?.toString() ?? "0.00"}
+                              value={sellPrice}
+                              onChange={(e) => setSellPrice(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && handleSell()}
+                              className="text-xl py-5 font-bold"
+                              autoFocus
+                            />
+                          </div>
+                          {card.estimatedValue && (
+                            <div className="flex items-center justify-between text-sm bg-muted/40 rounded-lg px-3 py-2">
+                              <span className="text-muted-foreground">Estimated value</span>
+                              <span className="font-semibold">{formatCurrency(card.estimatedValue)}</span>
+                            </div>
+                          )}
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Cancel</Button>
+                          <Button onClick={handleSell} disabled={listCard.isPending}>
+                            {listCard.isPending ? "Listing…" : "Confirm Listing"}
+                          </Button>
+                        </DialogFooter>
+                      </>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              )}
+
+              <p className="text-center text-xs text-muted-foreground mt-3">
+                Want to auction instead?{" "}
+                <button
+                  onClick={() => setLocation("/sell")}
+                  className="text-primary underline underline-offset-2 hover:no-underline font-medium"
+                >
+                  Use Sell page
+                </button>
+              </p>
+            </div>
+
+            {/* Notes */}
+            {card.notes && (
+              <div className="mt-6 bg-amber-50 border border-amber-200/70 rounded-2xl p-4">
+                <p className="text-xs font-bold text-amber-700/70 uppercase tracking-wider mb-1.5">Collector's Notes</p>
+                <p className="text-sm text-amber-900 leading-relaxed">{card.notes}</p>
+              </div>
+            )}
           </div>
 
-          {/* ── Identity + Value ──────────────────────────────────────── */}
+          {/* ── RIGHT: Identity + Value + Chart + Printings ───────────── */}
           <div className="flex-1 min-w-0">
             {/* Name + actions */}
             <div className="flex items-start justify-between gap-4 mb-1">
@@ -365,7 +471,7 @@ export default function CardDetail() {
             </div>
 
             {/* Quick meta */}
-            <div className="flex gap-4 text-xs text-muted-foreground">
+            <div className="flex gap-4 text-xs text-muted-foreground mb-6">
               {card.acquiredDate && (
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
@@ -377,122 +483,8 @@ export default function CardDetail() {
                 Added {new Date(card.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
               </span>
             </div>
-          </div>
-        </div>
 
-        {/* ── DETAILS ────────────────────────────────────────────────────── */}
-        <div className="flex flex-col lg:flex-row gap-10 mt-4">
-
-          {/* ── LEFT: Sell CTA ─────────────────────────────────────────── */}
-          <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0">
-            {card.forSale ? (
-              <div className="space-y-3">
-                <div className="bg-primary/8 border border-primary/20 rounded-2xl px-4 py-3 flex items-center gap-3">
-                  <Store className="h-4 w-4 text-primary shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-primary">Listed on Marketplace</p>
-                    <p className="text-sm font-bold text-foreground">{formatCurrency(card.listingPrice)}</p>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => delistCard.mutate(id)}
-                  disabled={delistCard.isPending}
-                >
-                  <Store className="h-4 w-4 mr-2" />
-                  {delistCard.isPending ? "Removing…" : "Remove from Marketplace"}
-                </Button>
-              </div>
-            ) : (
-              <Dialog open={isSellOpen} onOpenChange={handleSellDialogChange}>
-                <DialogTrigger asChild>
-                  <Button size="lg" className="w-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground h-12 text-base font-bold">
-                    <Tag className="h-5 w-5 mr-2" /> Sell on Marketplace
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  {listedId ? (
-                    <>
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                          <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Listed Successfully!
-                        </DialogTitle>
-                        <DialogDescription>
-                          <span className="font-medium text-foreground">{card.name}</span> is now live on the marketplace for {formatCurrency(parseFloat(sellPrice))}.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <DialogFooter className="mt-2 gap-2 sm:gap-0">
-                        <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Close</Button>
-                        <Button onClick={() => { handleSellDialogChange(false); setLocation(`/marketplace/${listedId}`); }}>
-                          <ExternalLink className="h-4 w-4 mr-2" /> View Listing
-                        </Button>
-                      </DialogFooter>
-                    </>
-                  ) : (
-                    <>
-                      <DialogHeader>
-                        <DialogTitle>List Card for Sale</DialogTitle>
-                        <DialogDescription>
-                          Set your asking price for <span className="font-medium text-foreground">{card.name}</span>.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4 space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium mb-1.5">Asking Price ($)</label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder={card.estimatedValue?.toString() ?? "0.00"}
-                            value={sellPrice}
-                            onChange={(e) => setSellPrice(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleSell()}
-                            className="text-xl py-5 font-bold"
-                            autoFocus
-                          />
-                        </div>
-                        {card.estimatedValue && (
-                          <div className="flex items-center justify-between text-sm bg-muted/40 rounded-lg px-3 py-2">
-                            <span className="text-muted-foreground">Estimated value</span>
-                            <span className="font-semibold">{formatCurrency(card.estimatedValue)}</span>
-                          </div>
-                        )}
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Cancel</Button>
-                        <Button onClick={handleSell} disabled={listCard.isPending}>
-                          {listCard.isPending ? "Listing…" : "Confirm Listing"}
-                        </Button>
-                      </DialogFooter>
-                    </>
-                  )}
-                </DialogContent>
-              </Dialog>
-            )}
-
-            {/* Also sell via auction link */}
-            <p className="text-center text-xs text-muted-foreground mt-3">
-              Want to auction instead?{" "}
-              <button
-                onClick={() => setLocation("/sell")}
-                className="text-primary underline underline-offset-2 hover:no-underline font-medium"
-              >
-                Use Sell page
-              </button>
-            </p>
-
-            {/* Notes */}
-            {card.notes && (
-              <div className="mt-6 bg-amber-50 border border-amber-200/70 rounded-2xl p-4">
-                <p className="text-xs font-bold text-amber-700/70 uppercase tracking-wider mb-1.5">Collector's Notes</p>
-                <p className="text-sm text-amber-900 leading-relaxed">{card.notes}</p>
-              </div>
-            )}
-          </div>
-
-          {/* ── RIGHT: Chart + Printings ──────────────────────────────── */}
-          <div className="flex-1 min-w-0">
-            {/* Price history chart */}
+            {/* Price history chart — directly below the date, no gap */}
             <PriceHistoryChart cardId={id} />
 
             {/* Other Printings */}
