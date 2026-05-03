@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { cardsTable, categoriesTable } from "@workspace/db";
+import { searchTcgdex } from "./detect-helpers.js";
 import { eq, sql, ilike, and, type SQL } from "drizzle-orm";
 import {
   ListCardsQueryParams,
@@ -90,11 +91,10 @@ router.post("/cards", async (req, res) => {
 });
 
 router.get("/cards/lookup", async (req, res) => {
-  const { searchTcgdex } = await import("./detect-helpers.js") as { searchTcgdex: (q: string) => Promise<unknown[]> };
   const name = String(req.query.name ?? "").trim();
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
-  const variants = await searchTcgdex(name);
-  res.json({ card: variants[0] ?? null, variants });
+  const { variants, pricing } = await searchTcgdex(name);
+  res.json({ card: variants[0] ?? null, variants, pricing });
 });
 
 router.get("/cards/:id", async (req, res) => {

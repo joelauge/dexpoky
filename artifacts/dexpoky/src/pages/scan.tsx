@@ -13,6 +13,8 @@ import {
   Check,
   Sparkles,
   SearchX,
+  TrendingUp,
+  Award,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,15 +27,35 @@ interface TcgCard {
   rarity: string | null;
 }
 
-type Phase =
-  | "idle"
-  | "scanning"
-  | "confirming"
-  | "done";
+interface PricingData {
+  marketPrice: number | null;
+  lowPrice: number | null;
+  trendPrice: number | null;
+  source: "tcgplayer" | "cardmarket" | null;
+  psaEstimates: Record<string, number> | null;
+}
+
+type Phase = "idle" | "scanning" | "confirming" | "done";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const GUIDE_W = 0.72;
 const GUIDE_H = 0.80;
+
+const PSA_GRADES = [10, 9, 8, 7, 6, 5] as const;
+const PSA_LABELS: Record<number, string> = {
+  10: "Gem Mint",
+  9:  "Mint",
+  8:  "NM-Mint",
+  7:  "Near Mint",
+  6:  "EX-Mint",
+  5:  "Excellent",
+};
+
+function fmt(n: number) {
+  return n >= 1000
+    ? `$${(n / 1000).toFixed(1)}k`
+    : `$${n.toFixed(2)}`;
+}
 
 export default function ScanPage() {
   const videoRef    = useRef<HTMLVideoElement>(null);
@@ -48,6 +70,7 @@ export default function ScanPage() {
   const [card, setCard]                       = useState<TcgCard | null>(null);
   const [variants, setVariants]               = useState<TcgCard[]>([]);
   const [selectedVariant, setSelectedVariant] = useState<TcgCard | null>(null);
+  const [pricing, setPricing]                 = useState<PricingData | null>(null);
   const [frozenFrame, setFrozenFrame]         = useState<string | null>(null);
 
   const captureFrame = useCallback((): string | null => {
@@ -75,10 +98,11 @@ export default function ScanPage() {
     try {
       const res = await fetch(`${BASE}/api/cards/lookup?name=${encodeURIComponent(name)}`);
       if (!res.ok) throw new Error("lookup failed");
-      const data = await res.json() as { card: TcgCard | null; variants: TcgCard[] };
+      const data = await res.json() as { card: TcgCard | null; variants: TcgCard[]; pricing: PricingData };
       setCard(data.card);
       setVariants(data.variants ?? []);
       setSelectedVariant(data.card);
+      setPricing(data.pricing ?? null);
       setPhase("done");
     } catch {
       toast.error("Couldn't confirm card — please try again.");
@@ -88,13 +112,8 @@ export default function ScanPage() {
 
   const runScan = useCallback(async () => {
     if (!activeRef.current) return;
-
     const imageData = captureFrame();
-    if (!imageData) {
-      loopRef.current = setTimeout(runScan, 800);
-      return;
-    }
-
+    if (!imageData) { loopRef.current = setTimeout(runScan, 800); return; }
     try {
       const res = await fetch(`${BASE}/api/cards/identify`, {
         method: "POST",
@@ -111,19 +130,14 @@ export default function ScanPage() {
           return;
         }
       }
-    } catch { /* network hiccup — keep going */ }
-
+    } catch { /* keep going */ }
     if (activeRef.current) loopRef.current = setTimeout(runScan, 2000);
   }, [captureFrame, stopStream, lookupCard]);
 
   const startCamera = async () => {
     setPhase("idle");
-    setCard(null);
-    setVariants([]);
-    setSelectedVariant(null);
-    setPokemonName(null);
-    setFrozenFrame(null);
-
+    setCard(null); setVariants([]); setSelectedVariant(null);
+    setPokemonName(null); setFrozenFrame(null); setPricing(null);
     try {
       const ms = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 } },
@@ -135,7 +149,6 @@ export default function ScanPage() {
         video.oncanplay = () => resolve();
         video.play().catch(() => resolve());
       });
-
       activeRef.current = true;
       setPhase("scanning");
       loopRef.current = setTimeout(runScan, 1200);
@@ -144,18 +157,12 @@ export default function ScanPage() {
     }
   };
 
-  const stopCamera = useCallback(() => {
-    stopStream();
-    setPhase("idle");
-  }, [stopStream]);
+  const stopCamera = useCallback(() => { stopStream(); setPhase("idle"); }, [stopStream]);
 
   const rescan = () => {
     stopCamera();
-    setCard(null);
-    setVariants([]);
-    setSelectedVariant(null);
-    setPokemonName(null);
-    setFrozenFrame(null);
+    setCard(null); setVariants([]); setSelectedVariant(null);
+    setPokemonName(null); setFrozenFrame(null); setPricing(null);
     startCamera();
   };
 
@@ -188,45 +195,20 @@ export default function ScanPage() {
 
         {/* ── Viewfinder ── */}
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-zinc-950 shadow-xl border border-border">
-
-          {/* Live camera feed */}
           <video
             ref={videoRef}
-            autoPlay
-            playsInline
-            muted
+            autoPlay playsInline muted
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${(confirming || done) ? "opacity-0" : "opacity-100"}`}
           />
-
-          {/* Frozen frame shown during confirming + done */}
           {frozenFrame && (confirming || done) && (
-            <img
-              src={frozenFrame}
-              alt="Captured frame"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <img src={frozenFrame} alt="Captured frame" className="absolute inset-0 w-full h-full object-cover" />
           )}
-
           <canvas ref={canvasRef} style={{ position: "absolute", top: -9999, left: -9999, width: 1, height: 1 }} />
 
-          {/* Vignette + guide frame during scanning */}
           {scanning && (
             <>
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background: `radial-gradient(ellipse ${GUIDE_W * 100}% ${GUIDE_H * 100}% at 50% 50%, transparent 55%, rgba(0,0,0,0.6) 100%)`,
-                }}
-              />
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  left: `${(1 - GUIDE_W) / 2 * 100}%`,
-                  top: `${(1 - GUIDE_H) / 2 * 100}%`,
-                  width: `${GUIDE_W * 100}%`,
-                  height: `${GUIDE_H * 100}%`,
-                }}
-              >
+              <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse ${GUIDE_W*100}% ${GUIDE_H*100}% at 50% 50%, transparent 55%, rgba(0,0,0,0.6) 100%)` }} />
+              <div className="absolute pointer-events-none" style={{ left:`${(1-GUIDE_W)/2*100}%`, top:`${(1-GUIDE_H)/2*100}%`, width:`${GUIDE_W*100}%`, height:`${GUIDE_H*100}%` }}>
                 <div className="absolute top-0 left-0 w-7 h-7 border-l-2 border-t-2 border-white/80 rounded-tl" />
                 <div className="absolute top-0 right-0 w-7 h-7 border-r-2 border-t-2 border-white/80 rounded-tr" />
                 <div className="absolute bottom-0 left-0 w-7 h-7 border-l-2 border-b-2 border-white/80 rounded-bl" />
@@ -236,22 +218,18 @@ export default function ScanPage() {
             </>
           )}
 
-          {/* Idle overlay */}
           {phase === "idle" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-zinc-950/95">
               <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center">
                 <Camera className="h-7 w-7 text-white/70" />
               </div>
-              <p className="text-white/60 text-sm text-center px-8 max-w-xs">
-                Start the camera and hold a Pokémon card inside the guide frame
-              </p>
+              <p className="text-white/60 text-sm text-center px-8 max-w-xs">Start the camera and hold a Pokémon card inside the guide frame</p>
               <Button onClick={startCamera} className="rounded-full px-6">
                 <Camera className="h-4 w-4 mr-2" /> Start Camera
               </Button>
             </div>
           )}
 
-          {/* Confirming overlay */}
           {confirming && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/70 backdrop-blur-sm">
               <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
@@ -265,7 +243,6 @@ export default function ScanPage() {
             </div>
           )}
 
-          {/* Done overlay — shows over frozen frame */}
           {done && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/60 backdrop-blur-sm">
               <div className="w-16 h-16 rounded-full bg-emerald-500/30 border-2 border-emerald-400/60 flex items-center justify-center">
@@ -278,12 +255,10 @@ export default function ScanPage() {
             </div>
           )}
 
-          {/* Scanning status pill */}
           {scanning && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
               <div className="bg-black/70 backdrop-blur text-white/80 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-2">
-                <ScanLine className="h-3 w-3 animate-pulse" />
-                Place card in the frame
+                <ScanLine className="h-3 w-3 animate-pulse" /> Place card in the frame
               </div>
             </div>
           )}
@@ -303,11 +278,10 @@ export default function ScanPage() {
           )}
         </div>
 
-        {/* ── Result ── always shown when done */}
+        {/* ── Result ── */}
         {done && (
-          <div className="mt-8 space-y-5 animate-in fade-in slide-in-from-bottom-3 duration-300">
-
-            {/* Confidence badge + name */}
+          <div className="mt-8 space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-300">
+            {/* Confidence badge */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${CONFIDENCE_COLOR[confidence] ?? ""}`}>
                 {confidence === "high" ? "High Confidence" : confidence === "medium" ? "Likely Match" : "Low Confidence"}
@@ -315,9 +289,9 @@ export default function ScanPage() {
               {pokemonName && <span className="text-sm font-medium capitalize">{pokemonName}</span>}
             </div>
 
-            {/* Card found */}
             {displayCard ? (
               <>
+                {/* Main card row */}
                 <div className="flex gap-4 bg-card border rounded-2xl overflow-hidden shadow-sm">
                   <div className="w-28 shrink-0 bg-muted">
                     {displayCard.imageUrl
@@ -331,6 +305,9 @@ export default function ScanPage() {
                       <p className="text-sm text-muted-foreground truncate">{displayCard.setName}</p>
                       <p className="text-xs font-mono text-muted-foreground">#{displayCard.cardNumber}</p>
                       {displayCard.rarity && <Badge variant="secondary" className="text-[10px] mt-1">{displayCard.rarity}</Badge>}
+                      {pricing?.marketPrice != null && (
+                        <p className="text-sm font-bold text-emerald-600 mt-1">{fmt(pricing.marketPrice)} <span className="text-[10px] font-normal text-muted-foreground">market</span></p>
+                      )}
                     </div>
                     <Link href={`/collection/new?name=${encodeURIComponent(displayCard.name)}&setName=${encodeURIComponent(displayCard.setName)}&cardNumber=${encodeURIComponent(displayCard.cardNumber)}&imageUrl=${encodeURIComponent(displayCard.imageUrl)}`}>
                       <Button size="sm" className="mt-3 rounded-lg">
@@ -340,7 +317,79 @@ export default function ScanPage() {
                   </div>
                 </div>
 
-                {/* Variants */}
+                {/* Market value details */}
+                {pricing && (pricing.marketPrice != null || pricing.lowPrice != null) && (
+                  <div className="bg-card border rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                      <h3 className="font-semibold text-sm">Market Value</h3>
+                      {pricing.source && (
+                        <span className="text-[10px] text-muted-foreground ml-auto capitalize">{pricing.source === "tcgplayer" ? "TCGPlayer" : "CardMarket"}</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {pricing.marketPrice != null && (
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground mb-0.5">Market</p>
+                          <p className="font-bold text-base">{fmt(pricing.marketPrice)}</p>
+                        </div>
+                      )}
+                      {pricing.lowPrice != null && (
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground mb-0.5">Low</p>
+                          <p className="font-semibold text-base text-muted-foreground">{fmt(pricing.lowPrice)}</p>
+                        </div>
+                      )}
+                      {pricing.trendPrice != null && (
+                        <div className="text-center">
+                          <p className="text-xs text-muted-foreground mb-0.5">Trend</p>
+                          <p className="font-semibold text-base">{fmt(pricing.trendPrice)}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* PSA estimated grades */}
+                {pricing?.psaEstimates && (
+                  <div className="bg-card border rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Award className="h-4 w-4 text-amber-500" />
+                      <h3 className="font-semibold text-sm">Estimated PSA Graded Value</h3>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground -mt-1">Based on market price × grade multiplier. Estimates only.</p>
+                    <div className="space-y-1.5">
+                      {PSA_GRADES.map((grade) => {
+                        const val = pricing.psaEstimates![grade];
+                        if (val == null) return null;
+                        const pct = Math.min(100, (val / (pricing.psaEstimates![10] ?? val)) * 100);
+                        return (
+                          <div key={grade} className="flex items-center gap-3">
+                            <div className="w-8 shrink-0 text-right">
+                              <span className={`text-xs font-bold ${grade === 10 ? "text-amber-500" : grade >= 9 ? "text-emerald-600" : "text-muted-foreground"}`}>
+                                {grade}
+                              </span>
+                            </div>
+                            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${grade === 10 ? "bg-amber-400" : grade >= 9 ? "bg-emerald-500" : "bg-primary/40"}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <div className="w-20 text-right">
+                              <span className="text-xs font-semibold">{fmt(val)}</span>
+                            </div>
+                            <div className="w-20 hidden sm:block">
+                              <span className="text-[10px] text-muted-foreground">{PSA_LABELS[grade]}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Other printings */}
                 {variants.length > 1 && (
                   <div>
                     <h3 className="font-semibold text-sm mb-1">Other printings</h3>
@@ -354,10 +403,10 @@ export default function ScanPage() {
                             onClick={() => setSelectedVariant(v)}
                             className={`shrink-0 w-20 rounded-xl overflow-hidden border-2 transition-all ${active ? "border-primary scale-105 shadow-md" : "border-transparent hover:border-border"}`}
                           >
-                            <div className="aspect-[3/4] bg-muted">
+                            <div className="aspect-[3/4] bg-muted flex items-center justify-center">
                               {v.imageUrl
                                 ? <img src={v.imageUrl} alt={v.name} className="w-full h-full object-cover" />
-                                : <div className="w-full h-full flex items-center justify-center text-[9px] text-muted-foreground p-1 text-center">{v.setName}</div>
+                                : <span className="text-[9px] text-muted-foreground p-1 text-center leading-tight">{v.setName}</span>
                               }
                             </div>
                             <div className="p-1 bg-card border-t">
@@ -372,23 +421,17 @@ export default function ScanPage() {
                 )}
               </>
             ) : (
-              /* No TCGdex match — fallback state */
               <div className="flex flex-col items-center gap-4 py-8 px-6 bg-muted/40 border border-dashed rounded-2xl text-center">
                 <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
                   <SearchX className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <div>
                   <p className="font-semibold text-sm capitalize">{pokemonName}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    No exact card match found in the database.
-                    <br />You can still add it manually.
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">No exact card match found.<br />You can still add it manually.</p>
                 </div>
                 <div className="flex gap-2 flex-wrap justify-center">
                   <Link href={`/collection/new?name=${encodeURIComponent(pokemonName ?? "")}`}>
-                    <Button size="sm" className="rounded-lg">
-                      <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Manually
-                    </Button>
+                    <Button size="sm" className="rounded-lg"><Plus className="h-3.5 w-3.5 mr-1.5" /> Add Manually</Button>
                   </Link>
                   <Button size="sm" variant="outline" className="rounded-lg" onClick={rescan}>
                     <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Try Again
@@ -401,11 +444,7 @@ export default function ScanPage() {
       </div>
 
       <style>{`
-        @keyframes scan {
-          0%   { top: 5%; }
-          50%  { top: 92%; }
-          100% { top: 5%; }
-        }
+        @keyframes scan { 0% { top: 5%; } 50% { top: 92%; } 100% { top: 5%; } }
         .animate-scan { animation: scan 2s ease-in-out infinite; position: absolute; }
       `}</style>
     </Layout>
