@@ -15,6 +15,7 @@ import {
   SearchX,
   TrendingUp,
   Award,
+  Brain,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,6 +38,11 @@ interface PricingData {
 
 type Phase = "idle" | "scanning" | "confirming" | "done";
 
+interface ConfirmStep {
+  text: string;
+  done: boolean;
+}
+
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const GUIDE_W = 0.72;
 const GUIDE_H = 0.80;
@@ -52,17 +58,15 @@ const PSA_LABELS: Record<number, string> = {
 };
 
 function fmt(n: number) {
-  return n >= 1000
-    ? `$${(n / 1000).toFixed(1)}k`
-    : `$${n.toFixed(2)}`;
+  return n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${n.toFixed(2)}`;
 }
 
 export default function ScanPage() {
-  const videoRef    = useRef<HTMLVideoElement>(null);
-  const canvasRef   = useRef<HTMLCanvasElement>(null);
-  const streamRef   = useRef<MediaStream | null>(null);
-  const loopRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeRef   = useRef(false);
+  const videoRef  = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const loopRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeRef = useRef(false);
 
   const [phase, setPhase]                     = useState<Phase>("idle");
   const [pokemonName, setPokemonName]         = useState<string | null>(null);
@@ -72,6 +76,13 @@ export default function ScanPage() {
   const [selectedVariant, setSelectedVariant] = useState<TcgCard | null>(null);
   const [pricing, setPricing]                 = useState<PricingData | null>(null);
   const [frozenFrame, setFrozenFrame]         = useState<string | null>(null);
+
+  // New: scanning sub-status
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [scanCount, setScanCount]     = useState(0);
+
+  // New: confirming step-by-step progress
+  const [confirmSteps, setConfirmSteps] = useState<ConfirmStep[]>([]);
 
   const captureFrame = useCallback((): string | null => {
     const video  = videoRef.current;
@@ -89,20 +100,45 @@ export default function ScanPage() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     activeRef.current = false;
+    setIsAnalyzing(false);
   }, []);
 
   const lookupCard = useCallback(async (name: string, conf: "high"|"medium"|"low") => {
     setPhase("confirming");
     setPokemonName(name);
     setConfidence(conf);
+
+    setConfirmSteps([
+      { text: `Identified: ${name}`, done: true },
+      { text: "Searching TCG database…", done: false },
+    ]);
+
     try {
       const res = await fetch(`${BASE}/api/cards/lookup?name=${encodeURIComponent(name)}`);
       if (!res.ok) throw new Error("lookup failed");
       const data = await res.json() as { card: TcgCard | null; variants: TcgCard[]; pricing: PricingData };
+
+      const variantCount = data.variants?.length ?? (data.card ? 1 : 0);
+      setConfirmSteps([
+        { text: `Identified: ${name}`, done: true },
+        { text: variantCount > 0 ? `Found ${variantCount} printing${variantCount !== 1 ? "s" : ""}` : "No TCG match found", done: true },
+        { text: "Loading market prices…", done: false },
+      ]);
+
+      await new Promise<void>((r) => setTimeout(r, 350));
+
       setCard(data.card);
       setVariants(data.variants ?? []);
       setSelectedVariant(data.card);
       setPricing(data.pricing ?? null);
+
+      setConfirmSteps([
+        { text: `Identified: ${name}`, done: true },
+        { text: variantCount > 0 ? `Found ${variantCount} printing${variantCount !== 1 ? "s" : ""}` : "No TCG match found", done: true },
+        { text: data.pricing?.marketPrice != null ? `Market price: ${fmt(data.pricing.marketPrice)}` : "Pricing unavailable", done: true },
+      ]);
+
+      await new Promise<void>((r) => setTimeout(r, 250));
       setPhase("done");
     } catch {
       toast.error("Couldn't confirm card — please try again.");
@@ -114,12 +150,17 @@ export default function ScanPage() {
     if (!activeRef.current) return;
     const imageData = captureFrame();
     if (!imageData) { loopRef.current = setTimeout(runScan, 800); return; }
+
+    setIsAnalyzing(true);
+    setScanCount((c) => c + 1);
+
     try {
       const res = await fetch(`${BASE}/api/cards/identify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageData }),
       });
+      setIsAnalyzing(false);
       if (res.ok) {
         const data = await res.json() as { detected: boolean; confidence: "high"|"medium"|"low"; pokemonName: string | null };
         if (data.detected && data.pokemonName && activeRef.current) {
@@ -130,7 +171,9 @@ export default function ScanPage() {
           return;
         }
       }
-    } catch { /* keep going */ }
+    } catch {
+      setIsAnalyzing(false);
+    }
     if (activeRef.current) loopRef.current = setTimeout(runScan, 2000);
   }, [captureFrame, stopStream, lookupCard]);
 
@@ -138,6 +181,7 @@ export default function ScanPage() {
     setPhase("idle");
     setCard(null); setVariants([]); setSelectedVariant(null);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
+    setIsAnalyzing(false); setScanCount(0); setConfirmSteps([]);
     try {
       const ms = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 } },
@@ -163,6 +207,7 @@ export default function ScanPage() {
     stopCamera();
     setCard(null); setVariants([]); setSelectedVariant(null);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
+    setIsAnalyzing(false); setScanCount(0); setConfirmSteps([]);
     startCamera();
   };
 
@@ -205,6 +250,7 @@ export default function ScanPage() {
           )}
           <canvas ref={canvasRef} style={{ position: "absolute", top: -9999, left: -9999, width: 1, height: 1 }} />
 
+          {/* Scanning: guide frame + scan line */}
           {scanning && (
             <>
               <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse ${GUIDE_W*100}% ${GUIDE_H*100}% at 50% 50%, transparent 55%, rgba(0,0,0,0.6) 100%)` }} />
@@ -213,11 +259,12 @@ export default function ScanPage() {
                 <div className="absolute top-0 right-0 w-7 h-7 border-r-2 border-t-2 border-white/80 rounded-tr" />
                 <div className="absolute bottom-0 left-0 w-7 h-7 border-l-2 border-b-2 border-white/80 rounded-bl" />
                 <div className="absolute bottom-0 right-0 w-7 h-7 border-r-2 border-b-2 border-white/80 rounded-br" />
-                <div className="absolute inset-x-0 h-0.5 bg-primary/80 rounded-full shadow-[0_0_6px_2px_rgba(99,102,241,0.6)] animate-scan" />
+                <div className={`absolute inset-x-0 h-0.5 rounded-full animate-scan transition-all duration-300 ${isAnalyzing ? "bg-amber-400/90 shadow-[0_0_10px_3px_rgba(251,191,36,0.7)]" : "bg-primary/80 shadow-[0_0_6px_2px_rgba(99,102,241,0.6)]"}`} />
               </div>
             </>
           )}
 
+          {/* Idle state */}
           {phase === "idle" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-zinc-950/95">
               <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center">
@@ -230,19 +277,31 @@ export default function ScanPage() {
             </div>
           )}
 
+          {/* Confirming: step-by-step progress over frozen frame */}
           {confirming && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/70 backdrop-blur-sm">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-zinc-950/75 backdrop-blur-sm">
               <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
                 <Sparkles className="h-7 w-7 text-emerald-400 animate-pulse" />
               </div>
-              <p className="text-white font-semibold text-base capitalize">{pokemonName}</p>
-              <div className="flex items-center gap-2 text-white/70 text-sm">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Looking up card details…
+              <p className="text-white font-bold text-lg capitalize tracking-wide">{pokemonName}</p>
+              <div className="space-y-2 min-w-[200px]">
+                {confirmSteps.map((step, i) => (
+                  <div key={i} className="flex items-center gap-2.5">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${step.done ? "bg-emerald-500" : "bg-white/10 border border-white/30"}`}>
+                      {step.done
+                        ? <Check className="h-3 w-3 text-white" />
+                        : <Loader2 className="h-3 w-3 text-white/70 animate-spin" />}
+                    </div>
+                    <span className={`text-sm transition-colors duration-300 ${step.done ? "text-white" : "text-white/60"}`}>
+                      {step.text}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
+          {/* Done: success overlay */}
           {done && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/60 backdrop-blur-sm">
               <div className="w-16 h-16 rounded-full bg-emerald-500/30 border-2 border-emerald-400/60 flex items-center justify-center">
@@ -255,11 +314,20 @@ export default function ScanPage() {
             </div>
           )}
 
+          {/* Bottom status pill — changes between idle-waiting and AI-analyzing */}
           {scanning && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-              <div className="bg-black/70 backdrop-blur text-white/80 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-2">
-                <ScanLine className="h-3 w-3 animate-pulse" /> Place card in the frame
-              </div>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 transition-all duration-300">
+              {isAnalyzing ? (
+                <div className="bg-amber-500/90 backdrop-blur text-white text-xs font-semibold px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
+                  <Brain className="h-3.5 w-3.5 animate-pulse" />
+                  AI analyzing…
+                </div>
+              ) : (
+                <div className="bg-black/70 backdrop-blur text-white/80 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-2">
+                  <ScanLine className="h-3 w-3 animate-pulse" />
+                  {scanCount > 0 ? `Scanning — attempt ${scanCount}` : "Place card in the frame"}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -325,7 +393,7 @@ export default function ScanPage() {
                   </div>
                 </div>
 
-                {/* Market value details */}
+                {/* Market value */}
                 {pricing && (pricing.marketPrice != null || pricing.lowPrice != null) && (
                   <div className="bg-card border rounded-2xl p-4 space-y-3">
                     <div className="flex items-center gap-2">
@@ -358,7 +426,7 @@ export default function ScanPage() {
                   </div>
                 )}
 
-                {/* PSA estimated grades */}
+                {/* PSA grades */}
                 {pricing?.psaEstimates && (
                   <div className="bg-card border rounded-2xl p-4 space-y-3">
                     <div className="flex items-center gap-2">
