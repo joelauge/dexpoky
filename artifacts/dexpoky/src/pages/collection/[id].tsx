@@ -525,7 +525,7 @@ export default function CardDetail() {
 
             {/* Other Printings */}
             {(printingsLoading || printings.length > 0) && (
-              <div className="mb-6">
+              <div className="mb-6 overflow-x-hidden">
                 <h3 className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">
                   <Layers className="h-3.5 w-3.5" />
                   Other Printings
@@ -539,7 +539,7 @@ export default function CardDetail() {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex gap-2 overflow-x-auto pb-2 -mx-0.5 px-0.5 scrollbar-thin">
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
                     {printings.map((v) => {
                       const isCurrent = v.setName === card.setName && v.cardNumber === card.cardNumber;
                       const isSelected = selectedPrinting?.id === v.id;
