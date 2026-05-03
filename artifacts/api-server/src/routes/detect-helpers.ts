@@ -90,12 +90,12 @@ function extractPricing(card: PtcgCard): PricingData {
   return { marketPrice, lowPrice, trendPrice, source, psaEstimates };
 }
 
-async function fetchPricing(cardName: string): Promise<PricingData> {
+async function fetchPricing(cardName: string, rarity?: string): Promise<PricingData> {
   const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
-  try {
-    const q = encodeURIComponent(`name:"${cardName}"`);
+
+  async function query(qStr: string): Promise<PricingData> {
     const res = await fetch(
-      `${PTCGIO_BASE}/cards?q=${q}&select=id,name,tcgplayer,cardmarket&pageSize=5`,
+      `${PTCGIO_BASE}/cards?q=${encodeURIComponent(qStr)}&select=id,name,tcgplayer,cardmarket&pageSize=5`,
     );
     if (!res.ok) return empty;
     const data = (await res.json()) as { data: PtcgCard[] };
@@ -104,6 +104,15 @@ async function fetchPricing(cardName: string): Promise<PricingData> {
     const nameLower = cardName.toLowerCase();
     const match = cards.find((c) => c.name.toLowerCase() === nameLower) ?? cards[0];
     return extractPricing(match);
+  }
+
+  try {
+    // If we have a rarity hint, try rarity-scoped search first for a closer price match
+    if (rarity) {
+      const p = await query(`name:"${cardName}" rarity:${rarity}`);
+      if (p.marketPrice != null || p.lowPrice != null) return p;
+    }
+    return await query(`name:"${cardName}"`);
   } catch {
     return empty;
   }
@@ -113,7 +122,7 @@ async function fetchPricing(cardName: string): Promise<PricingData> {
  * Fetch pricing for a specific printing using its TCGdex card ID (e.g. "xy8-024").
  * Converts to PTCG.io format by stripping leading zeros from the number segment.
  */
-export async function fetchPricingById(tcgdexId: string, fallbackName?: string): Promise<PricingData> {
+export async function fetchPricingById(tcgdexId: string, fallbackName?: string, fallbackRarity?: string): Promise<PricingData> {
   const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
   try {
     const dashIdx = tcgdexId.lastIndexOf("-");
@@ -141,9 +150,9 @@ export async function fetchPricingById(tcgdexId: string, fallbackName?: string):
         if (pricing.marketPrice != null || pricing.lowPrice != null) return pricing;
       }
     }
-    // No prices found for this specific printing — fall back to name-based search
+    // No prices found for this specific printing — fall back to name+rarity search
     if (fallbackName) {
-      const namePricing = await fetchPricing(fallbackName);
+      const namePricing = await fetchPricing(fallbackName, fallbackRarity);
       if (namePricing.marketPrice != null || namePricing.lowPrice != null) {
         return { ...namePricing, isFallback: true };
       }

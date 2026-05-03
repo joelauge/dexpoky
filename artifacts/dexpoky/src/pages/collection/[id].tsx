@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
-import { ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink, ChevronLeft, ChevronRight, LayoutList, FolderOpen } from "lucide-react";
+import { ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink, ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -31,6 +31,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
+interface TcgVariant {
+  id: string;
+  name: string;
+  imageUrl: string;
+  setName: string;
+  cardNumber: string;
+}
+
+interface PrintingPricing {
+  marketPrice: number | null;
+  lowPrice: number | null;
+  source: "tcgplayer" | "cardmarket" | null;
+  isFallback?: boolean;
+}
 
 export default function CardDetail() {
   const [, params] = useRoute("/collection/:id");
@@ -47,6 +62,50 @@ export default function CardDetail() {
   const [sellPrice, setSellPrice] = useState<string>("");
   const [isSellOpen, setIsSellOpen] = useState(false);
   const [listedId, setListedId] = useState<number | null>(null);
+
+  // ── Other Printings ─────────────────────────────────────────────────────────
+  const [printings, setPrintings] = useState<TcgVariant[]>([]);
+  const [printingsLoading, setPrintingsLoading] = useState(false);
+  const [selectedPrinting, setSelectedPrinting] = useState<TcgVariant | null>(null);
+  const [printingPricing, setPrintingPricing] = useState<PrintingPricing | null>(null);
+  const [printingPricingLoading, setPrintingPricingLoading] = useState(false);
+
+  useEffect(() => {
+    const searchName = card?.pokemonName || card?.name;
+    if (!searchName) return;
+    setPrintings([]);
+    setSelectedPrinting(null);
+    setPrintingPricing(null);
+    setPrintingsLoading(true);
+    fetch(`/api/cards/lookup?name=${encodeURIComponent(searchName)}`)
+      .then((r) => r.json())
+      .then((data: { variants?: TcgVariant[] }) => setPrintings(data.variants ?? []))
+      .catch(() => {})
+      .finally(() => setPrintingsLoading(false));
+  }, [card?.id]);
+
+  const selectPrinting = useCallback(async (v: TcgVariant) => {
+    if (selectedPrinting?.id === v.id) {
+      setSelectedPrinting(null);
+      setPrintingPricing(null);
+      return;
+    }
+    setSelectedPrinting(v);
+    setPrintingPricing(null);
+    setPrintingPricingLoading(true);
+    try {
+      const params = new URLSearchParams({ cardId: v.id, name: v.name });
+      if (card?.rarity) params.set("rarity", card.rarity);
+      const res = await fetch(`/api/cards/pricing?${params}`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json() as { pricing: PrintingPricing };
+        setPrintingPricing(data.pricing ?? null);
+      }
+    } catch { /* ignore */ } finally {
+      setPrintingPricingLoading(false);
+    }
+  }, [selectedPrinting?.id, card?.rarity]);
+  // ────────────────────────────────────────────────────────────────────────────
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const { data: allCards } = useListCards();
@@ -294,12 +353,106 @@ export default function CardDetail() {
               )}
             </div>
 
-            <div className="bg-card border shadow-sm rounded-xl p-6 mb-8">
+            <div className="bg-card border shadow-sm rounded-xl p-6 mb-6">
               <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Estimated Value</p>
               <h2 className="text-5xl font-black tracking-tighter text-foreground">
                 {formatCurrency(card.estimatedValue)}
               </h2>
             </div>
+
+            {/* Other Printings */}
+            {(printingsLoading || printings.length > 0) && (
+              <div className="mb-8">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5" /> Other Printings
+                  {!printingsLoading && <span className="font-normal">({printings.length})</span>}
+                </h3>
+
+                {printingsLoading ? (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {[1, 2, 3, 4].map((i) => (
+                      <Skeleton key={i} className="shrink-0 w-14 h-[78px] rounded-lg" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+                    {printings.map((v) => {
+                      const isCurrent = v.setName === card.setName && v.cardNumber === card.cardNumber;
+                      const isSelected = selectedPrinting?.id === v.id;
+                      return (
+                        <button
+                          key={v.id}
+                          onClick={() => selectPrinting(v)}
+                          title={`${v.setName} · ${v.cardNumber}`}
+                          className={`shrink-0 w-14 rounded-lg border-2 overflow-hidden flex flex-col transition-all focus:outline-none ${
+                            isSelected
+                              ? "border-primary shadow-md scale-105"
+                              : isCurrent
+                              ? "border-emerald-500 ring-1 ring-emerald-300"
+                              : "border-transparent hover:border-border hover:shadow-sm"
+                          }`}
+                        >
+                          {v.imageUrl ? (
+                            <img src={v.imageUrl} alt={v.name} className="w-full aspect-[3/4] object-cover" loading="lazy" />
+                          ) : (
+                            <div className="w-full aspect-[3/4] bg-muted flex items-center justify-center">
+                              <ImageIcon className="h-3 w-3 text-muted-foreground" />
+                            </div>
+                          )}
+                          <p className="text-[8px] leading-tight text-center text-muted-foreground px-0.5 py-0.5 truncate w-full">
+                            {isCurrent ? "★ " : ""}{v.setName}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Pricing panel for selected printing */}
+                {selectedPrinting && (
+                  <div className="mt-3 bg-muted/40 border rounded-xl p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="text-xs font-semibold truncate">{selectedPrinting.setName}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{selectedPrinting.cardNumber}</span>
+                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                        {printingPricing?.isFallback && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">est.</span>
+                        )}
+                        {printingPricing?.source && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {printingPricing.source === "tcgplayer" ? "TCGPlayer" : "CardMarket"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {printingPricingLoading ? (
+                      <div className="flex items-center gap-2 py-1">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        <span className="text-xs text-muted-foreground">Loading price…</span>
+                      </div>
+                    ) : printingPricing?.marketPrice != null || printingPricing?.lowPrice != null ? (
+                      <div className="flex gap-4">
+                        {printingPricing.marketPrice != null && (
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Market</p>
+                            <p className="text-lg font-black">{formatCurrency(printingPricing.marketPrice)}</p>
+                          </div>
+                        )}
+                        {printingPricing.lowPrice != null && (
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Low</p>
+                            <p className="text-lg font-semibold text-muted-foreground">{formatCurrency(printingPricing.lowPrice)}</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No market price available for this printing.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-6 flex-1">
               {card.notes && (
