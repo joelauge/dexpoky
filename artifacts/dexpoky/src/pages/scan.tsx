@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Award,
   Brain,
+  Aperture,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
@@ -39,7 +40,7 @@ interface PricingData {
   isFallback?: boolean;
 }
 
-type Phase = "idle" | "scanning" | "confirming" | "done";
+type Phase = "idle" | "capturing" | "analyzing" | "confirming" | "done";
 
 interface ConfirmStep {
   text: string;
@@ -47,8 +48,6 @@ interface ConfirmStep {
 }
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-const GUIDE_W = 0.72;
-const GUIDE_H = 0.80;
 
 const PSA_GRADES = [10, 9, 8, 7, 6, 5] as const;
 const PSA_LABELS: Record<number, string> = {
@@ -68,8 +67,6 @@ export default function ScanPage() {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const loopRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeRef = useRef(false);
 
   const [phase, setPhase]                     = useState<Phase>("idle");
   const [pokemonName, setPokemonName]         = useState<string | null>(null);
@@ -81,8 +78,6 @@ export default function ScanPage() {
   const [frozenFrame, setFrozenFrame]         = useState<string | null>(null);
   const [pricingLoading, setPricingLoading]   = useState(false);
 
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [scanCount, setScanCount]     = useState(0);
   const [confirmSteps, setConfirmSteps] = useState<ConfirmStep[]>([]);
 
   // Billing
@@ -103,11 +98,8 @@ export default function ScanPage() {
   }, []);
 
   const stopStream = useCallback(() => {
-    if (loopRef.current) clearTimeout(loopRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    activeRef.current = false;
-    setIsAnalyzing(false);
   }, []);
 
   const lookupCard = useCallback(async (name: string, conf: "high"|"medium"|"low") => {
@@ -153,13 +145,15 @@ export default function ScanPage() {
     }
   }, []);
 
-  const runScan = useCallback(async () => {
-    if (!activeRef.current) return;
+  const takePhoto = useCallback(async () => {
     const imageData = captureFrame();
-    if (!imageData) { loopRef.current = setTimeout(runScan, 800); return; }
-
-    setIsAnalyzing(true);
-    setScanCount((c) => c + 1);
+    if (!imageData) {
+      toast.error("Couldn't capture photo — please try again.");
+      return;
+    }
+    setFrozenFrame(imageData);
+    setPhase("analyzing");
+    stopStream();
 
     try {
       const res = await fetch(`${BASE}/api/cards/identify`, {
@@ -167,42 +161,44 @@ export default function ScanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageData }),
       });
-      setIsAnalyzing(false);
-      if (res.ok) {
-        const data = await res.json() as { detected: boolean; confidence: "high"|"medium"|"low"; pokemonName: string | null };
-        if (data.detected && data.pokemonName && activeRef.current) {
-          const frozen = captureFrame();
-          if (frozen) setFrozenFrame(frozen);
-          stopStream();
-          // Record the scan against the billing limit
-          recordScan.mutate(undefined, {
-            onSuccess: (result) => {
-              if (!result.allowed) {
-                const reason = result.reason === "monthly_limit_reached"
-                  ? "monthly_limit_reached"
-                  : "trial_exhausted";
-                setPaywallReason(reason);
-                setPaywallOpen(true);
-                setPhase("idle");
-                return;
-              }
-            },
-          });
-          lookupCard(data.pokemonName, data.confidence);
-          return;
-        }
+      if (!res.ok) throw new Error("identify failed");
+      const data = await res.json() as { detected: boolean; confidence: "high"|"medium"|"low"; pokemonName: string | null };
+      if (!data.detected || !data.pokemonName) {
+        toast.error("No card detected — try again with better lighting and the card centered in the frame.");
+        setPhase("idle");
+        setFrozenFrame(null);
+        startCamera();
+        return;
       }
+      // Record the scan against the billing limit
+      recordScan.mutate(undefined, {
+        onSuccess: (result) => {
+          if (!result.allowed) {
+            const reason = result.reason === "monthly_limit_reached"
+              ? "monthly_limit_reached"
+              : "trial_exhausted";
+            setPaywallReason(reason);
+            setPaywallOpen(true);
+            setPhase("idle");
+            return;
+          }
+        },
+      });
+      lookupCard(data.pokemonName, data.confidence);
     } catch {
-      setIsAnalyzing(false);
+      toast.error("Couldn't analyze photo — please try again.");
+      setPhase("idle");
+      setFrozenFrame(null);
+      startCamera();
     }
-    if (activeRef.current) loopRef.current = setTimeout(runScan, 2000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captureFrame, stopStream, lookupCard]);
 
   const startCamera = async () => {
     setPhase("idle");
     setCard(null); setVariants([]); setSelectedVariant(null);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
-    setIsAnalyzing(false); setScanCount(0); setConfirmSteps([]);
+    setConfirmSteps([]);
     try {
       const ms = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 } },
@@ -214,9 +210,7 @@ export default function ScanPage() {
         video.oncanplay = () => resolve();
         video.play().catch(() => resolve());
       });
-      activeRef.current = true;
-      setPhase("scanning");
-      loopRef.current = setTimeout(runScan, 1200);
+      setPhase("capturing");
     } catch {
       toast.error("Camera permission denied or unavailable.");
     }
@@ -228,7 +222,7 @@ export default function ScanPage() {
     stopCamera();
     setCard(null); setVariants([]); setSelectedVariant(null);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
-    setIsAnalyzing(false); setScanCount(0); setConfirmSteps([]);
+    setConfirmSteps([]);
     startCamera();
   };
 
@@ -268,7 +262,8 @@ export default function ScanPage() {
   }, [billingLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayCard = selectedVariant ?? card;
-  const scanning    = phase === "scanning";
+  const capturing   = phase === "capturing";
+  const analyzing   = phase === "analyzing";
   const confirming  = phase === "confirming";
   const done        = phase === "done";
 
@@ -293,34 +288,41 @@ export default function ScanPage() {
             <h1 className="text-2xl font-extrabold tracking-tight">Card Scanner</h1>
           </div>
           <p className="text-sm text-muted-foreground">
-            Hold a card inside the frame — it stops automatically when detected.
+            Center the card in the frame, then tap to take a photo.
           </p>
         </div>
 
-        {/* ── Viewfinder ── */}
-        <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-zinc-950 shadow-xl border border-border">
+        {/* ── Viewfinder (5:3) ── */}
+        <div
+          className="relative w-full rounded-2xl overflow-hidden bg-zinc-950 shadow-xl border border-border"
+          style={{ aspectRatio: "5 / 3" }}
+        >
           <video
             ref={videoRef}
             autoPlay playsInline muted
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${(confirming || done) ? "opacity-0" : "opacity-100"}`}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${(analyzing || confirming || done) ? "opacity-0" : "opacity-100"}`}
           />
-          {frozenFrame && (confirming || done) && (
+          {frozenFrame && (analyzing || confirming || done) && (
             <img src={frozenFrame} alt="Captured frame" className="absolute inset-0 w-full h-full object-cover" />
           )}
           <canvas ref={canvasRef} style={{ position: "absolute", top: -9999, left: -9999, width: 1, height: 1 }} />
 
-          {/* Scanning: guide frame + scan line */}
-          {scanning && (
-            <>
-              <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse ${GUIDE_W*100}% ${GUIDE_H*100}% at 50% 50%, transparent 55%, rgba(0,0,0,0.6) 100%)` }} />
-              <div className="absolute pointer-events-none" style={{ left:`${(1-GUIDE_W)/2*100}%`, top:`${(1-GUIDE_H)/2*100}%`, width:`${GUIDE_W*100}%`, height:`${GUIDE_H*100}%` }}>
-                <div className="absolute top-0 left-0 w-7 h-7 border-l-2 border-t-2 border-white/80 rounded-tl" />
-                <div className="absolute top-0 right-0 w-7 h-7 border-r-2 border-t-2 border-white/80 rounded-tr" />
-                <div className="absolute bottom-0 left-0 w-7 h-7 border-l-2 border-b-2 border-white/80 rounded-bl" />
-                <div className="absolute bottom-0 right-0 w-7 h-7 border-r-2 border-b-2 border-white/80 rounded-br" />
-                <div className={`absolute inset-x-0 h-0.5 rounded-full animate-scan transition-all duration-300 ${isAnalyzing ? "bg-amber-400/90 shadow-[0_0_10px_3px_rgba(251,191,36,0.7)]" : "bg-primary/80 shadow-[0_0_6px_2px_rgba(99,102,241,0.6)]"}`} />
+          {/* Card-shaped portrait guide frame (5:7 = Pokémon card ratio) */}
+          {(capturing || analyzing) && (
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+              <div
+                className="relative h-[88%]"
+                style={{ aspectRatio: "5 / 7" }}
+              >
+                {/* Dim outside the card frame */}
+                <div className="absolute inset-0 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] rounded-xl" />
+                {/* Corner brackets */}
+                <div className="absolute -top-px -left-px w-7 h-7 border-l-2 border-t-2 border-white/90 rounded-tl-xl" />
+                <div className="absolute -top-px -right-px w-7 h-7 border-r-2 border-t-2 border-white/90 rounded-tr-xl" />
+                <div className="absolute -bottom-px -left-px w-7 h-7 border-l-2 border-b-2 border-white/90 rounded-bl-xl" />
+                <div className="absolute -bottom-px -right-px w-7 h-7 border-r-2 border-b-2 border-white/90 rounded-br-xl" />
               </div>
-            </>
+            </div>
           )}
 
           {/* Idle state */}
@@ -329,10 +331,20 @@ export default function ScanPage() {
               <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center">
                 <Camera className="h-7 w-7 text-white/70" />
               </div>
-              <p className="text-white/60 text-sm text-center px-8 max-w-xs">Start the camera and hold a Pokémon card inside the guide frame</p>
+              <p className="text-white/60 text-sm text-center px-8 max-w-xs">Start the camera, line up your Pokémon card in the frame, and tap the shutter</p>
               <Button onClick={startCamera} className="rounded-full px-6">
                 <Camera className="h-4 w-4 mr-2" /> Start Camera
               </Button>
+            </div>
+          )}
+
+          {/* Analyzing: AI processing the captured photo */}
+          {analyzing && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950/70 backdrop-blur-sm">
+              <div className="w-14 h-14 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
+                <Brain className="h-7 w-7 text-amber-300 animate-pulse" />
+              </div>
+              <p className="text-white font-semibold text-sm">Analyzing photo…</p>
             </div>
           )}
 
@@ -373,30 +385,28 @@ export default function ScanPage() {
             </div>
           )}
 
-          {/* Bottom status pill — changes between idle-waiting and AI-analyzing */}
-          {scanning && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 transition-all duration-300">
-              {isAnalyzing ? (
-                <div className="bg-amber-500/90 backdrop-blur text-white text-xs font-semibold px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
-                  <Brain className="h-3.5 w-3.5 animate-pulse" />
-                  AI analyzing…
-                </div>
-              ) : (
-                <div className="bg-black/70 backdrop-blur text-white/80 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-2">
-                  <ScanLine className="h-3 w-3 animate-pulse" />
-                  {scanCount > 0 ? `Scanning — attempt ${scanCount}` : "Place card in the frame"}
-                </div>
-              )}
+          {/* Bottom hint pill while capturing */}
+          {capturing && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
+              <div className="bg-black/70 backdrop-blur text-white/80 text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-2">
+                <ScanLine className="h-3 w-3" />
+                Line up the card, then tap the shutter
+              </div>
             </div>
           )}
         </div>
 
         {/* Controls */}
         <div className="flex gap-2 mt-3">
-          {scanning && (
-            <Button variant="outline" className="flex-1 rounded-xl" onClick={stopCamera}>
-              <CameraOff className="h-4 w-4 mr-2" /> Stop
-            </Button>
+          {capturing && (
+            <>
+              <Button variant="outline" className="rounded-xl" onClick={stopCamera}>
+                <CameraOff className="h-4 w-4 mr-2" /> Stop
+              </Button>
+              <Button className="flex-1 rounded-xl h-11 text-base font-semibold" onClick={takePhoto}>
+                <Aperture className="h-5 w-5 mr-2" /> Take Photo
+              </Button>
+            </>
           )}
           {done && (
             <Button variant="outline" className="flex-1 rounded-xl" onClick={rescan}>
