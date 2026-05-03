@@ -1,12 +1,12 @@
 import { Layout } from "@/components/layout";
 import { HoloCard } from "@/components/holo-card";
-import { useGetCard, useDeleteCard, useUpdateCard, UpdateCardBodyStatus } from "@workspace/api-client-react";
+import { useGetCard, useDeleteCard, useUpdateCard, useListCards, UpdateCardBodyStatus } from "@workspace/api-client-react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
-import { ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink, ChevronLeft, ChevronRight, LayoutList, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -47,6 +47,39 @@ export default function CardDetail() {
   const [sellPrice, setSellPrice] = useState<string>("");
   const [isSellOpen, setIsSellOpen] = useState(false);
   const [listedId, setListedId] = useState<number | null>(null);
+
+  // ── Navigation ──────────────────────────────────────────────────────────────
+  const { data: allCards } = useListCards();
+  const [navScope, setNavScope] = useState<"category" | "all">("category");
+
+  // Once the card loads, default to category scope only if it has one
+  useEffect(() => {
+    if (card) setNavScope(card.categoryId ? "category" : "all");
+  }, [card?.id]);
+
+  const navList = useMemo(() => {
+    if (!allCards) return [];
+    if (navScope === "category" && card?.categoryId) {
+      return allCards.filter((c) => c.categoryId === card.categoryId);
+    }
+    return allCards;
+  }, [allCards, navScope, card?.categoryId]);
+
+  const currentIndex = navList.findIndex((c) => c.id === id);
+  const prevCard = currentIndex > 0 ? navList[currentIndex - 1] : null;
+  const nextCard = currentIndex < navList.length - 1 ? navList[currentIndex + 1] : null;
+  const hasCategoryScope = !!(card?.categoryId && allCards?.some((c) => c.categoryId === card.categoryId && c.id !== id));
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "ArrowLeft" && prevCard) setLocation(`/collection/${prevCard.id}`);
+      if (e.key === "ArrowRight" && nextCard) setLocation(`/collection/${nextCard.id}`);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prevCard, nextCard]);
+  // ────────────────────────────────────────────────────────────────────────────
 
   const listCard = useMutation({
     mutationFn: async ({ cardId, price }: { cardId: number; price: number }) => {
@@ -149,7 +182,7 @@ export default function CardDetail() {
 
         <div className="flex flex-col lg:flex-row gap-12">
           {/* Card Image Area */}
-          <div className="w-full lg:w-1/2 lg:max-w-md mx-auto">
+          <div className="w-full lg:w-1/2 lg:max-w-md mx-auto flex flex-col gap-3">
             <HoloCard imageUrl={card.imageUrl} name={card.name}>
               {card.forSale && (
                 <div className="absolute top-4 right-4">
@@ -159,6 +192,49 @@ export default function CardDetail() {
                 </div>
               )}
             </HoloCard>
+
+            {/* Prev / Next navigation */}
+            {navList.length > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => prevCard && setLocation(`/collection/${prevCard.id}`)}
+                  disabled={!prevCard}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-card text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-muted/50 hover:border-primary/30 min-w-0 flex-1 justify-start"
+                  title={prevCard?.name}
+                >
+                  <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-xs text-muted-foreground">{prevCard?.name ?? "—"}</span>
+                </button>
+
+                <div className="flex flex-col items-center shrink-0 gap-1">
+                  <span className="text-xs font-semibold tabular-nums text-center whitespace-nowrap">
+                    {currentIndex + 1} / {navList.length}
+                  </span>
+                  {hasCategoryScope && (
+                    <button
+                      onClick={() => setNavScope(navScope === "category" ? "all" : "category")}
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                      title={navScope === "category" ? "Switch to all cards" : "Switch to category"}
+                    >
+                      {navScope === "category"
+                        ? <><FolderOpen className="h-3 w-3" />{card.categoryName}</>
+                        : <><LayoutList className="h-3 w-3" />All cards</>
+                      }
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => nextCard && setLocation(`/collection/${nextCard.id}`)}
+                  disabled={!nextCard}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-card text-sm font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed hover:bg-muted/50 hover:border-primary/30 min-w-0 flex-1 justify-end"
+                  title={nextCard?.name}
+                >
+                  <span className="truncate text-xs text-muted-foreground">{nextCard?.name ?? "—"}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Details Area */}
