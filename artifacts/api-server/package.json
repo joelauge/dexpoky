@@ -25,6 +25,8 @@
     "http-proxy-middleware": "^3.0.5",
     "pino": "^9",
     "pino-http": "^10",
+    "stripe": "^17",
+    "stripe-replit-sync": "*",
     "zod": "catalog:"
   },
   "devDependencies": {

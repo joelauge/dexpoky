@@ -7,3 +7,4 @@ export * from "./auction_bids";
 export * from "./activity_events";
 export * from "./card_price_history";
 export * from "./short_links";
+export * from "./scan_usage";

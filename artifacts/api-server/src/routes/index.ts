@@ -12,6 +12,7 @@ import ratingsRouter from "./ratings";
 import priceHistoryRouter from "./price-history";
 import storageRouter from "./storage";
 import shortenRouter from "./shorten";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(ratingsRouter);
 router.use(priceHistoryRouter);
 router.use(storageRouter);
 router.use(shortenRouter);
+router.use(billingRouter);
 
 export default router;

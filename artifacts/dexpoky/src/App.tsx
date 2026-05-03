@@ -25,6 +25,7 @@ import PublicCategoryView from "@/pages/view/category/[id]";
 import PublicCollectionView from "@/pages/view/collection";
 import PublicListingView from "@/pages/view/listing/[id]";
 import ShortLinkRedirect from "@/pages/s/[code]";
+import SubscriptionPage from "@/pages/subscription";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -203,6 +204,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/share" component={() => <ProtectedRoute component={SharePage} />} />
             <Route path="/scan" component={() => <ProtectedRoute component={Scan} />} />
             <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
+            <Route path="/subscription" component={() => <ProtectedRoute component={SubscriptionPage} />} />
             <Route path="/seller/:clerkId" component={SellerProfile} />
             <Route path="/view/card/:id" component={PublicCardView} />
             <Route path="/view/category/:id" component={PublicCategoryView} />

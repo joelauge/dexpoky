@@ -152,6 +152,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/collection", label: "Collection", icon: Layers },
     { href: "/categories", label: "Categories", icon: FolderTree },
     { href: "/share", label: "Share", icon: Share2 },
+    { href: "/subscription", label: "Subscription", icon: Sparkles },
   ];
 
   const quickActions = [

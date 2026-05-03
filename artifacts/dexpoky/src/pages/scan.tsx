@@ -18,6 +18,8 @@ import {
   Brain,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
+import { ScanPaywall } from "@/components/scan-paywall";
 
 interface TcgCard {
   id: string;
@@ -79,12 +81,15 @@ export default function ScanPage() {
   const [frozenFrame, setFrozenFrame]         = useState<string | null>(null);
   const [pricingLoading, setPricingLoading]   = useState(false);
 
-  // New: scanning sub-status
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [scanCount, setScanCount]     = useState(0);
-
-  // New: confirming step-by-step progress
   const [confirmSteps, setConfirmSteps] = useState<ConfirmStep[]>([]);
+
+  // Billing
+  const { data: billing, isLoading: billingLoading } = useBillingStatus();
+  const recordScan = useRecordScan();
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallReason, setPaywallReason] = useState<"trial_not_activated" | "trial_exhausted" | "monthly_limit_reached" | null>(null);
 
   const captureFrame = useCallback((): string | null => {
     const video  = videoRef.current;
@@ -169,6 +174,20 @@ export default function ScanPage() {
           const frozen = captureFrame();
           if (frozen) setFrozenFrame(frozen);
           stopStream();
+          // Record the scan against the billing limit
+          recordScan.mutate(undefined, {
+            onSuccess: (result) => {
+              if (!result.allowed) {
+                const reason = result.reason === "monthly_limit_reached"
+                  ? "monthly_limit_reached"
+                  : "trial_exhausted";
+                setPaywallReason(reason);
+                setPaywallOpen(true);
+                setPhase("idle");
+                return;
+              }
+            },
+          });
           lookupCard(data.pokemonName, data.confidence);
           return;
         }
@@ -230,11 +249,23 @@ export default function ScanPage() {
     }
   }, []);
 
-  // Auto-start camera when the page first mounts
+  // Check billing on mount — show paywall or auto-start camera
   useEffect(() => {
-    startCamera();
+    if (billingLoading) return;
+    if (!billing) return;
+    if (billing.canScan) {
+      startCamera();
+    } else {
+      const reason = !billing.freeTrialActivated
+        ? "trial_not_activated"
+        : billing.planTier === "free"
+          ? "trial_exhausted"
+          : "monthly_limit_reached";
+      setPaywallReason(reason);
+      setPaywallOpen(true);
+    }
     return () => stopStream();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [billingLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayCard = selectedVariant ?? card;
   const scanning    = phase === "scanning";
@@ -249,6 +280,11 @@ export default function ScanPage() {
 
   return (
     <Layout>
+      <ScanPaywall
+        open={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason={paywallReason}
+      />
       <div className="max-w-2xl mx-auto px-4 py-8 pb-20">
         {/* Header */}
         <div className="mb-6">
