@@ -23,6 +23,7 @@
     "express": "^5",
     "google-auth-library": "^10.6.2",
     "http-proxy-middleware": "^3.0.5",
+    "openai": "^6.35.0",
     "pino": "^9",
     "pino-http": "^10",
     "stripe": "^17",

@@ -1,8 +1,14 @@
 import { Router } from "express";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import OpenAI from "openai";
+import { openai as integrationOpenai } from "@workspace/integrations-openai-ai-server";
 import { searchTcgdex } from "./detect-helpers.js";
 
 const router = Router();
+
+// Prefer user-supplied OPENAI_API_KEY (direct OpenAI). Fall back to Replit AI integration.
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : integrationOpenai;
 
 /** Phase 1 — OpenAI vision only. Fast identify, no TCGdex. */
 router.post("/cards/identify", async (req, res) => {
