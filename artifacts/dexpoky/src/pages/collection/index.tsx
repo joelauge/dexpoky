@@ -23,13 +23,15 @@ export default function Collection() {
   const [categoryId, setCategoryId] = useState<string>("all");
   const [rarity, setRarity] = useState<string>("all");
   const [condition, setCondition] = useState<string>("all");
-  
+  const [forSale, setForSale] = useState<string>("all");
+
   const { data: categories } = useListCategories();
-  
+
   const { data: cards, isLoading } = useListCards({
     search: search || undefined,
     categoryId: categoryId !== "all" ? parseInt(categoryId) : undefined,
     rarity: rarity !== "all" ? rarity : undefined,
+    forSale: forSale === "all" ? undefined : forSale === "yes",
   });
 
   const filteredCards = cards?.filter(card => {
@@ -104,16 +106,28 @@ export default function Collection() {
                   ))}
                 </SelectContent>
               </Select>
+
+              <Select value={forSale} onValueChange={setForSale}>
+                <SelectTrigger className="w-[150px] bg-background/50 border-border/50">
+                  <SelectValue placeholder="For Sale" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Cards</SelectItem>
+                  <SelectItem value="yes">For Sale</SelectItem>
+                  <SelectItem value="no">Not For Sale</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            
-            {(search || categoryId !== "all" || rarity !== "all" || condition !== "all") && (
-              <Button 
-                variant="ghost" 
+
+            {(search || categoryId !== "all" || rarity !== "all" || condition !== "all" || forSale !== "all") && (
+              <Button
+                variant="ghost"
                 onClick={() => {
                   setSearch("");
                   setCategoryId("all");
                   setRarity("all");
                   setCondition("all");
+                  setForSale("all");
                 }}
                 className="text-muted-foreground hover:text-foreground shrink-0"
               >
