@@ -112,10 +112,14 @@ function extractPricing(card: PtcgCard): PricingData {
  */
 async function resolveTCGPlayerProductId(ptcgioId: string): Promise<number | null> {
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`${PTCGIO_TCGPLAYER_BASE}/${ptcgioId}`, {
       method: "GET",
       redirect: "manual",
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     if (res.status !== 302 && res.status !== 301) return null;
     const location = res.headers.get("location") ?? "";
     // Location looks like: https://tcgplayer.pxf.io/scrydex?u=https://tcgplayer.com/product/684398
@@ -133,12 +137,16 @@ async function resolveTCGPlayerProductId(ptcgioId: string): Promise<number | nul
  */
 async function fetchTCGPlayerPricePoints(productId: number): Promise<PricingData | null> {
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`${MPAPI_BASE}/${productId}/pricepoints`, {
       headers: {
         "Origin": "https://www.tcgplayer.com",
         "Referer": "https://www.tcgplayer.com/",
       },
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     if (!res.ok) return null;
     const points = (await res.json()) as TcgPlayerPricePoint[];
     if (!Array.isArray(points) || points.length === 0) return null;

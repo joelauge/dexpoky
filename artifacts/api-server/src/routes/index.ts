@@ -9,6 +9,7 @@ import pokemonRouter from "./pokemon";
 import detectRouter from "./detect";
 import usersRouter from "./users";
 import ratingsRouter from "./ratings";
+import priceHistoryRouter from "./price-history";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(pokemonRouter);
 router.use(detectRouter);
 router.use(usersRouter);
 router.use(ratingsRouter);
+router.use(priceHistoryRouter);
 
 export default router;

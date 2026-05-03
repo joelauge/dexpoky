@@ -1,0 +1,219 @@
+import { useEffect, useState } from "react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  ReferenceLine,
+  Dot,
+} from "recharts";
+import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
+import { formatCurrency } from "@/lib/constants";
+
+interface PricePoint {
+  id: number;
+  price: number;
+  source: string | null;
+  recordedAt: string;
+}
+
+interface Props {
+  cardId: number;
+}
+
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatDateFull(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function CustomDot(props: Record<string, unknown>) {
+  const { cx, cy, index, dataLength, color } = props as {
+    cx?: number; cy?: number; index?: number; dataLength?: number; color?: string;
+  };
+  if (cx == null || cy == null) return null;
+  const isLast = index === (dataLength ?? 1) - 1;
+  if (!isLast) return null;
+  return <circle cx={cx} cy={cy} r={5} fill={color} stroke="white" strokeWidth={2} />;
+}
+
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number; payload: PricePoint }>;
+}
+
+function CustomTooltip({ active, payload }: TooltipProps) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0];
+  return (
+    <div className="bg-popover border border-border rounded-xl shadow-xl px-3 py-2.5 text-sm">
+      <p className="font-bold text-foreground text-base">{formatCurrency(point.value)}</p>
+      <p className="text-muted-foreground text-xs mt-0.5">{formatDateFull(point.payload.recordedAt)}</p>
+      {point.payload.source && point.payload.source !== "initial" && (
+        <p className="text-[10px] text-muted-foreground/60 mt-0.5 capitalize">{point.payload.source}</p>
+      )}
+    </div>
+  );
+}
+
+export function PriceHistoryChart({ cardId }: Props) {
+  const [history, setHistory] = useState<PricePoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const res = await fetch(`/api/cards/${cardId}/price-history`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json() as { history: PricePoint[] };
+        setHistory(data.history ?? []);
+      }
+    } catch { /* ignore */ } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [cardId]);
+
+  if (loading) {
+    return (
+      <div className="bg-card border shadow-sm rounded-xl p-5 mb-6 animate-pulse">
+        <div className="h-4 bg-muted rounded w-32 mb-4" />
+        <div className="h-[120px] bg-muted/50 rounded-lg" />
+      </div>
+    );
+  }
+
+  if (history.length === 0) return null;
+
+  const prices = history.map((h) => h.price);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const latestPrice = prices[prices.length - 1];
+  const firstPrice = prices[0];
+  const change = latestPrice - firstPrice;
+  const changePct = firstPrice > 0 ? (change / firstPrice) * 100 : 0;
+  const isUp = change > 0.001;
+  const isDown = change < -0.001;
+
+  const trendColor = isUp ? "#22c55e" : isDown ? "#ef4444" : "#3b82f6";
+  const gradientId = `priceGrad-${cardId}`;
+
+  // Pad Y axis min/max a bit for visual breathing room
+  const yPad = Math.max((maxPrice - minPrice) * 0.15, maxPrice * 0.05, 0.02);
+  const yMin = Math.max(0, minPrice - yPad);
+  const yMax = maxPrice + yPad;
+
+  const chartData = history.map((h) => ({
+    ...h,
+    date: formatDate(h.recordedAt),
+  }));
+
+  return (
+    <div className="bg-card border shadow-sm rounded-xl p-5 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Value History</p>
+            <div className="flex items-center gap-2">
+              {history.length > 1 && (
+                <div className={`flex items-center gap-1 text-sm font-semibold ${isUp ? "text-emerald-600" : isDown ? "text-red-500" : "text-blue-500"}`}>
+                  {isUp ? <TrendingUp className="h-3.5 w-3.5" /> : isDown ? <TrendingDown className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
+                  {isUp ? "+" : ""}{formatCurrency(change)}
+                  <span className="text-xs font-medium opacity-80">
+                    ({isUp ? "+" : ""}{changePct.toFixed(1)}%)
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => load(true)}
+          disabled={refreshing}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-40"
+          title="Refresh price"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+
+      <ResponsiveContainer width="100%" height={140}>
+        <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={trendColor} stopOpacity={0.18} />
+              <stop offset="95%" stopColor={trendColor} stopOpacity={0.01} />
+            </linearGradient>
+          </defs>
+
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="hsl(var(--border))"
+            strokeOpacity={0.5}
+            vertical={false}
+          />
+
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tickLine={false}
+            axisLine={false}
+            interval="preserveStartEnd"
+            padding={{ left: 8, right: 8 }}
+          />
+
+          <YAxis
+            domain={[yMin, yMax]}
+            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tickLine={false}
+            axisLine={false}
+            width={44}
+            tickFormatter={(v: number) =>
+              v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v.toFixed(2)}`
+            }
+          />
+
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: trendColor, strokeWidth: 1, strokeDasharray: "4 2", strokeOpacity: 0.6 }} />
+
+          {history.length === 1 && (
+            <ReferenceLine y={latestPrice} stroke={trendColor} strokeDasharray="4 3" strokeOpacity={0.4} />
+          )}
+
+          <Area
+            type="monotone"
+            dataKey="price"
+            stroke={trendColor}
+            strokeWidth={2}
+            fill={`url(#${gradientId})`}
+            dot={(props: Record<string, unknown>) => {
+              const { cx, cy, index } = props as { cx?: number; cy?: number; index?: number };
+              const isLast = index === chartData.length - 1;
+              if (!isLast || cx == null || cy == null) return <g key={String(props.key ?? index)} />;
+              return <circle key={String(props.key ?? index)} cx={cx} cy={cy} r={5} fill={trendColor} stroke="white" strokeWidth={2} />;
+            }}
+            activeDot={{ r: 5, fill: trendColor, stroke: "white", strokeWidth: 2 }}
+            animationDuration={600}
+            animationEasing="ease-out"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+
+      {history.length === 1 && (
+        <p className="text-[10px] text-muted-foreground text-center mt-2">
+          More data points will appear as you view this card over time
+        </p>
+      )}
+    </div>
+  );
+}

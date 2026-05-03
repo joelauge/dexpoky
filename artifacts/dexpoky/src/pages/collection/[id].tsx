@@ -22,6 +22,7 @@ import {
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { PriceHistoryChart } from "@/components/price-history-chart";
 import {
   Dialog,
   DialogContent,
@@ -359,6 +360,8 @@ export default function CardDetail() {
                 {formatCurrency(card.estimatedValue)}
               </h2>
             </div>
+
+            <PriceHistoryChart cardId={id} />
 
             {/* Other Printings */}
             {(printingsLoading || printings.length > 0) && (
