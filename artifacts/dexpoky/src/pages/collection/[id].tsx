@@ -525,7 +525,10 @@ export default function CardDetail() {
 
             {/* Other Printings */}
             {(printingsLoading || printings.length > 0) && (
-              <div className="mb-6 w-full min-w-0 max-w-full">
+              <div
+                className="mb-6"
+                style={{ width: "100%", maxWidth: "100vw", overflow: "hidden" }}
+              >
                 <h3 className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">
                   <Layers className="h-3.5 w-3.5" />
                   Other Printings
@@ -540,16 +543,15 @@ export default function CardDetail() {
                   </div>
                 ) : (
                   <div
-                    className="flex gap-2 pb-2 scrollbar-thin"
                     style={{
                       width: "100%",
                       maxWidth: "100%",
-                      minWidth: 0,
-                      overflowX: "scroll",
+                      overflowX: "auto",
                       WebkitOverflowScrolling: "touch",
                       overscrollBehaviorX: "contain",
                     }}
                   >
+                  <div className="flex gap-2 pb-2">
                     {printings.map((v) => {
                       const isCurrent = v.setName === card.setName && v.cardNumber === card.cardNumber;
                       const isSelected = selectedPrinting?.id === v.id;
@@ -579,6 +581,7 @@ export default function CardDetail() {
                         </button>
                       );
                     })}
+                  </div>
                   </div>
                 )}
 

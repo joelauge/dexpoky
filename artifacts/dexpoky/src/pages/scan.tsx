@@ -545,20 +545,19 @@ export default function ScanPage() {
 
                 {/* Other printings */}
                 {variants.length > 1 && (
-                  <div className="w-full min-w-0 max-w-full">
+                  <div style={{ width: "100%", maxWidth: "100vw", overflow: "hidden" }}>
                     <h3 className="font-semibold text-sm mb-1">Other printings</h3>
                     <p className="text-xs text-muted-foreground mb-3">Tap the one you have.</p>
                     <div
-                      className="flex gap-2 pb-2"
                       style={{
                         width: "100%",
                         maxWidth: "100%",
-                        minWidth: 0,
-                        overflowX: "scroll",
+                        overflowX: "auto",
                         WebkitOverflowScrolling: "touch",
                         overscrollBehaviorX: "contain",
                       }}
                     >
+                    <div className="flex gap-2 pb-2">
                       {variants.map((v) => {
                         const active = (selectedVariant?.id ?? card?.id) === v.id;
                         return (
@@ -580,6 +579,7 @@ export default function ScanPage() {
                           </button>
                         );
                       })}
+                    </div>
                     </div>
                   </div>
                 )}
