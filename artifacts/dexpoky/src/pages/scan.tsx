@@ -76,6 +76,7 @@ export default function ScanPage() {
   const [selectedVariant, setSelectedVariant] = useState<TcgCard | null>(null);
   const [pricing, setPricing]                 = useState<PricingData | null>(null);
   const [frozenFrame, setFrozenFrame]         = useState<string | null>(null);
+  const [pricingLoading, setPricingLoading]   = useState(false);
 
   // New: scanning sub-status
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -210,6 +211,20 @@ export default function ScanPage() {
     setIsAnalyzing(false); setScanCount(0); setConfirmSteps([]);
     startCamera();
   };
+
+  const selectVariant = useCallback(async (v: TcgCard) => {
+    setSelectedVariant(v);
+    setPricingLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/cards/lookup?name=${encodeURIComponent(v.name)}`);
+      if (res.ok) {
+        const data = await res.json() as { pricing: PricingData };
+        setPricing(data.pricing ?? null);
+      }
+    } catch { /* keep existing pricing */ } finally {
+      setPricingLoading(false);
+    }
+  }, []);
 
   useEffect(() => () => stopStream(), [stopStream]);
 
@@ -394,29 +409,34 @@ export default function ScanPage() {
                 </div>
 
                 {/* Market value */}
-                {pricing && (pricing.marketPrice != null || pricing.lowPrice != null) && (
-                  <div className="bg-card border rounded-2xl p-4 space-y-3">
+                {(pricing && (pricing.marketPrice != null || pricing.lowPrice != null)) || pricingLoading ? (
+                  <div className="relative bg-card border rounded-2xl p-4 space-y-3">
+                    {pricingLoading && (
+                      <div className="absolute inset-0 rounded-2xl bg-background/60 flex items-center justify-center z-10">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-primary" />
                       <h3 className="font-semibold text-sm">Market Value</h3>
-                      {pricing.source && (
+                      {pricing?.source && (
                         <span className="text-[10px] text-muted-foreground ml-auto capitalize">{pricing.source === "tcgplayer" ? "TCGPlayer" : "CardMarket"}</span>
                       )}
                     </div>
                     <div className="grid grid-cols-3 gap-3">
-                      {pricing.marketPrice != null && (
+                      {pricing?.marketPrice != null && (
                         <div className="text-center">
                           <p className="text-xs text-muted-foreground mb-0.5">Market</p>
                           <p className="font-bold text-base">{fmt(pricing.marketPrice)}</p>
                         </div>
                       )}
-                      {pricing.lowPrice != null && (
+                      {pricing?.lowPrice != null && (
                         <div className="text-center">
                           <p className="text-xs text-muted-foreground mb-0.5">Low</p>
                           <p className="font-semibold text-base text-muted-foreground">{fmt(pricing.lowPrice)}</p>
                         </div>
                       )}
-                      {pricing.trendPrice != null && (
+                      {pricing?.trendPrice != null && (
                         <div className="text-center">
                           <p className="text-xs text-muted-foreground mb-0.5">Trend</p>
                           <p className="font-semibold text-base">{fmt(pricing.trendPrice)}</p>
@@ -424,11 +444,16 @@ export default function ScanPage() {
                       )}
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {/* PSA grades */}
-                {pricing?.psaEstimates && (
-                  <div className="bg-card border rounded-2xl p-4 space-y-3">
+                {(pricing?.psaEstimates || pricingLoading) ? (
+                  <div className="relative bg-card border rounded-2xl p-4 space-y-3">
+                    {pricingLoading && (
+                      <div className="absolute inset-0 rounded-2xl bg-background/60 flex items-center justify-center z-10">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <Award className="h-4 w-4 text-amber-500" />
                       <h3 className="font-semibold text-sm">Estimated PSA Graded Value</h3>
@@ -436,9 +461,9 @@ export default function ScanPage() {
                     <p className="text-[11px] text-muted-foreground -mt-1">Based on market price × grade multiplier. Estimates only.</p>
                     <div className="space-y-1.5">
                       {PSA_GRADES.map((grade) => {
-                        const val = pricing.psaEstimates![grade];
+                        const val = pricing?.psaEstimates?.[grade];
                         if (val == null) return null;
-                        const pct = Math.min(100, (val / (pricing.psaEstimates![10] ?? val)) * 100);
+                        const pct = Math.min(100, (val / (pricing!.psaEstimates![10] ?? val)) * 100);
                         return (
                           <div key={grade} className="flex items-center gap-3">
                             <div className="w-8 shrink-0 text-right">
@@ -463,7 +488,7 @@ export default function ScanPage() {
                       })}
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {/* Other printings */}
                 {variants.length > 1 && (
@@ -476,7 +501,7 @@ export default function ScanPage() {
                         return (
                           <button
                             key={v.id}
-                            onClick={() => setSelectedVariant(v)}
+                            onClick={() => selectVariant(v)}
                             className={`shrink-0 w-20 rounded-xl overflow-hidden border-2 transition-all ${active ? "border-primary scale-105 shadow-md" : "border-transparent hover:border-border"}`}
                           >
                             <div className="aspect-[3/4] bg-muted flex items-center justify-center">
