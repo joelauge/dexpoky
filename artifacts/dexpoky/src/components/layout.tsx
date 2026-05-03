@@ -6,9 +6,9 @@ import {
   Layers,
   FolderTree,
   Store,
+  Tag,
   PlusCircle,
   Menu,
-  Tags,
   ScanLine,
   User,
   LogOut,
@@ -128,12 +128,12 @@ export function Layout({ children }: LayoutProps) {
     { href: "/collection", label: "Collection", icon: Layers },
     { href: "/categories", label: "Categories", icon: FolderTree },
     { href: "/marketplace", label: "Marketplace", icon: Store },
+    { href: "/sell", label: "Sell Card", icon: Tag },
   ];
 
   const quickActions = [
     { href: "/scan", label: "Scan Card", icon: ScanLine },
     { href: "/collection/new", label: "Add Card", icon: PlusCircle },
-    { href: "/sell", label: "Sell Card", icon: Tags },
   ];
 
   const MobileNavLinks = () => (
