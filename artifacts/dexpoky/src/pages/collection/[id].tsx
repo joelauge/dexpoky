@@ -525,7 +525,7 @@ export default function CardDetail() {
 
             {/* Other Printings */}
             {(printingsLoading || printings.length > 0) && (
-              <div className="mb-6 overflow-x-hidden">
+              <div className="mb-6 w-full overflow-x-hidden">
                 <h3 className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">
                   <Layers className="h-3.5 w-3.5" />
                   Other Printings
