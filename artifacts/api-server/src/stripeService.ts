@@ -55,6 +55,13 @@ export class StripeService {
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "subscription",
+      payment_method_collection: "if_required",
+      subscription_data: {
+        trial_period_days: 7,
+        trial_settings: {
+          end_behavior: { missing_payment_method: "cancel" },
+        },
+      },
       success_url: successUrl,
       cancel_url: cancelUrl,
     });

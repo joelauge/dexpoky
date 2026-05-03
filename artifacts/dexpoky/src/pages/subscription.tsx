@@ -183,11 +183,13 @@ export default function SubscriptionPage() {
                       const isRecommended = i === 0;
 
                       const features = [
+                        "7-day free trial — no card required",
                         scanLimit === "unlimited"
                           ? "Unlimited card scans"
                           : `${scanLimit} card scans per month`,
                         "Unlimited marketplace listings",
                         ...(hasSellSheets ? ["Shareable sell sheets for cards & collections"] : []),
+                        `Then $${dollars}/mo — cancel anytime`,
                       ];
 
                       return (
@@ -234,7 +236,7 @@ export default function SubscriptionPage() {
                             {checkingOut === price.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                              `Subscribe — $${dollars}/mo`
+                              `Start 7-day free trial`
                             )}
                           </Button>
                         </div>

@@ -47,6 +47,7 @@ function PlanCard({
   const hasSellSheets = plan.metadata?.sell_sheets === "true";
 
   const features = [
+    "7-day free trial — no card required",
     scanLimit === "unlimited"
       ? "Unlimited card scans"
       : `${scanLimit} card scans / month`,
@@ -95,7 +96,7 @@ function PlanCard({
         disabled={loading}
         onClick={() => onSelect(price.id)}
       >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : `Start ${plan.name.replace("DexPoky ", "")} — $${dollars}/mo`}
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : `Start free trial — $${dollars}/mo after`}
       </Button>
     </div>
   );
