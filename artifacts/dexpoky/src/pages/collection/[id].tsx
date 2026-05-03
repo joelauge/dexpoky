@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PriceHistoryChart } from "@/components/price-history-chart";
 import {
   Dialog,
@@ -159,8 +159,23 @@ export default function CardDetail() {
       setListedId(data.id);
       qc.invalidateQueries({ queryKey: ["/api/cards", id] });
       qc.invalidateQueries({ queryKey: ["/api/marketplace"] });
+      qc.invalidateQueries({ queryKey: ["/api/cards/listing", id] });
     },
     onError: () => toast.error("Failed to list card — please try again."),
+  });
+
+  interface ActiveListing {
+    id: number;
+    listingType: string;
+    price: number;
+    status: string;
+    createdAt: string;
+  }
+
+  const { data: activeListing } = useQuery<ActiveListing>({
+    queryKey: ["/api/cards/listing", id],
+    queryFn: () => fetch(`/api/cards/${id}/listing`).then(r => r.ok ? r.json() : null),
+    enabled: !!card?.forSale,
   });
 
   const delistCard = useMutation({
@@ -171,6 +186,7 @@ export default function CardDetail() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/cards", id] });
       qc.invalidateQueries({ queryKey: ["/api/marketplace"] });
+      qc.invalidateQueries({ queryKey: ["/api/cards/listing", id] });
       toast.success("Card removed from marketplace");
     },
     onError: () => toast.error("Failed to remove listing"),
@@ -300,13 +316,15 @@ export default function CardDetail() {
             <div className="mt-4">
               {card.forSale ? (
                 <div className="space-y-3">
-                  <div className="bg-primary/8 border border-primary/20 rounded-2xl px-4 py-3 flex items-center gap-3">
-                    <Store className="h-4 w-4 text-primary shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-primary">Listed on Marketplace</p>
-                      <p className="text-sm font-bold text-foreground">{formatCurrency(card.listingPrice)}</p>
-                    </div>
-                  </div>
+                  {activeListing && (
+                    <Button
+                      size="lg"
+                      className="w-full h-12 text-base font-bold shadow-lg"
+                      onClick={() => setLocation(`/marketplace/${activeListing.id}`)}
+                    >
+                      <ExternalLink className="h-5 w-5 mr-2" /> View Marketplace Listing
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     className="w-full"
@@ -316,6 +334,18 @@ export default function CardDetail() {
                     <Store className="h-4 w-4 mr-2" />
                     {delistCard.isPending ? "Removing…" : "Remove from Marketplace"}
                   </Button>
+                  {activeListing && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Listed {formatCurrency(activeListing.price)} · You listed this on{" "}
+                      {new Date(activeListing.createdAt).toLocaleDateString("en-US", {
+                        month: "short", day: "numeric", year: "numeric",
+                      })}{" "}
+                      at{" "}
+                      {new Date(activeListing.createdAt).toLocaleTimeString("en-US", {
+                        hour: "numeric", minute: "2-digit",
+                      })}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <Dialog open={isSellOpen} onOpenChange={handleSellDialogChange}>
