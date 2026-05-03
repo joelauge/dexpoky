@@ -309,7 +309,15 @@ export default function ScanPage() {
                         <p className="text-sm font-bold text-emerald-600 mt-1">{fmt(pricing.marketPrice)} <span className="text-[10px] font-normal text-muted-foreground">market</span></p>
                       )}
                     </div>
-                    <Link href={`/collection/new?name=${encodeURIComponent(displayCard.name)}&setName=${encodeURIComponent(displayCard.setName)}&cardNumber=${encodeURIComponent(displayCard.cardNumber)}&imageUrl=${encodeURIComponent(displayCard.imageUrl)}`}>
+                    <Link href={[
+                      `/collection/new`,
+                      `?name=${encodeURIComponent(displayCard.name)}`,
+                      `&pokemonName=${encodeURIComponent(pokemonName ?? displayCard.name)}`,
+                      `&setName=${encodeURIComponent(displayCard.setName)}`,
+                      `&cardNumber=${encodeURIComponent(displayCard.cardNumber)}`,
+                      `&imageUrl=${encodeURIComponent(displayCard.imageUrl)}`,
+                      pricing?.marketPrice != null ? `&estimatedValue=${pricing.marketPrice}` : "",
+                    ].join("")}>
                       <Button size="sm" className="mt-3 rounded-lg">
                         <Plus className="h-3.5 w-3.5 mr-1.5" /> Add to Collection
                       </Button>
