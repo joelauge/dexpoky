@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useUser } from "@clerk/react";
 import {
@@ -10,7 +10,7 @@ import {
 import {
   Share2, Link2, Copy, Check,
   Mail, MessageCircle, Package, FolderOpen, Layers, ArrowLeft,
-  Sparkles,
+  Sparkles, Loader2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -25,7 +25,7 @@ interface ShareModalProps {
   target: ShareTarget;
 }
 
-function getShareLink(target: ShareTarget, clerkId?: string | null): string {
+function getLongUrl(target: ShareTarget, clerkId?: string | null): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "https://dexpoky.com";
   const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
   const owner = clerkId ? `?owner=${clerkId}` : "";
@@ -44,10 +44,13 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
   const [, setLocation] = useLocation();
   const [mode, setMode] = useState<"pick" | "link">("pick");
   const [copied, setCopied] = useState(false);
+  const [shortUrl, setShortUrl] = useState<string | null>(null);
+  const [shortLoading, setShortLoading] = useState(false);
   const { user } = useUser();
 
-  const shareLink = getShareLink(target, user?.id);
+  const longUrl = getLongUrl(target, user?.id);
   const sharePath = getSharePath(target);
+  const displayUrl = shortUrl ?? longUrl;
 
   const targetLabel =
     target.type === "card" ? target.name
@@ -64,6 +67,23 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
     : target.type === "category" ? "category"
     : "collection";
 
+  useEffect(() => {
+    if (mode !== "link") return;
+    setShortLoading(true);
+    setShortUrl(null);
+    fetch("/api/s", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUrl: longUrl, clerkId: user?.id }),
+    })
+      .then((r) => r.json())
+      .then((data: { shortUrl?: string }) => {
+        if (data.shortUrl) setShortUrl(data.shortUrl);
+      })
+      .catch(() => {})
+      .finally(() => setShortLoading(false));
+  }, [mode]);
+
   const handleCreateShareLink = () => {
     onClose();
     setMode("pick");
@@ -71,14 +91,14 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(shareLink).then(() => {
+    navigator.clipboard.writeText(displayUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     });
   };
 
   const handleOpenChange = (open: boolean) => {
-    if (!open) { onClose(); setMode("pick"); }
+    if (!open) { onClose(); setMode("pick"); setShortUrl(null); }
   };
 
   return (
@@ -158,37 +178,53 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">View link</p>
               <div className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-2.5 border overflow-hidden">
-                <span className="text-xs text-muted-foreground flex-1 truncate font-mono min-w-0">{shareLink}</span>
+                {shortLoading ? (
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
+                    <span className="text-xs text-muted-foreground">Generating link…</span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground flex-1 truncate font-mono min-w-0">{displayUrl}</span>
+                )}
                 <button
                   onClick={handleCopy}
+                  disabled={shortLoading}
                   className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all ${
                     copied
                       ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                      : shortLoading
+                      ? "bg-muted text-muted-foreground border border-border cursor-not-allowed"
                       : "bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
                   }`}
                 >
                   {copied ? <><Check className="h-3 w-3" /> Copied!</> : <><Copy className="h-3 w-3" /> Copy</>}
                 </button>
               </div>
+              {shortUrl && (
+                <p className="text-[10px] text-muted-foreground mt-1.5 pl-1">
+                  Short link · redirects to the full view page
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={handleCopy}
-                className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors"
+                disabled={shortLoading}
+                className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors disabled:opacity-50"
               >
                 <Link2 className="h-4 w-4" />
                 <span className="text-xs font-medium">Copy link</span>
               </button>
               <a
-                href={`mailto:?subject=Check out ${encodeURIComponent(targetLabel)} on DexPoky&body=${encodeURIComponent(shareLink)}`}
+                href={`mailto:?subject=Check out ${encodeURIComponent(targetLabel)} on DexPoky&body=${encodeURIComponent(displayUrl)}`}
                 className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors text-center"
               >
                 <Mail className="h-4 w-4" />
                 <span className="text-xs font-medium">Email</span>
               </a>
               <a
-                href={`sms:?body=${encodeURIComponent(targetLabel + ": " + shareLink)}`}
+                href={`sms:?body=${encodeURIComponent(targetLabel + ": " + displayUrl)}`}
                 className="flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl bg-green-50 hover:bg-green-100 text-green-600 transition-colors text-center"
               >
                 <MessageCircle className="h-4 w-4" />

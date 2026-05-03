@@ -11,6 +11,7 @@ import usersRouter from "./users";
 import ratingsRouter from "./ratings";
 import priceHistoryRouter from "./price-history";
 import storageRouter from "./storage";
+import shortenRouter from "./shorten";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(usersRouter);
 router.use(ratingsRouter);
 router.use(priceHistoryRouter);
 router.use(storageRouter);
+router.use(shortenRouter);
 
 export default router;

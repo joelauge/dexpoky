@@ -23,6 +23,7 @@ import SellerProfile from "@/pages/seller/[clerkId]";
 import PublicCardView from "@/pages/view/card/[id]";
 import PublicCategoryView from "@/pages/view/category/[id]";
 import PublicCollectionView from "@/pages/view/collection";
+import ShortLinkRedirect from "@/pages/s/[code]";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -181,6 +182,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/view/card/:id" component={PublicCardView} />
             <Route path="/view/category/:id" component={PublicCategoryView} />
             <Route path="/view/collection" component={PublicCollectionView} />
+            <Route path="/s/:code" component={ShortLinkRedirect} />
             <Route component={NotFound} />
           </Switch>
           <Toaster />
