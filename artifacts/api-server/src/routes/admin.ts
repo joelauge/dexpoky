@@ -23,7 +23,7 @@ function getAdminEmails(): string[] {
     .filter(Boolean);
 }
 
-async function isAdmin(clerkId: string): Promise<boolean> {
+export async function isAdmin(clerkId: string): Promise<boolean> {
   if (getAdminIds().includes(clerkId)) return true;
   const adminEmails = getAdminEmails();
   if (adminEmails.length === 0) return false;

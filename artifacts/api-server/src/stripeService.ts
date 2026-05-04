@@ -1,6 +1,7 @@
 import { stripeStorage } from "./stripeStorage.js";
 import { getUncachableStripeClient } from "./stripeClient.js";
 import { logger } from "./lib/logger.js";
+import { isAdmin } from "./routes/admin.js";
 
 export const FREE_TRIAL_SCAN_LIMIT = 10;
 export const COLLECTOR_SCAN_LIMIT = 250;
@@ -18,6 +19,7 @@ export interface BillingStatus {
   canScan: boolean;
   canCreateUnlimitedListings: boolean;
   canUseSellSheets: boolean;
+  isAdmin?: boolean;
 }
 
 function currentPeriod(): string {
@@ -145,7 +147,10 @@ export class StripeService {
 
     let canScan = false;
     let freeTrialActivated = user.freeTrialActivated;
-    if (planTier === "pro") {
+    const admin = await isAdmin(clerkId);
+    if (admin) {
+      canScan = true;
+    } else if (planTier === "pro") {
       canScan = true;
     } else if (planTier === "collector") {
       canScan = monthlyScansUsed < COLLECTOR_SCAN_LIMIT;
@@ -162,17 +167,21 @@ export class StripeService {
       planTier,
       subscriptionStatus,
       monthlyScansUsed,
-      monthlyScansLimit,
+      monthlyScansLimit: admin ? null : monthlyScansLimit,
       freeTrialActivated,
       freeTrialScansUsed: user.freeTrialScansUsed,
       freeTrialScansLimit: FREE_TRIAL_SCAN_LIMIT,
       canScan,
-      canCreateUnlimitedListings: planTier !== "free",
-      canUseSellSheets: planTier === "pro",
+      canCreateUnlimitedListings: admin || planTier !== "free",
+      canUseSellSheets: admin || planTier === "pro",
+      isAdmin: admin,
     };
   }
 
   async recordScan(clerkId: string): Promise<{ allowed: boolean; reason?: string }> {
+    if (await isAdmin(clerkId)) {
+      return { allowed: true };
+    }
     const status = await this.getBillingStatus(clerkId);
 
     if (status.planTier === "pro") {
