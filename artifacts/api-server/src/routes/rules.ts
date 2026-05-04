@@ -1,5 +1,9 @@
 import { Router } from "express";
 import rulebookData from "../data/rulebook.json" with { type: "json" };
+import {
+  GetRulebookResponse,
+  SearchRulebookResponse,
+} from "@workspace/api-zod";
 
 type RulebookSection = {
   id: string;
@@ -40,15 +44,20 @@ export function getDeckBuildingSectionText(): string {
 
 const router = Router();
 
+// Validate at module load so a malformed rulebook.json fails fast at boot
+// rather than on the first request. The validated payload is reused for every
+// /rules response — no per-request parsing cost on the hot path.
+const VALIDATED_RULEBOOK = GetRulebookResponse.parse({
+  title: rulebook.title,
+  source: rulebook.source,
+  version: rulebook.version,
+  sections: rulebook.sections,
+  glossary: rulebook.glossary,
+  searchIndex: rulebook.searchIndex,
+});
+
 router.get("/rules", (_req, res) => {
-  res.json({
-    title: rulebook.title,
-    source: rulebook.source,
-    version: rulebook.version,
-    sections: rulebook.sections,
-    glossary: rulebook.glossary,
-    searchIndex: rulebook.searchIndex,
-  });
+  res.json(VALIDATED_RULEBOOK);
 });
 
 function escapeRegex(s: string): string {
@@ -138,7 +147,19 @@ router.get("/rules/search", (req, res) => {
   }
 
   hits.sort((a, b) => b.score - a.score);
-  res.json(hits.slice(0, 30));
+
+  // Validate the outbound payload against the generated OpenAPI Zod schema so
+  // a contract drift here is loud (rather than silently corrupting the client).
+  const parsed = SearchRulebookResponse.safeParse(hits.slice(0, 30));
+  if (!parsed.success) {
+    req.log?.error(
+      { issues: parsed.error.issues },
+      "rulebook search response failed schema validation",
+    );
+    res.status(500).json({ error: "Internal rulebook response error" });
+    return;
+  }
+  res.json(parsed.data);
 });
 
 export default router;
