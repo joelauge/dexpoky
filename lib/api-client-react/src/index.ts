@@ -1,4 +1,5 @@
 export * from "./generated/api";
+export { useListMyWantedListings } from "./generated/api";
 export {
   setBaseUrl,
   setAuthTokenGetter,
