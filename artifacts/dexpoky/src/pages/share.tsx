@@ -780,6 +780,7 @@ export default function SharePage() {
 
                 <CatalogSearch
                   onSelect={(card) => setWantedCard(card)}
+                  selectedIds={wantedCard ? new Set([wantedCard.id]) : undefined}
                 />
 
                 {wantedCard && (
