@@ -12,3 +12,5 @@ export * from "./seller_payouts";
 export * from "./decks";
 export * from "./wishlist";
 export * from "./wanted_listings";
+export * from "./dm_threads";
+export * from "./dm_messages";

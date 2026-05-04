@@ -19,6 +19,7 @@ import rulesRouter from "./rules";
 import catalogRouter from "./catalog";
 import wishlistRouter from "./wishlist";
 import wantedRouter from "./wanted";
+import messagesRouter from "./messages";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(rulesRouter);
 router.use(catalogRouter);
 router.use(wishlistRouter);
 router.use(wantedRouter);
+router.use(messagesRouter);
 
 export default router;

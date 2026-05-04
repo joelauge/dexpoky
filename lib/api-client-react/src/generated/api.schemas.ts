@@ -668,6 +668,69 @@ export interface UpdateWishlistBody {
   categoryId?: number | null;
 }
 
+export interface StartThreadBody {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  initialMessage: string;
+}
+
+export interface SendMessageBody {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  content: string;
+}
+
+export interface DmThread {
+  id: number;
+  wantedListingId: number;
+  buyerClerkId: string;
+  sellerClerkId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DmMessage {
+  id: number;
+  threadId: number;
+  senderClerkId: string;
+  content: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface DmLastMessage {
+  content: string;
+  createdAt: string;
+  senderClerkId: string;
+}
+
+export type DmThreadSummaryRole =
+  (typeof DmThreadSummaryRole)[keyof typeof DmThreadSummaryRole];
+
+export const DmThreadSummaryRole = {
+  buyer: "buyer",
+  seller: "seller",
+} as const;
+
+export interface DmThreadSummary {
+  id: number;
+  wantedListingId: number;
+  wantedCardName?: string | null;
+  wantedCardImageUrl?: string | null;
+  role: DmThreadSummaryRole;
+  otherUserId: string;
+  otherUserDisplayName?: string | null;
+  otherUserImageUrl?: string | null;
+  lastMessage?: DmLastMessage | null;
+  unreadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type WantedListingStatus =
   (typeof WantedListingStatus)[keyof typeof WantedListingStatus];
 

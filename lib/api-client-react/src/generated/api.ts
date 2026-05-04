@@ -32,6 +32,9 @@ import type {
   Deck,
   DeckSummary,
   DeckWithCards,
+  DmMessage,
+  DmThread,
+  DmThreadSummary,
   ErrorEnvelope,
   GetRecentActivityParams,
   HealthStatus,
@@ -46,6 +49,8 @@ import type {
   SearchCatalogParams,
   SearchPokemonParams,
   SearchRulebookParams,
+  SendMessageBody,
+  StartThreadBody,
   SuggestDeckBody,
   SuggestDeckResponse,
   UpdateCardBody,
@@ -3557,6 +3562,428 @@ export const useDeleteWantedListing = <
   TContext
 > => {
   return useMutation(getDeleteWantedListingMutationOptions(options));
+};
+
+/**
+ * @summary Start or retrieve an existing DM thread for a wanted listing
+ */
+export const getStartThreadUrl = (id: number) => {
+  return `/api/wanted/${id}/thread`;
+};
+
+export const startThread = async (
+  id: number,
+  startThreadBody: StartThreadBody,
+  options?: RequestInit,
+): Promise<DmThread> => {
+  return customFetch<DmThread>(getStartThreadUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(startThreadBody),
+  });
+};
+
+export const getStartThreadMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startThread>>,
+    TError,
+    { id: number; data: BodyType<StartThreadBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startThread>>,
+  TError,
+  { id: number; data: BodyType<StartThreadBody> },
+  TContext
+> => {
+  const mutationKey = ["startThread"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startThread>>,
+    { id: number; data: BodyType<StartThreadBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return startThread(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartThreadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startThread>>
+>;
+export type StartThreadMutationBody = BodyType<StartThreadBody>;
+export type StartThreadMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Start or retrieve an existing DM thread for a wanted listing
+ */
+export const useStartThread = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startThread>>,
+    TError,
+    { id: number; data: BodyType<StartThreadBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof startThread>>,
+  TError,
+  { id: number; data: BodyType<StartThreadBody> },
+  TContext
+> => {
+  return useMutation(getStartThreadMutationOptions(options));
+};
+
+/**
+ * @summary List all DM threads for the current user
+ */
+export const getListThreadsUrl = () => {
+  return `/api/threads`;
+};
+
+export const listThreads = async (
+  options?: RequestInit,
+): Promise<DmThreadSummary[]> => {
+  return customFetch<DmThreadSummary[]>(getListThreadsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListThreadsQueryKey = () => {
+  return [`/api/threads`] as const;
+};
+
+export const getListThreadsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listThreads>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listThreads>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListThreadsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listThreads>>> = ({
+    signal,
+  }) => listThreads({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listThreads>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListThreadsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listThreads>>
+>;
+export type ListThreadsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all DM threads for the current user
+ */
+
+export function useListThreads<
+  TData = Awaited<ReturnType<typeof listThreads>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listThreads>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListThreadsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get all messages in a thread
+ */
+export const getListThreadMessagesUrl = (threadId: number) => {
+  return `/api/threads/${threadId}/messages`;
+};
+
+export const listThreadMessages = async (
+  threadId: number,
+  options?: RequestInit,
+): Promise<DmMessage[]> => {
+  return customFetch<DmMessage[]>(getListThreadMessagesUrl(threadId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListThreadMessagesQueryKey = (threadId: number) => {
+  return [`/api/threads/${threadId}/messages`] as const;
+};
+
+export const getListThreadMessagesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listThreadMessages>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  threadId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listThreadMessages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListThreadMessagesQueryKey(threadId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listThreadMessages>>
+  > = ({ signal }) =>
+    listThreadMessages(threadId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!threadId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listThreadMessages>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListThreadMessagesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listThreadMessages>>
+>;
+export type ListThreadMessagesQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Get all messages in a thread
+ */
+
+export function useListThreadMessages<
+  TData = Awaited<ReturnType<typeof listThreadMessages>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  threadId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listThreadMessages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListThreadMessagesQueryOptions(threadId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Send a message in a thread
+ */
+export const getSendMessageUrl = (threadId: number) => {
+  return `/api/threads/${threadId}/messages`;
+};
+
+export const sendMessage = async (
+  threadId: number,
+  sendMessageBody: SendMessageBody,
+  options?: RequestInit,
+): Promise<DmMessage> => {
+  return customFetch<DmMessage>(getSendMessageUrl(threadId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sendMessageBody),
+  });
+};
+
+export const getSendMessageMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendMessage>>,
+    TError,
+    { threadId: number; data: BodyType<SendMessageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendMessage>>,
+  TError,
+  { threadId: number; data: BodyType<SendMessageBody> },
+  TContext
+> => {
+  const mutationKey = ["sendMessage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendMessage>>,
+    { threadId: number; data: BodyType<SendMessageBody> }
+  > = (props) => {
+    const { threadId, data } = props ?? {};
+
+    return sendMessage(threadId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendMessageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendMessage>>
+>;
+export type SendMessageMutationBody = BodyType<SendMessageBody>;
+export type SendMessageMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Send a message in a thread
+ */
+export const useSendMessage = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendMessage>>,
+    TError,
+    { threadId: number; data: BodyType<SendMessageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendMessage>>,
+  TError,
+  { threadId: number; data: BodyType<SendMessageBody> },
+  TContext
+> => {
+  return useMutation(getSendMessageMutationOptions(options));
+};
+
+/**
+ * @summary Mark all messages in a thread as read for the current user
+ */
+export const getMarkThreadReadUrl = (threadId: number) => {
+  return `/api/threads/${threadId}/read`;
+};
+
+export const markThreadRead = async (
+  threadId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getMarkThreadReadUrl(threadId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getMarkThreadReadMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markThreadRead>>,
+    TError,
+    { threadId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markThreadRead>>,
+  TError,
+  { threadId: number },
+  TContext
+> => {
+  const mutationKey = ["markThreadRead"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markThreadRead>>,
+    { threadId: number }
+  > = (props) => {
+    const { threadId } = props ?? {};
+
+    return markThreadRead(threadId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkThreadReadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markThreadRead>>
+>;
+
+export type MarkThreadReadMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Mark all messages in a thread as read for the current user
+ */
+export const useMarkThreadRead = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markThreadRead>>,
+    TError,
+    { threadId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof markThreadRead>>,
+  TError,
+  { threadId: number },
+  TContext
+> => {
+  return useMutation(getMarkThreadReadMutationOptions(options));
 };
 
 /**

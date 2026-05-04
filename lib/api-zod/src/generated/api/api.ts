@@ -1147,6 +1147,92 @@ export const DeleteWantedListingParams = zod.object({
 });
 
 /**
+ * @summary Start or retrieve an existing DM thread for a wanted listing
+ */
+export const StartThreadParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const startThreadBodyInitialMessageMax = 2000;
+
+export const StartThreadBody = zod.object({
+  initialMessage: zod.string().min(1).max(startThreadBodyInitialMessageMax),
+});
+
+export const StartThreadResponse = zod.object({
+  id: zod.number(),
+  wantedListingId: zod.number(),
+  buyerClerkId: zod.string(),
+  sellerClerkId: zod.string(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List all DM threads for the current user
+ */
+export const ListThreadsResponseItem = zod.object({
+  id: zod.number(),
+  wantedListingId: zod.number(),
+  wantedCardName: zod.string().nullish(),
+  wantedCardImageUrl: zod.string().nullish(),
+  role: zod.enum(["buyer", "seller"]),
+  otherUserId: zod.string(),
+  otherUserDisplayName: zod.string().nullish(),
+  otherUserImageUrl: zod.string().nullish(),
+  lastMessage: zod
+    .object({
+      content: zod.string(),
+      createdAt: zod.coerce.date(),
+      senderClerkId: zod.string(),
+    })
+    .nullish(),
+  unreadCount: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListThreadsResponse = zod.array(ListThreadsResponseItem);
+
+/**
+ * @summary Get all messages in a thread
+ */
+export const ListThreadMessagesParams = zod.object({
+  threadId: zod.coerce.number(),
+});
+
+export const ListThreadMessagesResponseItem = zod.object({
+  id: zod.number(),
+  threadId: zod.number(),
+  senderClerkId: zod.string(),
+  content: zod.string(),
+  isRead: zod.boolean(),
+  createdAt: zod.coerce.date(),
+});
+export const ListThreadMessagesResponse = zod.array(
+  ListThreadMessagesResponseItem,
+);
+
+/**
+ * @summary Send a message in a thread
+ */
+export const SendMessageParams = zod.object({
+  threadId: zod.coerce.number(),
+});
+
+export const sendMessageBodyContentMax = 2000;
+
+export const SendMessageBody = zod.object({
+  content: zod.string().min(1).max(sendMessageBodyContentMax),
+});
+
+/**
+ * @summary Mark all messages in a thread as read for the current user
+ */
+export const MarkThreadReadParams = zod.object({
+  threadId: zod.coerce.number(),
+});
+
+/**
  * @summary Get the full Pokémon TCG rulebook (sections + glossary)
  */
 export const GetRulebookResponse = zod.object({

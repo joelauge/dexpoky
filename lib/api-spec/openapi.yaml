@@ -30,6 +30,8 @@ tags:
     description: PokeWallet card catalog search and lookup
   - name: wishlist
     description: Wishlist of catalog cards the user is looking for
+  - name: messages
+    description: In-app direct messaging between buyers and sellers
 
 paths:
   /storage/uploads/request-url:
@@ -845,6 +847,159 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /wanted/{id}/thread:
+    post:
+      operationId: startThread
+      tags: [messages]
+      summary: Start or retrieve an existing DM thread for a wanted listing
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartThreadBody'
+      responses:
+        "200":
+          description: Existing or newly created thread
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmThread'
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "403":
+          description: Forbidden (owner cannot message themselves)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "404":
+          description: Wanted listing not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /threads:
+    get:
+      operationId: listThreads
+      tags: [messages]
+      summary: List all DM threads for the current user
+      responses:
+        "200":
+          description: List of threads with metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DmThreadSummary'
+
+  /threads/{threadId}/messages:
+    get:
+      operationId: listThreadMessages
+      tags: [messages]
+      summary: Get all messages in a thread
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DmMessage'
+        "403":
+          description: Not a participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "404":
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message in a thread
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageBody'
+      responses:
+        "201":
+          description: Sent message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DmMessage'
+        "403":
+          description: Not a participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "404":
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /threads/{threadId}/read:
+    post:
+      operationId: markThreadRead
+      tags: [messages]
+      summary: Mark all messages in a thread as read for the current user
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Marked as read
+        "403":
+          description: Not a participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        "404":
+          description: Thread not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
 
   /rules:
     get:
@@ -1884,6 +2039,111 @@ components:
         categoryId:
           type: integer
           nullable: true
+
+    StartThreadBody:
+      type: object
+      required: [initialMessage]
+      properties:
+        initialMessage:
+          type: string
+          minLength: 1
+          maxLength: 2000
+
+    SendMessageBody:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+
+    DmThread:
+      type: object
+      required: [id, wantedListingId, buyerClerkId, sellerClerkId, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        wantedListingId:
+          type: integer
+        buyerClerkId:
+          type: string
+        sellerClerkId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DmMessage:
+      type: object
+      required: [id, threadId, senderClerkId, content, isRead, createdAt]
+      properties:
+        id:
+          type: integer
+        threadId:
+          type: integer
+        senderClerkId:
+          type: string
+        content:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    DmLastMessage:
+      type: object
+      required: [content, createdAt, senderClerkId]
+      properties:
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        senderClerkId:
+          type: string
+
+    DmThreadSummary:
+      type: object
+      required: [id, wantedListingId, role, otherUserId, unreadCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        wantedListingId:
+          type: integer
+        wantedCardName:
+          type: string
+          nullable: true
+        wantedCardImageUrl:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [buyer, seller]
+        otherUserId:
+          type: string
+        otherUserDisplayName:
+          type: string
+          nullable: true
+        otherUserImageUrl:
+          type: string
+          nullable: true
+        lastMessage:
+          oneOf:
+            - $ref: '#/components/schemas/DmLastMessage'
+          nullable: true
+        unreadCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
     WantedListing:
       type: object

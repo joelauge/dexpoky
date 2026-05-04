@@ -1,0 +1,293 @@
+import { Router } from "express";
+import { db, dmThreadsTable, dmMessagesTable, wantedListingsTable } from "@workspace/db";
+import { eq, and, or, desc, ne } from "drizzle-orm";
+import { clerkClient } from "@clerk/express";
+import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
+import { logger } from "../lib/logger.js";
+import { z } from "zod/v4";
+
+const router = Router();
+
+const StartThreadBody = z.object({
+  initialMessage: z.string().trim().min(1).max(2000),
+});
+
+const SendMessageBody = z.object({
+  content: z.string().trim().min(1).max(2000),
+});
+
+async function getDisplayInfo(clerkId: string): Promise<{ displayName: string | null; imageUrl: string | null }> {
+  try {
+    const user = await clerkClient.users.getUser(clerkId);
+    const displayName =
+      [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+      user.username ||
+      null;
+    return { displayName, imageUrl: user.imageUrl ?? null };
+  } catch (err) {
+    logger.warn({ err, clerkId }, "Failed to fetch Clerk user for messaging");
+    return { displayName: null, imageUrl: null };
+  }
+}
+
+router.post("/wanted/:id/thread", requireAuth, async (req, res) => {
+  const wantedId = parseInt(String(req.params.id), 10);
+  if (isNaN(wantedId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const sellerClerkId = (req as AuthRequest).userId;
+
+  const parsed = StartThreadBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+
+  const [wanted] = await db
+    .select()
+    .from(wantedListingsTable)
+    .where(eq(wantedListingsTable.id, wantedId));
+
+  if (!wanted) {
+    res.status(404).json({ error: "Wanted listing not found" });
+    return;
+  }
+
+  if (wanted.ownerClerkId === sellerClerkId) {
+    res.status(403).json({ error: "You cannot message yourself" });
+    return;
+  }
+
+  const buyerClerkId = wanted.ownerClerkId;
+
+  const existing = await db
+    .select()
+    .from(dmThreadsTable)
+    .where(
+      and(
+        eq(dmThreadsTable.wantedListingId, wantedId),
+        eq(dmThreadsTable.sellerClerkId, sellerClerkId),
+      ),
+    );
+
+  let thread = existing[0];
+
+  if (!thread) {
+    const [created] = await db
+      .insert(dmThreadsTable)
+      .values({
+        wantedListingId: wantedId,
+        buyerClerkId,
+        sellerClerkId,
+      })
+      .returning();
+    thread = created;
+  }
+
+  await db.insert(dmMessagesTable).values({
+    threadId: thread.id,
+    senderClerkId: sellerClerkId,
+    content: parsed.data.initialMessage,
+  });
+
+  await db
+    .update(dmThreadsTable)
+    .set({ updatedAt: new Date() })
+    .where(eq(dmThreadsTable.id, thread.id));
+
+  res.json(thread);
+});
+
+router.get("/threads", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
+
+  const threads = await db
+    .select()
+    .from(dmThreadsTable)
+    .where(
+      or(
+        eq(dmThreadsTable.buyerClerkId, userId),
+        eq(dmThreadsTable.sellerClerkId, userId),
+      ),
+    )
+    .orderBy(desc(dmThreadsTable.updatedAt));
+
+  const results = await Promise.all(
+    threads.map(async (thread) => {
+      const otherClerkId =
+        thread.buyerClerkId === userId ? thread.sellerClerkId : thread.buyerClerkId;
+      const role = thread.buyerClerkId === userId ? "buyer" : "seller";
+
+      const messages = await db
+        .select()
+        .from(dmMessagesTable)
+        .where(eq(dmMessagesTable.threadId, thread.id))
+        .orderBy(desc(dmMessagesTable.createdAt))
+        .limit(1);
+
+      const lastMessage = messages[0] ?? null;
+
+      const unreadCount = await db.$count(
+        dmMessagesTable,
+        and(
+          eq(dmMessagesTable.threadId, thread.id),
+          eq(dmMessagesTable.isRead, false),
+          ne(dmMessagesTable.senderClerkId, userId),
+        ),
+      );
+
+      const [wanted] = await db
+        .select({
+          id: wantedListingsTable.id,
+          name: wantedListingsTable.name,
+          imageUrl: wantedListingsTable.imageUrl,
+          ownerClerkId: wantedListingsTable.ownerClerkId,
+        })
+        .from(wantedListingsTable)
+        .where(eq(wantedListingsTable.id, thread.wantedListingId));
+
+      const otherUserInfo = await getDisplayInfo(otherClerkId);
+
+      return {
+        id: thread.id,
+        wantedListingId: thread.wantedListingId,
+        wantedCardName: wanted?.name ?? null,
+        wantedCardImageUrl: wanted?.imageUrl ?? null,
+        role,
+        otherUserId: otherClerkId,
+        otherUserDisplayName: otherUserInfo.displayName,
+        otherUserImageUrl: otherUserInfo.imageUrl,
+        lastMessage: lastMessage
+          ? { content: lastMessage.content, createdAt: lastMessage.createdAt, senderClerkId: lastMessage.senderClerkId }
+          : null,
+        unreadCount,
+        createdAt: thread.createdAt,
+        updatedAt: thread.updatedAt,
+      };
+    }),
+  );
+
+  res.json(results);
+});
+
+router.get("/threads/:threadId/messages", requireAuth, async (req, res) => {
+  const threadId = parseInt(String(req.params.threadId), 10);
+  if (isNaN(threadId)) {
+    res.status(400).json({ error: "Invalid threadId" });
+    return;
+  }
+
+  const userId = (req as AuthRequest).userId;
+
+  const [thread] = await db
+    .select()
+    .from(dmThreadsTable)
+    .where(eq(dmThreadsTable.id, threadId));
+
+  if (!thread) {
+    res.status(404).json({ error: "Thread not found" });
+    return;
+  }
+
+  if (thread.buyerClerkId !== userId && thread.sellerClerkId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const msgs = await db
+    .select()
+    .from(dmMessagesTable)
+    .where(eq(dmMessagesTable.threadId, threadId))
+    .orderBy(dmMessagesTable.createdAt);
+
+  res.json(msgs);
+});
+
+router.post("/threads/:threadId/messages", requireAuth, async (req, res) => {
+  const threadId = parseInt(String(req.params.threadId), 10);
+  if (isNaN(threadId)) {
+    res.status(400).json({ error: "Invalid threadId" });
+    return;
+  }
+
+  const userId = (req as AuthRequest).userId;
+
+  const parsed = SendMessageBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+
+  const [thread] = await db
+    .select()
+    .from(dmThreadsTable)
+    .where(eq(dmThreadsTable.id, threadId));
+
+  if (!thread) {
+    res.status(404).json({ error: "Thread not found" });
+    return;
+  }
+
+  if (thread.buyerClerkId !== userId && thread.sellerClerkId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const [msg] = await db
+    .insert(dmMessagesTable)
+    .values({
+      threadId,
+      senderClerkId: userId,
+      content: parsed.data.content,
+    })
+    .returning();
+
+  await db
+    .update(dmThreadsTable)
+    .set({ updatedAt: new Date() })
+    .where(eq(dmThreadsTable.id, threadId));
+
+  res.status(201).json(msg);
+});
+
+router.post("/threads/:threadId/read", requireAuth, async (req, res) => {
+  const threadId = parseInt(String(req.params.threadId), 10);
+  if (isNaN(threadId)) {
+    res.status(400).json({ error: "Invalid threadId" });
+    return;
+  }
+
+  const userId = (req as AuthRequest).userId;
+
+  const [thread] = await db
+    .select()
+    .from(dmThreadsTable)
+    .where(eq(dmThreadsTable.id, threadId));
+
+  if (!thread) {
+    res.status(404).json({ error: "Thread not found" });
+    return;
+  }
+
+  if (thread.buyerClerkId !== userId && thread.sellerClerkId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  await db
+    .update(dmMessagesTable)
+    .set({ isRead: true })
+    .where(
+      and(
+        eq(dmMessagesTable.threadId, threadId),
+        eq(dmMessagesTable.isRead, false),
+        ne(dmMessagesTable.senderClerkId, userId),
+      ),
+    );
+
+  res.status(204).send();
+});
+
+export default router;

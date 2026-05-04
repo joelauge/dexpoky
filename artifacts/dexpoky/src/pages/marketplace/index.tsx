@@ -8,7 +8,7 @@ import {
 import type { WantedListing } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Store, ArrowRight, Gavel, Heart, X, Mail } from "lucide-react";
+import { Search, Store, ArrowRight, Gavel, Heart, X, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Show, useUser } from "@clerk/react";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ContactSellerDialog } from "@/components/contact-seller-dialog";
 
 type AuctionListing = {
   listingType?: string;
@@ -33,6 +34,7 @@ type AuctionListing = {
 
 function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserId?: string }) {
   const [open, setOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const qc = useQueryClient();
   const deleteWanted = useDeleteWantedListing({
     mutation: {
@@ -118,6 +120,14 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
         </div>
       </div>
 
+      {currentUserId && (
+        <ContactSellerDialog
+          open={contactOpen}
+          onOpenChange={setContactOpen}
+          item={item}
+        />
+      )}
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -180,20 +190,27 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
             </div>
           )}
 
-          {!isOwner && (
+          {!isOwner && currentUserId && (
             <Button
               className="w-full bg-rose-500 hover:bg-rose-600 text-white"
-              onClick={() => {
-                const subject = encodeURIComponent(`I have the ${item.name} you're looking for!`);
-                const body = encodeURIComponent(
-                  `Hi ${item.ownerDisplayName ?? "there"},\n\nI saw your "Looking For" post on DexPoky for ${item.name}${item.setName ? ` (${item.setName})` : ""}. I might have one available!\n\nLet me know if you're still interested.`
-                );
-                window.open(`mailto:?subject=${subject}&body=${body}`);
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+                setContactOpen(true);
               }}
             >
-              <Mail className="h-4 w-4 mr-2" />
-              Contact via Email
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Message Buyer
             </Button>
+          )}
+
+          {!isOwner && !currentUserId && (
+            <Link href="/sign-in">
+              <Button className="w-full bg-rose-500 hover:bg-rose-600 text-white" onClick={() => setOpen(false)}>
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Sign in to Message Buyer
+              </Button>
+            </Link>
           )}
 
           {isOwner && (

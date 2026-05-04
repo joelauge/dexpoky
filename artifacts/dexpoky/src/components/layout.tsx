@@ -18,6 +18,7 @@ import {
   Sparkles,
   BookOpen,
   Heart,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -154,6 +155,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/collection", label: "Collection", icon: Layers },
     { href: "/wishlist", label: "Wishlist", icon: Heart },
+    { href: "/inbox", label: "Inbox", icon: MessageSquare },
     { href: "/decks", label: "Decks", icon: Library },
     { href: "/categories", label: "Categories", icon: FolderTree },
     { href: "/share", label: "Share", icon: Share2 },
