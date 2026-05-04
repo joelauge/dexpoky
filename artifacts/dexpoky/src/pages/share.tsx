@@ -19,6 +19,7 @@ import {
   Search, Heart, Globe, Lock, Clock, Calendar, Trash2,
 } from "lucide-react";
 import { CatalogSearch } from "@/components/catalog-search";
+import { HoloCard } from "@/components/holo-card";
 import type { CatalogCard } from "@workspace/api-client-react";
 
 type ExpiryOption = "never" | "7d" | "30d" | "3m" | "custom";
@@ -1128,36 +1129,25 @@ export default function SharePage() {
                 </div>
 
                 {/* Preview card — mirrors /w/[code] page look */}
-                <div className="rounded-2xl border overflow-hidden shadow-sm bg-card">
-                  {wantedCard.imageUrl ? (
-                    <div className="aspect-[4/3] bg-rose-50 flex items-center justify-center relative">
-                      <img
-                        src={wantedCard.imageUrl}
-                        alt={wantedCard.name}
-                        className="max-h-full object-contain py-4 px-8"
-                      />
-                      {wantedCard.rarity && (
-                        <div className="absolute bottom-3 left-3">
-                          <Badge className="text-[10px] uppercase font-bold tracking-wider border-0 bg-muted text-muted-foreground">
-                            {wantedCard.rarity}
-                          </Badge>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="aspect-[4/3] bg-rose-50 flex items-center justify-center">
-                      <Heart className="h-16 w-16 text-rose-200" />
-                    </div>
-                  )}
-                  <div className="p-5 space-y-1">
-                    <h2 className="text-xl font-black">{wantedCard.name}</h2>
-                    <p className="text-sm text-muted-foreground">{wantedCard.pokemonName}</p>
-                    {wantedCard.setName && (
-                      <p className="text-xs text-muted-foreground">
-                        {wantedCard.setName}{wantedCard.cardNumber ? ` · #${wantedCard.cardNumber}` : ""}
-                      </p>
+                <div className="mx-auto w-64 sm:w-72">
+                  <HoloCard imageUrl={wantedCard.imageUrl} name={wantedCard.name}>
+                    {wantedCard.rarity && (
+                      <div className="absolute bottom-3 left-3">
+                        <Badge className="text-[10px] uppercase font-bold tracking-wider border-0 bg-black/40 text-white backdrop-blur-sm">
+                          {wantedCard.rarity}
+                        </Badge>
+                      </div>
                     )}
-                  </div>
+                  </HoloCard>
+                </div>
+                <div className="rounded-2xl border bg-card px-5 py-4 space-y-1">
+                  <h2 className="text-xl font-black">{wantedCard.name}</h2>
+                  <p className="text-sm text-muted-foreground">{wantedCard.pokemonName}</p>
+                  {wantedCard.setName && (
+                    <p className="text-xs text-muted-foreground">
+                      {wantedCard.setName}{wantedCard.cardNumber ? ` · #${wantedCard.cardNumber}` : ""}
+                    </p>
+                  )}
                 </div>
 
                 {wantedMaxPrice && (
