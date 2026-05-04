@@ -13,6 +13,9 @@ import NewCard from "@/pages/collection/new";
 import EditCard from "@/pages/collection/edit";
 import CardDetail from "@/pages/collection/[id]";
 import Categories from "@/pages/categories/index";
+import Decks from "@/pages/decks/index";
+import NewDeck from "@/pages/decks/new";
+import DeckDetail from "@/pages/decks/[id]";
 import Marketplace from "@/pages/marketplace/index";
 import ListingDetail from "@/pages/marketplace/[id]";
 import Sell from "@/pages/sell";
@@ -200,6 +203,9 @@ function ClerkProviderWithRoutes() {
             <Route path="/collection/:id/edit" component={() => <ProtectedRoute component={EditCard} />} />
             <Route path="/collection/:id" component={() => <ProtectedRoute component={CardDetail} />} />
             <Route path="/categories" component={() => <ProtectedRoute component={Categories} />} />
+            <Route path="/decks" component={() => <ProtectedRoute component={Decks} />} />
+            <Route path="/decks/new" component={() => <ProtectedRoute component={NewDeck} />} />
+            <Route path="/decks/:id" component={() => <ProtectedRoute component={DeckDetail} />} />
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/marketplace/:id" component={ListingDetail} />
             <Route path="/sell" component={() => <ProtectedRoute component={Sell} />} />

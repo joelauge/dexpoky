@@ -251,6 +251,175 @@ export interface ErrorEnvelope {
   error: string;
 }
 
+export type DeckGameStyle = (typeof DeckGameStyle)[keyof typeof DeckGameStyle];
+
+export const DeckGameStyle = {
+  aggro: "aggro",
+  control: "control",
+  midrange: "midrange",
+  combo: "combo",
+  mill: "mill",
+  tank: "tank",
+} as const;
+
+export interface Deck {
+  id: number;
+  name: string;
+  description?: string | null;
+  gameStyle: DeckGameStyle;
+  strategy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DeckSummaryGameStyle =
+  (typeof DeckSummaryGameStyle)[keyof typeof DeckSummaryGameStyle];
+
+export const DeckSummaryGameStyle = {
+  aggro: "aggro",
+  control: "control",
+  midrange: "midrange",
+  combo: "combo",
+  mill: "mill",
+  tank: "tank",
+} as const;
+
+export interface DeckSummary {
+  id: number;
+  name: string;
+  description?: string | null;
+  gameStyle: DeckSummaryGameStyle;
+  strategy?: string | null;
+  cardCount: number;
+  totalCount: number;
+  coverImageUrl?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeckCardEntry {
+  cardId: number;
+  count: number;
+  role?: string | null;
+  notes?: string | null;
+  card: Card;
+}
+
+export type DeckWithCardsGameStyle =
+  (typeof DeckWithCardsGameStyle)[keyof typeof DeckWithCardsGameStyle];
+
+export const DeckWithCardsGameStyle = {
+  aggro: "aggro",
+  control: "control",
+  midrange: "midrange",
+  combo: "combo",
+  mill: "mill",
+  tank: "tank",
+} as const;
+
+export interface DeckWithCards {
+  id: number;
+  name: string;
+  description?: string | null;
+  gameStyle: DeckWithCardsGameStyle;
+  strategy?: string | null;
+  cards: DeckCardEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateDeckBodyGameStyle =
+  (typeof CreateDeckBodyGameStyle)[keyof typeof CreateDeckBodyGameStyle];
+
+export const CreateDeckBodyGameStyle = {
+  aggro: "aggro",
+  control: "control",
+  midrange: "midrange",
+  combo: "combo",
+  mill: "mill",
+  tank: "tank",
+} as const;
+
+export interface CreateDeckBody {
+  /** @minLength 1 */
+  name: string;
+  description?: string | null;
+  gameStyle: CreateDeckBodyGameStyle;
+  strategy?: string | null;
+  cardIds?: number[];
+}
+
+export type UpdateDeckBodyGameStyle =
+  (typeof UpdateDeckBodyGameStyle)[keyof typeof UpdateDeckBodyGameStyle];
+
+export const UpdateDeckBodyGameStyle = {
+  aggro: "aggro",
+  control: "control",
+  midrange: "midrange",
+  combo: "combo",
+  mill: "mill",
+  tank: "tank",
+} as const;
+
+export interface UpdateDeckBody {
+  /** @minLength 1 */
+  name?: string;
+  description?: string | null;
+  gameStyle?: UpdateDeckBodyGameStyle;
+  strategy?: string | null;
+}
+
+export interface AddDeckCardBody {
+  cardId: number;
+  /** @minimum 1 */
+  count?: number;
+  role?: string | null;
+  notes?: string | null;
+}
+
+export type SuggestDeckBodyGameStyle =
+  (typeof SuggestDeckBodyGameStyle)[keyof typeof SuggestDeckBodyGameStyle];
+
+export const SuggestDeckBodyGameStyle = {
+  aggro: "aggro",
+  control: "control",
+  midrange: "midrange",
+  combo: "combo",
+  mill: "mill",
+  tank: "tank",
+} as const;
+
+export interface SuggestDeckBody {
+  gameStyle: SuggestDeckBodyGameStyle;
+  notes?: string | null;
+}
+
+export interface SuggestedDeckCard {
+  cardId: number;
+  count: number;
+  role?: string | null;
+  reason: string;
+}
+
+export type SuggestDeckResponseGameStyle =
+  (typeof SuggestDeckResponseGameStyle)[keyof typeof SuggestDeckResponseGameStyle];
+
+export const SuggestDeckResponseGameStyle = {
+  aggro: "aggro",
+  control: "control",
+  midrange: "midrange",
+  combo: "combo",
+  mill: "mill",
+  tank: "tank",
+} as const;
+
+export interface SuggestDeckResponse {
+  name: string;
+  gameStyle: SuggestDeckResponseGameStyle;
+  strategy: string;
+  cards: SuggestedDeckCard[];
+}
+
 export type ListCardsParams = {
   categoryId?: number;
   forSale?: boolean;

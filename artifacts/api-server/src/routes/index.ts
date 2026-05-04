@@ -14,6 +14,7 @@ import storageRouter from "./storage";
 import shortenRouter from "./shorten";
 import billingRouter from "./billing";
 import adminRouter from "./admin";
+import decksRouter from "./decks";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(storageRouter);
 router.use(shortenRouter);
 router.use(billingRouter);
 router.use(adminRouter);
+router.use(decksRouter);
 
 export default router;

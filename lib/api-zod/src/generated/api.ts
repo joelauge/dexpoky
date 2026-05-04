@@ -601,3 +601,211 @@ export const SearchPokemonResponseItem = zod.object({
   rarity: zod.string().nullish(),
 });
 export const SearchPokemonResponse = zod.array(SearchPokemonResponseItem);
+
+/**
+ * @summary List the signed-in user's decks
+ */
+export const ListDecksResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  gameStyle: zod.enum([
+    "aggro",
+    "control",
+    "midrange",
+    "combo",
+    "mill",
+    "tank",
+  ]),
+  strategy: zod.string().nullish(),
+  cardCount: zod.number(),
+  totalCount: zod.number(),
+  coverImageUrl: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListDecksResponse = zod.array(ListDecksResponseItem);
+
+/**
+ * @summary Create a new deck
+ */
+
+export const CreateDeckBody = zod.object({
+  name: zod.string().min(1),
+  description: zod.string().nullish(),
+  gameStyle: zod.enum([
+    "aggro",
+    "control",
+    "midrange",
+    "combo",
+    "mill",
+    "tank",
+  ]),
+  strategy: zod.string().nullish(),
+  cardIds: zod.array(zod.number()).optional(),
+});
+
+/**
+ * @summary Get a deck with its cards
+ */
+export const GetDeckParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetDeckResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  gameStyle: zod.enum([
+    "aggro",
+    "control",
+    "midrange",
+    "combo",
+    "mill",
+    "tank",
+  ]),
+  strategy: zod.string().nullish(),
+  cards: zod.array(
+    zod.object({
+      cardId: zod.number(),
+      count: zod.number(),
+      role: zod.string().nullish(),
+      notes: zod.string().nullish(),
+      card: zod.object({
+        id: zod.number(),
+        name: zod.string(),
+        pokemonName: zod.string(),
+        setName: zod.string().optional(),
+        cardNumber: zod.string().optional(),
+        rarity: zod.enum([
+          "common",
+          "uncommon",
+          "rare",
+          "holo_rare",
+          "ultra_rare",
+          "secret_rare",
+          "promo",
+        ]),
+        condition: zod.enum([
+          "mint",
+          "near_mint",
+          "excellent",
+          "good",
+          "light_played",
+          "played",
+          "poor",
+        ]),
+        imageUrl: zod.string().nullish(),
+        estimatedValue: zod.number().nullish(),
+        acquiredDate: zod.coerce.date().nullish(),
+        categoryId: zod.number().nullish(),
+        categoryName: zod.string().nullish(),
+        forSale: zod.boolean(),
+        listingPrice: zod.number().nullish(),
+        notes: zod.string().nullish(),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      }),
+    }),
+  ),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Update a deck's metadata
+ */
+export const UpdateDeckParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateDeckBody = zod.object({
+  name: zod.string().min(1).optional(),
+  description: zod.string().nullish(),
+  gameStyle: zod
+    .enum(["aggro", "control", "midrange", "combo", "mill", "tank"])
+    .optional(),
+  strategy: zod.string().nullish(),
+});
+
+export const UpdateDeckResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  gameStyle: zod.enum([
+    "aggro",
+    "control",
+    "midrange",
+    "combo",
+    "mill",
+    "tank",
+  ]),
+  strategy: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a deck
+ */
+export const DeleteDeckParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Add a card to a deck (or increment count)
+ */
+export const AddDeckCardParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AddDeckCardBody = zod.object({
+  cardId: zod.number(),
+  count: zod.number().min(1).optional(),
+  role: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Remove a card from a deck
+ */
+export const RemoveDeckCardParams = zod.object({
+  id: zod.coerce.number(),
+  cardId: zod.coerce.number(),
+});
+
+/**
+ * @summary AI-suggest a deck composition from the user's collection
+ */
+export const SuggestDeckBody = zod.object({
+  gameStyle: zod.enum([
+    "aggro",
+    "control",
+    "midrange",
+    "combo",
+    "mill",
+    "tank",
+  ]),
+  notes: zod.string().nullish(),
+});
+
+export const SuggestDeckResponse = zod.object({
+  name: zod.string(),
+  gameStyle: zod.enum([
+    "aggro",
+    "control",
+    "midrange",
+    "combo",
+    "mill",
+    "tank",
+  ]),
+  strategy: zod.string(),
+  cards: zod.array(
+    zod.object({
+      cardId: zod.number(),
+      count: zod.number(),
+      role: zod.string().nullish(),
+      reason: zod.string(),
+    }),
+  ),
+});

@@ -57,6 +57,7 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - **Ratings**: buyer-to-seller and seller-to-buyer ratings, only after completed transactions (status=sold)
 - Dashboard with portfolio stats and Recharts bar chart
 - **Image upload**: `CardImageUpload` component on edit and new card forms; presigned-URL upload to GCS via Replit Object Storage; served at `/api/storage/objects/*`
+- **Decks (AI deck builder)**: build decks from owned cards. Pages at `/decks`, `/decks/new`, `/decks/:id`. Server route `artifacts/api-server/src/routes/decks.ts` with full CRUD plus `POST /api/decks/suggest` that calls OpenAI (`gpt-5.4`, `response_format: json_object`) and post-filters AI-suggested `cardId`s to ones the user actually owns. `POST /api/decks` accepts either legacy `cardIds: number[]` or rich `cards: [{cardId, count, role, notes}]` (preferred — preserves AI counts/roles, count clamped 1–4). Tables: `decksTable` + `deckCardsTable` with unique `(deck_id, card_id)` index and cascade delete. Deck detail page must use the same query key for fetch + invalidations: `[\`/api/decks/${id}\`]`.
 
 ### Database Tables
 - `categories` — Card categories with name, description, color

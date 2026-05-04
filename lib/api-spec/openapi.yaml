@@ -22,6 +22,8 @@ tags:
     description: Pokemon reference data lookup
   - name: storage
     description: Object storage operations
+  - name: decks
+    description: Deck builder operations
 
 paths:
   /storage/uploads/request-url:
@@ -471,6 +473,159 @@ paths:
                 items:
                   $ref: "#/components/schemas/PokemonResult"
 
+  /decks:
+    get:
+      operationId: listDecks
+      tags: [decks]
+      summary: List the signed-in user's decks
+      responses:
+        "200":
+          description: List of decks (with card counts)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeckSummary"
+    post:
+      operationId: createDeck
+      tags: [decks]
+      summary: Create a new deck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeckBody"
+      responses:
+        "201":
+          description: Created deck
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+
+  /decks/{id}:
+    get:
+      operationId: getDeck
+      tags: [decks]
+      summary: Get a deck with its cards
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deck with cards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeckWithCards"
+        "404":
+          description: Not found
+    put:
+      operationId: updateDeck
+      tags: [decks]
+      summary: Update a deck's metadata
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeckBody"
+      responses:
+        "200":
+          description: Updated deck
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+    delete:
+      operationId: deleteDeck
+      tags: [decks]
+      summary: Delete a deck
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /decks/{id}/cards:
+    post:
+      operationId: addDeckCard
+      tags: [decks]
+      summary: Add a card to a deck (or increment count)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddDeckCardBody"
+      responses:
+        "201":
+          description: Card added or count incremented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeckWithCards"
+
+  /decks/{id}/cards/{cardId}:
+    delete:
+      operationId: removeDeckCard
+      tags: [decks]
+      summary: Remove a card from a deck
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: cardId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /decks/suggest:
+    post:
+      operationId: suggestDeck
+      tags: [decks]
+      summary: AI-suggest a deck composition from the user's collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestDeckBody"
+      responses:
+        "200":
+          description: AI deck suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuggestDeckResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -846,3 +1001,229 @@ components:
       properties:
         error:
           type: string
+
+    Deck:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        gameStyle:
+          type: string
+          enum: [aggro, control, midrange, combo, mill, tank]
+        strategy:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - gameStyle
+        - createdAt
+        - updatedAt
+
+    DeckSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        gameStyle:
+          type: string
+          enum: [aggro, control, midrange, combo, mill, tank]
+        strategy:
+          type: string
+          nullable: true
+        cardCount:
+          type: integer
+        totalCount:
+          type: integer
+        coverImageUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - gameStyle
+        - cardCount
+        - totalCount
+        - createdAt
+        - updatedAt
+
+    DeckCardEntry:
+      type: object
+      properties:
+        cardId:
+          type: integer
+        count:
+          type: integer
+        role:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        card:
+          $ref: "#/components/schemas/Card"
+      required:
+        - cardId
+        - count
+        - card
+
+    DeckWithCards:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        gameStyle:
+          type: string
+          enum: [aggro, control, midrange, combo, mill, tank]
+        strategy:
+          type: string
+          nullable: true
+        cards:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckCardEntry"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - gameStyle
+        - cards
+        - createdAt
+        - updatedAt
+
+    CreateDeckBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        gameStyle:
+          type: string
+          enum: [aggro, control, midrange, combo, mill, tank]
+        strategy:
+          type: string
+          nullable: true
+        cardIds:
+          type: array
+          items:
+            type: integer
+      required:
+        - name
+        - gameStyle
+
+    UpdateDeckBody:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        gameStyle:
+          type: string
+          enum: [aggro, control, midrange, combo, mill, tank]
+        strategy:
+          type: string
+          nullable: true
+
+    AddDeckCardBody:
+      type: object
+      properties:
+        cardId:
+          type: integer
+        count:
+          type: integer
+          minimum: 1
+        role:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - cardId
+
+    SuggestDeckBody:
+      type: object
+      properties:
+        gameStyle:
+          type: string
+          enum: [aggro, control, midrange, combo, mill, tank]
+        notes:
+          type: string
+          nullable: true
+      required:
+        - gameStyle
+
+    SuggestedDeckCard:
+      type: object
+      properties:
+        cardId:
+          type: integer
+        count:
+          type: integer
+        role:
+          type: string
+          nullable: true
+        reason:
+          type: string
+      required:
+        - cardId
+        - count
+        - reason
+
+    SuggestDeckResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        gameStyle:
+          type: string
+          enum: [aggro, control, midrange, combo, mill, tank]
+        strategy:
+          type: string
+        cards:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuggestedDeckCard"
+      required:
+        - name
+        - gameStyle
+        - strategy
+        - cards

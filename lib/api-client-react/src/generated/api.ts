@@ -17,12 +17,17 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AddDeckCardBody,
   Card,
   Category,
   CategoryValue,
   CreateCardBody,
   CreateCategoryBody,
+  CreateDeckBody,
   CreateListingBody,
+  Deck,
+  DeckSummary,
+  DeckWithCards,
   ErrorEnvelope,
   GetRecentActivityParams,
   HealthStatus,
@@ -32,8 +37,11 @@ import type {
   Listing,
   PokemonResult,
   SearchPokemonParams,
+  SuggestDeckBody,
+  SuggestDeckResponse,
   UpdateCardBody,
   UpdateCategoryBody,
+  UpdateDeckBody,
   UpdateListingBody,
   UploadUrlRequest,
   UploadUrlResponse,
@@ -1926,3 +1934,662 @@ export function useSearchPokemon<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List the signed-in user's decks
+ */
+export const getListDecksUrl = () => {
+  return `/api/decks`;
+};
+
+export const listDecks = async (
+  options?: RequestInit,
+): Promise<DeckSummary[]> => {
+  return customFetch<DeckSummary[]>(getListDecksUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListDecksQueryKey = () => {
+  return [`/api/decks`] as const;
+};
+
+export const getListDecksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDecks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listDecks>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDecksQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDecks>>> = ({
+    signal,
+  }) => listDecks({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDecks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListDecksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDecks>>
+>;
+export type ListDecksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the signed-in user's decks
+ */
+
+export function useListDecks<
+  TData = Awaited<ReturnType<typeof listDecks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listDecks>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListDecksQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new deck
+ */
+export const getCreateDeckUrl = () => {
+  return `/api/decks`;
+};
+
+export const createDeck = async (
+  createDeckBody: CreateDeckBody,
+  options?: RequestInit,
+): Promise<Deck> => {
+  return customFetch<Deck>(getCreateDeckUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createDeckBody),
+  });
+};
+
+export const getCreateDeckMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createDeck>>,
+    TError,
+    { data: BodyType<CreateDeckBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createDeck>>,
+  TError,
+  { data: BodyType<CreateDeckBody> },
+  TContext
+> => {
+  const mutationKey = ["createDeck"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createDeck>>,
+    { data: BodyType<CreateDeckBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createDeck(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateDeckMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createDeck>>
+>;
+export type CreateDeckMutationBody = BodyType<CreateDeckBody>;
+export type CreateDeckMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new deck
+ */
+export const useCreateDeck = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createDeck>>,
+    TError,
+    { data: BodyType<CreateDeckBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createDeck>>,
+  TError,
+  { data: BodyType<CreateDeckBody> },
+  TContext
+> => {
+  return useMutation(getCreateDeckMutationOptions(options));
+};
+
+/**
+ * @summary Get a deck with its cards
+ */
+export const getGetDeckUrl = (id: number) => {
+  return `/api/decks/${id}`;
+};
+
+export const getDeck = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeckWithCards> => {
+  return customFetch<DeckWithCards>(getGetDeckUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDeckQueryKey = (id: number) => {
+  return [`/api/decks/${id}`] as const;
+};
+
+export const getGetDeckQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDeck>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getDeck>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDeckQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeck>>> = ({
+    signal,
+  }) => getDeck(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getDeck>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetDeckQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDeck>>
+>;
+export type GetDeckQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a deck with its cards
+ */
+
+export function useGetDeck<
+  TData = Awaited<ReturnType<typeof getDeck>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getDeck>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDeckQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a deck's metadata
+ */
+export const getUpdateDeckUrl = (id: number) => {
+  return `/api/decks/${id}`;
+};
+
+export const updateDeck = async (
+  id: number,
+  updateDeckBody: UpdateDeckBody,
+  options?: RequestInit,
+): Promise<Deck> => {
+  return customFetch<Deck>(getUpdateDeckUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateDeckBody),
+  });
+};
+
+export const getUpdateDeckMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateDeck>>,
+    TError,
+    { id: number; data: BodyType<UpdateDeckBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateDeck>>,
+  TError,
+  { id: number; data: BodyType<UpdateDeckBody> },
+  TContext
+> => {
+  const mutationKey = ["updateDeck"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateDeck>>,
+    { id: number; data: BodyType<UpdateDeckBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateDeck(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateDeckMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateDeck>>
+>;
+export type UpdateDeckMutationBody = BodyType<UpdateDeckBody>;
+export type UpdateDeckMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a deck's metadata
+ */
+export const useUpdateDeck = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateDeck>>,
+    TError,
+    { id: number; data: BodyType<UpdateDeckBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateDeck>>,
+  TError,
+  { id: number; data: BodyType<UpdateDeckBody> },
+  TContext
+> => {
+  return useMutation(getUpdateDeckMutationOptions(options));
+};
+
+/**
+ * @summary Delete a deck
+ */
+export const getDeleteDeckUrl = (id: number) => {
+  return `/api/decks/${id}`;
+};
+
+export const deleteDeck = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteDeckUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteDeckMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteDeck>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteDeck>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteDeck"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteDeck>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteDeck(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteDeckMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteDeck>>
+>;
+
+export type DeleteDeckMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a deck
+ */
+export const useDeleteDeck = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteDeck>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteDeck>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteDeckMutationOptions(options));
+};
+
+/**
+ * @summary Add a card to a deck (or increment count)
+ */
+export const getAddDeckCardUrl = (id: number) => {
+  return `/api/decks/${id}/cards`;
+};
+
+export const addDeckCard = async (
+  id: number,
+  addDeckCardBody: AddDeckCardBody,
+  options?: RequestInit,
+): Promise<DeckWithCards> => {
+  return customFetch<DeckWithCards>(getAddDeckCardUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addDeckCardBody),
+  });
+};
+
+export const getAddDeckCardMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addDeckCard>>,
+    TError,
+    { id: number; data: BodyType<AddDeckCardBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addDeckCard>>,
+  TError,
+  { id: number; data: BodyType<AddDeckCardBody> },
+  TContext
+> => {
+  const mutationKey = ["addDeckCard"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addDeckCard>>,
+    { id: number; data: BodyType<AddDeckCardBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return addDeckCard(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddDeckCardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addDeckCard>>
+>;
+export type AddDeckCardMutationBody = BodyType<AddDeckCardBody>;
+export type AddDeckCardMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a card to a deck (or increment count)
+ */
+export const useAddDeckCard = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addDeckCard>>,
+    TError,
+    { id: number; data: BodyType<AddDeckCardBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addDeckCard>>,
+  TError,
+  { id: number; data: BodyType<AddDeckCardBody> },
+  TContext
+> => {
+  return useMutation(getAddDeckCardMutationOptions(options));
+};
+
+/**
+ * @summary Remove a card from a deck
+ */
+export const getRemoveDeckCardUrl = (id: number, cardId: number) => {
+  return `/api/decks/${id}/cards/${cardId}`;
+};
+
+export const removeDeckCard = async (
+  id: number,
+  cardId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRemoveDeckCardUrl(id, cardId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemoveDeckCardMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeDeckCard>>,
+    TError,
+    { id: number; cardId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeDeckCard>>,
+  TError,
+  { id: number; cardId: number },
+  TContext
+> => {
+  const mutationKey = ["removeDeckCard"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeDeckCard>>,
+    { id: number; cardId: number }
+  > = (props) => {
+    const { id, cardId } = props ?? {};
+
+    return removeDeckCard(id, cardId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveDeckCardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeDeckCard>>
+>;
+
+export type RemoveDeckCardMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a card from a deck
+ */
+export const useRemoveDeckCard = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeDeckCard>>,
+    TError,
+    { id: number; cardId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeDeckCard>>,
+  TError,
+  { id: number; cardId: number },
+  TContext
+> => {
+  return useMutation(getRemoveDeckCardMutationOptions(options));
+};
+
+/**
+ * @summary AI-suggest a deck composition from the user's collection
+ */
+export const getSuggestDeckUrl = () => {
+  return `/api/decks/suggest`;
+};
+
+export const suggestDeck = async (
+  suggestDeckBody: SuggestDeckBody,
+  options?: RequestInit,
+): Promise<SuggestDeckResponse> => {
+  return customFetch<SuggestDeckResponse>(getSuggestDeckUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(suggestDeckBody),
+  });
+};
+
+export const getSuggestDeckMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof suggestDeck>>,
+    TError,
+    { data: BodyType<SuggestDeckBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof suggestDeck>>,
+  TError,
+  { data: BodyType<SuggestDeckBody> },
+  TContext
+> => {
+  const mutationKey = ["suggestDeck"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof suggestDeck>>,
+    { data: BodyType<SuggestDeckBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return suggestDeck(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SuggestDeckMutationResult = NonNullable<
+  Awaited<ReturnType<typeof suggestDeck>>
+>;
+export type SuggestDeckMutationBody = BodyType<SuggestDeckBody>;
+export type SuggestDeckMutationError = ErrorType<unknown>;
+
+/**
+ * @summary AI-suggest a deck composition from the user's collection
+ */
+export const useSuggestDeck = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof suggestDeck>>,
+    TError,
+    { data: BodyType<SuggestDeckBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof suggestDeck>>,
+  TError,
+  { data: BodyType<SuggestDeckBody> },
+  TContext
+> => {
+  return useMutation(getSuggestDeckMutationOptions(options));
+};

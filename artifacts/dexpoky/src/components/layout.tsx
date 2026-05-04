@@ -4,6 +4,7 @@ import { useUser, useClerk, Show } from "@clerk/react";
 import {
   LayoutDashboard,
   Layers,
+  Library,
   FolderTree,
   Store,
   Share2,
@@ -150,6 +151,7 @@ export function Layout({ children }: LayoutProps) {
   const authNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/collection", label: "Collection", icon: Layers },
+    { href: "/decks", label: "Decks", icon: Library },
     { href: "/categories", label: "Categories", icon: FolderTree },
     { href: "/share", label: "Share", icon: Share2 },
     { href: "/subscription", label: "Subscription", icon: Sparkles },
