@@ -423,7 +423,7 @@ export default function DeckDetail() {
                                 <img src={c.imageUrl} alt={c.name} className="w-full h-full object-cover" loading="lazy" />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                  <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[40px] opacity-[0.12] grayscale select-none pointer-events-none" />
+                                  <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[80px] opacity-[0.12] grayscale select-none pointer-events-none" />
                                 </div>
                               )}
                             </div>
@@ -472,7 +472,7 @@ export default function DeckDetail() {
                                 <img src={w.imageUrl} alt={w.name} className="w-full h-full object-cover" loading="lazy" />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">
-                                  <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[40px] opacity-[0.12] grayscale select-none pointer-events-none" />
+                                  <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[80px] opacity-[0.12] grayscale select-none pointer-events-none" />
                                 </div>
                               )}
                               <Heart className="absolute top-1 right-1 h-3.5 w-3.5 text-rose-500 fill-rose-500" />
@@ -510,7 +510,7 @@ export default function DeckDetail() {
                       <img src={display.imageUrl} alt={display.name} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[52px] opacity-[0.12] grayscale select-none pointer-events-none" />
+                        <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[104px] opacity-[0.12] grayscale select-none pointer-events-none" />
                       </div>
                     )}
                     {entry.count > 1 && (

@@ -26,7 +26,7 @@ export function CardItem({ card, href, showPrice = false }: CardItemProps) {
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full">
-            <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[72px] opacity-[0.12] grayscale select-none pointer-events-none" />
+            <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[144px] opacity-[0.12] grayscale select-none pointer-events-none" />
           </div>
         )}
         {card.forSale && (

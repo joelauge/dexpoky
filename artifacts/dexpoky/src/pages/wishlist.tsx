@@ -530,7 +530,7 @@ function WishlistCard({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[64px] opacity-[0.12] grayscale select-none pointer-events-none" />
+            <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[128px] opacity-[0.12] grayscale select-none pointer-events-none" />
           </div>
         )}
 

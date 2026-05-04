@@ -401,7 +401,7 @@ export default function NewDeck() {
                                     {isShopping ? (
                                       <ShoppingBag className="h-8 w-8 text-muted-foreground/40" />
                                     ) : (
-                                      <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[48px] opacity-[0.12] grayscale select-none pointer-events-none" />
+                                      <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[96px] opacity-[0.12] grayscale select-none pointer-events-none" />
                                     )}
                                   </div>
                                 )}

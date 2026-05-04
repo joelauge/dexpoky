@@ -118,7 +118,7 @@ export default function Decks() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <img src="/logo.png" alt="" aria-hidden className="w-2/5 max-w-[60px] opacity-[0.12] grayscale select-none pointer-events-none" />
+                        <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[120px] opacity-[0.12] grayscale select-none pointer-events-none" />
                       </div>
                     )}
                     <div className="absolute top-2 left-2">
