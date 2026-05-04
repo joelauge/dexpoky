@@ -540,33 +540,31 @@ export default function ScanBulkPage() {
               </div>
             )}
 
-            {/* Thumbnail strip */}
+            {/* Thumbnail grid — wraps onto new rows when it runs out of width */}
             {entries.length > 0 && (
-              <div style={{ maxWidth: "100vw", overflow: "hidden" }}>
-                <div className="overflow-x-auto -mx-4 px-4 pb-1" style={{ overflowX: "auto" }}>
-                  <div className="flex gap-2">
-                    {entries.map((e) => (
-                      <div
-                        key={e.id}
-                        className="relative shrink-0 w-16 h-20 rounded-lg overflow-hidden border border-border bg-muted"
-                      >
-                        <img src={e.imageData} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                          <StatusDot status={e.status} />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeEntry(e.id)}
-                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow"
-                          aria-label="Remove"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+              <div style={{ maxWidth: "100%" }}>
+                <div className="flex flex-wrap gap-2">
+                  {entries.map((e) => (
+                    <div
+                      key={e.id}
+                      className="relative w-16 h-20 rounded-lg overflow-hidden border border-border bg-muted"
+                    >
+                      <img src={e.imageData} alt="" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <StatusDot status={e.status} />
                       </div>
-                    ))}
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => removeEntry(e.id)}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow"
+                        aria-label="Remove"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center gap-3 text-[11px] text-muted-foreground px-1">
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground px-1 mt-2">
                   {stats.analyzing > 0 && <span>{stats.analyzing} analyzing</span>}
                   {stats.ready > 0 && <span className="text-emerald-600">{stats.ready} ready</span>}
                   {stats.failed > 0 && <span className="text-red-500">{stats.failed} failed</span>}
