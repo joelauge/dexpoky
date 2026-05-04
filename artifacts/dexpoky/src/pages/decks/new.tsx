@@ -14,7 +14,20 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, ArrowLeft, Wand2, Check, ImageIcon } from "lucide-react";
+import {
+  Sparkles,
+  ArrowLeft,
+  Wand2,
+  Check,
+  ImageIcon,
+  Zap,
+  ShieldHalf,
+  Scale,
+  Target,
+  Layers,
+  HeartPulse,
+  type LucideIcon,
+} from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,14 +36,15 @@ const STYLES: Array<{
   value: keyof typeof CreateDeckBodyGameStyle;
   label: string;
   desc: string;
-  emoji: string;
+  Icon: LucideIcon;
+  iconClass: string;
 }> = [
-  { value: "aggro", label: "Aggro", desc: "Fast attackers, win quickly", emoji: "⚡" },
-  { value: "control", label: "Control", desc: "Disruption + outlast", emoji: "🛡️" },
-  { value: "midrange", label: "Midrange", desc: "Balanced & flexible", emoji: "⚖️" },
-  { value: "combo", label: "Combo", desc: "Multi-card synergies", emoji: "🎯" },
-  { value: "mill", label: "Mill", desc: "Deck out the opponent", emoji: "📉" },
-  { value: "tank", label: "Tank", desc: "High HP + healing", emoji: "🧱" },
+  { value: "aggro",    label: "Aggro",    desc: "Fast attackers, win quickly", Icon: Zap,        iconClass: "text-amber-500" },
+  { value: "control",  label: "Control",  desc: "Disruption + outlast",        Icon: ShieldHalf, iconClass: "text-sky-600" },
+  { value: "midrange", label: "Midrange", desc: "Balanced & flexible",         Icon: Scale,      iconClass: "text-indigo-600" },
+  { value: "combo",    label: "Combo",    desc: "Multi-card synergies",        Icon: Target,     iconClass: "text-rose-500" },
+  { value: "mill",     label: "Mill",     desc: "Deck out the opponent",       Icon: Layers,     iconClass: "text-slate-500" },
+  { value: "tank",     label: "Tank",     desc: "High HP + healing",           Icon: HeartPulse, iconClass: "text-emerald-600" },
 ];
 
 type SuggestedCard = {
@@ -178,7 +192,7 @@ export default function NewDeck() {
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xl">{s.emoji}</span>
+                      <s.Icon className={`h-5 w-5 ${s.iconClass}`} aria-hidden="true" />
                       <span className="font-semibold">{s.label}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{s.desc}</p>
