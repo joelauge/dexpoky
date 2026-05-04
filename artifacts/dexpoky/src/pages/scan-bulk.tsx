@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
 import { ScanPaywall } from "@/components/scan-paywall";
+import { captureCardCrop } from "@/lib/capture-crop";
 import {
   useCreateCard,
   useListCategories,
@@ -170,16 +171,10 @@ export default function ScanBulkPage() {
     }
   }, []);
 
+  // Crop to the on-screen card guide (85% of the 5:3 viewport height in bulk
+  // mode). Sending only the card region keeps each detection fast.
   const captureFrame = useCallback((): string | null => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState < 2 || video.videoWidth === 0) return null;
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    ctx.drawImage(video, 0, 0);
-    return canvas.toDataURL("image/jpeg", 0.8);
+    return captureCardCrop(videoRef.current, canvasRef.current, 0.85);
   }, []);
 
   // ── Background detection per entry ────────────────────────────────────────

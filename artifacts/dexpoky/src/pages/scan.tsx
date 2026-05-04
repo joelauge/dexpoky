@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
 import { ScanPaywall } from "@/components/scan-paywall";
+import { captureCardCrop } from "@/lib/capture-crop";
 
 interface TcgCard {
   id: string;
@@ -96,15 +97,10 @@ export default function ScanPage() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] = useState<"trial_not_activated" | "trial_exhausted" | "monthly_limit_reached" | null>(null);
 
+  // Crop to the on-screen card guide (88% of the 5:3 viewport height) — the
+  // vision API only sees what the user lined up.
   const captureFrame = useCallback((): string | null => {
-    const video  = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState < 2 || video.videoWidth === 0) return null;
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(video, 0, 0);
-    return canvas.toDataURL("image/jpeg", 0.8);
+    return captureCardCrop(videoRef.current, canvasRef.current, 0.88);
   }, []);
 
   const stopStream = useCallback(() => {
