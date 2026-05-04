@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, wantedListingsTable } from "@workspace/db";
-import { eq, and, or, ilike } from "drizzle-orm";
+import { eq, ilike, desc, or, and } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { logger } from "../lib/logger.js";
@@ -17,21 +17,24 @@ function serializeWanted(row: typeof wantedListingsTable.$inferSelect) {
 router.get("/wanted", async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search.trim() : undefined;
 
-  let rows = await db
+  const statusFilter = eq(wantedListingsTable.status, "active");
+  const whereClause = search
+    ? and(
+        statusFilter,
+        or(
+          ilike(wantedListingsTable.name, `%${search}%`),
+          ilike(wantedListingsTable.pokemonName, `%${search}%`),
+          ilike(wantedListingsTable.setName, `%${search}%`),
+        ),
+      )
+    : statusFilter;
+
+  const rows = await db
     .select()
     .from(wantedListingsTable)
-    .where(eq(wantedListingsTable.status, "active"))
-    .orderBy(wantedListingsTable.createdAt);
-
-  if (search) {
-    const s = search.toLowerCase();
-    rows = rows.filter(
-      (r) =>
-        r.name.toLowerCase().includes(s) ||
-        r.pokemonName.toLowerCase().includes(s) ||
-        (r.setName ?? "").toLowerCase().includes(s),
-    );
-  }
+    .where(whereClause)
+    .orderBy(desc(wantedListingsTable.createdAt))
+    .limit(24);
 
   res.json(rows.map(serializeWanted));
 });
