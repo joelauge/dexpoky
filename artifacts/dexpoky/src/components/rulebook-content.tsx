@@ -1,7 +1,6 @@
 import {
   useState,
   useMemo,
-  useDeferredValue,
   useEffect,
   useRef,
   Fragment,
@@ -74,8 +73,15 @@ export function RulebookContent({
   syncHash = false,
 }: RulebookContentProps) {
   const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
-  const trimmed = deferredQuery.trim();
+  // True 200ms debounce so we don't hammer /api/rules/search on every keystroke
+  // while the user is still typing. Intentionally NOT useDeferredValue, which
+  // only defers re-renders, not the network request itself.
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 200);
+    return () => clearTimeout(t);
+  }, [query]);
+  const trimmed = debouncedQuery.trim();
   const enabled = trimmed.length >= 2;
   const highlightTerms = useMemo(
     () => (enabled ? trimmed.split(/\s+/).filter((t) => t.length >= 2) : []),

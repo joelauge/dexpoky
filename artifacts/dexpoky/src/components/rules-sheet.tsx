@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -12,6 +12,11 @@ import { BookOpen } from "lucide-react";
 import { RulebookContent } from "@/components/rulebook-content";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
+export interface RulesSheetQuickLink {
+  sectionId: string;
+  label: string;
+}
+
 interface RulesSheetProps {
   trigger?: ReactNode;
   /**
@@ -20,11 +25,41 @@ interface RulesSheetProps {
    * elsewhere. Falls back to the top of the rulebook when omitted.
    */
   defaultSectionId?: string;
+  /**
+   * Optional quick-link chips rendered just under the sheet header so users
+   * can hop directly between the most relevant sections for the current page
+   * (e.g. Deck Building / Card Types / Game Setup on the deck pages) without
+   * scrolling the TOC.
+   */
+  quickLinks?: RulesSheetQuickLink[];
 }
 
-export function RulesSheet({ trigger, defaultSectionId }: RulesSheetProps) {
+export function RulesSheet({
+  trigger,
+  defaultSectionId,
+  quickLinks,
+}: RulesSheetProps) {
+  // `nonce` bumps when a quick-link is clicked so the inner RulebookContent
+  // remounts and re-runs its initial-focus effect on the newly chosen section.
+  const [activeSection, setActiveSection] = useState<string | undefined>(
+    defaultSectionId,
+  );
+  const [nonce, setNonce] = useState(0);
+
+  const focusSection = (id: string) => {
+    setActiveSection(id);
+    setNonce((n) => n + 1);
+  };
+
   return (
-    <Sheet>
+    <Sheet
+      onOpenChange={(open) => {
+        if (open) {
+          setActiveSection(defaultSectionId);
+          setNonce((n) => n + 1);
+        }
+      }}
+    >
       <SheetTrigger asChild>
         {trigger ?? (
           <Button variant="outline" size="sm" className="gap-2">
@@ -48,11 +83,33 @@ export function RulesSheet({ trigger, defaultSectionId }: RulesSheetProps) {
               section.
             </SheetDescription>
           </VisuallyHidden.Root>
+          {quickLinks && quickLinks.length > 0 && (
+            <div
+              className="flex flex-wrap gap-2 pt-2"
+              aria-label="Jump to relevant rulebook section"
+            >
+              {quickLinks.map((q) => (
+                <Button
+                  key={q.sectionId}
+                  type="button"
+                  size="sm"
+                  variant={
+                    activeSection === q.sectionId ? "default" : "secondary"
+                  }
+                  className="h-7 px-2 text-xs"
+                  onClick={() => focusSection(q.sectionId)}
+                >
+                  {q.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </SheetHeader>
         <div className="flex-1 min-h-0 px-6 pb-6">
           <RulebookContent
+            key={`${activeSection ?? "top"}-${nonce}`}
             variant="sheet"
-            defaultSectionId={defaultSectionId}
+            defaultSectionId={activeSection}
           />
         </div>
       </SheetContent>

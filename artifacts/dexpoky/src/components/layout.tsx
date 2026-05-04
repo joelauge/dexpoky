@@ -147,7 +147,7 @@ export function Layout({ children }: LayoutProps) {
 
   const publicNavItems = [
     { href: "/marketplace", label: "Marketplace", icon: Store },
-    { href: "/rules", label: "Rulebook", icon: BookOpen },
+    { href: "/rules", label: "Rules", icon: BookOpen },
   ];
 
   const authNavItems = [

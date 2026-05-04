@@ -162,7 +162,14 @@ export default function NewDeck() {
               <ArrowLeft className="h-4 w-4" /> Back to decks
             </Button>
           </Link>
-          <RulesSheet defaultSectionId="deck-building" />
+          <RulesSheet
+            defaultSectionId="deck-building"
+            quickLinks={[
+              { sectionId: "deck-building", label: "Deck Building" },
+              { sectionId: "card-types", label: "Card Types" },
+              { sectionId: "setup", label: "Game Setup" },
+            ]}
+          />
         </div>
 
         <h1 className="text-3xl font-bold tracking-tight mb-2 flex items-center gap-2">
