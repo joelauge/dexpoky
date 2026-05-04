@@ -1,11 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import {
   useListCards,
+  useListWishlist,
   useSuggestDeck,
   useCreateDeck,
   CreateDeckBodyGameStyle,
+  type SuggestedDeckCard,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +28,7 @@ import {
   Target,
   Layers,
   HeartPulse,
+  Heart,
   type LucideIcon,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -48,12 +51,14 @@ const STYLES: Array<{
   { value: "tank",     label: "Tank",     desc: "High HP + healing",           Icon: HeartPulse, iconClass: "text-emerald-600" },
 ];
 
-type SuggestedCard = {
-  cardId: number;
-  count: number;
-  role?: string | null;
-  reason: string;
-};
+/**
+ * Each suggested card is keyed by source + id (cardId for owned, wishlistItemId
+ * for wishlist) since cardId can be null for wishlist suggestions.
+ */
+function suggestionKey(s: SuggestedDeckCard): string {
+  if (s.source === "owned") return `owned:${s.cardId}`;
+  return `wishlist:${s.wishlistItemId}`;
+}
 
 export default function NewDeck() {
   const [, setLocation] = useLocation();
@@ -62,6 +67,7 @@ export default function NewDeck() {
 
   const queryClient = useQueryClient();
   const { data: cards, isLoading: cardsLoading } = useListCards();
+  const { data: wishlist } = useListWishlist();
   const suggestDeck = useSuggestDeck();
   const createDeck = useCreateDeck();
 
@@ -70,19 +76,16 @@ export default function NewDeck() {
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [strategy, setStrategy] = useState<string | null>(null);
-  const [suggested, setSuggested] = useState<SuggestedCard[] | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [suggested, setSuggested] = useState<SuggestedDeckCard[] | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [hasSuggested, setHasSuggested] = useState(false);
 
-  const cardById = useMemo(() => {
-    const m = new Map<number, NonNullable<typeof cards>[number]>();
-    (cards ?? []).forEach((c) => m.set(c.id, c));
-    return m;
-  }, [cards]);
+  const hasAnyPool =
+    (cards && cards.length > 0) || (wishlist && wishlist.length > 0);
 
   const handleSuggest = () => {
-    if (!cards || cards.length === 0) {
-      toast.error("Add some cards to your collection first");
+    if (!hasAnyPool) {
+      toast.error("Add some cards to your collection or wishlist first");
       return;
     }
     suggestDeck.mutate(
@@ -93,7 +96,7 @@ export default function NewDeck() {
           setName(data.name);
           setStrategy(data.strategy);
           setSuggested(data.cards);
-          setSelectedIds(new Set(data.cards.map((c) => c.cardId)));
+          setSelectedKeys(new Set(data.cards.map(suggestionKey)));
           toast.success(`AI built a ${STYLES.find((s) => s.value === gameStyle)?.label} deck`);
         },
         onError: (err) => {
@@ -105,11 +108,11 @@ export default function NewDeck() {
     );
   };
 
-  const toggleCard = (id: number) => {
-    setSelectedIds((prev) => {
+  const toggleCard = (key: string) => {
+    setSelectedKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -119,18 +122,21 @@ export default function NewDeck() {
       toast.error("Deck name is required");
       return;
     }
-    // Build rich card entries so AI-suggested counts/roles are persisted.
-    const suggestedById = new Map<number, SuggestedCard>();
-    (suggested ?? []).forEach((s) => suggestedById.set(s.cardId, s));
-    const cards = Array.from(selectedIds).map((cardId) => {
-      const s = suggestedById.get(cardId);
-      return {
-        cardId,
-        count: s?.count ?? 1,
-        role: s?.role ?? null,
-        notes: s?.reason ?? null,
-      };
-    });
+    // Build source-aware card entries the new /api/decks endpoint understands.
+    const cardsPayload = (suggested ?? [])
+      .filter((s) => selectedKeys.has(suggestionKey(s)))
+      .map((s) => {
+        const base = {
+          source: s.source,
+          count: s.count,
+          role: s.role ?? null,
+          notes: s.reason ?? null,
+        };
+        if (s.source === "wishlist") {
+          return { ...base, wishlistItemId: s.wishlistItemId };
+        }
+        return { ...base, cardId: s.cardId };
+      });
 
     createDeck.mutate(
       {
@@ -139,8 +145,8 @@ export default function NewDeck() {
           gameStyle,
           strategy: strategy ?? null,
           description: notes.trim() || null,
-          cards,
-        },
+          cards: cardsPayload,
+        } as never,
       },
       {
         onSuccess: (deck) => {
@@ -230,7 +236,7 @@ export default function NewDeck() {
                 />
                 <Button
                   onClick={handleSuggest}
-                  disabled={suggestDeck.isPending || cardsLoading || !cards || cards.length === 0}
+                  disabled={suggestDeck.isPending || cardsLoading || !hasAnyPool}
                   className="mt-4 gap-2"
                   size="lg"
                 >
@@ -241,9 +247,15 @@ export default function NewDeck() {
                       ? "Regenerate suggestion"
                       : "Suggest a deck"}
                 </Button>
-                {!cardsLoading && cards && cards.length === 0 && (
+                {!cardsLoading && !hasAnyPool && (
                   <p className="text-xs text-destructive mt-2">
-                    Your collection is empty. Add or scan cards first.
+                    Your collection and wishlist are both empty — add or scan some cards first.
+                  </p>
+                )}
+                {!cardsLoading && wishlist && wishlist.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    The AI can pull from your {wishlist.length} wishlist card
+                    {wishlist.length === 1 ? "" : "s"} to fill gaps.
                   </p>
                 )}
               </CardContent>
@@ -276,19 +288,19 @@ export default function NewDeck() {
 
                 {!isManual && suggested && suggested.length > 0 && (
                   <div>
-                    <Label>Suggested cards ({selectedIds.size} selected)</Label>
+                    <Label>Suggested cards ({selectedKeys.size} selected)</Label>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Tap cards to include or exclude them from your deck.
+                      Tap cards to include or exclude them. Pink badges are wishlist picks the AI added.
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {suggested.map((s) => {
-                        const card = cardById.get(s.cardId);
-                        if (!card) return null;
-                        const isSelected = selectedIds.has(s.cardId);
+                        const key = suggestionKey(s);
+                        const isSelected = selectedKeys.has(key);
+                        const isWishlist = s.source === "wishlist";
                         return (
                           <button
-                            key={s.cardId}
-                            onClick={() => toggleCard(s.cardId)}
+                            key={key}
+                            onClick={() => toggleCard(key)}
                             className={`text-left rounded-xl border-2 transition-all overflow-hidden ${
                               isSelected
                                 ? "border-primary ring-2 ring-primary/20"
@@ -296,11 +308,12 @@ export default function NewDeck() {
                             }`}
                           >
                             <div className="aspect-[3/4] relative bg-muted/30">
-                              {card.imageUrl ? (
+                              {s.imageUrl ? (
                                 <img
-                                  src={card.imageUrl}
-                                  alt={card.name}
+                                  src={s.imageUrl}
+                                  alt={s.name}
                                   className="w-full h-full object-cover"
+                                  loading="lazy"
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
@@ -320,9 +333,20 @@ export default function NewDeck() {
                                   {s.role}
                                 </Badge>
                               )}
+                              {isWishlist && (
+                                <span className="absolute bottom-2 right-2 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                  <Heart className="h-2.5 w-2.5 fill-rose-500" /> Wishlist
+                                </span>
+                              )}
                             </div>
                             <div className="p-2">
-                              <p className="text-xs font-semibold truncate">{card.name}</p>
+                              <p className="text-xs font-semibold truncate">{s.name}</p>
+                              {(s.setName || s.cardNumber) && (
+                                <p className="text-[10px] text-muted-foreground truncate">
+                                  {s.setName ?? ""}
+                                  {s.cardNumber ? ` · #${s.cardNumber}` : ""}
+                                </p>
+                              )}
                               <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">
                                 {s.reason}
                               </p>

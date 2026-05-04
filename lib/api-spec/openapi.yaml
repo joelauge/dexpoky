@@ -26,6 +26,10 @@ tags:
     description: Deck builder operations
   - name: rules
     description: Pokémon TCG rulebook lookup and search
+  - name: catalog
+    description: PokeWallet card catalog search and lookup
+  - name: wishlist
+    description: Wishlist of catalog cards the user is looking for
 
 paths:
   /storage/uploads/request-url:
@@ -628,6 +632,129 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuggestDeckResponse"
 
+  /catalog/search:
+    get:
+      operationId: searchCatalog
+      tags: [catalog]
+      summary: Search the PokeWallet card catalog by name
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Catalog search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogSearchResponse"
+
+  /catalog/cards/{id}:
+    get:
+      operationId: getCatalogCard
+      tags: [catalog]
+      summary: Get a single catalog card by PokeWallet id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Catalog card with pricing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogCardDetail"
+        "404":
+          description: Card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /wishlist:
+    get:
+      operationId: listWishlist
+      tags: [wishlist]
+      summary: List the signed-in user's wishlist items
+      responses:
+        "200":
+          description: Wishlist items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WishlistItem"
+    post:
+      operationId: addWishlistItem
+      tags: [wishlist]
+      summary: Add a catalog card to the wishlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddWishlistBody"
+      responses:
+        "201":
+          description: Created wishlist item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WishlistItem"
+
+  /wishlist/{id}:
+    put:
+      operationId: updateWishlistItem
+      tags: [wishlist]
+      summary: Update wishlist priority or notes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWishlistBody"
+      responses:
+        "200":
+          description: Updated wishlist item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WishlistItem"
+    delete:
+      operationId: removeWishlistItem
+      tags: [wishlist]
+      summary: Remove a wishlist item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
   /rules:
     get:
       operationId: getRulebook
@@ -701,6 +828,9 @@ components:
         originalScanUrl:
           type: string
           nullable: true
+        catalogCardId:
+          type: string
+          nullable: true
         estimatedValue:
           type: number
           nullable: true
@@ -764,6 +894,9 @@ components:
         originalScanUrl:
           type: string
           nullable: true
+        catalogCardId:
+          type: string
+          nullable: true
         estimatedValue:
           type: number
           nullable: true
@@ -813,6 +946,9 @@ components:
           type: string
           nullable: true
         originalScanUrl:
+          type: string
+          nullable: true
+        catalogCardId:
           type: string
           nullable: true
         estimatedValue:
@@ -1130,8 +1266,20 @@ components:
     DeckCardEntry:
       type: object
       properties:
+        entryId:
+          type: integer
+        source:
+          type: string
+          enum: [owned, catalog, wishlist]
         cardId:
           type: integer
+          nullable: true
+        catalogCardId:
+          type: string
+          nullable: true
+        wishlistItemId:
+          type: integer
+          nullable: true
         count:
           type: integer
         role:
@@ -1140,12 +1288,26 @@ components:
         notes:
           type: string
           nullable: true
+        snapshotName:
+          type: string
+          nullable: true
+        snapshotImageUrl:
+          type: string
+          nullable: true
+        snapshotSetName:
+          type: string
+          nullable: true
+        snapshotCardNumber:
+          type: string
+          nullable: true
         card:
-          $ref: "#/components/schemas/Card"
+          oneOf:
+            - $ref: "#/components/schemas/Card"
+          nullable: true
       required:
-        - cardId
+        - entryId
+        - source
         - count
-        - card
 
     DeckWithCards:
       type: object
@@ -1250,6 +1412,13 @@ components:
       properties:
         cardId:
           type: integer
+          nullable: true
+        catalogCardId:
+          type: string
+          nullable: true
+        wishlistItemId:
+          type: integer
+          nullable: true
         count:
           type: integer
           minimum: 1
@@ -1259,8 +1428,6 @@ components:
         notes:
           type: string
           nullable: true
-      required:
-        - cardId
 
     SuggestDeckBody:
       type: object
@@ -1277,8 +1444,29 @@ components:
     SuggestedDeckCard:
       type: object
       properties:
+        source:
+          type: string
+          enum: [owned, wishlist]
         cardId:
           type: integer
+          nullable: true
+        wishlistItemId:
+          type: integer
+          nullable: true
+        catalogCardId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+        setName:
+          type: string
+          nullable: true
+        cardNumber:
+          type: string
+          nullable: true
         count:
           type: integer
         role:
@@ -1287,7 +1475,8 @@ components:
         reason:
           type: string
       required:
-        - cardId
+        - source
+        - name
         - count
         - reason
 
@@ -1405,3 +1594,172 @@ components:
         score:
           type: number
       required: [sectionId, sectionTitle, category, snippet, matchType, score]
+
+    CatalogCard:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        pokemonName:
+          type: string
+        setName:
+          type: string
+        setCode:
+          type: string
+        cardNumber:
+          type: string
+        rarity:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+        marketPrice:
+          type: number
+          nullable: true
+        tcgplayerUrl:
+          type: string
+          nullable: true
+        cardmarketUrl:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - pokemonName
+        - setName
+        - setCode
+        - cardNumber
+        - imageUrl
+
+    CatalogSearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/CatalogCard"
+        source:
+          type: string
+          enum: [pokewallet, tcgdex, empty]
+        rateLimited:
+          type: boolean
+        remainingHour:
+          type: integer
+          nullable: true
+      required:
+        - results
+        - source
+        - rateLimited
+
+    CatalogPricing:
+      type: object
+      properties:
+        marketPrice:
+          type: number
+          nullable: true
+        lowPrice:
+          type: number
+          nullable: true
+        trendPrice:
+          type: number
+          nullable: true
+        source:
+          type: string
+          enum: [tcgplayer, cardmarket]
+          nullable: true
+        psaEstimates:
+          type: object
+          additionalProperties:
+            type: number
+          nullable: true
+      required:
+        - marketPrice
+        - lowPrice
+        - trendPrice
+
+    CatalogCardDetail:
+      type: object
+      properties:
+        card:
+          $ref: "#/components/schemas/CatalogCard"
+        pricing:
+          $ref: "#/components/schemas/CatalogPricing"
+      required:
+        - card
+        - pricing
+
+    WishlistItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        catalogCardId:
+          type: string
+        name:
+          type: string
+        pokemonName:
+          type: string
+        setName:
+          type: string
+          nullable: true
+        setCode:
+          type: string
+          nullable: true
+        cardNumber:
+          type: string
+          nullable: true
+        rarity:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        lastSeenPrice:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          enum: [low, normal, high]
+        addedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - catalogCardId
+        - name
+        - pokemonName
+        - priority
+        - addedAt
+        - updatedAt
+
+    AddWishlistBody:
+      type: object
+      properties:
+        catalogCardId:
+          type: string
+        priority:
+          type: string
+          enum: [low, normal, high]
+        notes:
+          type: string
+          nullable: true
+      required:
+        - catalogCardId
+
+    UpdateWishlistBody:
+      type: object
+      properties:
+        priority:
+          type: string
+          enum: [low, normal, high]
+        notes:
+          type: string
+          nullable: true

@@ -2,6 +2,12 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { cardsTable, categoriesTable, activityEventsTable } from "@workspace/db";
 import { searchTcgdex, fetchPricingById } from "./detect-helpers.js";
+import {
+  pwSearch,
+  pwGetCard,
+  normalizeCatalogCard,
+  buildPricingFromCatalog,
+} from "../lib/pokewallet.js";
 import { eq, sql, ilike, and, type SQL } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
@@ -26,6 +32,7 @@ const cardSelect = {
   condition: cardsTable.condition,
   imageUrl: cardsTable.imageUrl,
   originalScanUrl: cardsTable.originalScanUrl,
+  catalogCardId: cardsTable.catalogCardId,
   estimatedValue: sql<number | null>`${cardsTable.estimatedValue}::float`,
   acquiredDate: cardsTable.acquiredDate,
   categoryId: cardsTable.categoryId,
@@ -95,6 +102,7 @@ router.post("/cards", requireAuth, async (req, res) => {
     cardNumber: data.cardNumber ?? null,
     imageUrl: data.imageUrl ?? null,
     originalScanUrl: data.originalScanUrl ?? null,
+    catalogCardId: data.catalogCardId ?? null,
     estimatedValue: data.estimatedValue != null ? String(data.estimatedValue) : null,
     acquiredDate: data.acquiredDate ?? null,
     categoryId: data.categoryId ?? null,
@@ -125,13 +133,44 @@ router.post("/cards", requireAuth, async (req, res) => {
   res.status(201).json(withCat);
 });
 
+/**
+ * Look up card variants for the scan flow.
+ *
+ * Primary: PokeWallet (rich pricing, single hit). Falls back to TCGdex if
+ * PokeWallet is rate limited or unavailable so the scan flow never breaks.
+ */
 router.get("/cards/lookup", async (req, res) => {
   const name = String(req.query.name ?? "").trim();
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
+
+  const pw = await pwSearch(name, 20);
+  if (pw.ok && pw.data.results.length > 0) {
+    const variants = pw.data.results.map(normalizeCatalogCard).map((v) => ({
+      id: v.id,
+      name: v.name,
+      imageUrl: v.imageUrl,
+      setName: v.setName,
+      setId: v.setCode,
+      cardNumber: v.cardNumber,
+      rarity: v.rarity,
+    }));
+    const pricing = buildPricingFromCatalog(pw.data.results[0]);
+    res.json({ card: variants[0] ?? null, variants, pricing });
+    return;
+  }
+
+  // Fallback to TCGdex
   const { variants, pricing } = await searchTcgdex(name);
   res.json({ card: variants[0] ?? null, variants, pricing });
 });
 
+/**
+ * Pricing for a single chosen variant.
+ *
+ * If `cardId` looks like a PokeWallet id (starts with `pk_`), we hit the
+ * PokeWallet detail endpoint. Otherwise we fall through to the TCGdex/PTCG.io
+ * pricing chain.
+ */
 router.get("/cards/pricing", async (req, res) => {
   const cardId = String(req.query.cardId ?? "").trim();
   const name = String(req.query.name ?? "").trim() || undefined;
@@ -140,6 +179,16 @@ router.get("/cards/pricing", async (req, res) => {
   const cardNumber = String(req.query.cardNumber ?? "").trim() || undefined;
   if (!cardId) { res.status(400).json({ error: "cardId is required" }); return; }
   res.setHeader("Cache-Control", "no-store");
+
+  if (cardId.startsWith("pk_")) {
+    const pw = await pwGetCard(cardId);
+    if (pw.ok) {
+      res.json({ pricing: buildPricingFromCatalog(pw.data) });
+      return;
+    }
+    // fall through to TCGdex pricing if available
+  }
+
   const ebayContext = name ? { name, setName, cardNumber } : undefined;
   const pricing = await fetchPricingById(cardId, name, rarity, ebayContext);
   res.json({ pricing });
@@ -203,6 +252,7 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
   if (data.condition !== undefined) updateData.condition = data.condition;
   if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
   if (data.originalScanUrl !== undefined) updateData.originalScanUrl = data.originalScanUrl;
+  if (data.catalogCardId !== undefined) updateData.catalogCardId = data.catalogCardId;
   if (data.estimatedValue !== undefined) updateData.estimatedValue = data.estimatedValue != null ? String(data.estimatedValue) : null;
   if (data.acquiredDate !== undefined) updateData.acquiredDate = data.acquiredDate;
   if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;

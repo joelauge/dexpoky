@@ -5,18 +5,32 @@ import {
   useGetDeck,
   useUpdateDeck,
   useAddDeckCard,
-  useRemoveDeckCard,
   useDeleteDeck,
   useListCards,
+  useListWishlist,
+  type DeckCardEntry,
+  type CatalogCard,
+  customFetch,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ImageIcon, Plus, Trash2, X, Save, Search } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  ArrowLeft,
+  ImageIcon,
+  Plus,
+  Trash2,
+  X,
+  Save,
+  Search,
+  Heart,
+  Library,
+  Layers,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +41,7 @@ import {
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { RulesSheet } from "@/components/rules-sheet";
+import { CatalogSearch } from "@/components/catalog-search";
 
 const STYLE_LABELS: Record<string, string> = {
   aggro: "Aggro",
@@ -46,6 +61,21 @@ const STYLE_COLORS: Record<string, string> = {
   tank: "bg-slate-200 text-slate-700 border-slate-300",
 };
 
+const SOURCE_BADGE: Record<string, { label: string; className: string }> = {
+  owned: { label: "Owned", className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  catalog: { label: "Catalog", className: "bg-sky-100 text-sky-700 border-sky-200" },
+  wishlist: { label: "Wishlist", className: "bg-rose-100 text-rose-700 border-rose-200" },
+};
+
+function entryDisplay(entry: DeckCardEntry) {
+  return {
+    name: entry.card?.name ?? entry.snapshotName ?? "Unknown card",
+    imageUrl: entry.card?.imageUrl ?? entry.snapshotImageUrl ?? null,
+    setName: entry.card?.setName ?? entry.snapshotSetName ?? null,
+    cardNumber: entry.card?.cardNumber ?? entry.snapshotCardNumber ?? null,
+  };
+}
+
 export default function DeckDetail() {
   const [, params] = useRoute("/decks/:id");
   const [, setLocation] = useLocation();
@@ -57,9 +87,9 @@ export default function DeckDetail() {
     query: { enabled: Number.isInteger(id), queryKey: [...deckQueryKey] },
   });
   const { data: collection } = useListCards();
+  const { data: wishlist } = useListWishlist();
   const updateDeck = useUpdateDeck();
   const addCard = useAddDeckCard();
-  const removeCard = useRemoveDeckCard();
   const deleteDeck = useDeleteDeck();
 
   const [editing, setEditing] = useState(false);
@@ -67,6 +97,7 @@ export default function DeckDetail() {
   const [strategy, setStrategy] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
+  const [removingId, setRemovingId] = useState<number | null>(null);
 
   const startEdit = () => {
     if (!deck) return;
@@ -94,30 +125,62 @@ export default function DeckDetail() {
     );
   };
 
-  const handleAdd = (cardId: number) => {
+  const invalidateDeck = () => {
+    queryClient.invalidateQueries({ queryKey: deckQueryKey });
+    queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
+  };
+
+  const handleAddOwned = (cardId: number) => {
     addCard.mutate(
       { id, data: { cardId, count: 1 } },
+      { onSuccess: invalidateDeck, onError: () => toast.error("Failed to add card") },
+    );
+  };
+
+  const handleAddCatalog = (card: CatalogCard) => {
+    addCard.mutate(
+      { id, data: { catalogCardId: card.id, count: 1 } },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: deckQueryKey });
-          queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
+          invalidateDeck();
+          toast.success(`Added ${card.name}`);
         },
-        onError: () => toast.error("Failed to add card"),
+        onError: () => toast.error("Catalog temporarily unavailable"),
       },
     );
   };
 
-  const handleRemove = (cardId: number) => {
-    removeCard.mutate(
-      { id, cardId },
+  const handleAddWishlist = (wishlistItemId: number, label: string) => {
+    addCard.mutate(
+      { id, data: { wishlistItemId, count: 1 } },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: deckQueryKey });
-          queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
+          invalidateDeck();
+          toast.success(`Added ${label}`);
         },
-        onError: () => toast.error("Failed to remove card"),
+        onError: () => toast.error("Failed to add wishlist card"),
       },
     );
+  };
+
+  /**
+   * Remove an entry by its `entryId` token. The endpoint accepts
+   * `entry-<id>` for the new entry-based scheme. We bypass the generated
+   * `useRemoveDeckCard` (which expects a numeric cardId) and call the API
+   * directly so all source types can be removed.
+   */
+  const handleRemove = async (entryId: number) => {
+    setRemovingId(entryId);
+    try {
+      await customFetch<void>(`/api/decks/${id}/cards/entry-${entryId}`, {
+        method: "DELETE",
+      });
+      invalidateDeck();
+    } catch {
+      toast.error("Failed to remove card");
+    } finally {
+      setRemovingId(null);
+    }
   };
 
   const handleDeleteDeck = () => {
@@ -175,12 +238,25 @@ export default function DeckDetail() {
     );
   }
 
-  const inDeckIds = new Set(deck.cards.map((c) => c.cardId));
-  const availableCards = (collection ?? []).filter(
+  // Track in-deck source ids so the picker can disable already-added items.
+  const ownedInDeck = new Set(
+    deck.cards.filter((c) => c.source === "owned" && c.cardId).map((c) => c.cardId!),
+  );
+  const wishlistInDeck = new Set(
+    deck.cards.filter((c) => c.wishlistItemId != null).map((c) => c.wishlistItemId!),
+  );
+  const catalogInDeck = new Set(
+    deck.cards.filter((c) => c.catalogCardId).map((c) => c.catalogCardId!),
+  );
+
+  const availableOwned = (collection ?? []).filter(
     (c) =>
-      !inDeckIds.has(c.id) &&
+      !ownedInDeck.has(c.id) &&
       (pickerSearch.trim() === "" ||
         c.name.toLowerCase().includes(pickerSearch.toLowerCase())),
+  );
+  const availableWishlist = (wishlist ?? []).filter(
+    (w) => !wishlistInDeck.has(w.id),
   );
   const totalCount = deck.cards.reduce((sum, c) => sum + c.count, 0);
 
@@ -268,51 +344,117 @@ export default function DeckDetail() {
                 <Plus className="h-4 w-4" /> Add card
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
               <DialogHeader>
-                <DialogTitle>Add card from your collection</DialogTitle>
+                <DialogTitle>Add a card</DialogTitle>
               </DialogHeader>
-              <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search your collection..."
-                  value={pickerSearch}
-                  onChange={(e) => setPickerSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <div className="overflow-y-auto flex-1">
-                {availableCards.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    No more cards in your collection to add.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                    {availableCards.map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          handleAdd(c.id);
-                          setPickerOpen(false);
-                          setPickerSearch("");
-                        }}
-                        className="text-left rounded-lg border hover:border-primary transition-colors overflow-hidden"
-                      >
-                        <div className="aspect-[3/4] bg-muted/30">
-                          {c.imageUrl ? (
-                            <img src={c.imageUrl} alt={c.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                              <ImageIcon className="h-6 w-6" />
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-xs font-semibold p-2 truncate">{c.name}</p>
-                      </button>
-                    ))}
+              <Tabs defaultValue="owned" className="flex flex-col flex-1 min-h-0">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="owned" className="gap-1.5">
+                    <Layers className="h-3.5 w-3.5" /> Owned
+                  </TabsTrigger>
+                  <TabsTrigger value="catalog" className="gap-1.5">
+                    <Library className="h-3.5 w-3.5" /> Catalog
+                  </TabsTrigger>
+                  <TabsTrigger value="wishlist" className="gap-1.5">
+                    <Heart className="h-3.5 w-3.5" /> Wishlist
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="owned" className="mt-3 flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden">
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search your collection..."
+                      value={pickerSearch}
+                      onChange={(e) => setPickerSearch(e.target.value)}
+                      className="pl-9"
+                    />
                   </div>
-                )}
-              </div>
+                  <div className="overflow-y-auto flex-1 -mx-1 px-1">
+                    {availableOwned.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        No more owned cards to add.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                        {availableOwned.map((c) => (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              handleAddOwned(c.id);
+                              setPickerOpen(false);
+                              setPickerSearch("");
+                            }}
+                            className="text-left rounded-lg border hover:border-primary transition-colors overflow-hidden"
+                          >
+                            <div className="aspect-[3/4] bg-muted/30">
+                              {c.imageUrl ? (
+                                <img src={c.imageUrl} alt={c.name} className="w-full h-full object-cover" loading="lazy" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
+                                  <ImageIcon className="h-6 w-6" />
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-xs font-semibold p-2 truncate">{c.name}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="catalog" className="mt-3 flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden">
+                  <CatalogSearch
+                    onSelect={(c) => {
+                      handleAddCatalog(c);
+                      setPickerOpen(false);
+                    }}
+                    excludeIds={catalogInDeck}
+                    emptyHint="Find any printed card via the global catalog."
+                    autoFocus
+                  />
+                </TabsContent>
+
+                <TabsContent value="wishlist" className="mt-3 flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden">
+                  <div className="overflow-y-auto flex-1 -mx-1 px-1">
+                    {availableWishlist.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        No wishlist items left to add.{" "}
+                        <Link href="/wishlist" className="text-primary underline">
+                          Manage wishlist →
+                        </Link>
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                        {availableWishlist.map((w) => (
+                          <button
+                            key={w.id}
+                            onClick={() => {
+                              handleAddWishlist(w.id, w.name);
+                              setPickerOpen(false);
+                            }}
+                            className="text-left rounded-lg border hover:border-primary transition-colors overflow-hidden"
+                          >
+                            <div className="aspect-[3/4] bg-muted/30 relative">
+                              {w.imageUrl ? (
+                                <img src={w.imageUrl} alt={w.name} className="w-full h-full object-cover" loading="lazy" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
+                                  <ImageIcon className="h-6 w-6" />
+                                </div>
+                              )}
+                              <Heart className="absolute top-1 right-1 h-3.5 w-3.5 text-rose-500 fill-rose-500" />
+                            </div>
+                            <p className="text-xs font-semibold p-2 truncate">{w.name}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </DialogContent>
           </Dialog>
         </div>
@@ -323,42 +465,64 @@ export default function DeckDetail() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {deck.cards.map((entry) => (
-              <div key={entry.cardId} className="group relative rounded-xl border overflow-hidden bg-card hover:shadow-md transition-shadow">
-                <div className="aspect-[3/4] bg-muted/30 relative">
-                  {entry.card.imageUrl ? (
-                    <img src={entry.card.imageUrl} alt={entry.card.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                      <ImageIcon className="h-8 w-8" />
-                    </div>
-                  )}
-                  {entry.count > 1 && (
-                    <Badge className="absolute top-2 left-2 bg-primary/90 text-primary-foreground">
-                      ×{entry.count}
-                    </Badge>
-                  )}
-                  {entry.role && (
-                    <Badge variant="secondary" className="absolute bottom-2 left-2 text-[10px] capitalize">
-                      {entry.role}
-                    </Badge>
-                  )}
-                  <button
-                    onClick={() => handleRemove(entry.cardId)}
-                    className="absolute top-1.5 right-1.5 bg-background/90 hover:bg-destructive hover:text-destructive-foreground rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                    aria-label="Remove from deck"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+            {deck.cards.map((entry) => {
+              const display = entryDisplay(entry);
+              const sourceBadge = SOURCE_BADGE[entry.source];
+              const isRemoving = removingId === entry.entryId;
+              return (
+                <div
+                  key={entry.entryId}
+                  className="group relative rounded-xl border overflow-hidden bg-card hover:shadow-md transition-shadow"
+                >
+                  <div className="aspect-[3/4] bg-muted/30 relative">
+                    {display.imageUrl ? (
+                      <img src={display.imageUrl} alt={display.name} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
+                        <ImageIcon className="h-8 w-8" />
+                      </div>
+                    )}
+                    {entry.count > 1 && (
+                      <Badge className="absolute top-2 left-2 bg-primary/90 text-primary-foreground">
+                        ×{entry.count}
+                      </Badge>
+                    )}
+                    {entry.role && (
+                      <Badge variant="secondary" className="absolute bottom-2 left-2 text-[10px] capitalize">
+                        {entry.role}
+                      </Badge>
+                    )}
+                    {entry.source !== "owned" && sourceBadge && (
+                      <span
+                        className={`absolute bottom-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${sourceBadge.className}`}
+                      >
+                        {sourceBadge.label}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleRemove(entry.entryId)}
+                      disabled={isRemoving}
+                      className="absolute top-1.5 right-1.5 bg-background/90 hover:bg-destructive hover:text-destructive-foreground rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm disabled:opacity-50"
+                      aria-label="Remove from deck"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="p-2">
+                    <p className="text-xs font-semibold truncate">{display.name}</p>
+                    {(display.setName || display.cardNumber) && (
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {display.setName ?? ""}
+                        {display.cardNumber ? ` · #${display.cardNumber}` : ""}
+                      </p>
+                    )}
+                    {entry.notes && (
+                      <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">{entry.notes}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="p-2">
-                  <p className="text-xs font-semibold truncate">{entry.card.name}</p>
-                  {entry.notes && (
-                    <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">{entry.notes}</p>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

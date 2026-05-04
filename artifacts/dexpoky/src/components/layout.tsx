@@ -17,6 +17,7 @@ import {
   Scan,
   Sparkles,
   BookOpen,
+  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -152,6 +153,7 @@ export function Layout({ children }: LayoutProps) {
   const authNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/collection", label: "Collection", icon: Layers },
+    { href: "/wishlist", label: "Wishlist", icon: Heart },
     { href: "/decks", label: "Decks", icon: Library },
     { href: "/categories", label: "Categories", icon: FolderTree },
     { href: "/share", label: "Share", icon: Share2 },

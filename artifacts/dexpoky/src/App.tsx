@@ -32,6 +32,7 @@ import ShortLinkRedirect from "@/pages/s/[code]";
 import SubscriptionPage from "@/pages/subscription";
 import AdminPayouts from "@/pages/admin/payouts";
 import RulesPage from "@/pages/rules";
+import Wishlist from "@/pages/wishlist";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -208,7 +209,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/decks/new" component={() => <ProtectedRoute component={NewDeck} />} />
             <Route path="/decks/:id" component={() => <ProtectedRoute component={DeckDetail} />} />
             <Route path="/rules" component={() => <ProtectedRoute component={RulesPage} />} />
-
+            <Route path="/wishlist" component={() => <ProtectedRoute component={Wishlist} />} />
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/marketplace/:id" component={ListingDetail} />
             <Route path="/sell" component={() => <ProtectedRoute component={Sell} />} />

@@ -18,7 +18,10 @@ import type {
 
 import type {
   AddDeckCardBody,
+  AddWishlistBody,
   Card,
+  CatalogCardDetail,
+  CatalogSearchResponse,
   Category,
   CategoryValue,
   CreateCardBody,
@@ -38,6 +41,7 @@ import type {
   PokemonResult,
   RulebookResponse,
   RulebookSearchResult,
+  SearchCatalogParams,
   SearchPokemonParams,
   SearchRulebookParams,
   SuggestDeckBody,
@@ -46,8 +50,10 @@ import type {
   UpdateCategoryBody,
   UpdateDeckBody,
   UpdateListingBody,
+  UpdateWishlistBody,
   UploadUrlRequest,
   UploadUrlResponse,
+  WishlistItem,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -2595,6 +2601,519 @@ export const useSuggestDeck = <
   TContext
 > => {
   return useMutation(getSuggestDeckMutationOptions(options));
+};
+
+/**
+ * @summary Search the PokeWallet card catalog by name
+ */
+export const getSearchCatalogUrl = (params: SearchCatalogParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/catalog/search?${stringifiedParams}`
+    : `/api/catalog/search`;
+};
+
+export const searchCatalog = async (
+  params: SearchCatalogParams,
+  options?: RequestInit,
+): Promise<CatalogSearchResponse> => {
+  return customFetch<CatalogSearchResponse>(getSearchCatalogUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getSearchCatalogQueryKey = (params?: SearchCatalogParams) => {
+  return [`/api/catalog/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getSearchCatalogQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchCatalog>>,
+  TError = ErrorType<unknown>,
+>(
+  params: SearchCatalogParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchCatalog>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getSearchCatalogQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchCatalog>>> = ({
+    signal,
+  }) => searchCatalog(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchCatalog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type SearchCatalogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchCatalog>>
+>;
+export type SearchCatalogQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Search the PokeWallet card catalog by name
+ */
+
+export function useSearchCatalog<
+  TData = Awaited<ReturnType<typeof searchCatalog>>,
+  TError = ErrorType<unknown>,
+>(
+  params: SearchCatalogParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchCatalog>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getSearchCatalogQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a single catalog card by PokeWallet id
+ */
+export const getGetCatalogCardUrl = (id: string) => {
+  return `/api/catalog/cards/${id}`;
+};
+
+export const getCatalogCard = async (
+  id: string,
+  options?: RequestInit,
+): Promise<CatalogCardDetail> => {
+  return customFetch<CatalogCardDetail>(getGetCatalogCardUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCatalogCardQueryKey = (id: string) => {
+  return [`/api/catalog/cards/${id}`] as const;
+};
+
+export const getGetCatalogCardQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCatalogCard>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCatalogCard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCatalogCardQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogCard>>> = ({
+    signal,
+  }) => getCatalogCard(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogCard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCatalogCardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCatalogCard>>
+>;
+export type GetCatalogCardQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Get a single catalog card by PokeWallet id
+ */
+
+export function useGetCatalogCard<
+  TData = Awaited<ReturnType<typeof getCatalogCard>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCatalogCard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCatalogCardQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List the signed-in user's wishlist items
+ */
+export const getListWishlistUrl = () => {
+  return `/api/wishlist`;
+};
+
+export const listWishlist = async (
+  options?: RequestInit,
+): Promise<WishlistItem[]> => {
+  return customFetch<WishlistItem[]>(getListWishlistUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListWishlistQueryKey = () => {
+  return [`/api/wishlist`] as const;
+};
+
+export const getListWishlistQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWishlist>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listWishlist>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListWishlistQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listWishlist>>> = ({
+    signal,
+  }) => listWishlist({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listWishlist>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListWishlistQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWishlist>>
+>;
+export type ListWishlistQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the signed-in user's wishlist items
+ */
+
+export function useListWishlist<
+  TData = Awaited<ReturnType<typeof listWishlist>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listWishlist>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListWishlistQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a catalog card to the wishlist
+ */
+export const getAddWishlistItemUrl = () => {
+  return `/api/wishlist`;
+};
+
+export const addWishlistItem = async (
+  addWishlistBody: AddWishlistBody,
+  options?: RequestInit,
+): Promise<WishlistItem> => {
+  return customFetch<WishlistItem>(getAddWishlistItemUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addWishlistBody),
+  });
+};
+
+export const getAddWishlistItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addWishlistItem>>,
+    TError,
+    { data: BodyType<AddWishlistBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addWishlistItem>>,
+  TError,
+  { data: BodyType<AddWishlistBody> },
+  TContext
+> => {
+  const mutationKey = ["addWishlistItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addWishlistItem>>,
+    { data: BodyType<AddWishlistBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addWishlistItem(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddWishlistItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addWishlistItem>>
+>;
+export type AddWishlistItemMutationBody = BodyType<AddWishlistBody>;
+export type AddWishlistItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a catalog card to the wishlist
+ */
+export const useAddWishlistItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addWishlistItem>>,
+    TError,
+    { data: BodyType<AddWishlistBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addWishlistItem>>,
+  TError,
+  { data: BodyType<AddWishlistBody> },
+  TContext
+> => {
+  return useMutation(getAddWishlistItemMutationOptions(options));
+};
+
+/**
+ * @summary Update wishlist priority or notes
+ */
+export const getUpdateWishlistItemUrl = (id: number) => {
+  return `/api/wishlist/${id}`;
+};
+
+export const updateWishlistItem = async (
+  id: number,
+  updateWishlistBody: UpdateWishlistBody,
+  options?: RequestInit,
+): Promise<WishlistItem> => {
+  return customFetch<WishlistItem>(getUpdateWishlistItemUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateWishlistBody),
+  });
+};
+
+export const getUpdateWishlistItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWishlistItem>>,
+    TError,
+    { id: number; data: BodyType<UpdateWishlistBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateWishlistItem>>,
+  TError,
+  { id: number; data: BodyType<UpdateWishlistBody> },
+  TContext
+> => {
+  const mutationKey = ["updateWishlistItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateWishlistItem>>,
+    { id: number; data: BodyType<UpdateWishlistBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateWishlistItem(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateWishlistItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateWishlistItem>>
+>;
+export type UpdateWishlistItemMutationBody = BodyType<UpdateWishlistBody>;
+export type UpdateWishlistItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update wishlist priority or notes
+ */
+export const useUpdateWishlistItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWishlistItem>>,
+    TError,
+    { id: number; data: BodyType<UpdateWishlistBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateWishlistItem>>,
+  TError,
+  { id: number; data: BodyType<UpdateWishlistBody> },
+  TContext
+> => {
+  return useMutation(getUpdateWishlistItemMutationOptions(options));
+};
+
+/**
+ * @summary Remove a wishlist item
+ */
+export const getRemoveWishlistItemUrl = (id: number) => {
+  return `/api/wishlist/${id}`;
+};
+
+export const removeWishlistItem = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRemoveWishlistItemUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemoveWishlistItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeWishlistItem>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeWishlistItem>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["removeWishlistItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeWishlistItem>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return removeWishlistItem(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveWishlistItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeWishlistItem>>
+>;
+
+export type RemoveWishlistItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a wishlist item
+ */
+export const useRemoveWishlistItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeWishlistItem>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeWishlistItem>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRemoveWishlistItemMutationOptions(options));
 };
 
 /**

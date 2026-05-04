@@ -43,6 +43,7 @@ export interface Card {
   condition: CardCondition;
   imageUrl?: string | null;
   originalScanUrl?: string | null;
+  catalogCardId?: string | null;
   estimatedValue?: number | null;
   acquiredDate?: string | null;
   categoryId?: number | null;
@@ -90,6 +91,7 @@ export interface CreateCardBody {
   condition: CreateCardBodyCondition;
   imageUrl?: string | null;
   originalScanUrl?: string | null;
+  catalogCardId?: string | null;
   estimatedValue?: number | null;
   acquiredDate?: string | null;
   categoryId?: number | null;
@@ -134,6 +136,7 @@ export interface UpdateCardBody {
   condition?: UpdateCardBodyCondition;
   imageUrl?: string | null;
   originalScanUrl?: string | null;
+  catalogCardId?: string | null;
   estimatedValue?: number | null;
   acquiredDate?: string | null;
   categoryId?: number | null;
@@ -303,12 +306,29 @@ export interface DeckSummary {
   updatedAt: string;
 }
 
+export type DeckCardEntrySource =
+  (typeof DeckCardEntrySource)[keyof typeof DeckCardEntrySource];
+
+export const DeckCardEntrySource = {
+  owned: "owned",
+  catalog: "catalog",
+  wishlist: "wishlist",
+} as const;
+
 export interface DeckCardEntry {
-  cardId: number;
+  entryId: number;
+  source: DeckCardEntrySource;
+  cardId?: number | null;
+  catalogCardId?: string | null;
+  wishlistItemId?: number | null;
   count: number;
   role?: string | null;
   notes?: string | null;
-  card: Card;
+  snapshotName?: string | null;
+  snapshotImageUrl?: string | null;
+  snapshotSetName?: string | null;
+  snapshotCardNumber?: string | null;
+  card?: Card | null;
 }
 
 export type DeckWithCardsGameStyle =
@@ -388,7 +408,9 @@ export interface UpdateDeckBody {
 }
 
 export interface AddDeckCardBody {
-  cardId: number;
+  cardId?: number | null;
+  catalogCardId?: string | null;
+  wishlistItemId?: number | null;
   /** @minimum 1 */
   count?: number;
   role?: string | null;
@@ -412,8 +434,23 @@ export interface SuggestDeckBody {
   notes?: string | null;
 }
 
+export type SuggestedDeckCardSource =
+  (typeof SuggestedDeckCardSource)[keyof typeof SuggestedDeckCardSource];
+
+export const SuggestedDeckCardSource = {
+  owned: "owned",
+  wishlist: "wishlist",
+} as const;
+
 export interface SuggestedDeckCard {
-  cardId: number;
+  source: SuggestedDeckCardSource;
+  cardId?: number | null;
+  wishlistItemId?: number | null;
+  catalogCardId?: string | null;
+  name: string;
+  imageUrl?: string | null;
+  setName?: string | null;
+  cardNumber?: string | null;
   count: number;
   role?: string | null;
   reason: string;
@@ -509,6 +546,115 @@ export interface RulebookSearchResult {
   score: number;
 }
 
+export interface CatalogCard {
+  id: string;
+  name: string;
+  pokemonName: string;
+  setName: string;
+  setCode: string;
+  cardNumber: string;
+  rarity?: string | null;
+  imageUrl: string;
+  marketPrice?: number | null;
+  tcgplayerUrl?: string | null;
+  cardmarketUrl?: string | null;
+}
+
+export type CatalogSearchResponseSource =
+  (typeof CatalogSearchResponseSource)[keyof typeof CatalogSearchResponseSource];
+
+export const CatalogSearchResponseSource = {
+  pokewallet: "pokewallet",
+  tcgdex: "tcgdex",
+  empty: "empty",
+} as const;
+
+export interface CatalogSearchResponse {
+  results: CatalogCard[];
+  source: CatalogSearchResponseSource;
+  rateLimited: boolean;
+  remainingHour?: number | null;
+}
+
+export type CatalogPricingSource =
+  | (typeof CatalogPricingSource)[keyof typeof CatalogPricingSource]
+  | null;
+
+export const CatalogPricingSource = {
+  tcgplayer: "tcgplayer",
+  cardmarket: "cardmarket",
+} as const;
+
+export type CatalogPricingPsaEstimates = { [key: string]: number } | null;
+
+export interface CatalogPricing {
+  marketPrice: number | null;
+  lowPrice: number | null;
+  trendPrice: number | null;
+  source?: CatalogPricingSource;
+  psaEstimates?: CatalogPricingPsaEstimates;
+}
+
+export interface CatalogCardDetail {
+  card: CatalogCard;
+  pricing: CatalogPricing;
+}
+
+export type WishlistItemPriority =
+  (typeof WishlistItemPriority)[keyof typeof WishlistItemPriority];
+
+export const WishlistItemPriority = {
+  low: "low",
+  normal: "normal",
+  high: "high",
+} as const;
+
+export interface WishlistItem {
+  id: number;
+  catalogCardId: string;
+  name: string;
+  pokemonName: string;
+  setName?: string | null;
+  setCode?: string | null;
+  cardNumber?: string | null;
+  rarity?: string | null;
+  imageUrl?: string | null;
+  lastSeenPrice?: number | null;
+  notes?: string | null;
+  priority: WishlistItemPriority;
+  addedAt: string;
+  updatedAt: string;
+}
+
+export type AddWishlistBodyPriority =
+  (typeof AddWishlistBodyPriority)[keyof typeof AddWishlistBodyPriority];
+
+export const AddWishlistBodyPriority = {
+  low: "low",
+  normal: "normal",
+  high: "high",
+} as const;
+
+export interface AddWishlistBody {
+  catalogCardId: string;
+  priority?: AddWishlistBodyPriority;
+  notes?: string | null;
+}
+
+export type UpdateWishlistBodyPriority =
+  (typeof UpdateWishlistBodyPriority)[keyof typeof UpdateWishlistBodyPriority];
+
+export const UpdateWishlistBodyPriority = {
+  low: "low",
+  normal: "normal",
+  high: "high",
+} as const;
+
+export interface UpdateWishlistBody {
+  priority?: UpdateWishlistBodyPriority;
+  notes?: string | null;
+}
+
 export type ListCardsParams = {
   categoryId?: number;
   forSale?: boolean;
@@ -538,6 +684,18 @@ export type GetRecentActivityParams = {
 
 export type SearchPokemonParams = {
   query: string;
+};
+
+export type SearchCatalogParams = {
+  /**
+   * @minLength 1
+   */
+  q: string;
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
 };
 
 export type SearchRulebookParams = {

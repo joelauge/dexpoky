@@ -493,6 +493,7 @@ export default function ScanPage() {
                           `&setName=${encodeURIComponent(displayCard.setName)}`,
                           `&cardNumber=${encodeURIComponent(displayCard.cardNumber)}`,
                           `&imageUrl=${encodeURIComponent(displayCard.imageUrl)}`,
+                          displayCard.id ? `&catalogCardId=${encodeURIComponent(displayCard.id)}` : "",
                           finalScanUrl ? `&originalScanUrl=${encodeURIComponent(finalScanUrl)}` : "",
                           pricing?.marketPrice != null ? `&estimatedValue=${pricing.marketPrice}` : "",
                         ].join("");

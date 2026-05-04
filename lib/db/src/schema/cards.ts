@@ -42,6 +42,7 @@ export const cardsTable = pgTable("cards", {
   condition: text("condition").notNull(),
   imageUrl: text("image_url"),
   originalScanUrl: text("original_scan_url"),
+  catalogCardId: text("catalog_card_id"),
   estimatedValue: numeric("estimated_value", { precision: 10, scale: 2 }),
   acquiredDate: timestamp("acquired_date"),
   categoryId: integer("category_id").references(() => categoriesTable.id, {

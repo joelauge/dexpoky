@@ -16,6 +16,8 @@ import billingRouter from "./billing";
 import adminRouter from "./admin";
 import decksRouter from "./decks";
 import rulesRouter from "./rules";
+import catalogRouter from "./catalog";
+import wishlistRouter from "./wishlist";
 
 const router: IRouter = Router();
 
@@ -36,5 +38,7 @@ router.use(billingRouter);
 router.use(adminRouter);
 router.use(decksRouter);
 router.use(rulesRouter);
+router.use(catalogRouter);
+router.use(wishlistRouter);
 
 export default router;

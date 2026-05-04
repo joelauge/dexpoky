@@ -5,6 +5,7 @@ import {
   deckCardsTable,
   cardsTable,
   categoriesTable,
+  wishlistItemsTable,
 } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
@@ -16,6 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { getDeckBuildingSectionText } from "./rules.js";
+import { pwGetCard, normalizeCatalogCard } from "../lib/pokewallet.js";
 
 const router = Router();
 
@@ -28,6 +30,7 @@ const cardSelect = {
   rarity: cardsTable.rarity,
   condition: cardsTable.condition,
   imageUrl: cardsTable.imageUrl,
+  catalogCardId: cardsTable.catalogCardId,
   estimatedValue: sql<number | null>`${cardsTable.estimatedValue}::float`,
   acquiredDate: cardsTable.acquiredDate,
   categoryId: cardsTable.categoryId,
@@ -49,17 +52,49 @@ async function loadDeckWithCards(deckId: number) {
 
   const rows = await db
     .select({
+      entryId: deckCardsTable.id,
       cardId: deckCardsTable.cardId,
+      catalogCardId: deckCardsTable.catalogCardId,
+      wishlistItemId: deckCardsTable.wishlistItemId,
+      snapshotName: deckCardsTable.snapshotName,
+      snapshotImageUrl: deckCardsTable.snapshotImageUrl,
+      snapshotSetName: deckCardsTable.snapshotSetName,
+      snapshotCardNumber: deckCardsTable.snapshotCardNumber,
       count: deckCardsTable.count,
       role: deckCardsTable.role,
       notes: deckCardsTable.notes,
-      card: cardSelect,
+      // Owned card join (nullable)
+      ownedCard: cardSelect,
     })
     .from(deckCardsTable)
-    .innerJoin(cardsTable, eq(cardsTable.id, deckCardsTable.cardId))
+    .leftJoin(cardsTable, eq(cardsTable.id, deckCardsTable.cardId))
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
     .where(eq(deckCardsTable.deckId, deckId))
     .orderBy(deckCardsTable.createdAt);
+
+  const cards = rows.map((r) => {
+    const source: "owned" | "wishlist" | "catalog" = r.cardId
+      ? "owned"
+      : r.wishlistItemId
+        ? "wishlist"
+        : "catalog";
+    return {
+      entryId: r.entryId,
+      source,
+      cardId: r.cardId,
+      catalogCardId: r.catalogCardId,
+      wishlistItemId: r.wishlistItemId,
+      snapshotName: r.snapshotName,
+      snapshotImageUrl: r.snapshotImageUrl,
+      snapshotSetName: r.snapshotSetName,
+      snapshotCardNumber: r.snapshotCardNumber,
+      count: r.count,
+      role: r.role,
+      notes: r.notes,
+      // Only owned cards have full Card objects
+      card: r.cardId ? r.ownedCard : null,
+    };
+  });
 
   return {
     id: deck.id,
@@ -67,7 +102,7 @@ async function loadDeckWithCards(deckId: number) {
     description: deck.description,
     gameStyle: deck.gameStyle,
     strategy: deck.strategy,
-    cards: rows,
+    cards,
     createdAt: deck.createdAt,
     updatedAt: deck.updatedAt,
   };
@@ -98,21 +133,25 @@ router.get("/decks", requireAuth, async (req, res) => {
     .where(inArray(deckCardsTable.deckId, deckIds))
     .groupBy(deckCardsTable.deckId);
 
+  // Cover image: prefer owned card image, then deck-card snapshot
   const covers = await db
     .select({
       deckId: deckCardsTable.deckId,
-      imageUrl: cardsTable.imageUrl,
+      ownedImageUrl: cardsTable.imageUrl,
+      snapshotImageUrl: deckCardsTable.snapshotImageUrl,
       createdAt: deckCardsTable.createdAt,
     })
     .from(deckCardsTable)
-    .innerJoin(cardsTable, eq(cardsTable.id, deckCardsTable.cardId))
-    .where(inArray(deckCardsTable.deckId, deckIds));
+    .leftJoin(cardsTable, eq(cardsTable.id, deckCardsTable.cardId))
+    .where(inArray(deckCardsTable.deckId, deckIds))
+    .orderBy(deckCardsTable.createdAt);
 
   const countByDeck = new Map(counts.map((c) => [c.deckId, c]));
   const coverByDeck = new Map<number, string | null>();
   for (const c of covers) {
-    if (!c.imageUrl) continue;
-    if (!coverByDeck.has(c.deckId)) coverByDeck.set(c.deckId, c.imageUrl);
+    const url = c.ownedImageUrl ?? c.snapshotImageUrl;
+    if (!url) continue;
+    if (!coverByDeck.has(c.deckId)) coverByDeck.set(c.deckId, url);
   }
 
   res.json(
@@ -142,22 +181,24 @@ router.post("/decks", requireAuth, async (req, res) => {
   }
   const data = parsed.data;
 
-  // Accept either `cardIds: number[]` (legacy) or `cards: [{cardId, count, role, notes}]`
-  // (preferred — preserves AI-suggested counts and roles).
-  const rawBody = req.body as {
-    cardIds?: unknown;
-    cards?: unknown;
-  };
+  // Accept either:
+  //   - `cardIds: number[]` (legacy owned ids)
+  //   - `cards: [{cardId, count, role, notes}]` (legacy)
+  //   - `cards: [{source:"owned"|"wishlist", cardId|wishlistItemId, ...}]` (new)
+  const rawBody = req.body as { cardIds?: unknown; cards?: unknown };
 
-  type EntryInput = { cardId: number; count: number; role: string | null; notes: string | null };
-  const entryMap = new Map<number, EntryInput>();
+  type OwnedEntry = { source: "owned"; cardId: number; count: number; role: string | null; notes: string | null };
+  type WishlistEntry = { source: "wishlist"; wishlistItemId: number; count: number; role: string | null; notes: string | null };
+  type EntryInput = OwnedEntry | WishlistEntry;
+
+  const entries: EntryInput[] = [];
+  const ownedIds = new Set<number>();
+  const wishlistIds = new Set<number>();
 
   if (Array.isArray(rawBody.cards)) {
     for (const item of rawBody.cards) {
       if (!item || typeof item !== "object") continue;
       const obj = item as Record<string, unknown>;
-      const cardId = typeof obj.cardId === "number" && Number.isInteger(obj.cardId) ? obj.cardId : null;
-      if (cardId == null) continue;
       const rawCount = typeof obj.count === "number" && Number.isInteger(obj.count) ? obj.count : 1;
       // Per official rules a deck has 60 cards and is limited to 4 of any same-named card EXCEPT
       // Basic Energy (no per-name cap). We use a permissive 1..60 sanity bound here and rely on
@@ -165,12 +206,23 @@ router.post("/decks", requireAuth, async (req, res) => {
       const count = Math.max(1, Math.min(60, rawCount));
       const role = typeof obj.role === "string" ? obj.role : null;
       const notes = typeof obj.notes === "string" ? obj.notes : null;
-      entryMap.set(cardId, { cardId, count, role, notes });
+      const wishlistItemId = typeof obj.wishlistItemId === "number" && Number.isInteger(obj.wishlistItemId) ? obj.wishlistItemId : null;
+      const cardId = typeof obj.cardId === "number" && Number.isInteger(obj.cardId) ? obj.cardId : null;
+      const explicitSource = typeof obj.source === "string" ? obj.source : null;
+
+      if ((explicitSource === "wishlist" || (!explicitSource && wishlistItemId != null)) && wishlistItemId != null && !wishlistIds.has(wishlistItemId)) {
+        wishlistIds.add(wishlistItemId);
+        entries.push({ source: "wishlist", wishlistItemId, count, role, notes });
+      } else if (cardId != null && !ownedIds.has(cardId)) {
+        ownedIds.add(cardId);
+        entries.push({ source: "owned", cardId, count, role, notes });
+      }
     }
   } else if (Array.isArray(rawBody.cardIds)) {
     for (const n of rawBody.cardIds) {
-      if (typeof n === "number" && Number.isInteger(n) && !entryMap.has(n)) {
-        entryMap.set(n, { cardId: n, count: 1, role: null, notes: null });
+      if (typeof n === "number" && Number.isInteger(n) && !ownedIds.has(n)) {
+        ownedIds.add(n);
+        entries.push({ source: "owned", cardId: n, count: 1, role: null, notes: null });
       }
     }
   }
@@ -186,36 +238,85 @@ router.post("/decks", requireAuth, async (req, res) => {
     })
     .returning();
 
-  if (entryMap.size > 0) {
-    const requestedIds = Array.from(entryMap.keys());
-    const owned = await db
-      .select({ id: cardsTable.id, name: cardsTable.name })
-      .from(cardsTable)
-      .where(
-        and(
-          eq(cardsTable.ownerClerkId, userId),
-          inArray(cardsTable.id, requestedIds),
-        ),
-      );
-    // Per TCG rules: no per-name cap on Basic Energy; otherwise cap at 4.
+  if (entries.length > 0) {
+    const ownedRequested = Array.from(ownedIds);
+    const ownedRows = ownedRequested.length
+      ? await db
+          .select({ id: cardsTable.id, name: cardsTable.name })
+          .from(cardsTable)
+          .where(
+            and(
+              eq(cardsTable.ownerClerkId, userId),
+              inArray(cardsTable.id, ownedRequested),
+            ),
+          )
+      : [];
+    const ownedById = new Map(ownedRows.map((c) => [c.id, c]));
+
+    const wishlistRequested = Array.from(wishlistIds);
+    const wishlistRows = wishlistRequested.length
+      ? await db
+          .select({
+            id: wishlistItemsTable.id,
+            catalogCardId: wishlistItemsTable.catalogCardId,
+            name: wishlistItemsTable.name,
+            imageUrl: wishlistItemsTable.imageUrl,
+            setName: wishlistItemsTable.setName,
+            cardNumber: wishlistItemsTable.cardNumber,
+          })
+          .from(wishlistItemsTable)
+          .where(
+            and(
+              eq(wishlistItemsTable.ownerClerkId, userId),
+              inArray(wishlistItemsTable.id, wishlistRequested),
+            ),
+          )
+      : [];
+    const wishlistMap = new Map(wishlistRows.map((w) => [w.id, w]));
+
+    // Heuristic for Basic Energy (Pokémon TCG rules: no per-name cap on
+    // Basic Energy; everything else is capped at 4 of the same name).
     const isBasicEnergy = (name: string) =>
       /^basic\s+.+\benergy\b/i.test(name.trim());
-    const ownedById = new Map(owned.map((c) => [c.id, c]));
-    const toInsert = Array.from(entryMap.values())
-      .filter((e) => ownedById.has(e.cardId))
-      .map((e) => {
-        const card = ownedById.get(e.cardId)!;
+
+    const toInsert: Array<typeof deckCardsTable.$inferInsert> = [];
+    for (const entry of entries) {
+      if (entry.source === "owned") {
+        const card = ownedById.get(entry.cardId);
+        if (!card) continue;
+        // Server-side legality cap: enforce 4-of-a-kind for non-Basic-Energy
+        // cards. UI + AI prompt also enforce this, but a hostile/buggy client
+        // could otherwise persist illegal counts.
         const cappedCount = isBasicEnergy(card.name)
-          ? e.count
-          : Math.min(4, e.count);
-        return {
+          ? entry.count
+          : Math.min(4, entry.count);
+        toInsert.push({
           deckId: deck.id,
-          cardId: e.cardId,
+          cardId: entry.cardId,
           count: cappedCount,
-          role: e.role,
-          notes: e.notes,
-        };
-      });
+          role: entry.role,
+          notes: entry.notes,
+        });
+      } else {
+        const w = wishlistMap.get(entry.wishlistItemId);
+        if (!w) continue;
+        // Wishlist snapshots are not real owned cards, so the Basic-Energy
+        // exemption doesn't apply — cap at 4 unconditionally.
+        toInsert.push({
+          deckId: deck.id,
+          cardId: null,
+          catalogCardId: w.catalogCardId,
+          wishlistItemId: w.id,
+          snapshotName: w.name,
+          snapshotImageUrl: w.imageUrl,
+          snapshotSetName: w.setName,
+          snapshotCardNumber: w.cardNumber,
+          count: Math.min(4, entry.count),
+          role: entry.role,
+          notes: entry.notes,
+        });
+      }
+    }
     if (toInsert.length > 0) {
       await db.insert(deckCardsTable).values(toInsert).onConflictDoNothing();
     }
@@ -324,30 +425,94 @@ router.post("/decks/:id/cards", requireAuth, async (req, res) => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  const [card] = await db
-    .select({ id: cardsTable.id, ownerClerkId: cardsTable.ownerClerkId })
-    .from(cardsTable)
-    .where(eq(cardsTable.id, parsed.data.cardId));
-  if (!card || card.ownerClerkId !== userId) {
-    res.status(400).json({ error: "Card not in your collection" });
+
+  const desiredCount = parsed.data.count ?? 1;
+  const role = parsed.data.role ?? null;
+  const notes = parsed.data.notes ?? null;
+
+  if (parsed.data.cardId != null) {
+    // Owned card path
+    const [card] = await db
+      .select({ id: cardsTable.id, ownerClerkId: cardsTable.ownerClerkId })
+      .from(cardsTable)
+      .where(eq(cardsTable.id, parsed.data.cardId));
+    if (!card || card.ownerClerkId !== userId) {
+      res.status(400).json({ error: "Card not in your collection" });
+      return;
+    }
+    await db
+      .insert(deckCardsTable)
+      .values({
+        deckId: id,
+        cardId: parsed.data.cardId,
+        count: desiredCount,
+        role,
+        notes,
+      })
+      .onConflictDoUpdate({
+        target: [deckCardsTable.deckId, deckCardsTable.cardId],
+        set: { count: sql`${deckCardsTable.count} + ${desiredCount}` },
+      });
+  } else if (parsed.data.wishlistItemId != null) {
+    // Wishlist-backed catalog entry
+    const [w] = await db
+      .select()
+      .from(wishlistItemsTable)
+      .where(eq(wishlistItemsTable.id, parsed.data.wishlistItemId));
+    if (!w || w.ownerClerkId !== userId) {
+      res.status(400).json({ error: "Wishlist item not found" });
+      return;
+    }
+    await db
+      .insert(deckCardsTable)
+      .values({
+        deckId: id,
+        cardId: null,
+        catalogCardId: w.catalogCardId,
+        wishlistItemId: w.id,
+        snapshotName: w.name,
+        snapshotImageUrl: w.imageUrl,
+        snapshotSetName: w.setName,
+        snapshotCardNumber: w.cardNumber,
+        count: desiredCount,
+        role,
+        notes,
+      })
+      .onConflictDoUpdate({
+        target: [deckCardsTable.deckId, deckCardsTable.catalogCardId],
+        set: { count: sql`${deckCardsTable.count} + ${desiredCount}` },
+      });
+  } else if (parsed.data.catalogCardId != null) {
+    // Pure catalog entry (snapshot from PokeWallet)
+    const lookup = await pwGetCard(parsed.data.catalogCardId);
+    if (!lookup.ok) {
+      res.status(503).json({ error: "Catalog temporarily unavailable" });
+      return;
+    }
+    const norm = normalizeCatalogCard(lookup.data);
+    await db
+      .insert(deckCardsTable)
+      .values({
+        deckId: id,
+        cardId: null,
+        catalogCardId: norm.id,
+        snapshotName: norm.name,
+        snapshotImageUrl: norm.imageUrl || null,
+        snapshotSetName: norm.setName || null,
+        snapshotCardNumber: norm.cardNumber || null,
+        count: desiredCount,
+        role,
+        notes,
+      })
+      .onConflictDoUpdate({
+        target: [deckCardsTable.deckId, deckCardsTable.catalogCardId],
+        set: { count: sql`${deckCardsTable.count} + ${desiredCount}` },
+      });
+  } else {
+    res.status(400).json({ error: "cardId, wishlistItemId or catalogCardId is required" });
     return;
   }
-  const desiredCount = parsed.data.count ?? 1;
-  await db
-    .insert(deckCardsTable)
-    .values({
-      deckId: id,
-      cardId: parsed.data.cardId,
-      count: desiredCount,
-      role: parsed.data.role ?? null,
-      notes: parsed.data.notes ?? null,
-    })
-    .onConflictDoUpdate({
-      target: [deckCardsTable.deckId, deckCardsTable.cardId],
-      set: {
-        count: sql`${deckCardsTable.count} + ${desiredCount}`,
-      },
-    });
+
   await db
     .update(decksTable)
     .set({ updatedAt: new Date() })
@@ -356,11 +521,16 @@ router.post("/decks/:id/cards", requireAuth, async (req, res) => {
   res.status(201).json(result);
 });
 
+/**
+ * Remove an entry. The `:cardId` segment can be either a numeric owned-card id
+ * (legacy) or a `entry-<id>` token referring to a deck_cards row id (new way
+ * that supports catalog/wishlist entries).
+ */
 router.delete("/decks/:id/cards/:cardId", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
   const id = Number(req.params.id);
-  const cardId = Number(req.params.cardId);
-  if (!Number.isInteger(id) || !Number.isInteger(cardId)) {
+  const param = String(req.params.cardId ?? "");
+  if (!Number.isInteger(id) || !param) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
@@ -376,11 +546,28 @@ router.delete("/decks/:id/cards/:cardId", requireAuth, async (req, res) => {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  await db
-    .delete(deckCardsTable)
-    .where(
-      and(eq(deckCardsTable.deckId, id), eq(deckCardsTable.cardId, cardId)),
-    );
+
+  if (param.startsWith("entry-")) {
+    const entryId = Number(param.slice("entry-".length));
+    if (!Number.isInteger(entryId)) {
+      res.status(400).json({ error: "Invalid entry id" });
+      return;
+    }
+    await db
+      .delete(deckCardsTable)
+      .where(and(eq(deckCardsTable.id, entryId), eq(deckCardsTable.deckId, id)));
+  } else {
+    const cardId = Number(param);
+    if (!Number.isInteger(cardId)) {
+      res.status(400).json({ error: "Invalid card id" });
+      return;
+    }
+    await db
+      .delete(deckCardsTable)
+      .where(
+        and(eq(deckCardsTable.deckId, id), eq(deckCardsTable.cardId, cardId)),
+      );
+  }
   await db
     .update(decksTable)
     .set({ updatedAt: new Date() })
@@ -397,32 +584,58 @@ router.post("/decks/suggest", requireAuth, async (req, res) => {
   }
   const { gameStyle, notes } = parsed.data;
 
-  const collection = await db
-    .select({
-      id: cardsTable.id,
-      name: cardsTable.name,
-      pokemonName: cardsTable.pokemonName,
-      setName: cardsTable.setName,
-      rarity: cardsTable.rarity,
-    })
-    .from(cardsTable)
-    .where(eq(cardsTable.ownerClerkId, userId));
+  const [collection, wishlist] = await Promise.all([
+    db
+      .select({
+        id: cardsTable.id,
+        name: cardsTable.name,
+        pokemonName: cardsTable.pokemonName,
+        setName: cardsTable.setName,
+        cardNumber: cardsTable.cardNumber,
+        rarity: cardsTable.rarity,
+        imageUrl: cardsTable.imageUrl,
+      })
+      .from(cardsTable)
+      .where(eq(cardsTable.ownerClerkId, userId)),
+    db
+      .select({
+        id: wishlistItemsTable.id,
+        catalogCardId: wishlistItemsTable.catalogCardId,
+        name: wishlistItemsTable.name,
+        pokemonName: wishlistItemsTable.pokemonName,
+        setName: wishlistItemsTable.setName,
+        cardNumber: wishlistItemsTable.cardNumber,
+        rarity: wishlistItemsTable.rarity,
+        imageUrl: wishlistItemsTable.imageUrl,
+      })
+      .from(wishlistItemsTable)
+      .where(eq(wishlistItemsTable.ownerClerkId, userId)),
+  ]);
 
-  if (collection.length === 0) {
+  if (collection.length === 0 && wishlist.length === 0) {
     res.status(400).json({
       error:
-        "Your collection is empty — add or scan some cards before generating a deck.",
+        "Your collection and wishlist are both empty — add or scan some cards (or save some to your wishlist) before generating a deck.",
     });
     return;
   }
 
-  // Truncate to keep token usage in check
-  const cardsForAI = collection.slice(0, 200).map((c) => ({
-    id: c.id,
+  // Truncate to keep token usage in check. Owned cards prioritized first.
+  const ownedForAI = collection.slice(0, 150).map((c) => ({
+    source: "owned" as const,
+    cardId: c.id,
     name: c.name,
     pokemon: c.pokemonName,
     set: c.setName ?? undefined,
     rarity: c.rarity,
+  }));
+  const wishlistForAI = wishlist.slice(0, 50).map((w) => ({
+    source: "wishlist" as const,
+    wishlistItemId: w.id,
+    name: w.name,
+    pokemon: w.pokemonName,
+    set: w.setName ?? undefined,
+    rarity: w.rarity,
   }));
 
   const styleDescriptions: Record<string, string> = {
@@ -439,7 +652,7 @@ router.post("/decks/suggest", requireAuth, async (req, res) => {
 
   const deckBuildingRules = getDeckBuildingSectionText();
 
-  const systemPrompt = `You are an expert Pokémon TCG deck builder. Build the strongest possible deck a player could realistically run from THEIR collection only.
+  const systemPrompt = `You are an expert Pokémon TCG deck builder. Build the strongest possible deck for the player.
 
 OFFICIAL DECK BUILDING RULES (verbatim from the Scarlet & Violet rulebook):
 """
@@ -451,26 +664,34 @@ QUICK SUMMARY OF THE RULES YOU MUST RESPECT:
 - Maximum 4 copies of any card with the same English name (Basic Energy is exempt — you may include any number of Basic Energy of each type).
 - The deck must contain at least 1 Basic Pokémon (otherwise the player cannot start the game).
 - Special restrictions when relevant: only 1 Radiant Pokémon per deck; only 1 ACE SPEC card total per deck; only 1 of any specific Prism Star card.
-- Recommended starting ratios for a 60-card deck: 12–15 Energy, 20–25 Trainer cards (Items, Supporters, Stadiums, Tools), and the remainder Pokémon (try to run 4 of each Pokémon in an evolution line).
-- Pick 1–2 Energy types so attackers can reliably power up; Colorless costs accept any Energy.
+- Recommended starting ratios for a 60-card deck: 12–15 Energy, 20–25 Trainer cards (Items, Supporters, Stadiums, Tools), and the remainder Pokémon.
+- Pick 1–2 Energy types so attackers can reliably power up.
 
-DECK BUILD TASK:
-We are working with a curated subset of the user's collection. Recommend the strongest 15–30 cards (or all of them if fewer) that fit the requested archetype, respecting the 4-copy limit and ensuring the suggestion includes at least one Basic Pokémon when possible.
+CARD POOLS:
+We give you TWO pools:
+1) "owned" — cards already in the player's collection.
+2) "wishlist" — cards the player wants but does not yet own. You may include these to fill gaps; clearly mark them with source="wishlist". Prefer owned cards first.
 
-For each recommended card include: cardId (must exist in the supplied collection), count (1–4 typical, never more than 4 for non-Basic-Energy), role (one of: attacker | support | trainer | energy | tech), and a short reason.
+BUILD TASK:
+Recommend the strongest 15–30 cards (or all available if fewer) that fit the requested archetype. For each recommended card include: source ("owned" or "wishlist"), the matching id (cardId for owned, wishlistItemId for wishlist), count (1–4 typical, never more than 4 for non-Basic-Energy), role (attacker | support | trainer | energy | tech), and a short reason. Prefer owned cards first; only pull from wishlist to fill gaps.
 
 ALWAYS produce:
 - A deck name.
 - A "strategy" summary of 3–5 sentences. The strategy MUST explicitly quantify what's missing to reach a tournament-legal 60-card deck — for example: "this 24-card core needs ~36 more cards: 13 Basic Energy, ~15 Trainers (Supporters/Items), and 2 backup attackers". Use the recommended ratios above to compute the gap.
-- If the collection cannot legally form a 60-card deck, still suggest the best partial core and call out what's missing in the strategy.`;
+- If the collection + wishlist cannot legally form a 60-card deck, still suggest the best partial core and call out what's missing in the strategy.`;
 
   const userPrompt = `Game style: ${gameStyle} — ${styleDescriptions[gameStyle] ?? ""}
 ${notes ? `Player notes: ${notes}\n` : ""}
-Available collection (cardId, name, pokemon, set, rarity):
-${JSON.stringify(cardsForAI)}`;
+OWNED cards (cardId, name, pokemon, set, rarity):
+${JSON.stringify(ownedForAI)}
+
+WISHLIST cards (wishlistItemId, name, pokemon, set, rarity):
+${JSON.stringify(wishlistForAI)}`;
 
   type SuggestedCard = {
-    cardId: number;
+    source?: string;
+    cardId?: number | null;
+    wishlistItemId?: number | null;
     count: number;
     role?: string | null;
     reason: string;
@@ -491,7 +712,7 @@ ${JSON.stringify(cardsForAI)}`;
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `${userPrompt}\n\nReturn ONLY valid JSON with the exact shape: { "name": string, "strategy": string, "cards": Array<{ "cardId": number, "count": number, "role": string, "reason": string }> }`,
+          content: `${userPrompt}\n\nReturn ONLY valid JSON with the exact shape: { "name": string, "strategy": string, "cards": Array<{ "source": "owned"|"wishlist", "cardId": number|null, "wishlistItemId": number|null, "count": number, "role": string, "reason": string }> }`,
         },
       ],
     });
@@ -506,22 +727,57 @@ ${JSON.stringify(cardsForAI)}`;
     return;
   }
 
-  // Filter to cards the user actually owns
-  const ownedIds = new Set(collection.map((c) => c.id));
+  const ownedById = new Map(collection.map((c) => [c.id, c]));
+  const wishlistById = new Map(wishlist.map((w) => [w.id, w]));
+
   const suggested = (aiResult.cards ?? [])
-    .filter(
-      (c) =>
-        c &&
-        typeof c.cardId === "number" &&
-        ownedIds.has(c.cardId) &&
-        typeof c.reason === "string",
-    )
-    .map((c) => ({
-      cardId: c.cardId,
-      count: Math.max(1, Math.min(4, Number(c.count) || 1)),
-      role: c.role ?? null,
-      reason: c.reason,
-    }));
+    .map((c) => {
+      if (!c || typeof c.reason !== "string") return null;
+      const count = Math.max(1, Math.min(4, Number(c.count) || 1));
+      const role = c.role ?? null;
+
+      // Owned candidate
+      if (c.source === "owned" || (c.cardId != null && c.source !== "wishlist")) {
+        const owned = c.cardId != null ? ownedById.get(c.cardId) : null;
+        if (owned) {
+          return {
+            source: "owned" as const,
+            cardId: owned.id,
+            wishlistItemId: null,
+            catalogCardId: null,
+            name: owned.name,
+            imageUrl: owned.imageUrl,
+            setName: owned.setName,
+            cardNumber: owned.cardNumber,
+            count,
+            role,
+            reason: c.reason,
+          };
+        }
+      }
+
+      // Wishlist candidate
+      if (c.source === "wishlist" || c.wishlistItemId != null) {
+        const w = c.wishlistItemId != null ? wishlistById.get(c.wishlistItemId) : null;
+        if (w) {
+          return {
+            source: "wishlist" as const,
+            cardId: null,
+            wishlistItemId: w.id,
+            catalogCardId: w.catalogCardId,
+            name: w.name,
+            imageUrl: w.imageUrl,
+            setName: w.setName,
+            cardNumber: w.cardNumber,
+            count,
+            role,
+            reason: c.reason,
+          };
+        }
+      }
+      return null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x != null);
 
   res.json({
     name: aiResult.name || `${gameStyle} deck`,
