@@ -355,7 +355,7 @@ export default function SharePage() {
                 mode === "sell" ? "bg-white shadow text-foreground" : "text-muted-foreground"
               }`}
             >
-              <Share2 className="h-3.5 w-3.5" /> Sell Cards
+              <Share2 className="h-3.5 w-3.5" /> Show/Sell Cards
             </button>
             <button
               type="button"
