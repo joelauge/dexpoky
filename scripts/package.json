@@ -8,6 +8,7 @@
     "migrate-stripe": "tsx ./src/run-stripe-migrations.ts",
     "seed-products": "tsx ./src/seed-products.ts",
     "ingest-rulebook": "tsx ./src/ingest-rulebook.ts",
+    "validate-api-zod-index": "tsx ./src/validate-api-zod-index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
