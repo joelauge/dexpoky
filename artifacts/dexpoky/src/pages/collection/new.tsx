@@ -8,6 +8,7 @@ import {
   useListCategories,
   CreateCardBodyRarity,
   CreateCardBodyCondition,
+  type CatalogCard,
 } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import {
@@ -20,10 +21,25 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Loader2, Check, ScanLine, FolderOpen } from "lucide-react";
+import { ArrowLeft, Loader2, Check, ScanLine, FolderOpen, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatLabel } from "@/lib/constants";
 import { CardImageUpload } from "@/components/card-image-upload";
+import { CatalogSearch } from "@/components/catalog-search";
+
+function mapCatalogRarity(raw: string | null | undefined): CreateCardBodyRarity {
+  if (!raw) return CreateCardBodyRarity.common;
+  const r = raw.toLowerCase();
+  if (r.includes("secret") || r.includes("rainbow") || r.includes("hyper") || r.includes("special illustration"))
+    return CreateCardBodyRarity.secret_rare;
+  if (r.includes("ultra") || r.includes("vmax") || r.includes("vstar") || r.includes(" ex") || r.endsWith("ex") || r.includes(" gx") || r === "gx")
+    return CreateCardBodyRarity.ultra_rare;
+  if (r.includes("holo")) return CreateCardBodyRarity.holo_rare;
+  if (r.includes("promo")) return CreateCardBodyRarity.promo;
+  if (r.includes("uncommon")) return CreateCardBodyRarity.uncommon;
+  if (r.includes("rare")) return CreateCardBodyRarity.rare;
+  return CreateCardBodyRarity.common;
+}
 
 const LAST_CAT_KEY = "dexpoky:lastCategoryId";
 const LAST_CONDITION_KEY = "dexpoky:lastCondition";
@@ -131,10 +147,53 @@ export default function NewCard() {
   const watchForSale  = form.watch("forSale");
   const watchCondition = form.watch("condition");
 
+  // Catalog auto-fill state. When the user picks a card from the search bar
+  // we remember its id so the create-card mutation can persist `catalogCardId`
+  // (used by pricing + image backfill paths).
+  const [pickedCatalog, setPickedCatalog] = useState<{
+    id: string;
+    name: string;
+    setName: string;
+    cardNumber: string;
+    imageUrl: string;
+  } | null>(null);
+
+  const handleCatalogSelect = (c: CatalogCard) => {
+    form.setValue("name", c.name, { shouldDirty: true, shouldValidate: true });
+    form.setValue("pokemonName", c.pokemonName || c.name, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue("setName", c.setName ?? "", { shouldDirty: true });
+    form.setValue("cardNumber", c.cardNumber ?? "", { shouldDirty: true });
+    form.setValue("rarity", mapCatalogRarity(c.rarity ?? null), {
+      shouldDirty: true,
+    });
+    if (c.imageUrl) {
+      form.setValue("imageUrl", c.imageUrl, { shouldDirty: true });
+    }
+    if (c.marketPrice != null) {
+      form.setValue("estimatedValue", c.marketPrice, { shouldDirty: true });
+    }
+    setPickedCatalog({
+      id: c.id,
+      name: c.name,
+      setName: c.setName ?? "",
+      cardNumber: c.cardNumber ?? "",
+      imageUrl: c.imageUrl ?? "",
+    });
+    toast.success("Card details filled in from catalog");
+  };
+
+  const clearCatalogPick = () => {
+    setPickedCatalog(null);
+  };
+
   const onSubmit = (data: CardFormValues) => {
     const payload: Record<string, unknown> = { ...data };
     if (scanOriginal) payload.originalScanUrl = scanOriginal;
     if (scanCatalogId) payload.catalogCardId = scanCatalogId;
+    else if (pickedCatalog) payload.catalogCardId = pickedCatalog.id;
     createCard.mutate({ data: payload as typeof data }, {
       onSuccess: (newCard) => {
         saveLastCategoryId(data.categoryId);
@@ -291,6 +350,61 @@ export default function NewCard() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight mb-2">Add New Card</h1>
           <p className="text-muted-foreground">Log a new card into your collection</p>
+        </div>
+
+        {/* ── Catalog quick-fill ── */}
+        <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 shadow-sm rounded-xl overflow-hidden mb-6">
+          <div className="p-5 md:p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h2 className="text-base font-semibold">Card Search</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Find your card to auto-fill name, set, number, rarity, image, and value.
+            </p>
+
+            {pickedCatalog ? (
+              <div className="flex gap-3 bg-card border rounded-lg overflow-hidden">
+                <div className="w-16 shrink-0 bg-muted">
+                  {pickedCatalog.imageUrl ? (
+                    <img
+                      src={pickedCatalog.imageUrl}
+                      alt={pickedCatalog.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : null}
+                </div>
+                <div className="py-3 pr-3 flex-1 min-w-0 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm truncate">{pickedCatalog.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {pickedCatalog.setName || "—"}
+                      {pickedCatalog.cardNumber ? ` · #${pickedCatalog.cardNumber}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearCatalogPick}
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Change
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="max-h-[420px] flex flex-col">
+                <CatalogSearch
+                  placeholder="Search by Pokémon, set, or card number…"
+                  onSelect={handleCatalogSelect}
+                  emptyHint="Type at least 2 characters to search the catalog."
+                  limit={18}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="bg-card border shadow-sm rounded-xl overflow-hidden">
