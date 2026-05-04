@@ -353,58 +353,49 @@ export default function NewCard() {
         </div>
 
         {/* ── Catalog quick-fill ── */}
-        <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 shadow-sm rounded-xl overflow-hidden mb-6">
-          <div className="p-5 md:p-6">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold">Card Search</h2>
-            </div>
-            <p className="text-xs text-muted-foreground mb-4">
-              Find your card to auto-fill name, set, number, rarity, image, and value.
-            </p>
-
-            {pickedCatalog ? (
-              <div className="flex gap-3 bg-card border rounded-lg overflow-hidden">
-                <div className="w-16 shrink-0 bg-muted">
-                  {pickedCatalog.imageUrl ? (
-                    <img
-                      src={pickedCatalog.imageUrl}
-                      alt={pickedCatalog.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : null}
-                </div>
-                <div className="py-3 pr-3 flex-1 min-w-0 flex items-center justify-between gap-2">
+        <div className="mb-4">
+          {pickedCatalog ? (
+            <div className="flex gap-3 bg-primary/5 border border-primary/20 rounded-lg overflow-hidden">
+              <div className="w-12 shrink-0 bg-muted">
+                {pickedCatalog.imageUrl ? (
+                  <img
+                    src={pickedCatalog.imageUrl}
+                    alt={pickedCatalog.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : null}
+              </div>
+              <div className="py-2 pr-2 flex-1 min-w-0 flex items-center justify-between gap-2">
+                <div className="min-w-0 flex items-center gap-2">
+                  <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
                   <div className="min-w-0">
-                    <p className="font-semibold text-sm truncate">{pickedCatalog.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {pickedCatalog.setName || "—"}
+                    <p className="font-semibold text-sm truncate leading-tight">{pickedCatalog.name}</p>
+                    <p className="text-[11px] text-muted-foreground truncate leading-tight">
+                      Auto-filled · {pickedCatalog.setName || "—"}
                       {pickedCatalog.cardNumber ? ` · #${pickedCatalog.cardNumber}` : ""}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearCatalogPick}
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Change
-                  </Button>
                 </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearCatalogPick}
+                  className="shrink-0 h-7 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Change
+                </Button>
               </div>
-            ) : (
-              <div className="max-h-[420px] flex flex-col">
-                <CatalogSearch
-                  placeholder="Search by Pokémon, set, or card number…"
-                  onSelect={handleCatalogSelect}
-                  emptyHint="Type at least 2 characters to search the catalog."
-                  limit={18}
-                />
-              </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <CatalogSearch
+              placeholder="Search catalog to auto-fill (Pokémon, set, or #)…"
+              onSelect={handleCatalogSelect}
+              emptyHint="Type at least 2 characters to search."
+              limit={18}
+            />
+          )}
         </div>
 
         <div className="bg-card border shadow-sm rounded-xl overflow-hidden">
