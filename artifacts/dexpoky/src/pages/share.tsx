@@ -19,7 +19,7 @@ const SELL_TYPES: {
   id: SellType; label: string; desc: string;
   Icon: React.ElementType; color: string;
 }[] = [
-  { id: "single",     label: "Single Card",     desc: "One card with its own checkout page",     Icon: Package,    color: "bg-violet-100 text-violet-700 border-violet-200" },
+  { id: "single",     label: "Single Card",     desc: "One card with its own checkout page",     Icon: Package,    color: "bg-primary/10 text-primary border-primary/20" },
   { id: "group",      label: "Group",           desc: "Hand-pick cards into a custom bundle",    Icon: Layers,     color: "bg-blue-100 text-blue-700 border-blue-200" },
   { id: "category",   label: "Category",        desc: "All cards in one of your categories",     Icon: FolderOpen, color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   { id: "collection", label: "Full Collection", desc: "Your entire collection as one bundle",    Icon: LayoutGrid, color: "bg-amber-100 text-amber-700 border-amber-200" },
@@ -40,7 +40,7 @@ function CardRow({
         readOnly
           ? "cursor-default"
           : selected
-          ? "bg-violet-50 border border-violet-200"
+          ? "bg-primary/5 border border-primary/20"
           : "hover:bg-slate-50 border border-transparent"
       }`}
     >
@@ -56,7 +56,7 @@ function CardRow({
       {value != null && (
         <p className="text-sm font-bold shrink-0">${parseFloat(String(value)).toFixed(2)}</p>
       )}
-      {selectable && selected && <Check className="h-4 w-4 text-violet-600 shrink-0" />}
+      {selectable && selected && <Check className="h-4 w-4 text-primary shrink-0" />}
     </button>
   );
 }
@@ -66,7 +66,7 @@ const SHARE_VIA = [
   { label: "Email",           action: "email",    Icon: Mail,         color: "bg-blue-50 hover:bg-blue-100 text-blue-700" },
   { label: "iMessage / SMS",  action: "sms",      Icon: MessageCircle,color: "bg-green-50 hover:bg-green-100 text-green-700" },
   { label: "WhatsApp",        action: "whatsapp", Icon: Share2,       color: "bg-emerald-50 hover:bg-emerald-100 text-emerald-700" },
-  { label: "QR Code",         action: "qr",       Icon: QrCode,       color: "bg-purple-50 hover:bg-purple-100 text-purple-700" },
+  { label: "QR Code",         action: "qr",       Icon: QrCode,       color: "bg-primary/10 hover:bg-primary/20 text-primary" },
   { label: "Open in browser", action: "open",     Icon: ExternalLink, color: "bg-orange-50 hover:bg-orange-100 text-orange-700" },
 ];
 
@@ -211,7 +211,7 @@ export default function SharePage() {
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-7">
-          <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0">
             <Share2 className="h-5 w-5 text-white" />
           </div>
           <div>
@@ -223,8 +223,8 @@ export default function SharePage() {
               <div
                 key={s}
                 className={`h-2 rounded-full transition-all ${
-                  step === s ? "w-6 bg-violet-600"
-                  : step > s ? "w-2 bg-violet-300"
+                  step === s ? "w-6 bg-primary"
+                  : step > s ? "w-2 bg-primary/40"
                   : "w-2 bg-muted"
                 }`}
               />
@@ -256,7 +256,7 @@ export default function SharePage() {
                   }}
                   className={`text-left p-4 rounded-2xl border-2 transition-all ${
                     sellType === t.id
-                      ? "border-violet-600 bg-white shadow-md shadow-violet-100/60"
+                      ? "border-primary bg-white shadow-md shadow-primary/20"
                       : "border-transparent bg-card hover:border-border"
                   }`}
                 >
@@ -320,7 +320,7 @@ export default function SharePage() {
                         onClick={() => setSelectedCategoryId(cat.id)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                           selectedCategoryId === cat.id
-                            ? "border-violet-600 bg-violet-50 text-violet-700 shadow-sm"
+                            ? "border-primary bg-primary/5 text-primary shadow-sm"
                             : "border-border bg-background text-muted-foreground hover:text-foreground"
                         }`}
                       >
@@ -361,7 +361,7 @@ export default function SharePage() {
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Your entire collection</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{availableCards.length} cards · ${totalValue.toFixed(2)} value</p>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-violet-600 font-semibold">
+                  <div className="flex items-center gap-1 text-xs text-primary font-semibold">
                     {collectionExpanded ? "Collapse" : "Preview all"}
                     <ChevronDown className={`h-3.5 w-3.5 transition-transform ${collectionExpanded ? "rotate-180" : ""}`} />
                   </div>
@@ -374,7 +374,7 @@ export default function SharePage() {
                     <button
                       type="button"
                       onClick={() => setCollectionExpanded(true)}
-                      className="w-full text-center text-xs text-violet-600 font-semibold py-2 hover:underline"
+                      className="w-full text-center text-xs text-primary font-semibold py-2 hover:underline"
                     >
                       + {availableCards.length - 3} more cards
                     </button>
@@ -396,7 +396,7 @@ export default function SharePage() {
             )}
 
             <Button
-              className="w-full h-12 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl"
+              className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-semibold rounded-xl"
               onClick={handleContinue}
               disabled={
                 (sellType === "single" && selectedCardIds.length === 0) ||
@@ -478,7 +478,7 @@ export default function SharePage() {
                   <button
                     type="button"
                     onClick={() => setIncludeShipping(v => !v)}
-                    className={`rounded-full transition-colors relative ${includeShipping ? "bg-violet-600" : "bg-muted"}`}
+                    className={`rounded-full transition-colors relative ${includeShipping ? "bg-primary" : "bg-muted"}`}
                     style={{ width: 40, height: 22 }}
                   >
                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${includeShipping ? "left-5" : "left-0.5"}`} />
@@ -499,13 +499,13 @@ export default function SharePage() {
               </div>
             </div>
 
-            <div className="bg-violet-50 border border-violet-100 rounded-xl p-3 flex items-center justify-between">
-              <span className="text-sm text-violet-700 font-medium">Buyer pays total</span>
-              <span className="text-lg font-black text-violet-700">${buyerTotal.toFixed(2)}</span>
+            <div className="bg-primary/5 border border-primary/15 rounded-xl p-3 flex items-center justify-between">
+              <span className="text-sm text-primary font-medium">Buyer pays total</span>
+              <span className="text-lg font-black text-primary">${buyerTotal.toFixed(2)}</span>
             </div>
 
             <Button
-              className="w-full h-12 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl"
+              className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-semibold rounded-xl"
               onClick={handleGenerate}
               disabled={createListing.isPending}
             >
@@ -519,7 +519,7 @@ export default function SharePage() {
         {step === 3 && (
           <div className="space-y-4">
             <div className="text-center py-2">
-              <div className="w-14 h-14 rounded-2xl bg-violet-600 flex items-center justify-center mx-auto mb-3">
+              <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-3">
                 <Check className="h-7 w-7 text-white" />
               </div>
               <h2 className="text-xl font-black">Your page is live!</h2>
@@ -536,7 +536,7 @@ export default function SharePage() {
                   className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all ${
                     copied
                       ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                      : "bg-violet-100 text-violet-700 hover:bg-violet-200"
+                      : "bg-primary/10 text-primary hover:bg-primary/20"
                   }`}
                 >
                   {copied ? <><Check className="h-3.5 w-3.5" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
@@ -574,7 +574,7 @@ export default function SharePage() {
               )}
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Buyer total</p>
-                <p className="text-lg font-black text-violet-600">${buyerTotal.toFixed(2)}</p>
+                <p className="text-lg font-black text-primary">${buyerTotal.toFixed(2)}</p>
               </div>
             </div>
 
