@@ -18,6 +18,7 @@ import ListingDetail from "@/pages/marketplace/[id]";
 import Sell from "@/pages/sell";
 import SharePage from "@/pages/share";
 import Scan from "@/pages/scan";
+import ScanBulk from "@/pages/scan-bulk";
 import Profile from "@/pages/profile";
 import SellerProfile from "@/pages/seller/[clerkId]";
 import PublicCardView from "@/pages/view/card/[id]";
@@ -204,6 +205,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/sell" component={() => <ProtectedRoute component={Sell} />} />
             <Route path="/share" component={() => <ProtectedRoute component={SharePage} />} />
             <Route path="/scan" component={() => <ProtectedRoute component={Scan} />} />
+            <Route path="/scan/bulk" component={() => <ProtectedRoute component={ScanBulk} />} />
             <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
             <Route path="/subscription" component={() => <ProtectedRoute component={SubscriptionPage} />} />
             <Route path="/admin/payouts" component={() => <ProtectedRoute component={AdminPayouts} />} />

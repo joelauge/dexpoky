@@ -292,14 +292,21 @@ export default function ScanPage() {
       />
       <div className="max-w-2xl mx-auto px-4 py-8 pb-20">
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 text-primary mb-1">
-            <ScanLine className="h-6 w-6" />
-            <h1 className="text-2xl font-extrabold tracking-tight">Card Scanner</h1>
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-primary mb-1">
+              <ScanLine className="h-6 w-6" />
+              <h1 className="text-2xl font-extrabold tracking-tight">Card Scanner</h1>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Center the card in the frame, then tap to take a photo.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Center the card in the frame, then tap to take a photo.
-          </p>
+          <Link href="/scan/bulk">
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
+              <ScanLine className="h-3.5 w-3.5" /> Bulk
+            </Button>
+          </Link>
         </div>
 
         {/* ── Viewfinder (5:3) ── */}
