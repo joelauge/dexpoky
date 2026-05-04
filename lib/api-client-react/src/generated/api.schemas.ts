@@ -668,6 +668,46 @@ export interface UpdateWishlistBody {
   categoryId?: number | null;
 }
 
+export type WantedListingStatus =
+  (typeof WantedListingStatus)[keyof typeof WantedListingStatus];
+
+export const WantedListingStatus = {
+  active: "active",
+  closed: "closed",
+} as const;
+
+export interface WantedListing {
+  id: number;
+  ownerClerkId: string;
+  ownerDisplayName?: string | null;
+  ownerImageUrl?: string | null;
+  catalogCardId: string;
+  name: string;
+  pokemonName: string;
+  setName?: string | null;
+  setCode?: string | null;
+  cardNumber?: string | null;
+  rarity?: string | null;
+  imageUrl?: string | null;
+  maxPrice?: number | null;
+  notes?: string | null;
+  status: WantedListingStatus;
+  createdAt: string;
+}
+
+export interface CreateWantedBody {
+  catalogCardId: string;
+  name: string;
+  pokemonName: string;
+  setName?: string | null;
+  setCode?: string | null;
+  cardNumber?: string | null;
+  rarity?: string | null;
+  imageUrl?: string | null;
+  maxPrice?: number | null;
+  notes?: string | null;
+}
+
 export type ListCardsParams = {
   categoryId?: number;
   forSale?: boolean;
@@ -709,6 +749,10 @@ export type SearchCatalogParams = {
    * @maximum 50
    */
   limit?: number;
+};
+
+export type ListWantedListingsParams = {
+  search?: string;
 };
 
 export type SearchRulebookParams = {

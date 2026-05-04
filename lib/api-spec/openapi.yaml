@@ -755,6 +755,59 @@ paths:
         "204":
           description: Removed
 
+  /wanted:
+    get:
+      operationId: listWantedListings
+      tags: [wanted]
+      summary: List all active wanted listings
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of wanted listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WantedListing"
+    post:
+      operationId: createWantedListing
+      tags: [wanted]
+      summary: Post a card you are looking for
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWantedBody"
+      responses:
+        "201":
+          description: Created wanted listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WantedListing"
+
+  /wanted/{id}:
+    delete:
+      operationId: deleteWantedListing
+      tags: [wanted]
+      summary: Remove your own wanted listing
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /rules:
     get:
       operationId: getRulebook
@@ -1793,3 +1846,93 @@ components:
         categoryId:
           type: integer
           nullable: true
+
+    WantedListing:
+      type: object
+      properties:
+        id:
+          type: integer
+        ownerClerkId:
+          type: string
+        ownerDisplayName:
+          type: string
+          nullable: true
+        ownerImageUrl:
+          type: string
+          nullable: true
+        catalogCardId:
+          type: string
+        name:
+          type: string
+        pokemonName:
+          type: string
+        setName:
+          type: string
+          nullable: true
+        setCode:
+          type: string
+          nullable: true
+        cardNumber:
+          type: string
+          nullable: true
+        rarity:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        maxPrice:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, closed]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - ownerClerkId
+        - catalogCardId
+        - name
+        - pokemonName
+        - status
+        - createdAt
+
+    CreateWantedBody:
+      type: object
+      properties:
+        catalogCardId:
+          type: string
+        name:
+          type: string
+        pokemonName:
+          type: string
+        setName:
+          type: string
+          nullable: true
+        setCode:
+          type: string
+          nullable: true
+        cardNumber:
+          type: string
+          nullable: true
+        rarity:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        maxPrice:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - catalogCardId
+        - name
+        - pokemonName

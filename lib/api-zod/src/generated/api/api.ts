@@ -1032,6 +1032,58 @@ export const RemoveWishlistItemParams = zod.object({
 });
 
 /**
+ * @summary List all active wanted listings
+ */
+export const ListWantedListingsQueryParams = zod.object({
+  search: zod.coerce.string().optional(),
+});
+
+export const ListWantedListingsResponseItem = zod.object({
+  id: zod.number(),
+  ownerClerkId: zod.string(),
+  ownerDisplayName: zod.string().nullish(),
+  ownerImageUrl: zod.string().nullish(),
+  catalogCardId: zod.string(),
+  name: zod.string(),
+  pokemonName: zod.string(),
+  setName: zod.string().nullish(),
+  setCode: zod.string().nullish(),
+  cardNumber: zod.string().nullish(),
+  rarity: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  maxPrice: zod.number().nullish(),
+  notes: zod.string().nullish(),
+  status: zod.enum(["active", "closed"]),
+  createdAt: zod.coerce.date(),
+});
+export const ListWantedListingsResponse = zod.array(
+  ListWantedListingsResponseItem,
+);
+
+/**
+ * @summary Post a card you are looking for
+ */
+export const CreateWantedListingBody = zod.object({
+  catalogCardId: zod.string(),
+  name: zod.string(),
+  pokemonName: zod.string(),
+  setName: zod.string().nullish(),
+  setCode: zod.string().nullish(),
+  cardNumber: zod.string().nullish(),
+  rarity: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  maxPrice: zod.number().nullish(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Remove your own wanted listing
+ */
+export const DeleteWantedListingParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Get the full Pokémon TCG rulebook (sections + glossary)
  */
 export const GetRulebookResponse = zod.object({

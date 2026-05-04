@@ -28,6 +28,7 @@ import type {
   CreateCategoryBody,
   CreateDeckBody,
   CreateListingBody,
+  CreateWantedBody,
   Deck,
   DeckSummary,
   DeckWithCards,
@@ -37,6 +38,7 @@ import type {
   InventoryStats,
   ListCardsParams,
   ListListingsParams,
+  ListWantedListingsParams,
   Listing,
   PokemonResult,
   RulebookResponse,
@@ -53,6 +55,7 @@ import type {
   UpdateWishlistBody,
   UploadUrlRequest,
   UploadUrlResponse,
+  WantedListing,
   WishlistItem,
 } from "./api.schemas";
 
@@ -3114,6 +3117,273 @@ export const useRemoveWishlistItem = <
   TContext
 > => {
   return useMutation(getRemoveWishlistItemMutationOptions(options));
+};
+
+/**
+ * @summary List all active wanted listings
+ */
+export const getListWantedListingsUrl = (params?: ListWantedListingsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/wanted?${stringifiedParams}`
+    : `/api/wanted`;
+};
+
+export const listWantedListings = async (
+  params?: ListWantedListingsParams,
+  options?: RequestInit,
+): Promise<WantedListing[]> => {
+  return customFetch<WantedListing[]>(getListWantedListingsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListWantedListingsQueryKey = (
+  params?: ListWantedListingsParams,
+) => {
+  return [`/api/wanted`, ...(params ? [params] : [])] as const;
+};
+
+export const getListWantedListingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWantedListings>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListWantedListingsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWantedListings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListWantedListingsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listWantedListings>>
+  > = ({ signal }) => listWantedListings(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listWantedListings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListWantedListingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWantedListings>>
+>;
+export type ListWantedListingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all active wanted listings
+ */
+
+export function useListWantedListings<
+  TData = Awaited<ReturnType<typeof listWantedListings>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListWantedListingsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWantedListings>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListWantedListingsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Post a card you are looking for
+ */
+export const getCreateWantedListingUrl = () => {
+  return `/api/wanted`;
+};
+
+export const createWantedListing = async (
+  createWantedBody: CreateWantedBody,
+  options?: RequestInit,
+): Promise<WantedListing> => {
+  return customFetch<WantedListing>(getCreateWantedListingUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createWantedBody),
+  });
+};
+
+export const getCreateWantedListingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createWantedListing>>,
+    TError,
+    { data: BodyType<CreateWantedBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createWantedListing>>,
+  TError,
+  { data: BodyType<CreateWantedBody> },
+  TContext
+> => {
+  const mutationKey = ["createWantedListing"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createWantedListing>>,
+    { data: BodyType<CreateWantedBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createWantedListing(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateWantedListingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createWantedListing>>
+>;
+export type CreateWantedListingMutationBody = BodyType<CreateWantedBody>;
+export type CreateWantedListingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Post a card you are looking for
+ */
+export const useCreateWantedListing = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createWantedListing>>,
+    TError,
+    { data: BodyType<CreateWantedBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createWantedListing>>,
+  TError,
+  { data: BodyType<CreateWantedBody> },
+  TContext
+> => {
+  return useMutation(getCreateWantedListingMutationOptions(options));
+};
+
+/**
+ * @summary Remove your own wanted listing
+ */
+export const getDeleteWantedListingUrl = (id: number) => {
+  return `/api/wanted/${id}`;
+};
+
+export const deleteWantedListing = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteWantedListingUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteWantedListingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWantedListing>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteWantedListing>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteWantedListing"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteWantedListing>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteWantedListing(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteWantedListingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteWantedListing>>
+>;
+
+export type DeleteWantedListingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove your own wanted listing
+ */
+export const useDeleteWantedListing = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWantedListing>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteWantedListing>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteWantedListingMutationOptions(options));
 };
 
 /**

@@ -46,6 +46,7 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - `Show` component from `@clerk/react` used for conditional auth rendering
 
 ### Features
+- **Looking For marketplace section**: Two-sided discovery feature. `POST /api/wanted` (auth required) lets users broadcast cards they want; `GET /api/wanted` is public. New `wanted_listings` table in DB. Share page (`/share`) has mode toggle — "Sell Cards" vs "Looking For" (catalog search → budget/notes → confirmation). Marketplace shows "Looking For" grid below Active Listings with owner avatar, max price badge, and contact dialog.
 - Card collection with camera scanning (getUserMedia API)
 - **Bulk scan** (`/scan/bulk`): capture up to 25 cards, parallel background detection, review screen, Save All. Entries with zero TCG variants are marked `no_card` (not `ready`) so saveAll cannot silently no-op them. saveAll catch logs full ApiError details (status/body/sentBody) and surfaces first error in toast.
 - Pokemon name search via PokeAPI

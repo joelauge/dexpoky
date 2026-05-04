@@ -18,6 +18,7 @@ import decksRouter from "./decks";
 import rulesRouter from "./rules";
 import catalogRouter from "./catalog";
 import wishlistRouter from "./wishlist";
+import wantedRouter from "./wanted";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(decksRouter);
 router.use(rulesRouter);
 router.use(catalogRouter);
 router.use(wishlistRouter);
+router.use(wantedRouter);
 
 export default router;
