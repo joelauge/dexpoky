@@ -89,10 +89,16 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
 
         <div className="p-3 flex flex-col flex-1">
           <h3 className="font-bold text-foreground line-clamp-1 text-sm">{item.name}</h3>
-          <p className="text-xs text-muted-foreground mb-2">{item.pokemonName}</p>
+          <p className="text-xs text-muted-foreground">{item.pokemonName}</p>
+          {item.setName && (
+            <p className="text-[10px] text-muted-foreground/70 truncate mt-0.5">{item.setName}</p>
+          )}
+          {item.notes && (
+            <p className="text-[10px] text-muted-foreground italic line-clamp-2 mt-1 leading-snug">{item.notes}</p>
+          )}
 
           {item.ownerDisplayName && (
-            <div className="flex items-center gap-1.5 mt-auto">
+            <div className="flex items-center gap-1.5 mt-auto pt-2">
               {item.ownerImageUrl ? (
                 <img src={item.ownerImageUrl} alt={item.ownerDisplayName} className="w-5 h-5 rounded-full object-cover" />
               ) : (
@@ -105,7 +111,7 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
           )}
 
           {item.maxPrice != null && (
-            <div className="mt-2">
+            <div className="mt-1.5">
               <div className="text-base font-black text-rose-600">Up to ${Number(item.maxPrice).toFixed(2)}</div>
             </div>
           )}
