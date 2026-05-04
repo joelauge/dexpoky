@@ -859,7 +859,7 @@ export const SuggestDeckResponse = zod.object({
   strategy: zod.string(),
   cards: zod.array(
     zod.object({
-      source: zod.enum(["owned", "wishlist"]),
+      source: zod.enum(["owned", "wishlist", "catalog"]),
       cardId: zod.number().nullish(),
       wishlistItemId: zod.number().nullish(),
       catalogCardId: zod.string().nullish(),

@@ -38,10 +38,22 @@ type Rulebook = {
 
 const rulebook = rulebookData as Rulebook;
 
-export function getDeckBuildingSectionText(): string {
-  const s = rulebook.sections.find((x) => x.id === "deck-building");
+export function getRulebookSectionText(sectionId: string): string {
+  const s = rulebook.sections.find((x) => x.id === sectionId);
   if (!s) return "";
   return `# ${s.title}\n${s.paragraphs.join("\n")}`;
+}
+
+export function getDeckBuildingSectionText(): string {
+  return getRulebookSectionText("deck-building");
+}
+
+/** Returns the concatenated text for multiple rulebook sections, separated by a blank line. */
+export function getMultiSectionText(sectionIds: string[]): string {
+  return sectionIds
+    .map((id) => getRulebookSectionText(id))
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 const router = Router();

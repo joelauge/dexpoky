@@ -29,6 +29,7 @@ import {
   Layers,
   HeartPulse,
   Heart,
+  ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -52,12 +53,13 @@ const STYLES: Array<{
 ];
 
 /**
- * Each suggested card is keyed by source + id (cardId for owned, wishlistItemId
- * for wishlist) since cardId can be null for wishlist suggestions.
+ * Each suggested card is keyed by source + id.
+ * Catalog entries use their catalogCardId (or name fallback) since they have no owned/wishlist id.
  */
 function suggestionKey(s: SuggestedDeckCard): string {
   if (s.source === "owned") return `owned:${s.cardId}`;
-  return `wishlist:${s.wishlistItemId}`;
+  if (s.source === "wishlist") return `wishlist:${s.wishlistItemId}`;
+  return `catalog:${s.catalogCardId ?? s.name}`;
 }
 
 export default function NewDeck() {
@@ -290,13 +292,14 @@ export default function NewDeck() {
                   <div>
                     <Label>Suggested cards ({selectedKeys.size} selected)</Label>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Tap cards to include or exclude them. Pink badges are wishlist picks the AI added.
+                      Tap to include/exclude. <span className="text-rose-600">♥ Wishlist</span> = want-to-buy. <span className="text-amber-600">🛒 Cart</span> = suggested purchase to complete the deck.
                     </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                       {suggested.map((s) => {
                         const key = suggestionKey(s);
                         const isSelected = selectedKeys.has(key);
                         const isWishlist = s.source === "wishlist";
+                        const isCatalog = s.source === "catalog";
                         return (
                           <button
                             key={key}
@@ -321,35 +324,36 @@ export default function NewDeck() {
                                 </div>
                               )}
                               {isSelected && (
-                                <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 shadow-md">
-                                  <Check className="h-3 w-3" />
+                                <div className="absolute top-1.5 right-1.5 bg-primary text-primary-foreground rounded-full p-0.5 shadow-md">
+                                  <Check className="h-2.5 w-2.5" />
                                 </div>
                               )}
                               {s.role && (
                                 <Badge
                                   variant="secondary"
-                                  className="absolute bottom-2 left-2 text-[10px] capitalize"
+                                  className="absolute bottom-1.5 left-1.5 text-[9px] capitalize py-0 px-1"
                                 >
                                   {s.role}
                                 </Badge>
                               )}
                               {isWishlist && (
-                                <span className="absolute bottom-2 right-2 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                                  <Heart className="h-2.5 w-2.5 fill-rose-500" /> Wishlist
+                                <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                  <Heart className="h-2 w-2 fill-rose-500" />
+                                </span>
+                              )}
+                              {isCatalog && (
+                                <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                                  <ShoppingCart className="h-2 w-2" />
+                                </span>
+                              )}
+                              {s.count > 1 && (
+                                <span className="absolute bottom-1.5 right-1.5 text-[9px] font-bold bg-primary/90 text-primary-foreground px-1 py-0.5 rounded-full">
+                                  ×{s.count}
                                 </span>
                               )}
                             </div>
-                            <div className="p-2">
-                              <p className="text-xs font-semibold truncate">{s.name}</p>
-                              {(s.setName || s.cardNumber) && (
-                                <p className="text-[10px] text-muted-foreground truncate">
-                                  {s.setName ?? ""}
-                                  {s.cardNumber ? ` · #${s.cardNumber}` : ""}
-                                </p>
-                              )}
-                              <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">
-                                {s.reason}
-                              </p>
+                            <div className="p-1.5">
+                              <p className="text-[10px] font-semibold truncate leading-tight">{s.name}</p>
                             </div>
                           </button>
                         );

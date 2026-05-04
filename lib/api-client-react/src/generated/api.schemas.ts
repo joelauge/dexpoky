@@ -440,6 +440,7 @@ export type SuggestedDeckCardSource =
 export const SuggestedDeckCardSource = {
   owned: "owned",
   wishlist: "wishlist",
+  catalog: "catalog",
 } as const;
 
 export interface SuggestedDeckCard {

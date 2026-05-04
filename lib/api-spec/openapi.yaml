@@ -1446,7 +1446,7 @@ components:
       properties:
         source:
           type: string
-          enum: [owned, wishlist]
+          enum: [owned, wishlist, catalog]
         cardId:
           type: integer
           nullable: true

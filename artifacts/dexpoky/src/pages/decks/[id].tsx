@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
 import {
   ArrowLeft,
   ImageIcon,
@@ -30,6 +31,7 @@ import {
   Heart,
   Library,
   Layers,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   Dialog,
@@ -98,6 +100,17 @@ export default function DeckDetail() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
   const [removingId, setRemovingId] = useState<number | null>(null);
+  // Card size: 1 (tiny, most cards visible) → 5 (large). Default 3.
+  const [cardSize, setCardSize] = useState(3);
+
+  const GRID_COLS = [
+    "grid-cols-5 sm:grid-cols-7 lg:grid-cols-9",  // 1 — most cards
+    "grid-cols-4 sm:grid-cols-6 lg:grid-cols-7",  // 2
+    "grid-cols-3 sm:grid-cols-4 lg:grid-cols-6",  // 3 — default
+    "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",  // 4
+    "grid-cols-2 sm:grid-cols-2 lg:grid-cols-3",  // 5 — largest
+  ] as const;
+  const gridClass = GRID_COLS[cardSize - 1];
 
   const startEdit = () => {
     if (!deck) return;
@@ -336,9 +349,27 @@ export default function DeckDetail() {
           </Card>
         )}
 
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Cards</h2>
-          <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-xl font-semibold">
+            Cards
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              {totalCount} / 60
+            </span>
+          </h2>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 min-w-[140px]">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Slider
+                min={1}
+                max={5}
+                step={1}
+                value={[cardSize]}
+                onValueChange={([v]) => setCardSize(v)}
+                className="w-24"
+                aria-label="Card size"
+              />
+            </div>
+            <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1">
                 <Plus className="h-4 w-4" /> Add card
@@ -457,6 +488,7 @@ export default function DeckDetail() {
               </Tabs>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {deck.cards.length === 0 ? (
@@ -464,7 +496,7 @@ export default function DeckDetail() {
             <p className="text-muted-foreground">No cards in this deck yet.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className={`grid ${gridClass} gap-2`}>
             {deck.cards.map((entry) => {
               const display = entryDisplay(entry);
               const sourceBadge = SOURCE_BADGE[entry.source];
@@ -508,18 +540,17 @@ export default function DeckDetail() {
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  <div className="p-2">
-                    <p className="text-xs font-semibold truncate">{display.name}</p>
-                    {(display.setName || display.cardNumber) && (
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        {display.setName ?? ""}
-                        {display.cardNumber ? ` · #${display.cardNumber}` : ""}
-                      </p>
-                    )}
-                    {entry.notes && (
-                      <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">{entry.notes}</p>
-                    )}
-                  </div>
+                  {cardSize >= 3 && (
+                    <div className="p-1.5">
+                      <p className="text-[11px] font-semibold truncate leading-tight">{display.name}</p>
+                      {cardSize >= 4 && (display.setName || display.cardNumber) && (
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {display.setName ?? ""}
+                          {display.cardNumber ? ` · #${display.cardNumber}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

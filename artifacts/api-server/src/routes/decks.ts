@@ -16,8 +16,8 @@ import {
   SuggestDeckBody,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { getDeckBuildingSectionText } from "./rules.js";
-import { pwGetCard, normalizeCatalogCard } from "../lib/pokewallet.js";
+import { getMultiSectionText } from "./rules.js";
+import { pwGetCard, pwSearch, normalizeCatalogCard, enrichCatalogCardImages } from "../lib/pokewallet.js";
 
 const router = Router();
 
@@ -650,35 +650,36 @@ router.post("/decks/suggest", requireAuth, async (req, res) => {
     tank: "High-HP Pokémon supported by healing, energy ramp, and damage reduction.",
   };
 
-  const deckBuildingRules = getDeckBuildingSectionText();
+  const rulebookContext = getMultiSectionText(["deck-building", "card-types"]);
 
-  const systemPrompt = `You are an expert Pokémon TCG deck builder. Build the strongest possible deck for the player.
+  const systemPrompt = `You are an expert Pokémon TCG deck builder. Build the strongest possible deck for the player using their collection, and fill any gaps by suggesting specific cards they should acquire.
 
-OFFICIAL DECK BUILDING RULES (verbatim from the Scarlet & Violet rulebook):
+OFFICIAL RULES (verbatim from the Scarlet & Violet rulebook):
 """
-${deckBuildingRules}
+${rulebookContext}
 """
 
 QUICK SUMMARY OF THE RULES YOU MUST RESPECT:
 - A legal deck is EXACTLY 60 cards.
-- Maximum 4 copies of any card with the same English name (Basic Energy is exempt — you may include any number of Basic Energy of each type).
-- The deck must contain at least 1 Basic Pokémon (otherwise the player cannot start the game).
-- Special restrictions when relevant: only 1 Radiant Pokémon per deck; only 1 ACE SPEC card total per deck; only 1 of any specific Prism Star card.
-- Recommended starting ratios for a 60-card deck: 12–15 Energy, 20–25 Trainer cards (Items, Supporters, Stadiums, Tools), and the remainder Pokémon.
-- Pick 1–2 Energy types so attackers can reliably power up.
+- Maximum 4 copies of any card with the same English name (Basic Energy is exempt — any number allowed).
+- Must include at least 1 Basic Pokémon to start the game.
+- Special limits: only 1 Radiant Pokémon, 1 ACE SPEC, 1 of any specific Prism Star card per deck.
+- Recommended 60-card ratios: 12–15 Energy, 20–25 Trainer cards (Items, Supporters, Stadiums, Tools), remainder Pokémon.
+- Prefer 1–2 Energy types so attackers can reliably power up.
 
-CARD POOLS:
-We give you TWO pools:
-1) "owned" — cards already in the player's collection.
-2) "wishlist" — cards the player wants but does not yet own. You may include these to fill gaps; clearly mark them with source="wishlist". Prefer owned cards first.
+CARD POOLS — you have THREE sources:
+1) "owned" — cards already in the player's physical collection (use first, they're free).
+2) "wishlist" — cards the player wants to buy (use to fill gaps if owned cards aren't enough).
+3) "catalog" — cards not in the collection or wishlist that the player should acquire to complete the strategy. Use this for key staples (e.g. Boss's Orders, Ultra Ball, Professor's Research, Basic Energy) or core Pokémon that are missing. Specify the most common/iconic version of each card by its exact English card name.
 
 BUILD TASK:
-Recommend the strongest 15–30 cards (or all available if fewer) that fit the requested archetype. For each recommended card include: source ("owned" or "wishlist"), the matching id (cardId for owned, wishlistItemId for wishlist), count (1–4 typical, never more than 4 for non-Basic-Energy), role (attacker | support | trainer | energy | tech), and a short reason. Prefer owned cards first; only pull from wishlist to fill gaps.
+1. First, pick the best cards from "owned" and "wishlist" that fit the archetype.
+2. Then, identify the KEY MISSING CARDS needed to complete a legal 60-card deck with the chosen strategy. Include up to 15 catalog suggestions — focus on staple Trainers (Supporters/Items), Basic Energy, and any critical Pokémon missing from the strategy.
+3. For every card include: source ("owned"/"wishlist"/"catalog"), the matching id (cardId for owned, wishlistItemId for wishlist, cardName for catalog), count (1–4, no cap on Basic Energy), role (attacker | support | trainer | energy | tech), and a concise reason.
 
 ALWAYS produce:
 - A deck name.
-- A "strategy" summary of 3–5 sentences. The strategy MUST explicitly quantify what's missing to reach a tournament-legal 60-card deck — for example: "this 24-card core needs ~36 more cards: 13 Basic Energy, ~15 Trainers (Supporters/Items), and 2 backup attackers". Use the recommended ratios above to compute the gap.
-- If the collection + wishlist cannot legally form a 60-card deck, still suggest the best partial core and call out what's missing in the strategy.`;
+- A "strategy" of 3–5 sentences that names the win condition, explains the key synergies from owned cards, and explicitly states what the catalog suggestions provide — e.g. "the 18 owned cards form the attacker core; the 14 catalog additions (12 Energy, 2 Boss's Orders) push it toward a legal 60-card deck; you still need ~28 more Trainer/Pokémon cards to be tournament-legal".`;
 
   const userPrompt = `Game style: ${gameStyle} — ${styleDescriptions[gameStyle] ?? ""}
 ${notes ? `Player notes: ${notes}\n` : ""}
@@ -692,6 +693,7 @@ ${JSON.stringify(wishlistForAI)}`;
     source?: string;
     cardId?: number | null;
     wishlistItemId?: number | null;
+    cardName?: string | null; // for catalog suggestions
     count: number;
     role?: string | null;
     reason: string;
@@ -712,7 +714,7 @@ ${JSON.stringify(wishlistForAI)}`;
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `${userPrompt}\n\nReturn ONLY valid JSON with the exact shape: { "name": string, "strategy": string, "cards": Array<{ "source": "owned"|"wishlist", "cardId": number|null, "wishlistItemId": number|null, "count": number, "role": string, "reason": string }> }`,
+          content: `${userPrompt}\n\nReturn ONLY valid JSON:\n{ "name": string, "strategy": string, "cards": Array<{ "source": "owned"|"wishlist"|"catalog", "cardId": number|null, "wishlistItemId": number|null, "cardName": string|null, "count": number, "role": string, "reason": string }> }\nFor catalog entries: set source="catalog", cardId=null, wishlistItemId=null, and cardName=exact English card name.`,
         },
       ],
     });
@@ -730,14 +732,39 @@ ${JSON.stringify(wishlistForAI)}`;
   const ownedById = new Map(collection.map((c) => [c.id, c]));
   const wishlistById = new Map(wishlist.map((w) => [w.id, w]));
 
+  // Resolve catalog suggestions by searching PokeWallet for each card name.
+  // We batch in parallel but cap to avoid rate-limit pressure.
+  const catalogAI = (aiResult.cards ?? []).filter(
+    (c) => c?.source === "catalog" && typeof c.cardName === "string" && c.cardName,
+  );
+  const uniqueNames = [...new Set(catalogAI.map((c) => c.cardName as string))].slice(0, 15);
+
+  const catalogSearchResults = await Promise.all(
+    uniqueNames.map(async (name) => {
+      const result = await pwSearch(name, 3);
+      if (!result.ok || result.data.results.length === 0) return { name, card: null };
+      const [top] = await enrichCatalogCardImages(
+        [normalizeCatalogCard(result.data.results[0])],
+      );
+      return { name, card: top ?? null };
+    }),
+  );
+  const catalogByName = new Map(
+    catalogSearchResults.map(({ name, card }) => [name.toLowerCase(), card]),
+  );
+
   const suggested = (aiResult.cards ?? [])
     .map((c) => {
       if (!c || typeof c.reason !== "string") return null;
-      const count = Math.max(1, Math.min(4, Number(c.count) || 1));
+      // Basic Energy has no per-name cap; clamp others to 4.
+      const isEnergy = typeof c.cardName === "string" && /\benergy\b/i.test(c.cardName);
+      const count = isEnergy
+        ? Math.max(1, Math.min(20, Number(c.count) || 1))
+        : Math.max(1, Math.min(4, Number(c.count) || 1));
       const role = c.role ?? null;
 
       // Owned candidate
-      if (c.source === "owned" || (c.cardId != null && c.source !== "wishlist")) {
+      if (c.source === "owned" || (c.cardId != null && c.source !== "wishlist" && c.source !== "catalog")) {
         const owned = c.cardId != null ? ownedById.get(c.cardId) : null;
         if (owned) {
           return {
@@ -775,6 +802,25 @@ ${JSON.stringify(wishlistForAI)}`;
           };
         }
       }
+
+      // Catalog suggestion (card not yet owned)
+      if (c.source === "catalog" && typeof c.cardName === "string" && c.cardName) {
+        const found = catalogByName.get(c.cardName.toLowerCase());
+        return {
+          source: "catalog" as const,
+          cardId: null,
+          wishlistItemId: null,
+          catalogCardId: found?.id ?? null,
+          name: found?.name ?? c.cardName,
+          imageUrl: found?.imageUrl ?? null,
+          setName: found?.setName ?? null,
+          cardNumber: found?.cardNumber ?? null,
+          count,
+          role,
+          reason: c.reason,
+        };
+      }
+
       return null;
     })
     .filter((x): x is NonNullable<typeof x> => x != null);
