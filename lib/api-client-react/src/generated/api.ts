@@ -57,6 +57,7 @@ import type {
   UpdateCategoryBody,
   UpdateDeckBody,
   UpdateListingBody,
+  UpdateWantedBody,
   UpdateWishlistBody,
   UploadUrlRequest,
   UploadUrlResponse,
@@ -3397,40 +3398,43 @@ export function useGetWantedListingByCode<
 }
 
 /**
- * @summary Mark a wanted listing as found/closed
+ * @summary Update your own wanted listing (e.g. mark as found/closed)
  */
-export const getCloseWantedListingUrl = (id: number) => {
+export const getUpdateWantedListingUrl = (id: number) => {
   return `/api/wanted/${id}`;
 };
 
-export const closeWantedListing = async (
+export const updateWantedListing = async (
   id: number,
+  updateWantedBody: UpdateWantedBody,
   options?: RequestInit,
 ): Promise<WantedListing> => {
-  return customFetch<WantedListing>(getCloseWantedListingUrl(id), {
+  return customFetch<WantedListing>(getUpdateWantedListingUrl(id), {
     ...options,
     method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateWantedBody),
   });
 };
 
-export const getCloseWantedListingMutationOptions = <
-  TError = ErrorType<unknown>,
+export const getUpdateWantedListingMutationOptions = <
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof closeWantedListing>>,
+    Awaited<ReturnType<typeof updateWantedListing>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<UpdateWantedBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof closeWantedListing>>,
+  Awaited<ReturnType<typeof updateWantedListing>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<UpdateWantedBody> },
   TContext
 > => {
-  const mutationKey = ["closeWantedListing"];
+  const mutationKey = ["updateWantedListing"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -3440,44 +3444,44 @@ export const getCloseWantedListingMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof closeWantedListing>>,
-    { id: number }
+    Awaited<ReturnType<typeof updateWantedListing>>,
+    { id: number; data: BodyType<UpdateWantedBody> }
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, data } = props ?? {};
 
-    return closeWantedListing(id, requestOptions);
+    return updateWantedListing(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CloseWantedListingMutationResult = NonNullable<
-  Awaited<ReturnType<typeof closeWantedListing>>
+export type UpdateWantedListingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateWantedListing>>
 >;
-
-export type CloseWantedListingMutationError = ErrorType<unknown>;
+export type UpdateWantedListingMutationBody = BodyType<UpdateWantedBody>;
+export type UpdateWantedListingMutationError = ErrorType<void>;
 
 /**
- * @summary Mark a wanted listing as found/closed
+ * @summary Update your own wanted listing (e.g. mark as found/closed)
  */
-export const useCloseWantedListing = <
-  TError = ErrorType<unknown>,
+export const useUpdateWantedListing = <
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof closeWantedListing>>,
+    Awaited<ReturnType<typeof updateWantedListing>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<UpdateWantedBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof closeWantedListing>>,
+  Awaited<ReturnType<typeof updateWantedListing>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<UpdateWantedBody> },
   TContext
 > => {
-  return useMutation(getCloseWantedListingMutationOptions(options));
+  return useMutation(getUpdateWantedListingMutationOptions(options));
 };
 
 /**

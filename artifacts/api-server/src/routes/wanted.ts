@@ -5,7 +5,7 @@ import { eq, ilike, desc, or, and, isNull, gt, sql } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { logger } from "../lib/logger.js";
-import { CreateWantedListingBody } from "@workspace/api-zod";
+import { CreateWantedListingBody, UpdateWantedListingBody } from "@workspace/api-zod";
 
 const router = Router();
 
@@ -140,6 +140,13 @@ router.patch("/wanted/:id", requireAuth, async (req, res) => {
 
   const userId = (req as AuthRequest).userId;
 
+  const parsed = UpdateWantedListingBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
+    return;
+  }
+
+
   const [row] = await db
     .select({ id: wantedListingsTable.id, ownerClerkId: wantedListingsTable.ownerClerkId })
     .from(wantedListingsTable)
@@ -156,7 +163,7 @@ router.patch("/wanted/:id", requireAuth, async (req, res) => {
 
   const [updated] = await db
     .update(wantedListingsTable)
-    .set({ status: "closed" })
+    .set({ status: parsed.data.status })
     .where(eq(wantedListingsTable.id, id))
     .returning();
 

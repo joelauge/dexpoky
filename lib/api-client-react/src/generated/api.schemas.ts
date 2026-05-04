@@ -776,6 +776,18 @@ export interface CreateWantedBody {
   expiresAt?: string | null;
 }
 
+export type UpdateWantedBodyStatus =
+  (typeof UpdateWantedBodyStatus)[keyof typeof UpdateWantedBodyStatus];
+
+export const UpdateWantedBodyStatus = {
+  active: "active",
+  closed: "closed",
+} as const;
+
+export interface UpdateWantedBody {
+  status: UpdateWantedBodyStatus;
+}
+
 export type ListCardsParams = {
   categoryId?: number;
   forSale?: boolean;

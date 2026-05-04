@@ -4,11 +4,12 @@ import {
   useListListings, ListListingsStatus,
   useListWantedListings,
   useDeleteWantedListing,
+  useUpdateWantedListing,
 } from "@workspace/api-client-react";
 import type { WantedListing } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Store, ArrowRight, Gavel, Heart, X, MessageSquare } from "lucide-react";
+import { Search, Store, ArrowRight, Gavel, Heart, X, MessageSquare, CheckCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Show, useUser } from "@clerk/react";
@@ -35,6 +36,7 @@ type AuctionListing = {
 function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserId?: string }) {
   const [open, setOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [found, setFound] = useState(false);
   const qc = useQueryClient();
   const deleteWanted = useDeleteWantedListing({
     mutation: {
@@ -43,6 +45,19 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
         toast.success("Removed from Looking For");
       },
       onError: () => toast.error("Failed to remove"),
+    },
+  });
+  const markFound = useUpdateWantedListing({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ["/api/wanted"] });
+        setFound(true);
+        setTimeout(() => {
+          setOpen(false);
+          setFound(false);
+        }, 1800);
+      },
+      onError: () => toast.error("Failed to update"),
     },
   });
 
@@ -213,18 +228,35 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
             </Link>
           )}
 
-          {isOwner && (
-            <Button
-              variant="destructive"
-              className="w-full"
-              onClick={() => {
-                deleteWanted.mutate({ id: item.id });
-                setOpen(false);
-              }}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Remove My Request
-            </Button>
+          {isOwner && !found && (
+            <div className="flex flex-col gap-2">
+              <Button
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+                onClick={() => markFound.mutate({ id: item.id, data: { status: "closed" } })}
+                disabled={markFound.isPending}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                {markFound.isPending ? "Saving…" : "Mark as Found"}
+              </Button>
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => {
+                  deleteWanted.mutate({ id: item.id });
+                  setOpen(false);
+                }}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Remove My Request
+              </Button>
+            </div>
+          )}
+          {isOwner && found && (
+            <div className="flex flex-col items-center gap-1 py-2">
+              <CheckCircle className="h-8 w-8 text-emerald-500" />
+              <p className="font-semibold text-emerald-700">Thanks for using DexPoky!</p>
+              <p className="text-sm text-muted-foreground">Your request has been marked as found.</p>
+            </div>
           )}
         </DialogContent>
       </Dialog>

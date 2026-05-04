@@ -32,6 +32,8 @@ tags:
     description: Wishlist of catalog cards the user is looking for
   - name: messages
     description: In-app direct messaging between buyers and sellers
+  - name: wanted
+    description: Public "Looking For" requests from buyers
 
 paths:
   /storage/uploads/request-url:
@@ -818,15 +820,21 @@ paths:
 
   /wanted/{id}:
     patch:
-      operationId: closeWantedListing
+      operationId: updateWantedListing
       tags: [wanted]
-      summary: Mark a wanted listing as found/closed
+      summary: Update your own wanted listing (e.g. mark as found/closed)
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWantedBody"
       responses:
         "200":
           description: Updated wanted listing
@@ -834,6 +842,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WantedListing"
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
     delete:
       operationId: deleteWantedListing
       tags: [wanted]
@@ -2250,3 +2262,12 @@ components:
         - catalogCardId
         - name
         - pokemonName
+
+    UpdateWantedBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, closed]
+      required:
+        - status

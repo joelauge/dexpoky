@@ -1140,6 +1140,36 @@ export const CloseWantedListingResponse = zod.object({
 });
 
 /**
+ * @summary Update your own wanted listing (e.g. mark as found/closed)
+ */
+export const UpdateWantedListingParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateWantedListingBody = zod.object({
+  status: zod.enum(["active", "closed"]),
+});
+
+export const UpdateWantedListingResponse = zod.object({
+  id: zod.number(),
+  ownerClerkId: zod.string(),
+  ownerDisplayName: zod.string().nullish(),
+  ownerImageUrl: zod.string().nullish(),
+  catalogCardId: zod.string(),
+  name: zod.string(),
+  pokemonName: zod.string(),
+  setName: zod.string().nullish(),
+  setCode: zod.string().nullish(),
+  cardNumber: zod.string().nullish(),
+  rarity: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  maxPrice: zod.number().nullish(),
+  notes: zod.string().nullish(),
+  status: zod.enum(["active", "closed"]),
+  createdAt: zod.coerce.date(),
+});
+
+/**
  * @summary Remove your own wanted listing
  */
 export const DeleteWantedListingParams = zod.object({
