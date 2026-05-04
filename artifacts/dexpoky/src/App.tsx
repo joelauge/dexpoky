@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ComponentType } from "react";
-import { ClerkProvider, SignIn, SignUp, useClerk, useUser } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, useClerk, useUser, useAuth } from "@clerk/react";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -157,6 +158,17 @@ function HomeRoute() {
   return <Dashboard />;
 }
 
+function ClerkAuthSync() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+    return () => setAuthTokenGetter(null);
+  }, [getToken]);
+
+  return null;
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -195,6 +207,7 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <ClerkAuthSync />
           <ClerkQueryClientCacheInvalidator />
           <Switch>
             <Route path="/" component={HomeRoute} />
