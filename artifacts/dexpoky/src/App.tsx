@@ -207,7 +207,10 @@ function ClerkProviderWithRoutes() {
             <Route path="/decks" component={() => <ProtectedRoute component={Decks} />} />
             <Route path="/decks/new" component={() => <ProtectedRoute component={NewDeck} />} />
             <Route path="/decks/:id" component={() => <ProtectedRoute component={DeckDetail} />} />
-            <Route path="/rules" component={() => <ProtectedRoute component={RulesPage} />} />
+            {/* Rules are public reference content (no user-specific data); leaving */}
+            {/* it unauthenticated keeps the logged-out nav entry consistent with */}
+            {/* what users actually land on. */}
+            <Route path="/rules" component={RulesPage} />
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/marketplace/:id" component={ListingDetail} />
             <Route path="/sell" component={() => <ProtectedRoute component={Sell} />} />

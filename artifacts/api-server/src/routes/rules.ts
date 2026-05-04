@@ -5,6 +5,13 @@ import {
   SearchRulebookResponse,
 } from "@workspace/api-zod";
 
+// NOTE on `paragraphs` (vs a single `body` string):
+// The official PDF (par_rulebook_en.pdf) is naturally chunked by paragraph,
+// and we preserve that chunking end-to-end so we can (a) extract precise
+// per-paragraph snippets for search results without lossy slicing, and
+// (b) render with proper paragraph spacing in the UI. A single `body` blob
+// would force the search/highlight pipeline to re-segment text on every
+// request and lose the source's intentional structure.
 type RulebookSection = {
   id: string;
   title: string;
