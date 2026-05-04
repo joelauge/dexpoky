@@ -1,4 +1,5 @@
 @layer theme, base, clerk, components, utilities;
+@import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,slnt,wdth,wght,ROND@8..144,-10..0,25..150,400..500,0..100&display=swap");
 @import "tailwindcss";
 @import "@clerk/themes/shadcn.css";
 @import "tw-animate-css";
@@ -123,7 +124,7 @@
   --chart-4: 210 83% 60%;
   --chart-5: 230 73% 50%;
 
-  --app-font-sans: 'Inter', sans-serif;
+  --app-font-sans: 'Google Sans Flex', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: .5rem; 
