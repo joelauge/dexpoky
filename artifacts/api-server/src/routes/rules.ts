@@ -5,13 +5,8 @@ import {
   SearchRulebookResponse,
 } from "@workspace/api-zod";
 
-// NOTE on `paragraphs` (vs a single `body` string):
-// The official PDF (par_rulebook_en.pdf) is naturally chunked by paragraph,
-// and we preserve that chunking end-to-end so we can (a) extract precise
-// per-paragraph snippets for search results without lossy slicing, and
-// (b) render with proper paragraph spacing in the UI. A single `body` blob
-// would force the search/highlight pipeline to re-segment text on every
-// request and lose the source's intentional structure.
+// `paragraphs` preserves the source PDF's paragraph chunks for snippet
+// extraction and rendering (see openapi.yaml description for details).
 type RulebookSection = {
   id: string;
   title: string;
@@ -51,9 +46,7 @@ export function getDeckBuildingSectionText(): string {
 
 const router = Router();
 
-// Validate at module load so a malformed rulebook.json fails fast at boot
-// rather than on the first request. The validated payload is reused for every
-// /rules response — no per-request parsing cost on the hot path.
+// Validated once at boot; reused per request.
 const VALIDATED_RULEBOOK = GetRulebookResponse.parse({
   title: rulebook.title,
   source: rulebook.source,
@@ -155,8 +148,6 @@ router.get("/rules/search", (req, res) => {
 
   hits.sort((a, b) => b.score - a.score);
 
-  // Validate the outbound payload against the generated OpenAPI Zod schema so
-  // a contract drift here is loud (rather than silently corrupting the client).
   const parsed = SearchRulebookResponse.safeParse(hits.slice(0, 30));
   if (!parsed.success) {
     req.log?.error(

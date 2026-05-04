@@ -2,27 +2,11 @@
  * Ingest the Pokémon TCG rulebook PDF into the structured JSON consumed by
  * the api-server (`artifacts/api-server/src/data/rulebook.json`).
  *
- * The script:
- *   1. Loads a PDF from a local path or URL,
- *   2. Extracts plain text with `pdf-parse`,
- *   3. Splits the text into hierarchical sections (`{ id, title, level, body }`),
- *   4. Re-uses the curated category mapping from the existing JSON when possible,
- *   5. Builds a tokenized `searchIndex` (inverted index of token → posting list),
- *   6. Writes both the structured JSON (in-place) and a raw-text dump for diffing.
+ * Usage:
+ *   pnpm --filter @workspace/scripts run ingest-rulebook -- <pdf-path-or-url>
+ *   pnpm --filter @workspace/scripts run ingest-rulebook   # rebuild searchIndex only
  *
- * Usage (re-ingest from the official PDF you have on disk):
- *   pnpm --filter @workspace/scripts run ingest-rulebook -- <path-to-pdf>
- *
- * Or pass a URL the script can reach:
- *   pnpm --filter @workspace/scripts run ingest-rulebook -- https://example.com/rulebook.pdf
- *
- * Run with no args to rebuild only the `searchIndex` + `level` fields from the
- * already-curated JSON (useful after manual section edits):
- *   pnpm --filter @workspace/scripts run ingest-rulebook
- *
- * The script is intentionally idempotent and never deletes curated section
- * text — when both a freshly extracted body and a curated body exist for the
- * same section id, the curated body wins.
+ * Idempotent: curated section text always wins over re-extracted text.
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -30,8 +14,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// `__dirname` is `<workspace>/scripts/src` when invoked via `tsx ./src/...`.
-// Two levels up reaches the pnpm workspace root that contains `artifacts/`.
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const RULEBOOK_JSON = path.resolve(
   REPO_ROOT,

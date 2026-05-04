@@ -197,8 +197,7 @@ router.post("/decks", requireAuth, async (req, res) => {
           inArray(cardsTable.id, requestedIds),
         ),
       );
-    // Heuristic for Basic Energy (Pokémon TCG rules: no per-name cap on
-    // Basic Energy; everything else is capped at 4 of the same name).
+    // Per TCG rules: no per-name cap on Basic Energy; otherwise cap at 4.
     const isBasicEnergy = (name: string) =>
       /^basic\s+.+\benergy\b/i.test(name.trim());
     const ownedById = new Map(owned.map((c) => [c.id, c]));
@@ -206,9 +205,6 @@ router.post("/decks", requireAuth, async (req, res) => {
       .filter((e) => ownedById.has(e.cardId))
       .map((e) => {
         const card = ownedById.get(e.cardId)!;
-        // Server-side legality cap: enforce 4-of-a-kind for non-Basic-Energy
-        // cards. UI + AI prompt also enforce this, but a hostile/buggy client
-        // could otherwise persist illegal counts.
         const cappedCount = isBasicEnergy(card.name)
           ? e.count
           : Math.min(4, e.count);

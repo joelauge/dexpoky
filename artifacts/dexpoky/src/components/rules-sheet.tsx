@@ -39,8 +39,6 @@ export function RulesSheet({
   defaultSectionId,
   quickLinks,
 }: RulesSheetProps) {
-  // `nonce` bumps when a quick-link is clicked so the inner RulebookContent
-  // remounts and re-runs its initial-focus effect on the newly chosen section.
   const [activeSection, setActiveSection] = useState<string | undefined>(
     defaultSectionId,
   );

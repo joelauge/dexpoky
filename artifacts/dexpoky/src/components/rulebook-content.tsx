@@ -51,11 +51,6 @@ function escapeRegex(s: string): string {
 function highlight(text: string, terms: string[]): ReactNode {
   const cleaned = terms.map((t) => t.trim()).filter((t) => t.length >= 2);
   if (cleaned.length === 0) return text;
-  // Split on a capturing group so matched substrings appear in the resulting
-  // array. We then identify match parts by membership in a lowercase Set —
-  // this avoids the well-known stateful pitfall of calling `.test()` on a
-  // global RegExp inside a render loop (where `lastIndex` carries over and
-  // produces non-deterministic results).
   const pattern = new RegExp(`(${cleaned.map(escapeRegex).join("|")})`, "gi");
   const termSet = new Set(cleaned.map((t) => t.toLowerCase()));
   const parts = text.split(pattern);
@@ -79,9 +74,6 @@ export function RulebookContent({
   syncHash = false,
 }: RulebookContentProps) {
   const [query, setQuery] = useState("");
-  // True 200ms debounce so we don't hammer /api/rules/search on every keystroke
-  // while the user is still typing. Intentionally NOT useDeferredValue, which
-  // only defers re-renders, not the network request itself.
   const [debouncedQuery, setDebouncedQuery] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 200);

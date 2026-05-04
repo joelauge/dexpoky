@@ -156,9 +156,6 @@ export function Layout({ children }: LayoutProps) {
     { href: "/categories", label: "Categories", icon: FolderTree },
     { href: "/share", label: "Share", icon: Share2 },
     { href: "/subscription", label: "Subscription", icon: Sparkles },
-    // /rules is ProtectedRoute-gated, so it lives with the auth-only nav
-    // entries to keep visibility consistent with what the user can actually
-    // open without being redirected to sign in.
     { href: "/rules", label: "Rules", icon: BookOpen },
   ];
 
