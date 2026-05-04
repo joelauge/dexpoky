@@ -5,12 +5,19 @@ type RulebookSection = {
   id: string;
   title: string;
   category: string;
+  level: number;
   paragraphs: string[];
 };
 
 type RulebookGlossaryEntry = {
   term: string;
   definition: string;
+};
+
+type RulebookSearchIndexEntry = {
+  sectionId: string;
+  hits: number;
+  source: "title" | "body" | "glossary";
 };
 
 type Rulebook = {
@@ -20,9 +27,16 @@ type Rulebook = {
   ingestedAt?: string;
   sections: RulebookSection[];
   glossary: RulebookGlossaryEntry[];
+  searchIndex: Record<string, RulebookSearchIndexEntry[]>;
 };
 
 const rulebook = rulebookData as Rulebook;
+
+export function getDeckBuildingSectionText(): string {
+  const s = rulebook.sections.find((x) => x.id === "deck-building");
+  if (!s) return "";
+  return `# ${s.title}\n${s.paragraphs.join("\n")}`;
+}
 
 const router = Router();
 
@@ -33,6 +47,7 @@ router.get("/rules", (_req, res) => {
     version: rulebook.version,
     sections: rulebook.sections,
     glossary: rulebook.glossary,
+    searchIndex: rulebook.searchIndex,
   });
 });
 

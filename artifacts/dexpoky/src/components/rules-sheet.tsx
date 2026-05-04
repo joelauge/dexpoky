@@ -14,9 +14,15 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
 interface RulesSheetProps {
   trigger?: ReactNode;
+  /**
+   * Section id (matches `rulebook.json`) the sheet should jump to on open —
+   * e.g. "deck-building" for deck-builder pages, "card-types" or "setup"
+   * elsewhere. Falls back to the top of the rulebook when omitted.
+   */
+  defaultSectionId?: string;
 }
 
-export function RulesSheet({ trigger }: RulesSheetProps) {
+export function RulesSheet({ trigger, defaultSectionId }: RulesSheetProps) {
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -44,7 +50,10 @@ export function RulesSheet({ trigger }: RulesSheetProps) {
           </VisuallyHidden.Root>
         </SheetHeader>
         <div className="flex-1 min-h-0 px-6 pb-6">
-          <RulebookContent variant="sheet" />
+          <RulebookContent
+            variant="sheet"
+            defaultSectionId={defaultSectionId}
+          />
         </div>
       </SheetContent>
     </Sheet>

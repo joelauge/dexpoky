@@ -140,7 +140,7 @@ export default function NewDeck() {
           strategy: strategy ?? null,
           description: notes.trim() || null,
           cards,
-        } as never,
+        },
       },
       {
         onSuccess: (deck) => {
@@ -162,7 +162,7 @@ export default function NewDeck() {
               <ArrowLeft className="h-4 w-4" /> Back to decks
             </Button>
           </Link>
-          <RulesSheet />
+          <RulesSheet defaultSectionId="deck-building" />
         </div>
 
         <h1 className="text-3xl font-bold tracking-tight mb-2 flex items-center gap-2">

@@ -212,7 +212,7 @@ export default function DeckDetail() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <RulesSheet />
+            <RulesSheet defaultSectionId="deck-building" />
             {editing ? (
               <>
                 <Button onClick={saveEdit} disabled={updateDeck.isPending} className="gap-1">

@@ -15,6 +15,7 @@ import {
   SuggestDeckBody,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { getDeckBuildingSectionText } from "./rules.js";
 
 const router = Router();
 
@@ -159,9 +160,8 @@ router.post("/decks", requireAuth, async (req, res) => {
       if (cardId == null) continue;
       const rawCount = typeof obj.count === "number" && Number.isInteger(obj.count) ? obj.count : 1;
       // Per official rules a deck has 60 cards and is limited to 4 of any same-named card EXCEPT
-      // Basic Energy (no per-name cap). We can't always tell here whether this card is Basic Energy
-      // (we'd need to look up the card row), so we use a permissive 1..60 sanity bound and rely on
-      // the AI prompt + UI to enforce the 4-card cap for non-Basic-Energy cards.
+      // Basic Energy (no per-name cap). We use a permissive 1..60 sanity bound here and rely on
+      // the AI prompt and UI to enforce the per-name cap for non-Basic-Energy cards.
       const count = Math.max(1, Math.min(60, rawCount));
       const role = typeof obj.role === "string" ? obj.role : null;
       const notes = typeof obj.notes === "string" ? obj.notes : null;
@@ -428,11 +428,18 @@ router.post("/decks/suggest", requireAuth, async (req, res) => {
     tank: "High-HP Pokémon supported by healing, energy ramp, and damage reduction.",
   };
 
+  const deckBuildingRules = getDeckBuildingSectionText();
+
   const systemPrompt = `You are an expert Pokémon TCG deck builder. Build the strongest possible deck a player could realistically run from THEIR collection only.
 
-OFFICIAL DECK BUILDING RULES (Scarlet & Violet rulebook):
+OFFICIAL DECK BUILDING RULES (verbatim from the Scarlet & Violet rulebook):
+"""
+${deckBuildingRules}
+"""
+
+QUICK SUMMARY OF THE RULES YOU MUST RESPECT:
 - A legal deck is EXACTLY 60 cards.
-- Maximum 4 copies of any card with the same name (Basic Energy is exempt — you may include any number).
+- Maximum 4 copies of any card with the same English name (Basic Energy is exempt — you may include any number of Basic Energy of each type).
 - The deck must contain at least 1 Basic Pokémon (otherwise the player cannot start the game).
 - Special restrictions when relevant: only 1 Radiant Pokémon per deck; only 1 ACE SPEC card total per deck; only 1 of any specific Prism Star card.
 - Recommended starting ratios for a 60-card deck: 12–15 Energy, 20–25 Trainer cards (Items, Supporters, Stadiums, Tools), and the remainder Pokémon (try to run 4 of each Pokémon in an evolution line).
@@ -441,7 +448,12 @@ OFFICIAL DECK BUILDING RULES (Scarlet & Violet rulebook):
 DECK BUILD TASK:
 We are working with a curated subset of the user's collection. Recommend the strongest 15–30 cards (or all of them if fewer) that fit the requested archetype, respecting the 4-copy limit and ensuring the suggestion includes at least one Basic Pokémon when possible.
 
-For each recommended card include: cardId (must exist in the supplied collection), count (1–4 typical, never more than 4 for non-Basic-Energy), role (one of: attacker | support | trainer | energy | tech), and a short reason. Also produce a deck name and a 2–4 sentence strategy summary explaining the win condition and key turns. If the collection cannot legally form a 60-card deck, still suggest the best partial core and call out what's missing in the strategy summary.`;
+For each recommended card include: cardId (must exist in the supplied collection), count (1–4 typical, never more than 4 for non-Basic-Energy), role (one of: attacker | support | trainer | energy | tech), and a short reason.
+
+ALWAYS produce:
+- A deck name.
+- A "strategy" summary of 3–5 sentences. The strategy MUST explicitly quantify what's missing to reach a tournament-legal 60-card deck — for example: "this 24-card core needs ~36 more cards: 13 Basic Energy, ~15 Trainers (Supporters/Items), and 2 backup attackers". Use the recommended ratios above to compute the gap.
+- If the collection cannot legally form a 60-card deck, still suggest the best partial core and call out what's missing in the strategy.`;
 
   const userPrompt = `Game style: ${gameStyle} — ${styleDescriptions[gameStyle] ?? ""}
 ${notes ? `Player notes: ${notes}\n` : ""}

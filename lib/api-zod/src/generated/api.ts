@@ -660,7 +660,22 @@ export const CreateDeckBody = zod.object({
     "tank",
   ]),
   strategy: zod.string().nullish(),
-  cardIds: zod.array(zod.number()).optional(),
+  cardIds: zod
+    .array(zod.number())
+    .optional()
+    .describe(
+      "Legacy. Prefer `cards` so AI-suggested counts\/roles\/notes are\npreserved. If both are provided, `cards` wins.\n",
+    ),
+  cards: zod
+    .array(
+      zod.object({
+        cardId: zod.number(),
+        count: zod.number().min(1),
+        role: zod.string().nullish(),
+        notes: zod.string().nullish(),
+      }),
+    )
+    .optional(),
 });
 
 /**
@@ -842,6 +857,11 @@ export const GetRulebookResponse = zod.object({
       id: zod.string(),
       title: zod.string(),
       category: zod.string(),
+      level: zod
+        .number()
+        .describe(
+          "Heading depth in the source PDF (1 = top-level chapter, 2 = section, 3 = sub-section).",
+        ),
       paragraphs: zod.array(zod.string()),
     }),
   ),
@@ -851,6 +871,20 @@ export const GetRulebookResponse = zod.object({
       definition: zod.string(),
     }),
   ),
+  searchIndex: zod
+    .record(
+      zod.string(),
+      zod.array(
+        zod.object({
+          sectionId: zod.string(),
+          hits: zod.number(),
+          source: zod.enum(["title", "body", "glossary"]),
+        }),
+      ),
+    )
+    .describe(
+      "Token → posting-list inverted index built at ingest time.\nThe runtime \/rules\/search endpoint is the primary search API; this\nindex is exposed for clients that want to do offline filtering.\n",
+    ),
 });
 
 /**

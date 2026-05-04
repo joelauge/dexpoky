@@ -334,6 +334,14 @@ export interface DeckWithCards {
   updatedAt: string;
 }
 
+export interface DeckCardInput {
+  cardId: number;
+  /** @minimum 1 */
+  count: number;
+  role?: string | null;
+  notes?: string | null;
+}
+
 export type CreateDeckBodyGameStyle =
   (typeof CreateDeckBodyGameStyle)[keyof typeof CreateDeckBodyGameStyle];
 
@@ -352,7 +360,11 @@ export interface CreateDeckBody {
   description?: string | null;
   gameStyle: CreateDeckBodyGameStyle;
   strategy?: string | null;
+  /** Legacy. Prefer `cards` so AI-suggested counts/roles/notes are
+preserved. If both are provided, `cards` wins.
+ */
   cardIds?: number[];
+  cards?: DeckCardInput[];
 }
 
 export type UpdateDeckBodyGameStyle =
@@ -430,6 +442,8 @@ export interface RulebookSection {
   id: string;
   title: string;
   category: string;
+  /** Heading depth in the source PDF (1 = top-level chapter, 2 = section, 3 = sub-section). */
+  level: number;
   paragraphs: string[];
 }
 
@@ -438,12 +452,42 @@ export interface RulebookGlossaryEntry {
   definition: string;
 }
 
+export type RulebookSearchIndexEntrySource =
+  (typeof RulebookSearchIndexEntrySource)[keyof typeof RulebookSearchIndexEntrySource];
+
+export const RulebookSearchIndexEntrySource = {
+  title: "title",
+  body: "body",
+  glossary: "glossary",
+} as const;
+
+export interface RulebookSearchIndexEntry {
+  sectionId: string;
+  hits: number;
+  source: RulebookSearchIndexEntrySource;
+}
+
+/**
+ * Token → posting-list inverted index built at ingest time.
+The runtime /rules/search endpoint is the primary search API; this
+index is exposed for clients that want to do offline filtering.
+
+ */
+export type RulebookResponseSearchIndex = {
+  [key: string]: RulebookSearchIndexEntry[];
+};
+
 export interface RulebookResponse {
   title: string;
   source: string;
   version: string;
   sections: RulebookSection[];
   glossary: RulebookGlossaryEntry[];
+  /** Token → posting-list inverted index built at ingest time.
+The runtime /rules/search endpoint is the primary search API; this
+index is exposed for clients that want to do offline filtering.
+ */
+  searchIndex: RulebookResponseSearchIndex;
 }
 
 export type RulebookSearchResultMatchType =

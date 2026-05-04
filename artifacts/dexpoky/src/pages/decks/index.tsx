@@ -62,7 +62,7 @@ export default function Decks() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <RulesSheet />
+            <RulesSheet defaultSectionId="deck-building" />
             <Link href="/decks/new">
               <Button className="shadow-md gap-2">
                 <Sparkles className="h-4 w-4" />

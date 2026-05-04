@@ -207,7 +207,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/decks" component={() => <ProtectedRoute component={Decks} />} />
             <Route path="/decks/new" component={() => <ProtectedRoute component={NewDeck} />} />
             <Route path="/decks/:id" component={() => <ProtectedRoute component={DeckDetail} />} />
-            <Route path="/rules" component={RulesPage} />
+            <Route path="/rules" component={() => <ProtectedRoute component={RulesPage} />} />
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/marketplace/:id" component={ListingDetail} />
             <Route path="/sell" component={() => <ProtectedRoute component={Sell} />} />

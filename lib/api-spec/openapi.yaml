@@ -1181,6 +1181,24 @@ components:
         - createdAt
         - updatedAt
 
+    DeckCardInput:
+      type: object
+      properties:
+        cardId:
+          type: integer
+        count:
+          type: integer
+          minimum: 1
+        role:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required:
+        - cardId
+        - count
+
     CreateDeckBody:
       type: object
       properties:
@@ -1198,8 +1216,15 @@ components:
           nullable: true
         cardIds:
           type: array
+          description: |
+            Legacy. Prefer `cards` so AI-suggested counts/roles/notes are
+            preserved. If both are provided, `cards` wins.
           items:
             type: integer
+        cards:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeckCardInput"
       required:
         - name
         - gameStyle
@@ -1295,11 +1320,14 @@ components:
           type: string
         category:
           type: string
+        level:
+          type: integer
+          description: Heading depth in the source PDF (1 = top-level chapter, 2 = section, 3 = sub-section).
         paragraphs:
           type: array
           items:
             type: string
-      required: [id, title, category, paragraphs]
+      required: [id, title, category, level, paragraphs]
 
     RulebookGlossaryEntry:
       type: object
@@ -1309,6 +1337,18 @@ components:
         definition:
           type: string
       required: [term, definition]
+
+    RulebookSearchIndexEntry:
+      type: object
+      properties:
+        sectionId:
+          type: string
+        hits:
+          type: integer
+        source:
+          type: string
+          enum: [title, body, glossary]
+      required: [sectionId, hits, source]
 
     RulebookResponse:
       type: object
@@ -1327,7 +1367,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RulebookGlossaryEntry"
-      required: [title, source, version, sections, glossary]
+        searchIndex:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/RulebookSearchIndexEntry"
+          description: |
+            Token → posting-list inverted index built at ingest time.
+            The runtime /rules/search endpoint is the primary search API; this
+            index is exposed for clients that want to do offline filtering.
+      required: [title, source, version, sections, glossary, searchIndex]
 
     RulebookSearchResult:
       type: object
