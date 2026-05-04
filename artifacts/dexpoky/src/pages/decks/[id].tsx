@@ -22,7 +22,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import {
   ArrowLeft,
-  ImageIcon,
   Plus,
   Trash2,
   X,
@@ -419,12 +418,12 @@ export default function DeckDetail() {
                             }}
                             className="text-left rounded-lg border hover:border-primary transition-colors overflow-hidden"
                           >
-                            <div className="aspect-[3/4] bg-muted/30">
+                            <div className="aspect-[3/4] bg-muted/30 flex items-center justify-center">
                               {c.imageUrl ? (
                                 <img src={c.imageUrl} alt={c.name} className="w-full h-full object-cover" loading="lazy" />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                                  <ImageIcon className="h-6 w-6" />
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[40px] opacity-[0.12] grayscale select-none pointer-events-none" />
                                 </div>
                               )}
                             </div>
@@ -468,12 +467,12 @@ export default function DeckDetail() {
                             }}
                             className="text-left rounded-lg border hover:border-primary transition-colors overflow-hidden"
                           >
-                            <div className="aspect-[3/4] bg-muted/30 relative">
+                            <div className="aspect-[3/4] bg-muted/30 relative flex items-center justify-center">
                               {w.imageUrl ? (
                                 <img src={w.imageUrl} alt={w.name} className="w-full h-full object-cover" loading="lazy" />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                                  <ImageIcon className="h-6 w-6" />
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[40px] opacity-[0.12] grayscale select-none pointer-events-none" />
                                 </div>
                               )}
                               <Heart className="absolute top-1 right-1 h-3.5 w-3.5 text-rose-500 fill-rose-500" />
@@ -510,8 +509,8 @@ export default function DeckDetail() {
                     {display.imageUrl ? (
                       <img src={display.imageUrl} alt={display.name} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                        <ImageIcon className="h-8 w-8" />
+                      <div className="w-full h-full flex items-center justify-center">
+                        <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[52px] opacity-[0.12] grayscale select-none pointer-events-none" />
                       </div>
                     )}
                     {entry.count > 1 && (

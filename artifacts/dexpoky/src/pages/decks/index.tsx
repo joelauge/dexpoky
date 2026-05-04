@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Sparkles, Layers, Trash2, ImageIcon } from "lucide-react";
+import { Plus, Sparkles, Layers, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -117,8 +117,8 @@ export default function Decks() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                        <ImageIcon className="h-12 w-12" />
+                      <div className="w-full h-full flex items-center justify-center">
+                        <img src="/logo.png" alt="" aria-hidden className="w-2/5 max-w-[60px] opacity-[0.12] grayscale select-none pointer-events-none" />
                       </div>
                     )}
                     <div className="absolute top-2 left-2">

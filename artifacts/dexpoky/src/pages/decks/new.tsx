@@ -21,7 +21,6 @@ import {
   ArrowLeft,
   Wand2,
   Check,
-  ImageIcon,
   Zap,
   ShieldHalf,
   Scale,
@@ -398,11 +397,11 @@ export default function NewDeck() {
                                     loading="lazy"
                                   />
                                 ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
+                                  <div className="w-full h-full flex items-center justify-center">
                                     {isShopping ? (
-                                      <ShoppingBag className="h-8 w-8" />
+                                      <ShoppingBag className="h-8 w-8 text-muted-foreground/40" />
                                     ) : (
-                                      <ImageIcon className="h-8 w-8" />
+                                      <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[48px] opacity-[0.12] grayscale select-none pointer-events-none" />
                                     )}
                                   </div>
                                 )}

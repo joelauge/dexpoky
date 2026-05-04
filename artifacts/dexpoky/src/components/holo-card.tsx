@@ -1,5 +1,4 @@
 import { useRef, useState, useEffect, useCallback } from "react";
-import { ImageIcon } from "lucide-react";
 
 const MAX_ROTATION = 14;
 const GLARE_OPACITY = 0.28;
@@ -102,11 +101,8 @@ export function HoloCard({ imageUrl, name, children }: HoloCardProps) {
             draggable={false}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <ImageIcon className="h-20 w-20 mb-4 opacity-50" />
-            <span className="font-medium uppercase tracking-widest opacity-50">
-              No Image Available
-            </span>
+          <div className="flex flex-col items-center justify-center h-full">
+            <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[100px] opacity-[0.12] grayscale select-none pointer-events-none" />
           </div>
         )}
 

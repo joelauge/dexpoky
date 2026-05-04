@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { Card as CardType } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatLabel, RARITY_COLORS, CONDITION_COLORS } from "@/lib/constants";
-import { ImageIcon } from "lucide-react";
 
 interface CardItemProps {
   card: CardType;
@@ -26,9 +25,8 @@ export function CardItem({ card, href, showPrice = false }: CardItemProps) {
             className="w-full h-full object-cover object-center"
           />
         ) : (
-          <div className="flex flex-col items-center justify-center text-muted-foreground">
-            <ImageIcon className="h-10 w-10 mb-2 opacity-50" />
-            <span className="text-xs font-medium uppercase tracking-wider opacity-70">No Image</span>
+          <div className="flex flex-col items-center justify-center h-full">
+            <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[72px] opacity-[0.12] grayscale select-none pointer-events-none" />
           </div>
         )}
         {card.forSale && (

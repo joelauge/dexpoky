@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchCatalog, type CatalogCard } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
-import { Search, ImageIcon, Loader2, AlertTriangle } from "lucide-react";
+import { Search, Loader2, AlertTriangle } from "lucide-react";
 
 function useDebounced<T>(value: T, delay = 300): T {
   const [v, setV] = useState(value);
@@ -115,7 +115,7 @@ export function CatalogSearch({
                       : "border-border hover:border-primary/60"
                   }`}
                 >
-                  <div className="aspect-[3/4] bg-muted/30 relative">
+                  <div className="aspect-[3/4] bg-muted/30 relative flex items-center justify-center">
                     {c.imageUrl ? (
                       <img
                         src={c.imageUrl}
@@ -124,8 +124,8 @@ export function CatalogSearch({
                         loading="lazy"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                        <ImageIcon className="h-7 w-7" />
+                      <div className="w-full h-full flex items-center justify-center">
+                        <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[48px] opacity-[0.12] grayscale select-none pointer-events-none" />
                       </div>
                     )}
                     {c.marketPrice != null && (

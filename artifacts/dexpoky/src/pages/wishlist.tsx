@@ -26,7 +26,6 @@ import {
   Heart,
   Plus,
   X,
-  ImageIcon,
   Sparkles,
   ChevronDown,
   FolderOpen,
@@ -530,8 +529,8 @@ function WishlistCard({
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-            <ImageIcon className="h-8 w-8" />
+          <div className="w-full h-full flex items-center justify-center">
+            <img src="/logo.png" alt="" aria-hidden className="w-3/5 max-w-[64px] opacity-[0.12] grayscale select-none pointer-events-none" />
           </div>
         )}
 
