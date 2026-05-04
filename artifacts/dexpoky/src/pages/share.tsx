@@ -133,6 +133,7 @@ export default function SharePage() {
   const [linkTitle, setLinkTitle] = useState("");
   const [collectionExpanded, setCollectionExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedListingId, setCopiedListingId] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState("");
   const [createdListingId, setCreatedListingId] = useState<number | null>(null);
 
@@ -853,6 +854,44 @@ export default function SharePage() {
                                 ) : (
                                   <Lock className="h-3 w-3 text-muted-foreground" />
                                 )}
+
+                                {listing.isPublic && (
+                                  <>
+                                    {listing.status !== "closed" && listing.shortCode ? (
+                                      <button
+                                        type="button"
+                                        title="Copy share link"
+                                        onClick={() => {
+                                          const link = `${window.location.origin}/w/${listing.shortCode}`;
+                                          navigator.clipboard.writeText(link).then(() => {
+                                            setCopiedListingId(listing.id.toString());
+                                            toast.success("Link copied!");
+                                            setTimeout(() => setCopiedListingId(null), 2000);
+                                          }).catch(() => {
+                                            toast.error("Could not copy link — please try again.");
+                                          });
+                                        }}
+                                        className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                      >
+                                        {copiedListingId === listing.id.toString() ? (
+                                          <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                        ) : (
+                                          <Copy className="h-3.5 w-3.5" />
+                                        )}
+                                      </button>
+                                    ) : listing.status === "closed" && listing.shortCode ? (
+                                      <button
+                                        type="button"
+                                        title="Listing closed"
+                                        disabled
+                                        className="p-1 rounded-md text-muted-foreground/40 cursor-not-allowed"
+                                      >
+                                        <Copy className="h-3.5 w-3.5" />
+                                      </button>
+                                    ) : null}
+                                  </>
+                                )}
+
                                 <button
                                   type="button"
                                   onClick={() => setConfirmDeleteId(
