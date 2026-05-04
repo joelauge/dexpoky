@@ -3,7 +3,7 @@ import { useSearch, useLocation } from "wouter";
 import { useUser } from "@clerk/react";
 import {
   useListCards, useListCategories,
-  useCreateWantedListing, useListMyWantedListings,
+  useCreateWantedListing, useListMyWantedListings, useDeleteWantedListing,
 } from "@workspace/api-client-react";
 import type { WantedListing } from "@workspace/api-client-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,7 +16,7 @@ import {
   Share2, Link2, Mail, MessageCircle, Copy, Check,
   ChevronRight, Package, Layers, FolderOpen, LayoutGrid, Sparkles,
   QrCode, ExternalLink, DollarSign, Truck, ChevronDown, ArrowLeft,
-  Search, Heart, Globe, Lock, Clock, Calendar,
+  Search, Heart, Globe, Lock, Clock, Calendar, Trash2,
 } from "lucide-react";
 import { CatalogSearch } from "@/components/catalog-search";
 import type { CatalogCard } from "@workspace/api-client-react";
@@ -145,8 +145,24 @@ export default function SharePage() {
   const [wantedCustomDate, setWantedCustomDate] = useState("");
   const [wantedCopied, setWantedCopied] = useState(false);
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
   const { isSignedIn } = useUser();
   const { data: myWantedListings = [] } = useListMyWantedListings();
+
+  const deleteWanted = useDeleteWantedListing({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ["/api/wanted/mine"] });
+        setConfirmDeleteId(null);
+        toast.success("Request deleted");
+      },
+      onError: () => {
+        toast.error("Failed to delete request");
+        setConfirmDeleteId(null);
+      },
+    },
+  });
 
   const activeCards = useMemo(() => {
     if (sellType === "single" || sellType === "group") {
@@ -192,7 +208,7 @@ export default function SharePage() {
   const createWanted = useCreateWantedListing({
     mutation: {
       onSuccess: (data) => {
-        qc.invalidateQueries({ queryKey: ["/api/wanted"] });
+        qc.invalidateQueries({ queryKey: ["/api/wanted/mine"] });
         setWantedResult(data);
         setStep(3);
       },
@@ -794,48 +810,84 @@ export default function SharePage() {
                       {myWantedListings.map(listing => (
                         <div
                           key={listing.id}
-                          className={`flex items-center gap-3 rounded-2xl border p-3 ${
+                          className={`rounded-2xl border overflow-hidden ${
                             listing.status === "closed"
                               ? "bg-muted/30 opacity-75"
                               : "bg-card"
                           }`}
                         >
-                          {listing.imageUrl ? (
-                            <img
-                              src={listing.imageUrl}
-                              alt={listing.name}
-                              className="w-9 h-12 object-contain rounded shrink-0"
-                            />
-                          ) : (
-                            <div className="w-9 h-12 rounded bg-muted shrink-0" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate">{listing.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {listing.setName ?? listing.pokemonName}
-                            </p>
-                            {listing.maxPrice != null && (
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                Up to ${listing.maxPrice.toFixed(2)}
+                          <div className="flex items-center gap-3 p-3">
+                            {listing.imageUrl ? (
+                              <img
+                                src={listing.imageUrl}
+                                alt={listing.name}
+                                className="w-9 h-12 object-contain rounded shrink-0"
+                              />
+                            ) : (
+                              <div className="w-9 h-12 rounded bg-muted shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold truncate">{listing.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {listing.setName ?? listing.pokemonName}
                               </p>
-                            )}
+                              {listing.maxPrice != null && (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Up to ${listing.maxPrice.toFixed(2)}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end gap-1.5 shrink-0">
+                              {listing.status === "closed" ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                  <Check className="h-3 w-3" /> Found
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                  Active
+                                </span>
+                              )}
+                              <div className="flex items-center gap-1.5">
+                                {listing.isPublic ? (
+                                  <Globe className="h-3 w-3 text-muted-foreground" />
+                                ) : (
+                                  <Lock className="h-3 w-3 text-muted-foreground" />
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteId(
+                                    confirmDeleteId === listing.id ? null : listing.id
+                                  )}
+                                  className="p-1 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+                                  aria-label="Delete request"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            {listing.status === "closed" ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                                <Check className="h-3 w-3" /> Found
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                                Active
-                              </span>
-                            )}
-                            {listing.isPublic ? (
-                              <Globe className="h-3 w-3 text-muted-foreground" />
-                            ) : (
-                              <Lock className="h-3 w-3 text-muted-foreground" />
-                            )}
-                          </div>
+                          {confirmDeleteId === listing.id && (
+                            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-red-50 border-t border-red-100">
+                              <p className="text-xs text-red-700 font-medium">Delete this request?</p>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteWanted.mutate({ id: listing.id })}
+                                  disabled={deleteWanted.isPending}
+                                  className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded-lg transition-colors"
+                                >
+                                  {deleteWanted.isPending ? "Deleting…" : "Delete"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
