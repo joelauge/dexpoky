@@ -58,6 +58,7 @@ const editSchema = z.object({
   estimatedValue: z.coerce.number().min(0).optional().nullable(),
   categoryId: z.coerce.number().optional().nullable(),
   notes: z.string().optional().nullable(),
+  cardStory: z.string().max(2000, "Story is too long").optional().nullable(),
   imageUrl: z.string().optional().nullable(),
 });
 
@@ -86,6 +87,7 @@ export default function EditCard() {
       estimatedValue: undefined,
       categoryId: undefined,
       notes: "",
+      cardStory: "",
       imageUrl: null,
     },
   });
@@ -102,6 +104,7 @@ export default function EditCard() {
       estimatedValue: card.estimatedValue != null ? Number(card.estimatedValue) : undefined,
       categoryId: card.categoryId ?? undefined,
       notes: card.notes ?? "",
+      cardStory: card.cardStory ?? "",
       imageUrl: card.imageUrl ?? null,
     });
   }, [card?.id]);
@@ -115,6 +118,7 @@ export default function EditCard() {
           estimatedValue: data.estimatedValue ?? null,
           categoryId: data.categoryId ?? null,
           notes: data.notes ?? null,
+          cardStory: data.cardStory && data.cardStory.trim().length > 0 ? data.cardStory.trim() : null,
           imageUrl: data.imageUrl ?? null,
           setName: data.setName || undefined,
           cardNumber: data.cardNumber || undefined,
@@ -379,6 +383,35 @@ export default function EditCard() {
                             value={field.value || ""}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="cardStory"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Card Story</FormLabel>
+                        <p className="text-xs text-muted-foreground -mt-1">
+                          How did you get this card? Pack pull, trade, gift from grandma — capture the memory.
+                        </p>
+                        <FormControl>
+                          <Textarea
+                            placeholder="e.g. Pulled from a Hidden Fates booster on my 12th birthday — first holo I ever owned."
+                            rows={5}
+                            className="resize-y"
+                            maxLength={2000}
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <div className="flex justify-end">
+                          <span className="text-[11px] text-muted-foreground tabular-nums">
+                            {(field.value ?? "").length}/2000
+                          </span>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
