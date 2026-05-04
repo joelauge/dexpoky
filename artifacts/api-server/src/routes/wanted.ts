@@ -64,6 +64,18 @@ router.get("/wanted", async (req, res) => {
   res.json(rows.map(serializeWanted));
 });
 
+router.get("/wanted/mine", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
+
+  const rows = await db
+    .select()
+    .from(wantedListingsTable)
+    .where(eq(wantedListingsTable.ownerClerkId, userId))
+    .orderBy(desc(wantedListingsTable.createdAt));
+
+  res.json(rows.map(serializeWanted));
+});
+
 router.get("/wanted/by-code/:code", async (req, res) => {
   const { code } = req.params;
   const [row] = await db

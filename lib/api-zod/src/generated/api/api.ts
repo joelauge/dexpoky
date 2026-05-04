@@ -1082,13 +1082,9 @@ export const CreateWantedListingBody = zod.object({
 });
 
 /**
- * @summary Get a single wanted listing by its short code (public)
+ * @summary List all wanted listings owned by the signed-in user (all statuses)
  */
-export const GetWantedListingByCodeParams = zod.object({
-  code: zod.coerce.string(),
-});
-
-export const GetWantedListingByCodeResponse = zod.object({
+export const ListMyWantedListingsResponseItem = zod.object({
   id: zod.number(),
   ownerClerkId: zod.string(),
   ownerDisplayName: zod.string().nullish(),
@@ -1109,15 +1105,18 @@ export const GetWantedListingByCodeResponse = zod.object({
   expiresAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
 });
+export const ListMyWantedListingsResponse = zod.array(
+  ListMyWantedListingsResponseItem,
+);
 
 /**
- * @summary Mark a wanted listing as found/closed
+ * @summary Get a single wanted listing by its short code (public)
  */
-export const CloseWantedListingParams = zod.object({
-  id: zod.coerce.number(),
+export const GetWantedListingByCodeParams = zod.object({
+  code: zod.coerce.string(),
 });
 
-export const CloseWantedListingResponse = zod.object({
+export const GetWantedListingByCodeResponse = zod.object({
   id: zod.number(),
   ownerClerkId: zod.string(),
   ownerDisplayName: zod.string().nullish(),
@@ -1166,6 +1165,9 @@ export const UpdateWantedListingResponse = zod.object({
   maxPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
   status: zod.enum(["active", "closed"]),
+  shortCode: zod.string(),
+  isPublic: zod.boolean(),
+  expiresAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
 });
 

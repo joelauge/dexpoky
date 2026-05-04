@@ -797,6 +797,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/WantedListing"
 
+  /wanted/mine:
+    get:
+      operationId: listMyWantedListings
+      tags: [wanted]
+      summary: List all wanted listings owned by the signed-in user (all statuses)
+      responses:
+        "200":
+          description: List of wanted listings belonging to the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WantedListing"
+        "401":
+          description: Unauthorized
+
   /wanted/by-code/{code}:
     get:
       operationId: getWantedListingByCode

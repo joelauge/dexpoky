@@ -3309,6 +3309,81 @@ export const useCreateWantedListing = <
 };
 
 /**
+ * @summary List all wanted listings owned by the signed-in user (all statuses)
+ */
+export const getListMyWantedListingsUrl = () => {
+  return `/api/wanted/mine`;
+};
+
+export const listMyWantedListings = async (
+  options?: RequestInit,
+): Promise<WantedListing[]> => {
+  return customFetch<WantedListing[]>(getListMyWantedListingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListMyWantedListingsQueryKey = () => {
+  return [`/api/wanted/mine`] as const;
+};
+
+export const getListMyWantedListingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyWantedListings>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyWantedListings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyWantedListingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyWantedListings>>
+  > = ({ signal }) => listMyWantedListings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyWantedListings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListMyWantedListingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyWantedListings>>
+>;
+export type ListMyWantedListingsQueryError = ErrorType<void>;
+
+/**
+ * @summary List all wanted listings owned by the signed-in user (all statuses)
+ */
+
+export function useListMyWantedListings<
+  TData = Awaited<ReturnType<typeof listMyWantedListings>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listMyWantedListings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListMyWantedListingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Get a single wanted listing by its short code (public)
  */
 export const getGetWantedListingByCodeUrl = (code: string) => {

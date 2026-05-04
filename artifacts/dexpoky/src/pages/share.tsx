@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import { useSearch, useLocation } from "wouter";
+import { useUser } from "@clerk/react";
 import {
   useListCards, useListCategories,
-  useCreateWantedListing,
+  useCreateWantedListing, useListMyWantedListings,
 } from "@workspace/api-client-react";
 import type { WantedListing } from "@workspace/api-client-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -143,6 +144,9 @@ export default function SharePage() {
   const [wantedExpiry, setWantedExpiry] = useState<ExpiryOption>("never");
   const [wantedCustomDate, setWantedCustomDate] = useState("");
   const [wantedCopied, setWantedCopied] = useState(false);
+
+  const { isSignedIn } = useUser();
+  const { data: myWantedListings = [] } = useListMyWantedListings();
 
   const activeCards = useMemo(() => {
     if (sellType === "single" || sellType === "group") {
@@ -781,6 +785,62 @@ export default function SharePage() {
                 >
                   Continue <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
+
+                {/* ── My Requests history ── */}
+                {isSignedIn && myWantedListings.length > 0 && (
+                  <div className="pt-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">My Requests</p>
+                    <div className="space-y-2">
+                      {myWantedListings.map(listing => (
+                        <div
+                          key={listing.id}
+                          className={`flex items-center gap-3 rounded-2xl border p-3 ${
+                            listing.status === "closed"
+                              ? "bg-muted/30 opacity-75"
+                              : "bg-card"
+                          }`}
+                        >
+                          {listing.imageUrl ? (
+                            <img
+                              src={listing.imageUrl}
+                              alt={listing.name}
+                              className="w-9 h-12 object-contain rounded shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-12 rounded bg-muted shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">{listing.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {listing.setName ?? listing.pokemonName}
+                            </p>
+                            {listing.maxPrice != null && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Up to ${listing.maxPrice.toFixed(2)}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            {listing.status === "closed" ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                <Check className="h-3 w-3" /> Found
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                Active
+                              </span>
+                            )}
+                            {listing.isPublic ? (
+                              <Globe className="h-3 w-3 text-muted-foreground" />
+                            ) : (
+                              <Lock className="h-3 w-3 text-muted-foreground" />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
