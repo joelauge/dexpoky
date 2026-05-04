@@ -318,7 +318,7 @@ export default function SharePage() {
 
   return (
     <Layout>
-      <div className="max-w-lg mx-auto px-4 py-8 pb-24">
+      <div className="px-4 py-8 pb-24">
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
