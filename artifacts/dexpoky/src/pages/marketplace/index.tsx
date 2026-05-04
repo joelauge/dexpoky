@@ -5,13 +5,14 @@ import {
   useListWantedListings,
   useDeleteWantedListing,
   useUpdateWantedListing,
+  useListCategories,
 } from "@workspace/api-client-react";
-import type { WantedListing } from "@workspace/api-client-react";
+import type { WantedListing, Category } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Store, ArrowRight, Gavel, Heart, X, MessageSquare, CheckCircle } from "lucide-react";
+import { Search, Store, ArrowRight, Gavel, Heart, X, MessageSquare, CheckCircle, FolderOpen, ChevronLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Show, useUser } from "@clerk/react";
 import { formatCurrency, formatLabel, RARITY_COLORS } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,12 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
   const [open, setOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [found, setFound] = useState(false);
+  const [confirmStep, setConfirmStep] = useState(false);
+  const [confirmCategoryId, setConfirmCategoryId] = useState<number | null>(null);
+  const [, navigate] = useLocation();
   const qc = useQueryClient();
+  const { data: categories = [] } = useListCategories();
+
   const deleteWanted = useDeleteWantedListing({
     mutation: {
       onSuccess: () => {
@@ -55,11 +61,28 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
         setTimeout(() => {
           setOpen(false);
           setFound(false);
-        }, 1800);
+          setConfirmStep(false);
+        }, 1600);
       },
       onError: () => toast.error("Failed to update"),
     },
   });
+
+  const doMarkFound = (andNavigate: boolean) => {
+    markFound.mutate({ id: item.id, data: { status: "closed" } });
+    if (andNavigate) {
+      const params = new URLSearchParams({
+        name: item.name,
+        pokemonName: item.pokemonName,
+        catalogCardId: item.catalogCardId,
+      });
+      if (item.setName) params.set("setName", item.setName);
+      if (item.cardNumber) params.set("cardNumber", item.cardNumber);
+      if (item.imageUrl) params.set("imageUrl", item.imageUrl);
+      if (confirmCategoryId) params.set("categoryId", String(confirmCategoryId));
+      navigate(`/collection/new?${params.toString()}`);
+    }
+  };
 
   const isOwner = currentUserId === item.ownerClerkId;
 
@@ -228,15 +251,14 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
             </Link>
           )}
 
-          {isOwner && !found && (
+          {isOwner && !found && !confirmStep && (
             <div className="flex flex-col gap-2">
               <Button
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
-                onClick={() => markFound.mutate({ id: item.id, data: { status: "closed" } })}
-                disabled={markFound.isPending}
+                onClick={() => { setConfirmStep(true); setConfirmCategoryId(null); }}
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
-                {markFound.isPending ? "Saving…" : "Mark as Found"}
+                I Got This!
               </Button>
               <Button
                 variant="destructive"
@@ -251,11 +273,83 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
               </Button>
             </div>
           )}
+
+          {isOwner && !found && confirmStep && (
+            <div className="space-y-3">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                <p className="text-sm font-semibold text-emerald-800">You actually got this card? 🎉</p>
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  This will close your request. Want to add it to your collection too?
+                </p>
+              </div>
+
+              {categories.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <FolderOpen className="h-3.5 w-3.5" /> Add to category
+                    <span className="normal-case font-normal">(optional)</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmCategoryId(null)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                        confirmCategoryId === null
+                          ? "bg-primary text-white border-primary"
+                          : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted/60"
+                      }`}
+                    >
+                      None
+                    </button>
+                    {categories.map((cat: Category) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setConfirmCategoryId(cat.id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                          confirmCategoryId === cat.id
+                            ? "bg-primary text-white border-primary"
+                            : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted/60"
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Button
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+                onClick={() => doMarkFound(true)}
+                disabled={markFound.isPending}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                {markFound.isPending ? "Saving…" : "Yes! Add to my collection"}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => doMarkFound(false)}
+                disabled={markFound.isPending}
+              >
+                Just mark as found
+              </Button>
+              <button
+                type="button"
+                onClick={() => setConfirmStep(false)}
+                className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1 flex items-center justify-center gap-1"
+              >
+                <ChevronLeft className="h-3 w-3" /> Back
+              </button>
+            </div>
+          )}
+
           {isOwner && found && (
             <div className="flex flex-col items-center gap-1 py-2">
               <CheckCircle className="h-8 w-8 text-emerald-500" />
-              <p className="font-semibold text-emerald-700">Thanks for using DexPoky!</p>
-              <p className="text-sm text-muted-foreground">Your request has been marked as found.</p>
+              <p className="font-semibold text-emerald-700">Marked as found!</p>
+              <p className="text-sm text-muted-foreground">Your request has been closed.</p>
             </div>
           )}
         </DialogContent>

@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -31,6 +32,7 @@ import {
   FolderOpen,
   Folder,
   MoveRight,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CatalogSearch } from "@/components/catalog-search";
@@ -96,6 +98,8 @@ export default function WishlistPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pendingCategoryId, setPendingCategoryId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<string>(TAB_ALL);
+  const [gotItItem, setGotItItem] = useState<WishlistItem | null>(null);
+  const [gotItCategoryId, setGotItCategoryId] = useState<number | null>(null);
 
   const wishedIds = new Set((items ?? []).map((i) => i.catalogCardId));
 
@@ -186,7 +190,7 @@ export default function WishlistPage() {
     );
   };
 
-  const handleGotIt = (item: WishlistItem) => {
+  const handleGotIt = (item: WishlistItem, overrideCategoryId?: number | null) => {
     const params = new URLSearchParams({
       name: item.name,
       pokemonName: item.pokemonName,
@@ -196,7 +200,8 @@ export default function WishlistPage() {
     if (item.cardNumber) params.set("cardNumber", item.cardNumber);
     if (item.imageUrl) params.set("imageUrl", item.imageUrl);
     if (item.lastSeenPrice != null) params.set("estimatedValue", String(item.lastSeenPrice));
-    if (item.categoryId) params.set("categoryId", String(item.categoryId));
+    const catId = overrideCategoryId !== undefined ? overrideCategoryId : item.categoryId;
+    if (catId) params.set("categoryId", String(catId));
     navigate(`/collection/new?${params.toString()}`);
   };
 
@@ -321,7 +326,7 @@ export default function WishlistPage() {
                 onRemove={handleRemove}
                 onSetPriority={handleSetPriority}
                 onMoveToCategory={handleMoveToCategory}
-                onGotIt={handleGotIt}
+                onGotIt={(item) => { setGotItItem(item); setGotItCategoryId(item.categoryId ?? null); }}
               />
             ))}
           </div>
@@ -402,6 +407,97 @@ export default function WishlistPage() {
         {/* Discreet enum reference */}
         <div className="hidden">{Object.values(AddWishlistBodyPriority).join(",")}</div>
       </div>
+
+      {/* Got It confirmation dialog */}
+      <Dialog
+        open={!!gotItItem}
+        onOpenChange={(open) => { if (!open) { setGotItItem(null); setGotItCategoryId(null); } }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              You actually got this card?
+            </DialogTitle>
+            <DialogDescription>
+              It'll be added to your collection. Want to put it in a category while you're here?
+            </DialogDescription>
+          </DialogHeader>
+
+          {gotItItem && (
+            <div className="flex items-center gap-3 bg-muted/30 rounded-xl p-3 border">
+              {gotItItem.imageUrl ? (
+                <img src={gotItItem.imageUrl} alt={gotItItem.name} className="w-10 h-14 object-contain rounded shrink-0" />
+              ) : (
+                <div className="w-10 h-14 rounded bg-muted shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sm truncate">{gotItItem.name}</p>
+                <p className="text-xs text-muted-foreground">{gotItItem.setName ?? gotItItem.pokemonName}</p>
+              </div>
+            </div>
+          )}
+
+          {(categories ?? []).length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <FolderOpen className="h-3.5 w-3.5" /> Add to category
+                <span className="normal-case font-normal">(optional)</span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setGotItCategoryId(null)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-lg text-xs font-medium border transition-all",
+                    gotItCategoryId === null
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted/60",
+                  )}
+                >
+                  None
+                </button>
+                {(categories ?? []).map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setGotItCategoryId(cat.id)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-medium border transition-all",
+                      gotItCategoryId === cat.id
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted/60",
+                    )}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <Button
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+              onClick={() => {
+                if (gotItItem) handleGotIt(gotItItem, gotItCategoryId);
+                setGotItItem(null);
+                setGotItCategoryId(null);
+              }}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Yes! Add to my collection
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => { setGotItItem(null); setGotItCategoryId(null); }}
+            >
+              Not yet
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
