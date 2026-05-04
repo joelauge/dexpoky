@@ -48,9 +48,9 @@ export default defineConfig({
       },
     },
     output: {
-      workspace: apiZodSrc,
+      workspace: path.resolve(apiZodSrc, "generated"),
       client: "zod",
-      target: "generated",
+      target: "api",
       mode: "split",
       clean: true,
       prettier: true,

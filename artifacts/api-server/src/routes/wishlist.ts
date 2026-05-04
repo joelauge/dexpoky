@@ -24,6 +24,7 @@ const wishlistSelect = {
   lastSeenPrice: sql<number | null>`${wishlistItemsTable.lastSeenPrice}::float`,
   notes: wishlistItemsTable.notes,
   priority: wishlistItemsTable.priority,
+  categoryId: wishlistItemsTable.categoryId,
   addedAt: wishlistItemsTable.addedAt,
   updatedAt: wishlistItemsTable.updatedAt,
 };
@@ -85,7 +86,7 @@ router.post("/wishlist", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Invalid body" });
     return;
   }
-  const { catalogCardId, priority, notes } = parsed.data;
+  const { catalogCardId, priority, notes, categoryId } = parsed.data;
 
   const lookup = await pwGetCard(catalogCardId);
   if (!lookup.ok) {
@@ -118,12 +119,14 @@ router.post("/wishlist", requireAuth, async (req, res) => {
         normalized.marketPrice != null ? String(normalized.marketPrice) : null,
       notes: notes ?? null,
       priority: priority ?? "normal",
+      categoryId: categoryId ?? null,
     })
     .onConflictDoUpdate({
       target: [wishlistItemsTable.ownerClerkId, wishlistItemsTable.catalogCardId],
       set: {
         priority: priority ?? sql`${wishlistItemsTable.priority}`,
         notes: notes !== undefined ? notes : sql`${wishlistItemsTable.notes}`,
+        categoryId: categoryId !== undefined ? categoryId : sql`${wishlistItemsTable.categoryId}`,
         lastSeenPrice:
           normalized.marketPrice != null ? String(normalized.marketPrice) : null,
         // Heal stored imageUrl when we now have one and the existing row doesn't.
@@ -165,6 +168,7 @@ router.put("/wishlist/:id", requireAuth, async (req, res) => {
   const update: Record<string, unknown> = { updatedAt: new Date() };
   if (parsed.data.priority !== undefined) update.priority = parsed.data.priority;
   if (parsed.data.notes !== undefined) update.notes = parsed.data.notes;
+  if (parsed.data.categoryId !== undefined) update.categoryId = parsed.data.categoryId;
   await db
     .update(wishlistItemsTable)
     .set(update)

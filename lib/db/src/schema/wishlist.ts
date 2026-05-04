@@ -1,6 +1,7 @@
 import {
   pgTable,
   serial,
+  integer,
   text,
   timestamp,
   numeric,
@@ -28,6 +29,7 @@ export const wishlistItemsTable = pgTable(
     lastSeenPrice: numeric("last_seen_price", { precision: 10, scale: 2 }),
     notes: text("notes"),
     priority: text("priority").default("normal").notNull(),
+    categoryId: integer("category_id"),
     addedAt: timestamp("added_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()

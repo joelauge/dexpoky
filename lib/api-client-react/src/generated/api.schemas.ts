@@ -632,6 +632,7 @@ export interface WishlistItem {
   lastSeenPrice?: number | null;
   notes?: string | null;
   priority: WishlistItemPriority;
+  categoryId?: number | null;
   addedAt: string;
   updatedAt: string;
 }
@@ -649,6 +650,7 @@ export interface AddWishlistBody {
   catalogCardId: string;
   priority?: AddWishlistBodyPriority;
   notes?: string | null;
+  categoryId?: number | null;
 }
 
 export type UpdateWishlistBodyPriority =
@@ -663,6 +665,7 @@ export const UpdateWishlistBodyPriority = {
 export interface UpdateWishlistBody {
   priority?: UpdateWishlistBodyPriority;
   notes?: string | null;
+  categoryId?: number | null;
 }
 
 export type ListCardsParams = {

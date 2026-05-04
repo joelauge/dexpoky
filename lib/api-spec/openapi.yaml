@@ -1746,6 +1746,9 @@ components:
         priority:
           type: string
           enum: [low, normal, high]
+        categoryId:
+          type: integer
+          nullable: true
         addedAt:
           type: string
           format: date-time
@@ -1772,6 +1775,9 @@ components:
         notes:
           type: string
           nullable: true
+        categoryId:
+          type: integer
+          nullable: true
       required:
         - catalogCardId
 
@@ -1783,4 +1789,7 @@ components:
           enum: [low, normal, high]
         notes:
           type: string
+          nullable: true
+        categoryId:
+          type: integer
           nullable: true

@@ -977,6 +977,7 @@ export const ListWishlistResponseItem = zod.object({
   lastSeenPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
   priority: zod.enum(["low", "normal", "high"]),
+  categoryId: zod.number().nullish(),
   addedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -989,6 +990,7 @@ export const AddWishlistItemBody = zod.object({
   catalogCardId: zod.string(),
   priority: zod.enum(["low", "normal", "high"]).optional(),
   notes: zod.string().nullish(),
+  categoryId: zod.number().nullish(),
 });
 
 /**
@@ -1001,6 +1003,7 @@ export const UpdateWishlistItemParams = zod.object({
 export const UpdateWishlistItemBody = zod.object({
   priority: zod.enum(["low", "normal", "high"]).optional(),
   notes: zod.string().nullish(),
+  categoryId: zod.number().nullish(),
 });
 
 export const UpdateWishlistItemResponse = zod.object({
@@ -1016,6 +1019,7 @@ export const UpdateWishlistItemResponse = zod.object({
   lastSeenPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
   priority: zod.enum(["low", "normal", "high"]),
+  categoryId: zod.number().nullish(),
   addedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
