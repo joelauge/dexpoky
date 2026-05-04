@@ -858,36 +858,60 @@ export default function SharePage() {
                                 {listing.isPublic && (
                                   <>
                                     {listing.status !== "closed" && listing.shortCode ? (
-                                      <button
-                                        type="button"
-                                        title="Copy share link"
-                                        onClick={() => {
-                                          const link = `${window.location.origin}/w/${listing.shortCode}`;
-                                          navigator.clipboard.writeText(link).then(() => {
-                                            setCopiedListingId(listing.id.toString());
-                                            toast.success("Link copied!");
-                                            setTimeout(() => setCopiedListingId(null), 2000);
-                                          }).catch(() => {
-                                            toast.error("Could not copy link — please try again.");
-                                          });
-                                        }}
-                                        className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                                      >
-                                        {copiedListingId === listing.id.toString() ? (
-                                          <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                        ) : (
-                                          <Copy className="h-3.5 w-3.5" />
-                                        )}
-                                      </button>
+                                      <>
+                                        <button
+                                          type="button"
+                                          title="Copy share link"
+                                          onClick={() => {
+                                            const link = `${window.location.origin}/w/${listing.shortCode}`;
+                                            navigator.clipboard.writeText(link).then(() => {
+                                              setCopiedListingId(listing.id.toString());
+                                              toast.success("Link copied!");
+                                              setTimeout(() => setCopiedListingId(null), 2000);
+                                            }).catch(() => {
+                                              toast.error("Could not copy link — please try again.");
+                                            });
+                                          }}
+                                          className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                        >
+                                          {copiedListingId === listing.id.toString() ? (
+                                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                          ) : (
+                                            <Copy className="h-3.5 w-3.5" />
+                                          )}
+                                        </button>
+                                        <a
+                                          href={`/w/${listing.shortCode}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          title="Open listing page"
+                                          aria-label="Open listing page in new tab"
+                                          className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                        >
+                                          <ExternalLink className="h-3.5 w-3.5" />
+                                        </a>
+                                      </>
                                     ) : listing.status === "closed" && listing.shortCode ? (
-                                      <button
-                                        type="button"
-                                        title="Listing closed"
-                                        disabled
-                                        className="p-1 rounded-md text-muted-foreground/40 cursor-not-allowed"
-                                      >
-                                        <Copy className="h-3.5 w-3.5" />
-                                      </button>
+                                      <>
+                                        <button
+                                          type="button"
+                                          title="Listing closed"
+                                          disabled
+                                          className="p-1 rounded-md text-muted-foreground/40 cursor-not-allowed"
+                                        >
+                                          <Copy className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Listing closed"
+                                          aria-label="Open listing page (listing closed)"
+                                          aria-disabled="true"
+                                          disabled
+                                          className="p-1 rounded-md text-muted-foreground/40 cursor-not-allowed"
+                                        >
+                                          <ExternalLink className="h-3.5 w-3.5" />
+                                        </button>
+                                      </>
                                     ) : null}
                                   </>
                                 )}
