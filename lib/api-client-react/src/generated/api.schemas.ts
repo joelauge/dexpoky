@@ -438,6 +438,9 @@ export interface SuggestDeckBody {
   notes?: string | null;
 }
 
+/**
+ * "owned" — pulled from the user's collection; "wishlist" — pulled from the user's wishlist; "catalog" — a card from the wider Pokémon TCG catalog the user should acquire to complete a deck strategy (returned when the user's pools have gaps); "shopping" — a starter-deck recommendation the user does not own and has not wishlisted (returned only when both pools are empty so the response is useful to brand-new users).
+ */
 export type SuggestedDeckCardSource =
   (typeof SuggestedDeckCardSource)[keyof typeof SuggestedDeckCardSource];
 
@@ -445,9 +448,11 @@ export const SuggestedDeckCardSource = {
   owned: "owned",
   wishlist: "wishlist",
   catalog: "catalog",
+  shopping: "shopping",
 } as const;
 
 export interface SuggestedDeckCard {
+  /** "owned" — pulled from the user's collection; "wishlist" — pulled from the user's wishlist; "catalog" — a card from the wider Pokémon TCG catalog the user should acquire to complete a deck strategy (returned when the user's pools have gaps); "shopping" — a starter-deck recommendation the user does not own and has not wishlisted (returned only when both pools are empty so the response is useful to brand-new users). */
   source: SuggestedDeckCardSource;
   cardId?: number | null;
   wishlistItemId?: number | null;

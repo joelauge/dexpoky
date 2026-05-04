@@ -30,6 +30,7 @@ import {
   HeartPulse,
   Heart,
   ShoppingCart,
+  ShoppingBag,
   type LucideIcon,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -53,13 +54,17 @@ const STYLES: Array<{
 ];
 
 /**
- * Each suggested card is keyed by source + id.
- * Catalog entries use their catalogCardId (or name fallback) since they have no owned/wishlist id.
+ * Each suggested card is keyed by source + id. Owned/wishlist use the backing
+ * record id. Catalog entries use their catalogCardId (or name fallback). For
+ * shopping recommendations there is no id at all, so we fall back to the
+ * position-stable index + name string. Shopping cards are never saved into the
+ * deck (no IDs to link to), so their key is only used for React list keys.
  */
-function suggestionKey(s: SuggestedDeckCard): string {
+function suggestionKey(s: SuggestedDeckCard, index: number): string {
   if (s.source === "owned") return `owned:${s.cardId}`;
   if (s.source === "wishlist") return `wishlist:${s.wishlistItemId}`;
-  return `catalog:${s.catalogCardId ?? s.name}`;
+  if (s.source === "catalog") return `catalog:${s.catalogCardId ?? s.name}`;
+  return `shopping:${index}:${s.name}`;
 }
 
 export default function NewDeck() {
@@ -84,12 +89,12 @@ export default function NewDeck() {
 
   const hasAnyPool =
     (cards && cards.length > 0) || (wishlist && wishlist.length > 0);
+  // When the user has nothing yet we still let them generate a suggestion —
+  // the API switches into "shopping list" mode and returns starter-deck
+  // recommendations from the wider Pokémon TCG catalog.
+  const isStarterMode = !cardsLoading && !hasAnyPool;
 
   const handleSuggest = () => {
-    if (!hasAnyPool) {
-      toast.error("Add some cards to your collection or wishlist first");
-      return;
-    }
     suggestDeck.mutate(
       { data: { gameStyle, notes: notes.trim() || null } },
       {
@@ -98,7 +103,17 @@ export default function NewDeck() {
           setName(data.name);
           setStrategy(data.strategy);
           setSuggested(data.cards);
-          setSelectedKeys(new Set(data.cards.map(suggestionKey)));
+          // Shopping suggestions have no backing card or wishlist id, so they
+          // can't be persisted into the deck — pre-select only the actionable
+          // owned/wishlist picks.
+          setSelectedKeys(
+            new Set(
+              data.cards
+                .map((c, i) => ({ c, key: suggestionKey(c, i) }))
+                .filter(({ c }) => c.source !== "shopping")
+                .map(({ key }) => key),
+            ),
+          );
           toast.success(`AI built a ${STYLES.find((s) => s.value === gameStyle)?.label} deck`);
         },
         onError: (err) => {
@@ -125,9 +140,12 @@ export default function NewDeck() {
       return;
     }
     // Build source-aware card entries the new /api/decks endpoint understands.
+    // Shopping recommendations are filtered out because they have no owned or
+    // wishlist id to attach the deck entry to — they're informational.
     const cardsPayload = (suggested ?? [])
-      .filter((s) => selectedKeys.has(suggestionKey(s)))
-      .map((s) => {
+      .map((s, i) => ({ s, key: suggestionKey(s, i) }))
+      .filter(({ s, key }) => s.source !== "shopping" && selectedKeys.has(key))
+      .map(({ s }) => {
         const base = {
           source: s.source,
           count: s.count,
@@ -187,8 +205,33 @@ export default function NewDeck() {
         <p className="text-muted-foreground mb-8">
           {isManual
             ? "Pick a play style and name your deck. You can add cards on the deck page."
-            : "Choose a play style and we'll suggest the best deck composition from your collection."}
+            : isStarterMode
+              ? "Brand new? Pick a play style and we'll recommend a beginner-friendly shopping list to start your collection."
+              : "Choose a play style and we'll suggest the best deck composition from your collection."}
         </p>
+
+        {!isManual && isStarterMode && !hasSuggested && (
+          <Card className="mb-6 border-dashed bg-muted/30">
+            <CardContent className="py-5 flex items-start gap-3">
+              <ShoppingBag className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-semibold">Your collection and wishlist are empty.</p>
+                <p className="text-muted-foreground mt-1">
+                  No problem — pick a play style below and we'll generate a starter shopping list of cards to acquire.
+                  You can also{" "}
+                  <Link href="/collection" className="underline underline-offset-2">
+                    add cards to your collection
+                  </Link>{" "}
+                  or{" "}
+                  <Link href="/scan" className="underline underline-offset-2">
+                    scan cards
+                  </Link>{" "}
+                  first for more personalized suggestions.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="space-y-6">
           <Card>
@@ -238,20 +281,24 @@ export default function NewDeck() {
                 />
                 <Button
                   onClick={handleSuggest}
-                  disabled={suggestDeck.isPending || cardsLoading || !hasAnyPool}
+                  disabled={suggestDeck.isPending || cardsLoading}
                   className="mt-4 gap-2"
                   size="lg"
                 >
                   <Wand2 className="h-4 w-4" />
                   {suggestDeck.isPending
-                    ? "Building deck..."
+                    ? isStarterMode
+                      ? "Building shopping list..."
+                      : "Building deck..."
                     : hasSuggested
                       ? "Regenerate suggestion"
-                      : "Suggest a deck"}
+                      : isStarterMode
+                        ? "Suggest a starter shopping list"
+                        : "Suggest a deck"}
                 </Button>
-                {!cardsLoading && !hasAnyPool && (
-                  <p className="text-xs text-destructive mt-2">
-                    Your collection and wishlist are both empty — add or scan some cards first.
+                {isStarterMode && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Tip: since you have no cards yet, the AI will return a beginner shopping list rather than a savable deck.
                   </p>
                 )}
                 {!cardsLoading && wishlist && wishlist.length > 0 && (
@@ -288,88 +335,137 @@ export default function NewDeck() {
                   />
                 </div>
 
-                {!isManual && suggested && suggested.length > 0 && (
-                  <div>
-                    <Label>Suggested cards ({selectedKeys.size} selected)</Label>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Tap to include/exclude. <span className="text-rose-600">♥ Wishlist</span> = want-to-buy. <span className="text-amber-600">🛒 Cart</span> = suggested purchase to complete the deck.
-                    </p>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                      {suggested.map((s) => {
-                        const key = suggestionKey(s);
-                        const isSelected = selectedKeys.has(key);
-                        const isWishlist = s.source === "wishlist";
-                        const isCatalog = s.source === "catalog";
-                        return (
-                          <button
-                            key={key}
-                            onClick={() => toggleCard(key)}
-                            className={`text-left rounded-xl border-2 transition-all overflow-hidden ${
-                              isSelected
-                                ? "border-primary ring-2 ring-primary/20"
-                                : "border-border opacity-60 hover:opacity-100"
-                            }`}
-                          >
-                            <div className="aspect-[3/4] relative bg-muted/30">
-                              {s.imageUrl ? (
-                                <img
-                                  src={s.imageUrl}
-                                  alt={s.name}
-                                  className="w-full h-full object-cover"
-                                  loading="lazy"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
-                                  <ImageIcon className="h-8 w-8" />
-                                </div>
-                              )}
-                              {isSelected && (
-                                <div className="absolute top-1.5 right-1.5 bg-primary text-primary-foreground rounded-full p-0.5 shadow-md">
-                                  <Check className="h-2.5 w-2.5" />
-                                </div>
-                              )}
-                              {s.role && (
-                                <Badge
-                                  variant="secondary"
-                                  className="absolute bottom-1.5 left-1.5 text-[9px] capitalize py-0 px-1"
-                                >
-                                  {s.role}
-                                </Badge>
-                              )}
-                              {isWishlist && (
-                                <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                                  <Heart className="h-2 w-2 fill-rose-500" />
-                                </span>
-                              )}
-                              {isCatalog && (
-                                <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                                  <ShoppingCart className="h-2 w-2" />
-                                </span>
-                              )}
-                              {s.count > 1 && (
-                                <span className="absolute bottom-1.5 right-1.5 text-[9px] font-bold bg-primary/90 text-primary-foreground px-1 py-0.5 rounded-full">
-                                  ×{s.count}
-                                </span>
-                              )}
-                            </div>
-                            <div className="p-1.5">
-                              <p className="text-[10px] font-semibold truncate leading-tight">{s.name}</p>
-                            </div>
-                          </button>
-                        );
-                      })}
+                {!isManual && suggested && suggested.length > 0 && (() => {
+                  const shoppingCount = suggested.filter((s) => s.source === "shopping").length;
+                  const savableCount = suggested.length - shoppingCount;
+                  return (
+                    <div>
+                      <Label>
+                        Suggested cards{savableCount > 0 ? ` (${selectedKeys.size} selected)` : ""}
+                      </Label>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        {shoppingCount === suggested.length ? (
+                          "These are starter-deck recommendations to acquire — they aren't in your collection or wishlist yet, so they can't be saved into a deck. Add them via Scan or Search and they'll be available next time."
+                        ) : (
+                          <>
+                            Tap to include/exclude.{" "}
+                            <span className="text-rose-600">♥ Wishlist</span> = want-to-buy.{" "}
+                            <span className="text-amber-600">🛒 Cart</span> = catalog pick to complete the deck.
+                            {shoppingCount > 0 && (
+                              <>
+                                {" "}<span className="text-amber-700">🛍 Buy</span> = starter shopping suggestion (not saved with the deck).
+                              </>
+                            )}
+                          </>
+                        )}
+                      </p>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                        {suggested.map((s, i) => {
+                          const key = suggestionKey(s, i);
+                          const isShopping = s.source === "shopping";
+                          const isWishlist = s.source === "wishlist";
+                          const isCatalog = s.source === "catalog";
+                          const isSelected = !isShopping && selectedKeys.has(key);
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => !isShopping && toggleCard(key)}
+                              disabled={isShopping}
+                              className={`text-left rounded-xl border-2 transition-all overflow-hidden ${
+                                isShopping
+                                  ? "border-amber-300 bg-amber-50/40 cursor-default"
+                                  : isSelected
+                                    ? "border-primary ring-2 ring-primary/20"
+                                    : "border-border opacity-60 hover:opacity-100"
+                              }`}
+                            >
+                              <div className="aspect-[3/4] relative bg-muted/30">
+                                {s.imageUrl ? (
+                                  <img
+                                    src={s.imageUrl}
+                                    alt={s.name}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-muted-foreground/40">
+                                    {isShopping ? (
+                                      <ShoppingBag className="h-8 w-8" />
+                                    ) : (
+                                      <ImageIcon className="h-8 w-8" />
+                                    )}
+                                  </div>
+                                )}
+                                {isSelected && (
+                                  <div className="absolute top-1.5 right-1.5 bg-primary text-primary-foreground rounded-full p-0.5 shadow-md">
+                                    <Check className="h-2.5 w-2.5" />
+                                  </div>
+                                )}
+                                {s.role && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="absolute bottom-1.5 left-1.5 text-[9px] capitalize py-0 px-1"
+                                  >
+                                    {s.role}
+                                  </Badge>
+                                )}
+                                {isWishlist && (
+                                  <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                    <Heart className="h-2 w-2 fill-rose-500" />
+                                  </span>
+                                )}
+                                {isCatalog && (
+                                  <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                                    <ShoppingCart className="h-2 w-2" />
+                                  </span>
+                                )}
+                                {isShopping && (
+                                  <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                    <ShoppingBag className="h-2 w-2" /> Buy
+                                  </span>
+                                )}
+                                {s.count > 1 && (
+                                  <span className="absolute bottom-1.5 right-1.5 text-[9px] font-bold bg-primary/90 text-primary-foreground px-1 py-0.5 rounded-full">
+                                    ×{s.count}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="p-1.5">
+                                <p className="text-[10px] font-semibold truncate leading-tight">{s.name}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
-                <Button
-                  onClick={handleCreate}
-                  disabled={createDeck.isPending || !name.trim()}
-                  size="lg"
-                  className="w-full sm:w-auto gap-2"
-                >
-                  {createDeck.isPending ? "Saving..." : "Save deck"}
-                </Button>
+                {(() => {
+                  const hasSavable =
+                    isManual ||
+                    (suggested?.some((s) => s.source !== "shopping") ?? false);
+                  if (!hasSavable) {
+                    // Pure starter/shopping result — nothing to persist into a deck.
+                    return (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-900">
+                        This is a shopping list, not a deck. Acquire some of the cards above (or
+                        save them to your wishlist) and re-run the AI suggester to build a savable
+                        deck.
+                      </div>
+                    );
+                  }
+                  return (
+                    <Button
+                      onClick={handleCreate}
+                      disabled={createDeck.isPending || !name.trim()}
+                      size="lg"
+                      className="w-full sm:w-auto gap-2"
+                    >
+                      {createDeck.isPending ? "Saving..." : "Save deck"}
+                    </Button>
+                  );
+                })()}
               </CardContent>
             </Card>
           )}

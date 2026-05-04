@@ -612,13 +612,13 @@ router.post("/decks/suggest", requireAuth, async (req, res) => {
       .where(eq(wishlistItemsTable.ownerClerkId, userId)),
   ]);
 
-  if (collection.length === 0 && wishlist.length === 0) {
-    res.status(400).json({
-      error:
-        "Your collection and wishlist are both empty — add or scan some cards (or save some to your wishlist) before generating a deck.",
-    });
-    return;
-  }
+  // Brand-new users (no owned cards AND no wishlist) used to hit a 400 here, which
+  // made `/decks/new` feel broken. Instead, switch the prompt into a
+  // "starter-deck shopping list" mode so the AI returns recommendations from the
+  // wider Pokémon TCG card pool, marked with source="shopping". These items have
+  // no owned/wishlist id so they can't be saved into a deck directly, but they
+  // give new players a concrete list of cards to acquire.
+  const isStarterMode = collection.length === 0 && wishlist.length === 0;
 
   // Truncate to keep token usage in check. Owned cards prioritized first.
   const ownedForAI = collection.slice(0, 150).map((c) => ({
@@ -652,7 +652,7 @@ router.post("/decks/suggest", requireAuth, async (req, res) => {
 
   const rulebookContext = getMultiSectionText(["deck-building", "card-types"]);
 
-  const systemPrompt = `You are an expert Pokémon TCG deck builder. Build the strongest possible deck for the player using their collection, and fill any gaps by suggesting specific cards they should acquire.
+  const baseSystemPrompt = `You are an expert Pokémon TCG deck builder. Build the strongest possible deck for the player.
 
 OFFICIAL RULES (verbatim from the Scarlet & Violet rulebook):
 """
@@ -665,7 +665,9 @@ QUICK SUMMARY OF THE RULES YOU MUST RESPECT:
 - Must include at least 1 Basic Pokémon to start the game.
 - Special limits: only 1 Radiant Pokémon, 1 ACE SPEC, 1 of any specific Prism Star card per deck.
 - Recommended 60-card ratios: 12–15 Energy, 20–25 Trainer cards (Items, Supporters, Stadiums, Tools), remainder Pokémon.
-- Prefer 1–2 Energy types so attackers can reliably power up.
+- Prefer 1–2 Energy types so attackers can reliably power up.`;
+
+  const collectionSystemPrompt = `${baseSystemPrompt}
 
 CARD POOLS — you have THREE sources:
 1) "owned" — cards already in the player's physical collection (use first, they're free).
@@ -681,7 +683,25 @@ ALWAYS produce:
 - A deck name.
 - A "strategy" of 3–5 sentences that names the win condition, explains the key synergies from owned cards, and explicitly states what the catalog suggestions provide — e.g. "the 18 owned cards form the attacker core; the 14 catalog additions (12 Energy, 2 Boss's Orders) push it toward a legal 60-card deck; you still need ~28 more Trainer/Pokémon cards to be tournament-legal".`;
 
-  const userPrompt = `Game style: ${gameStyle} — ${styleDescriptions[gameStyle] ?? ""}
+  const starterSystemPrompt = `${baseSystemPrompt}
+
+CONTEXT:
+The player has NO cards in their collection and NOTHING on their wishlist yet. You are recommending a starter "shopping list" of widely available, beginner-friendly Pokémon TCG cards they should acquire to build their first deck in the requested archetype. Prefer evergreen, budget-friendly staples (recent Scarlet & Violet era when possible) over expensive chase cards.
+
+BUILD TASK:
+Return 15–25 cards that together form a solid starting core for the requested archetype. EVERY card must use source="shopping" with cardId=null and wishlistItemId=null (the player doesn't own them and hasn't wishlisted them yet). For each card include: count (1–4 typical, never more than 4 for non-Basic-Energy), role (attacker | support | trainer | energy | tech), and a short reason explaining why a beginner needs it.
+
+ALWAYS produce:
+- A deck name.
+- A "strategy" summary of 3–5 sentences explaining the core game plan AND what the player should buy first. Quantify the gap to 60 cards (e.g. "this 22-card shopping core plus ~13 Basic Energy and ~15 Trainer staples gets you to a legal 60-card deck"). Mention that these cards can be saved to the wishlist or searched for in the catalog.`;
+
+  const systemPrompt = isStarterMode ? starterSystemPrompt : collectionSystemPrompt;
+
+  const userPrompt = isStarterMode
+    ? `Game style: ${gameStyle} — ${styleDescriptions[gameStyle] ?? ""}
+${notes ? `Player notes: ${notes}\n` : ""}
+The player has no owned cards and no wishlist yet. Recommend a beginner shopping list (every card source="shopping", cardId=null, wishlistItemId=null).`
+    : `Game style: ${gameStyle} — ${styleDescriptions[gameStyle] ?? ""}
 ${notes ? `Player notes: ${notes}\n` : ""}
 OWNED cards (cardId, name, pokemon, set, rarity):
 ${JSON.stringify(ownedForAI)}
@@ -693,7 +713,10 @@ ${JSON.stringify(wishlistForAI)}`;
     source?: string;
     cardId?: number | null;
     wishlistItemId?: number | null;
-    cardName?: string | null; // for catalog suggestions
+    cardName?: string | null; // for catalog suggestions (resolved against PokeWallet by name)
+    name?: string; // for shopping suggestions (starter mode, no DB linkage)
+    setName?: string | null;
+    cardNumber?: string | null;
     count: number;
     role?: string | null;
     reason: string;
@@ -703,6 +726,10 @@ ${JSON.stringify(wishlistForAI)}`;
     strategy: string;
     cards: SuggestedCard[];
   };
+
+  const jsonShapeInstruction = isStarterMode
+    ? `Return ONLY valid JSON with the exact shape: { "name": string, "strategy": string, "cards": Array<{ "source": "shopping", "cardId": null, "wishlistItemId": null, "name": string, "setName": string|null, "cardNumber": string|null, "count": number, "role": string, "reason": string }> }`
+    : `Return ONLY valid JSON with the exact shape: { "name": string, "strategy": string, "cards": Array<{ "source": "owned"|"wishlist", "cardId": number|null, "wishlistItemId": number|null, "count": number, "role": string, "reason": string }> }`;
 
   let aiResult: AIResponse;
   try {
@@ -714,7 +741,7 @@ ${JSON.stringify(wishlistForAI)}`;
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `${userPrompt}\n\nReturn ONLY valid JSON:\n{ "name": string, "strategy": string, "cards": Array<{ "source": "owned"|"wishlist"|"catalog", "cardId": number|null, "wishlistItemId": number|null, "cardName": string|null, "count": number, "role": string, "reason": string }> }\nFor catalog entries: set source="catalog", cardId=null, wishlistItemId=null, and cardName=exact English card name.`,
+          content: `${userPrompt}\n\n${jsonShapeInstruction}`,
         },
       ],
     });
@@ -764,7 +791,13 @@ ${JSON.stringify(wishlistForAI)}`;
       const role = c.role ?? null;
 
       // Owned candidate
-      if (c.source === "owned" || (c.cardId != null && c.source !== "wishlist" && c.source !== "catalog")) {
+      if (
+        c.source === "owned" ||
+        (c.cardId != null &&
+          c.source !== "wishlist" &&
+          c.source !== "catalog" &&
+          c.source !== "shopping")
+      ) {
         const owned = c.cardId != null ? ownedById.get(c.cardId) : null;
         if (owned) {
           return {
@@ -784,7 +817,7 @@ ${JSON.stringify(wishlistForAI)}`;
       }
 
       // Wishlist candidate
-      if (c.source === "wishlist" || c.wishlistItemId != null) {
+      if (c.source === "wishlist" || (c.wishlistItemId != null && c.source !== "shopping")) {
         const w = c.wishlistItemId != null ? wishlistById.get(c.wishlistItemId) : null;
         if (w) {
           return {
@@ -803,7 +836,7 @@ ${JSON.stringify(wishlistForAI)}`;
         }
       }
 
-      // Catalog suggestion (card not yet owned)
+      // Catalog suggestion (card not yet owned but resolvable via PokeWallet by name)
       if (c.source === "catalog" && typeof c.cardName === "string" && c.cardName) {
         const found = catalogByName.get(c.cardName.toLowerCase());
         return {
@@ -815,6 +848,27 @@ ${JSON.stringify(wishlistForAI)}`;
           imageUrl: found?.imageUrl ?? null,
           setName: found?.setName ?? null,
           cardNumber: found?.cardNumber ?? null,
+          count,
+          role,
+          reason: c.reason,
+        };
+      }
+
+      // Shopping candidate (only valid in starter mode — both pools empty).
+      // These are pure name-based recommendations with no IDs to link back to;
+      // the frontend renders them as a shopping list, not as deck-card entries.
+      if (isStarterMode && c.source === "shopping") {
+        const name = typeof c.name === "string" ? c.name.trim() : "";
+        if (!name) return null;
+        return {
+          source: "shopping" as const,
+          cardId: null,
+          wishlistItemId: null,
+          catalogCardId: null,
+          name,
+          imageUrl: null,
+          setName: typeof c.setName === "string" ? c.setName : null,
+          cardNumber: typeof c.cardNumber === "string" ? c.cardNumber : null,
           count,
           role,
           reason: c.reason,

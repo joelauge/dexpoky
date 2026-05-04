@@ -875,7 +875,11 @@ export const SuggestDeckResponse = zod.object({
   strategy: zod.string(),
   cards: zod.array(
     zod.object({
-      source: zod.enum(["owned", "wishlist", "catalog"]),
+      source: zod
+        .enum(["owned", "wishlist", "catalog", "shopping"])
+        .describe(
+          '\"owned\" — pulled from the user\'s collection; \"wishlist\" — pulled from the user\'s wishlist; \"catalog\" — a card from the wider Pokémon TCG catalog the user should acquire to complete a deck strategy (returned when the user\'s pools have gaps); \"shopping\" — a starter-deck recommendation the user does not own and has not wishlisted (returned only when both pools are empty so the response is useful to brand-new users).',
+        ),
       cardId: zod.number().nullish(),
       wishlistItemId: zod.number().nullish(),
       catalogCardId: zod.string().nullish(),
