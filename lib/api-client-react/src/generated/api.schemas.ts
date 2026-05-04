@@ -50,6 +50,7 @@ export interface Card {
   forSale: boolean;
   listingPrice?: number | null;
   notes?: string | null;
+  cardStory?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -95,6 +96,7 @@ export interface CreateCardBody {
   forSale: boolean;
   listingPrice?: number | null;
   notes?: string | null;
+  cardStory?: string | null;
 }
 
 export type UpdateCardBodyRarity =
@@ -138,6 +140,7 @@ export interface UpdateCardBody {
   forSale?: boolean;
   listingPrice?: number | null;
   notes?: string | null;
+  cardStory?: string | null;
 }
 
 export interface Category {

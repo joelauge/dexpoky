@@ -33,6 +33,7 @@ const cardSelect = {
   forSale: cardsTable.forSale,
   listingPrice: sql<number | null>`${cardsTable.listingPrice}::float`,
   notes: cardsTable.notes,
+  cardStory: cardsTable.cardStory,
   ownerClerkId: cardsTable.ownerClerkId,
   createdAt: cardsTable.createdAt,
   updatedAt: cardsTable.updatedAt,
@@ -99,6 +100,7 @@ router.post("/cards", requireAuth, async (req, res) => {
     categoryId: data.categoryId ?? null,
     listingPrice: data.listingPrice != null ? String(data.listingPrice) : null,
     notes: data.notes ?? null,
+    cardStory: data.cardStory ?? null,
   }).returning();
 
   const [withCat] = await db
@@ -207,6 +209,7 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
   if (data.forSale !== undefined) updateData.forSale = data.forSale;
   if (data.listingPrice !== undefined) updateData.listingPrice = data.listingPrice != null ? String(data.listingPrice) : null;
   if (data.notes !== undefined) updateData.notes = data.notes;
+  if (data.cardStory !== undefined) updateData.cardStory = data.cardStory;
 
   await db
     .update(cardsTable)

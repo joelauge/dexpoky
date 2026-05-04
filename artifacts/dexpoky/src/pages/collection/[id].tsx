@@ -9,8 +9,9 @@ import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/
 import {
   ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink,
   ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2, Calendar, Clock,
-  Share2, Camera, Maximize2,
+  Share2, Camera, Maximize2, BookOpen,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { ShareModal } from "@/components/share-modal";
 import { toast } from "sonner";
 import {
@@ -24,7 +25,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PriceHistoryChart } from "@/components/price-history-chart";
@@ -79,6 +80,39 @@ export default function CardDetail() {
   const [isSellOpen, setIsSellOpen] = useState(false);
   const [listedId, setListedId] = useState<number | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
+
+  // ── Card Story (inline-editable) ──────────────────────────────────────
+  const [cardStory, setCardStory] = useState<string>("");
+  const [storySaving, setStorySaving] = useState(false);
+  // Track the last server value we know about so a background refetch
+  // (e.g. window-focus revalidation while the user is mid-sentence) doesn't
+  // stomp an unsaved draft. We only adopt the new server value if the local
+  // state still matches the previously-seen server value (i.e. user hasn't
+  // started typing yet).
+  const lastServerStoryRef = useRef<string>("");
+  useEffect(() => {
+    const serverVal = card?.cardStory ?? "";
+    setCardStory((prev) => (prev === lastServerStoryRef.current ? serverVal : prev));
+    lastServerStoryRef.current = serverVal;
+  }, [card?.cardStory]);
+  const storyDirty = (card?.cardStory ?? "") !== cardStory;
+  const saveCardStory = useCallback(() => {
+    if (!card) return;
+    const trimmed = cardStory.trim();
+    setStorySaving(true);
+    updateCard.mutate(
+      { id: card.id, data: { cardStory: trimmed.length > 0 ? trimmed : null } },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: ["/api/cards", card.id] });
+          qc.invalidateQueries({ queryKey: ["/api/cards"] });
+          toast.success("Card story saved");
+        },
+        onError: () => toast.error("Couldn't save card story — please try again."),
+        onSettled: () => setStorySaving(false),
+      },
+    );
+  }, [card, cardStory, updateCard, qc]);
 
   // ── Other Printings ────────────────────────────────────────────────────────
   const [printings, setPrintings] = useState<TcgVariant[]>([]);
@@ -443,6 +477,56 @@ export default function CardDetail() {
                 <p className="text-sm text-amber-900 leading-relaxed">{card.notes}</p>
               </div>
             )}
+
+            {/* Card Story (inline-editable) */}
+            <div className="mt-6 bg-card border rounded-2xl p-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Card Story</p>
+              </div>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                How did you get this card? Pack pull, trade, gift from grandma — capture the memory.
+              </p>
+              <Textarea
+                value={cardStory}
+                onChange={(e) => setCardStory(e.target.value)}
+                placeholder="e.g. Pulled from a Hidden Fates booster on my 12th birthday — first holo I ever owned."
+                rows={4}
+                className="resize-y text-sm"
+                maxLength={2000}
+              />
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span className="text-[11px] text-muted-foreground tabular-nums">
+                  {cardStory.length}/2000
+                </span>
+                {storyDirty && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCardStory(card.cardStory ?? "")}
+                      disabled={storySaving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={saveCardStory}
+                      disabled={storySaving}
+                    >
+                      {storySaving ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          Saving…
+                        </>
+                      ) : (
+                        "Save story"
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Original Scan */}
             {card.originalScanUrl && (

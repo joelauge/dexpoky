@@ -86,6 +86,7 @@ export const ListCardsResponseItem = zod.object({
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
+  cardStory: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -125,6 +126,7 @@ export const CreateCardBody = zod.object({
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
+  cardStory: zod.string().nullish(),
 });
 
 /**
@@ -167,6 +169,7 @@ export const GetCardResponse = zod.object({
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
+  cardStory: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -213,6 +216,7 @@ export const UpdateCardBody = zod.object({
   forSale: zod.boolean().optional(),
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
+  cardStory: zod.string().nullish(),
 });
 
 export const UpdateCardResponse = zod.object({
@@ -248,6 +252,7 @@ export const UpdateCardResponse = zod.object({
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
+  cardStory: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -375,6 +380,7 @@ export const ListListingsResponseItem = zod.object({
     forSale: zod.boolean(),
     listingPrice: zod.number().nullish(),
     notes: zod.string().nullish(),
+    cardStory: zod.string().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -439,6 +445,7 @@ export const GetListingResponse = zod.object({
     forSale: zod.boolean(),
     listingPrice: zod.number().nullish(),
     notes: zod.string().nullish(),
+    cardStory: zod.string().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -499,6 +506,7 @@ export const UpdateListingResponse = zod.object({
     forSale: zod.boolean(),
     listingPrice: zod.number().nullish(),
     notes: zod.string().nullish(),
+    cardStory: zod.string().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -586,6 +594,7 @@ export const GetRecentActivityResponseItem = zod.object({
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
+  cardStory: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -713,6 +722,7 @@ export const GetDeckResponse = zod.object({
         forSale: zod.boolean(),
         listingPrice: zod.number().nullish(),
         notes: zod.string().nullish(),
+        cardStory: zod.string().nullish(),
         createdAt: zod.coerce.date(),
         updatedAt: zod.coerce.date(),
       }),

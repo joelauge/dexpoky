@@ -50,6 +50,7 @@ export const cardsTable = pgTable("cards", {
   forSale: boolean("for_sale").default(false).notNull(),
   listingPrice: numeric("listing_price", { precision: 10, scale: 2 }),
   notes: text("notes"),
+  cardStory: text("card_story"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

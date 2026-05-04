@@ -682,6 +682,9 @@ components:
         notes:
           type: string
           nullable: true
+        cardStory:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -739,6 +742,9 @@ components:
         notes:
           type: string
           nullable: true
+        cardStory:
+          type: string
+          nullable: true
       required:
         - name
         - pokemonName
@@ -785,6 +791,9 @@ components:
           type: number
           nullable: true
         notes:
+          type: string
+          nullable: true
+        cardStory:
           type: string
           nullable: true
 
