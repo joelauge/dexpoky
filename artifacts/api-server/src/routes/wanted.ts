@@ -4,6 +4,7 @@ import { eq, ilike, desc, or, and } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { logger } from "../lib/logger.js";
+import { CreateWantedListingBody } from "@workspace/api-zod";
 
 const router = Router();
 
@@ -41,21 +42,14 @@ router.get("/wanted", async (req, res) => {
 
 router.post("/wanted", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
-  const { catalogCardId, name, pokemonName, setName, setCode, cardNumber, rarity, imageUrl, maxPrice, notes } =
-    req.body as Record<string, unknown>;
 
-  if (!catalogCardId || typeof catalogCardId !== "string") {
-    res.status(400).json({ error: "catalogCardId is required" });
+  const parsed = CreateWantedListingBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
     return;
   }
-  if (!name || typeof name !== "string") {
-    res.status(400).json({ error: "name is required" });
-    return;
-  }
-  if (!pokemonName || typeof pokemonName !== "string") {
-    res.status(400).json({ error: "pokemonName is required" });
-    return;
-  }
+  const { catalogCardId, name, pokemonName, setName, setCode, cardNumber, rarity, imageUrl, maxPrice, notes } =
+    parsed.data;
 
   let ownerDisplayName: string | null = null;
   let ownerImageUrl: string | null = null;
@@ -77,15 +71,15 @@ router.post("/wanted", requireAuth, async (req, res) => {
       ownerDisplayName,
       ownerImageUrl,
       catalogCardId,
-      name: String(name),
-      pokemonName: String(pokemonName),
-      setName: typeof setName === "string" ? setName : null,
-      setCode: typeof setCode === "string" ? setCode : null,
-      cardNumber: typeof cardNumber === "string" ? cardNumber : null,
-      rarity: typeof rarity === "string" ? rarity : null,
-      imageUrl: typeof imageUrl === "string" ? imageUrl : null,
-      maxPrice: typeof maxPrice === "number" ? String(maxPrice) : null,
-      notes: typeof notes === "string" && notes.trim() ? notes.trim() : null,
+      name,
+      pokemonName,
+      setName: setName ?? null,
+      setCode: setCode ?? null,
+      cardNumber: cardNumber ?? null,
+      rarity: rarity ?? null,
+      imageUrl: imageUrl ?? null,
+      maxPrice: maxPrice != null ? String(maxPrice) : null,
+      notes: notes?.trim() || null,
       status: "active",
     })
     .returning();
