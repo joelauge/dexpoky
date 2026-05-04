@@ -145,10 +145,11 @@ export default function SharePage() {
   const [wantedExpiry, setWantedExpiry] = useState<ExpiryOption>("never");
   const [wantedCustomDate, setWantedCustomDate] = useState("");
   const [wantedCopied, setWantedCopied] = useState(false);
+  const [wantedPreview, setWantedPreview] = useState(false);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-  const { isSignedIn } = useUser();
+  const { isSignedIn, user } = useUser();
   const { data: myWantedListings = [] } = useListMyWantedListings();
 
   const deleteWanted = useDeleteWantedListing({
@@ -247,6 +248,7 @@ export default function SharePage() {
 
   const handleWantedContinue = () => {
     if (!wantedCard) { toast.error("Please pick a card first"); return; }
+    setWantedPreview(false);
     setStep(2);
   };
 
@@ -332,6 +334,7 @@ export default function SharePage() {
     setWantedExpiry("never");
     setWantedCustomDate("");
     setWantedCopied(false);
+    setWantedPreview(false);
     setShareLink("");
     setCopied(false);
     setCreatedListingId(null);
@@ -960,11 +963,11 @@ export default function SharePage() {
             )}
 
             {/* ── Step 2: Max price + notes ── */}
-            {step === 2 && (
+            {step === 2 && !wantedPreview && (
               <div className="space-y-4">
                 <button
                   type="button"
-                  onClick={() => setStep(1)}
+                  onClick={() => { setStep(1); setWantedPreview(false); }}
                   className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
                 >
                   <ArrowLeft className="h-3 w-3" /> Back
@@ -1096,12 +1099,139 @@ export default function SharePage() {
 
                 <Button
                   className="w-full h-12 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl"
-                  onClick={handleWantedPost}
-                  disabled={createWanted.isPending || (wantedExpiry === "custom" && !wantedCustomDate)}
+                  onClick={() => setWantedPreview(true)}
+                  disabled={wantedExpiry === "custom" && !wantedCustomDate}
                 >
                   <Heart className="h-4 w-4 mr-2" />
-                  {createWanted.isPending ? "Posting…" : "Post Looking For request"}
+                  Preview listing
                 </Button>
+              </div>
+            )}
+
+            {/* ── Step 2 Preview: preview before posting ── */}
+            {step === 2 && wantedPreview && wantedCard && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setWantedPreview(false)}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  >
+                    <ArrowLeft className="h-3 w-3" /> Back to edit
+                  </button>
+                </div>
+
+                <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-rose-500 shrink-0" />
+                  <p className="text-xs text-rose-700 font-medium">This is how your listing will look to sellers</p>
+                </div>
+
+                {/* Preview card — mirrors /w/[code] page look */}
+                <div className="rounded-2xl border overflow-hidden shadow-sm bg-card">
+                  {wantedCard.imageUrl ? (
+                    <div className="aspect-[4/3] bg-rose-50 flex items-center justify-center relative">
+                      <img
+                        src={wantedCard.imageUrl}
+                        alt={wantedCard.name}
+                        className="max-h-full object-contain py-4 px-8"
+                      />
+                      {wantedCard.rarity && (
+                        <div className="absolute bottom-3 left-3">
+                          <Badge className="text-[10px] uppercase font-bold tracking-wider border-0 bg-muted text-muted-foreground">
+                            {wantedCard.rarity}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="aspect-[4/3] bg-rose-50 flex items-center justify-center">
+                      <Heart className="h-16 w-16 text-rose-200" />
+                    </div>
+                  )}
+                  <div className="p-5 space-y-1">
+                    <h2 className="text-xl font-black">{wantedCard.name}</h2>
+                    <p className="text-sm text-muted-foreground">{wantedCard.pokemonName}</p>
+                    {wantedCard.setName && (
+                      <p className="text-xs text-muted-foreground">
+                        {wantedCard.setName}{wantedCard.cardNumber ? ` · #${wantedCard.cardNumber}` : ""}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {wantedMaxPrice && (
+                  <div className="flex items-center justify-between bg-rose-50 rounded-xl px-4 py-3 border border-rose-100">
+                    <span className="text-sm font-medium text-rose-700">Budget</span>
+                    <span className="text-lg font-black text-rose-600">Up to ${parseFloat(wantedMaxPrice).toFixed(2)}</span>
+                  </div>
+                )}
+
+                {wantedNotes.trim() && (
+                  <div className="bg-muted/40 rounded-xl px-4 py-3 border">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Note from buyer</p>
+                    <p className="text-sm">{wantedNotes.trim()}</p>
+                  </div>
+                )}
+
+                {user && (
+                  <div className="flex items-center gap-3 bg-card rounded-xl border px-4 py-3">
+                    {user.imageUrl ? (
+                      <img
+                        src={user.imageUrl}
+                        alt={user.fullName ?? ""}
+                        className="w-10 h-10 rounded-full object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-rose-200 flex items-center justify-center text-rose-700 font-bold shrink-0">
+                        {(user.fullName ?? user.username ?? "?").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold text-sm">{user.fullName ?? user.username}</p>
+                      <p className="text-xs text-muted-foreground">is looking for this card</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  {wantedIsPublic ? (
+                    <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    {wantedIsPublic ? "Visible in marketplace" : "Link only — not listed"}
+                  </span>
+                  {wantedExpiry !== "never" && (
+                    <>
+                      <span className="text-muted-foreground/40">·</span>
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        Expires {(() => {
+                          const d = computeExpiresAt(wantedExpiry, wantedCustomDate);
+                          return d ? new Date(d).toLocaleDateString() : "";
+                        })()}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <Button
+                  className="w-full h-12 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl"
+                  onClick={handleWantedPost}
+                  disabled={createWanted.isPending}
+                >
+                  <Heart className="h-4 w-4 mr-2" />
+                  {createWanted.isPending ? "Posting…" : "Confirm & Post request"}
+                </Button>
+
+                <button
+                  type="button"
+                  onClick={() => setWantedPreview(false)}
+                  className="w-full text-center text-sm text-muted-foreground hover:text-foreground py-1"
+                >
+                  Go back and edit
+                </button>
               </div>
             )}
 
