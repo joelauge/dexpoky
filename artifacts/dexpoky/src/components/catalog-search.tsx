@@ -85,7 +85,7 @@ export function CatalogSearch({
       )}
 
       <div className="overflow-y-auto flex-1 -mx-1 px-1">
-        {!enabled && (
+        {!enabled && emptyHint && (
           <p className="text-sm text-muted-foreground text-center py-8 px-4">
             {emptyHint}
           </p>

@@ -392,7 +392,7 @@ export default function NewCard() {
             <CatalogSearch
               placeholder="Search catalog to auto-fill (Pokémon, set, or #)…"
               onSelect={handleCatalogSelect}
-              emptyHint="Type at least 2 characters to search."
+              emptyHint=""
               limit={18}
             />
           )}
