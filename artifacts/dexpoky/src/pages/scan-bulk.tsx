@@ -27,6 +27,7 @@ import {
   useListCategories,
   CreateCardBodyCondition,
   CreateCardBodyRarity,
+  ApiError,
 } from "@workspace/api-client-react";
 
 interface TcgCard {
@@ -244,14 +245,22 @@ export default function ScanBulkPage() {
       };
       if (isAborted()) return;
 
+      const variants = lookupData.variants ?? [];
       setEntries((prev) => prev.map((e) =>
         e.id === entryId
           ? {
               ...e,
-              status: "ready",
+              // If lookup found no printings we cannot save this card —
+              // mark it as a hard failure so saveAll never tries to POST it
+              // (the previous code marked it `ready` with empty variants,
+              // which caused saveAll to silently no-op every row).
+              status: variants.length === 0 ? "no_card" : "ready",
+              errorMsg: variants.length === 0
+                ? `No printings found for "${idData.pokemonName}"`
+                : e.errorMsg,
               pokemonName: idData.pokemonName ?? undefined,
-              variants: lookupData.variants ?? [],
-              selectedVariantId: lookupData.card?.id ?? lookupData.variants?.[0]?.id,
+              variants,
+              selectedVariantId: lookupData.card?.id ?? variants[0]?.id,
               pricing: lookupData.pricing ?? null,
             }
           : e
@@ -383,40 +392,74 @@ export default function ScanBulkPage() {
     // stale-closure issues, then batch into state.
     let saved = 0;
     let failed = 0;
+    let firstError: string | null = null;
     for (const entry of toSave) {
       const variant = entry.variants.find((v) => v.id === entry.selectedVariantId)
         ?? entry.variants[0];
       if (!variant) {
-        updateEntry(entry.id, { status: "save_failed", saveError: "No printing selected" });
+        const msg = "No printing selected";
+        updateEntry(entry.id, { status: "save_failed", saveError: msg });
+        if (!firstError) firstError = msg;
         failed++; setFailedCount(failed);
         continue;
       }
       updateEntry(entry.id, { status: "saving" });
+
+      // Build body up-front so we can log it alongside any failure
+      let body: Parameters<typeof createCard.mutateAsync>[0]["data"] | null = null;
       try {
         // Map the TCG-reported rarity string to our enum, falling back to common.
         const rarityKey = (variant.rarity ?? "")
           .toLowerCase().replace(/\s+/g, "_") as keyof typeof CreateCardBodyRarity;
         const rarity = CreateCardBodyRarity[rarityKey] ?? CreateCardBodyRarity.common;
 
-        await createCard.mutateAsync({
-          data: {
-            name: variant.name,
-            pokemonName: entry.pokemonName ?? variant.name,
-            setName: variant.setName || undefined,
-            cardNumber: variant.cardNumber || undefined,
-            rarity,
-            condition: entry.condition,
-            imageUrl: variant.imageUrl || null,
-            estimatedValue: entry.pricing?.marketPrice ?? null,
-            categoryId: entry.categoryId ?? null,
-            forSale: false,
-          },
-        });
+        body = {
+          name: variant.name,
+          pokemonName: entry.pokemonName ?? variant.name,
+          setName: variant.setName || undefined,
+          cardNumber: variant.cardNumber || undefined,
+          rarity,
+          condition: entry.condition,
+          imageUrl: variant.imageUrl || null,
+          estimatedValue: entry.pricing?.marketPrice ?? null,
+          categoryId: entry.categoryId ?? null,
+          forSale: false,
+        };
+
+        await createCard.mutateAsync({ data: body });
         updateEntry(entry.id, { status: "saved" });
         saved++; setSavedCount(saved);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Save failed";
+      } catch (err: unknown) {
+        // Surface as much detail as possible — the production failure mode
+        // showed only "None of the cards could be saved" with no diagnostics.
+        let msg = "Save failed";
+        if (err instanceof ApiError) {
+          const apiErr = err as ApiError<unknown>;
+          const detailFromBody =
+            (apiErr.data && typeof apiErr.data === "object" && "error" in apiErr.data
+              ? String((apiErr.data as { error: unknown }).error)
+              : null);
+          msg = detailFromBody
+            ? `${apiErr.status} ${apiErr.statusText} — ${detailFromBody}`
+            : (apiErr.message || `${apiErr.status} ${apiErr.statusText}`);
+          // eslint-disable-next-line no-console
+          console.error("[bulk-save] ApiError", {
+            status: apiErr.status,
+            statusText: apiErr.statusText,
+            url: apiErr.url,
+            data: apiErr.data,
+            sentBody: body,
+          });
+        } else if (err instanceof Error) {
+          msg = err.message || msg;
+          // eslint-disable-next-line no-console
+          console.error("[bulk-save] Error", err, { sentBody: body });
+        } else {
+          // eslint-disable-next-line no-console
+          console.error("[bulk-save] Unknown failure", err, { sentBody: body });
+        }
         updateEntry(entry.id, { status: "save_failed", saveError: msg });
+        if (!firstError) firstError = msg;
         failed++; setFailedCount(failed);
       }
     }
@@ -425,9 +468,13 @@ export default function ScanBulkPage() {
     if (saved > 0 && failed === 0) {
       toast.success(`Saved ${saved} card${saved === 1 ? "" : "s"} to your collection.`);
     } else if (saved > 0) {
-      toast.warning(`Saved ${saved}, ${failed} failed.`);
+      toast.warning(`Saved ${saved}, ${failed} failed.`, {
+        description: firstError ? `First error: ${firstError}` : undefined,
+      });
     } else {
-      toast.error("None of the cards could be saved.");
+      toast.error("None of the cards could be saved.", {
+        description: firstError ?? "Check each row for details.",
+      });
     }
   }, [entries, createCard, updateEntry]);
 

@@ -47,6 +47,7 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 
 ### Features
 - Card collection with camera scanning (getUserMedia API)
+- **Bulk scan** (`/scan/bulk`): capture up to 25 cards, parallel background detection, review screen, Save All. Entries with zero TCG variants are marked `no_card` (not `ready`) so saveAll cannot silently no-op them. saveAll catch logs full ApiError details (status/body/sentBody) and surfaces first error in toast.
 - Pokemon name search via PokeAPI
 - Inventory tracking with estimated values
 - Category management
