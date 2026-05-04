@@ -3,7 +3,7 @@ import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/constants";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
-import { Activity, CreditCard, DollarSign, TrendingUp, Layers, ArrowRight, PackagePlus, Edit3, ScanLine, Tag, ShoppingCart, XCircle, Gavel } from "lucide-react";
+import { Activity, CreditCard, DollarSign, TrendingUp, Layers, ArrowRight, PackagePlus, Edit3, ScanLine, Tag, ShoppingCart, XCircle, Gavel, Bell } from "lucide-react";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,8 @@ type ActivityEventType =
   | "listing_created"
   | "listing_sold"
   | "listing_cancelled"
-  | "bid_placed";
+  | "bid_placed"
+  | "wanted_listing_match";
 
 interface ActivityEvent {
   id: number;
@@ -31,6 +32,7 @@ interface ActivityEvent {
     price?: number | null;
     amount?: number | null;
     listingType?: string | null;
+    listingUrl?: string | null;
   } | null;
   createdAt: string;
 }
@@ -89,6 +91,13 @@ const EVENT_CONFIG: Record<ActivityEventType, {
     color: "text-indigo-600",
     bg: "bg-indigo-50",
     label: (m) => `Bid ${m?.amount != null ? formatCurrency(m.amount) : "?"} on "${m?.name ?? "card"}"`,
+    href: (e) => e.listingId ? `/marketplace/${e.listingId}` : null,
+  },
+  wanted_listing_match: {
+    icon: Bell,
+    color: "text-yellow-600",
+    bg: "bg-yellow-50",
+    label: (m) => `"${m?.name ?? "A card"}" you're looking for is now listed${m?.price != null ? ` for ${formatCurrency(m.price)}` : ""}`,
     href: (e) => e.listingId ? `/marketplace/${e.listingId}` : null,
   },
 };

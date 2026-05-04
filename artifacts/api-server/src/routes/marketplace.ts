@@ -13,6 +13,7 @@ import {
 } from "@workspace/api-zod";
 import { getUncachableStripeClient } from "../stripeClient.js";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
+import { notifyWantedListingMatches } from "../lib/notifyWantedMatch.js";
 
 const router = Router();
 
@@ -154,6 +155,13 @@ router.post("/marketplace", requireAuth, async (req, res) => {
       price: parseFloat(String(listing.price)),
       listingType,
     },
+  });
+
+  void notifyWantedListingMatches({
+    listingId: listing.id,
+    cardId: parsed.data.cardId,
+    sellerClerkId,
+    price: parseFloat(String(listing.price)),
   });
 
   res.status(201).json(enriched);

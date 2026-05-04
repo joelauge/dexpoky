@@ -8,6 +8,7 @@ export const activityEventTypeEnum = [
   "listing_sold",
   "listing_cancelled",
   "bid_placed",
+  "wanted_listing_match",
 ] as const;
 
 export type ActivityEventType = (typeof activityEventTypeEnum)[number];
