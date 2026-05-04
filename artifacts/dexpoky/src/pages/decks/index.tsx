@@ -8,6 +8,7 @@ import { Plus, Sparkles, Layers, Trash2, ImageIcon } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { RulesSheet } from "@/components/rules-sheet";
 
 const STYLE_LABELS: Record<string, string> = {
   aggro: "Aggro",
@@ -60,7 +61,8 @@ export default function Decks() {
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <RulesSheet />
             <Link href="/decks/new">
               <Button className="shadow-md gap-2">
                 <Sparkles className="h-4 w-4" />

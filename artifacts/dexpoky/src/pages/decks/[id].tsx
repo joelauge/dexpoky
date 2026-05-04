@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { RulesSheet } from "@/components/rules-sheet";
 
 const STYLE_LABELS: Record<string, string> = {
   aggro: "Aggro",
@@ -210,7 +211,8 @@ export default function DeckDetail() {
               {totalCount} card{totalCount === 1 ? "" : "s"} ({deck.cards.length} unique)
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <RulesSheet />
             {editing ? (
               <>
                 <Button onClick={saveEdit} disabled={updateDeck.isPending} className="gap-1">

@@ -1,0 +1,693 @@
+{
+  "title": "Pokémon Trading Card Game Rules",
+  "source": "https://www.pokemon.com/static-assets/content-assets/cms2/pdf/trading-card-game/rulebook/par_rulebook_en.pdf",
+  "version": "Scarlet & Violet — Paradox Rift edition (2023)",
+  "ingestedAt": "2026-05-04",
+  "sections": [
+    {
+      "id": "become-a-pokemon-master",
+      "title": "Become a Pokémon Master!",
+      "category": "Introduction",
+      "paragraphs": [
+        "You are a Pokémon Trainer! You travel across the land, battling other Trainers with your Pokémon, creatures that love to battle and that have amazing powers!",
+        "These rules will tell you everything you need to play the Pokémon Trading Card Game. Your deck of cards represents your Pokémon as well as items and allies that help you on your adventures.",
+        "Trading card games are strategy based and use collectible cards to let each player customize their game. The best way to learn to play the Pokémon TCG is with an ex Battle Deck — a ready-to-play 60-card deck that comes packaged with a quick-start rules guide and everything you need to play!",
+        "Once you're ready, you can start building your collection of cards with Pokémon TCG booster packs. Trade with your friends for the strongest Pokémon, or collect all your favorites! Then, build your own 60-card deck, play with your friends, and show off your own personal Pokémon team!"
+      ]
+    },
+    {
+      "id": "how-to-win",
+      "title": "How to Win",
+      "category": "Basic Concepts",
+      "paragraphs": [
+        "In the Pokémon TCG, your Pokémon battle your opponent's Pokémon. The first player to take all of their Prize cards wins! Also, if your opponent has no Pokémon left in play, or no cards left to draw at the beginning of their turn, you win the game!"
+      ]
+    },
+    {
+      "id": "energy-types",
+      "title": "Energy Types",
+      "category": "Basic Concepts",
+      "paragraphs": [
+        "Pokémon Knock Out opposing Pokémon by using attacks or Abilities. To power their attacks, Pokémon need Energy cards. The Pokémon TCG has 11 Energy types, and you will find Pokémon matching all 11 types in the game. (Note that there are no Fairy-type Pokémon cards in the Scarlet & Violet Series, but they do exist in older expansions.)",
+        "Each Energy type powers different attacks. Find the ones that match your personality! The Energy types are:",
+        "Grass — Grass-type Pokémon often have attacks that heal themselves or make their opponents Poisoned.",
+        "Fire — Fire-type Pokémon have big attacks! They can make their opponents Burned, but their attacks need time to build up again.",
+        "Water — Water-type Pokémon can manipulate Energy and move Pokémon around on the other team.",
+        "Lightning — Lightning-type Pokémon can bring back used Energy from the discard pile, and they can make their opponents Paralyzed.",
+        "Psychic — Psychic-type Pokémon are great for special powers! Their opponents often find themselves Asleep, Confused, or Poisoned.",
+        "Fighting — Fighting-type Pokémon can take bigger risks to do extra damage, and some can flip coins for combination hits.",
+        "Darkness — Darkness-type Pokémon feature sneaky attacks that often make opponents discard cards! They can also make your opponent's Pokémon Poisoned!",
+        "Metal — Metal-type Pokémon can resist attacks for longer than most other Pokémon.",
+        "Fairy — Fairy-type Pokémon have tricks that will make opposing Pokémon's attacks less effective. Since Sword & Shield, you'll find some Pokémon that used to be Fairy types showing up as Psychic types instead.",
+        "Dragon — Dragon-type Pokémon have very strong attacks, but often require two Energy types to use them.",
+        "Colorless — Colorless-type Pokémon have lots of different moves, and they work with any kind of deck."
+      ]
+    },
+    {
+      "id": "parts-of-a-card",
+      "title": "Parts of a Pokémon Card",
+      "category": "Cards",
+      "paragraphs": [
+        "Every Pokémon card shows: the Pokémon's type, the card name, HP, the Pokémon's stage (Basic, Stage 1, Stage 2, etc.) and what it evolves from (if any), the text box (with attacks and Abilities), the expansion code, and the collector card number.",
+        "Trainer cards show the Trainer type (Item, Supporter, Stadium, or Pokémon Tool) and a Trainer rule at the bottom of the card."
+      ]
+    },
+    {
+      "id": "card-types",
+      "title": "3 Card Types",
+      "category": "Cards",
+      "paragraphs": [
+        "You'll find 3 different types of cards in the Pokémon TCG: Pokémon, Energy, and Trainer cards.",
+        "Pokémon — Of course the most important cards are Pokémon! Most of these cards are Basic Pokémon, Stage 1 Pokémon, or Stage 2 Pokémon. Stage 1 and Stage 2 Pokémon are also called Evolution cards. Look at the upper-left corner and you will see the Pokémon's Stage and the Pokémon it evolves from, if any.",
+        "Energy Cards — Most of the time, Pokémon can't attack without Energy cards! You'll need to match the symbols of the attack cost to the Energy card, but any type of Energy can be used for Colorless costs.",
+        "Trainer Cards — Trainer cards represent the Items, Supporters, Stadiums, and Pokémon Tools a Trainer can use in battle. You can see the specific Trainer subtype in the upper-left corner and any special rules for that subtype at the bottom of the card."
+      ]
+    },
+    {
+      "id": "zones",
+      "title": "Zones of the Pokémon TCG",
+      "category": "Game Board",
+      "paragraphs": [
+        "Deck — Each player starts with their own deck of 60 cards to play the game. While both players know how many cards are in each deck, no one can look at or change the order of the cards in either player's deck unless a card says so.",
+        "Discard Pile — Each player has their own discard pile. Cards taken out of play go to the discard pile, unless a card is played that says otherwise. Typically when a Pokémon is Knocked Out, it and any attached cards (such as Energy cards) are sent to its owner's discard pile.",
+        "Hand — Each player draws 7 cards at the beginning of the game and keeps their own hand hidden. Cards you draw go into your hand. Players may not look at their opponent's hand unless a card says so.",
+        "Prize Cards — Each player has their own Prize cards. Prize cards are 6 cards that each player sets aside, face down, from the top of their own deck while setting up to play. When you Knock Out an opposing Pokémon, you take one of your Prize cards and put it into your hand. If you're the first one to take your last Prize card, you win!",
+        "In Play — The in-play zone is shared by the players. Each player has two sections for their Pokémon: the Active Spot and the Bench.",
+        "Active Spot — The top row of a player's in-play section is the Active Spot. Each player starts with (and must always have) one Pokémon in their Active Spot — this is the Active Pokémon. Each player may have only one Active Pokémon at a time. If your opponent doesn't have any more Pokémon in play, you win the game!",
+        "Bench — The bottom row of a player's in-play section is for the Benched Pokémon. Each player may have up to 5 Pokémon on the Bench at any one time. Any Pokémon in play other than the Active Pokémon must be put on the Bench."
+      ]
+    },
+    {
+      "id": "win-conditions",
+      "title": "How to Win the Game",
+      "category": "Playing the Game",
+      "paragraphs": [
+        "You can win the game in 3 ways:",
+        "1) Take all of your Prize cards.",
+        "2) Knock Out all of your opponent's Pokémon in play.",
+        "3) If your opponent has no cards in their deck at the beginning of their turn."
+      ]
+    },
+    {
+      "id": "setup",
+      "title": "Setting Up to Play",
+      "category": "Playing the Game",
+      "paragraphs": [
+        "1) Shake hands with your opponent.",
+        "2) Flip a coin. The winner of the coin flip decides which player goes first.",
+        "3) Shuffle your 60-card deck and draw the top 7 cards.",
+        "4) Check to see if you have any Basic Pokémon in your hand.",
+        "5) Put one of your Basic Pokémon face down as your Active Pokémon.",
+        "6) Put up to 5 more Basic Pokémon face down on your Bench.",
+        "If you don't have any Basic Pokémon, what do you do? First, reveal your hand to your opponent and shuffle your hand back into your deck. Then, draw 7 more cards. If you still don't have any Basic Pokémon, repeat. Each time your opponent shuffles their hand back into their deck because they had no Basic Pokémon, you may draw an extra card!",
+        "7) Put the top 6 cards of your deck off to the side face down as your Prize cards.",
+        "8) Both players flip their Active and Benched Pokémon face up and start the game!"
+      ]
+    },
+    {
+      "id": "parts-of-a-turn",
+      "title": "Parts of a Turn",
+      "category": "Playing the Game",
+      "paragraphs": [
+        "Each turn has 3 main parts:",
+        "1) Draw a card.",
+        "2) Do any of the following actions in any order:",
+        "   A. Put Basic Pokémon cards from your hand onto your Bench (as many as you want).",
+        "   B. Evolve your Pokémon (as many as you want).",
+        "   C. Attach an Energy card from your hand to one of your Pokémon (once per turn).",
+        "   D. Play Trainer cards (as many as you want, but only one Supporter card and one Stadium card per turn).",
+        "   E. Retreat your Active Pokémon (only once per turn).",
+        "   F. Use Abilities (as many as you want).",
+        "3) Attack. Then, end your turn."
+      ]
+    },
+    {
+      "id": "turn-action-draw",
+      "title": "Turn Action: Draw a Card",
+      "category": "Turn Actions",
+      "paragraphs": [
+        "Start your turn by drawing a card. If there are no cards in your deck at the beginning of your turn and you cannot draw a card, the game is over, and your opponent wins."
+      ]
+    },
+    {
+      "id": "turn-action-bench",
+      "title": "Turn Action: Put Basic Pokémon on Your Bench",
+      "category": "Turn Actions",
+      "paragraphs": [
+        "Choose a Basic Pokémon card from your hand and put it face up onto your Bench. Your Bench can hold up to 5 Pokémon. You can do this as many times as you want each turn."
+      ]
+    },
+    {
+      "id": "turn-action-evolve",
+      "title": "Turn Action: Evolve Pokémon",
+      "category": "Turn Actions",
+      "paragraphs": [
+        "If you have a card in your hand that says \"Evolves from X,\" and X is the name of a Pokémon you had in play at the beginning of your turn, you may play that card in your hand on top of Pokémon X. This is called \"evolving\" a Pokémon.",
+        "You may evolve a Basic Pokémon to a Stage 1 Pokémon, or a Stage 1 Pokémon to a Stage 2 Pokémon. When a Pokémon evolves, it keeps all attached cards (Energy cards, Evolution cards, etc.) and any damage counters on it. Any effects of attacks or Special Conditions affecting the Pokémon — such as Asleep, Confused, or Poisoned — end when it evolves. A Pokémon cannot use the attacks or Abilities of its previous Evolution unless a card says so.",
+        "Evolution notes: Neither player can evolve a Pokémon on its first turn in play. When you evolve a Pokémon, it means that Pokémon is new in play, so you can't evolve it a second time the same turn! You can evolve any Pokémon you have in play, whether it's Active or Benched. Finally, neither player can evolve a Pokémon on that player's first turn unless a card says so."
+      ]
+    },
+    {
+      "id": "turn-action-energy",
+      "title": "Turn Action: Attach an Energy",
+      "category": "Turn Actions",
+      "paragraphs": [
+        "Take an Energy card from your hand and put it under your Active Pokémon or one of your Benched Pokémon to indicate that this is Energy it can use. You can attach Energy just once each turn!"
+      ]
+    },
+    {
+      "id": "turn-action-trainer",
+      "title": "Turn Action: Play Trainer Cards",
+      "category": "Turn Actions",
+      "paragraphs": [
+        "When you play any Trainer card, do what it says and obey the rule at the bottom of the card. Most Trainer cards are put into the discard pile afterward. You can play as many Item and Pokémon Tool cards as you like. Supporter cards are played like Item cards, but you can play only one Supporter card each turn.",
+        "The player who goes first cannot play a Supporter card on their first turn.",
+        "Stadium cards have a few special rules: A Stadium stays in play when you play it. Only one Stadium can be in play at a time — if a new one comes into play, discard the old one and end its effects. You can't play a Stadium card if a Stadium with the same name is already in play. You can play only one Stadium card each turn."
+      ]
+    },
+    {
+      "id": "turn-action-retreat",
+      "title": "Turn Action: Retreat Your Active Pokémon",
+      "category": "Turn Actions",
+      "paragraphs": [
+        "On most turns, you probably will not retreat, but if your Active Pokémon has lots of damage counters on it, you might want to retreat it and bring out a Pokémon from your Bench to fight instead. You may also want to do this if you have a strong Pokémon on the Bench ready to battle!",
+        "To retreat, you must discard 1 Energy from your Active Pokémon for each Colorless listed in its Retreat Cost. If no Colorless are listed, it retreats for free. Then, you switch that retreating Pokémon with a Pokémon from your Bench. Keep all damage counters and all attached cards with each Pokémon when they switch. Pokémon that are Asleep or Paralyzed cannot retreat.",
+        "When your Active Pokémon goes to your Bench (whether it retreated or got there some other way), some things do go away — Special Conditions and any effects from attacks.",
+        "If you retreat, you can still attack that turn with your new Active Pokémon."
+      ]
+    },
+    {
+      "id": "turn-action-abilities",
+      "title": "Turn Action: Use Abilities",
+      "category": "Turn Actions",
+      "paragraphs": [
+        "Some Pokémon have special Abilities they can use. Many of them can be used before you attack. Each Ability is different, though, so read carefully to see how each one works. Some work only if a condition is met, while others work all the time even without you using them. Be sure to announce which Abilities you are using so your opponent knows what you're doing.",
+        "Remember, Abilities aren't attacks, so you can still attack if you use an Ability! You can use Abilities from both your Active and Benched Pokémon."
+      ]
+    },
+    {
+      "id": "attack-step",
+      "title": "Attack and End Your Turn",
+      "category": "Turn Actions",
+      "paragraphs": [
+        "When you are ready to attack, first make sure that you've done everything in step 2 that you want to do. Once you attack, your turn is over, so you can't go back later!",
+        "On the first turn of the game, the starting player skips this step. Once that player has done all their other actions, the turn will end. After that, each player attacks as normal. Think carefully if you want to go first or second!",
+        "A) CHECK the Energy attached to your Active Pokémon. You need the right amount of Energy attached to a Pokémon for it to attack. Match the Energy symbols in the attack's cost. Colorless costs can be paid with any Energy type. Some attacks have a cost of 0 and can be used without any Energy attached.",
+        "B) CHECK Weakness and Resistance of your opponent's Active Pokémon. Some Pokémon have Weakness or Resistance to Pokémon of certain types, marked in the lower-left corner of the card. If the attack does damage, your opponent's Active Pokémon takes more damage if it has Weakness to the attacker's type. It takes less damage from a Pokémon if it has Resistance to that Pokémon's type. Don't apply Weakness and Resistance for Benched Pokémon!",
+        "C) PUT damage counters on your opponent's Active Pokémon. When you attack, put 1 damage counter on your opponent's Active Pokémon for each 10 damage your Pokémon's attack does. If a Pokémon has total damage at least equal to its HP (for example, 5 or more damage counters on a Pokémon with 50 HP), it is Knocked Out. If a player's Pokémon is Knocked Out, that player puts it and all cards attached to it in the discard pile. That player's opponent takes 1 of their own Prize cards and puts it into their hand.",
+        "The player whose Pokémon was Knocked Out chooses a new Active Pokémon from their Bench. If your opponent can't do this because their Bench is empty (or for any other reason), you win the game! If your opponent still has Pokémon in play, but you just took your last Prize card, you also win the game!",
+        "D) Your turn is over. Next, you take care of a few special things during Pokémon Checkup."
+      ]
+    },
+    {
+      "id": "pokemon-checkup",
+      "title": "Pokémon Checkup",
+      "category": "Turn Actions",
+      "paragraphs": [
+        "Pokémon Checkup is a special step that happens between turns. Before the game continues to the next player, you'll need to take care of Special Conditions in this order: 1) Poisoned, 2) Burned, 3) Asleep, 4) Paralyzed.",
+        "You'll also need to apply the effects of any Abilities or Trainer cards, or anything else that a card states must happen during Pokémon Checkup (or between turns). You can check Special Conditions and then other effects, or you can check other effects and then Special Conditions, but you can't mix them up — for example, you can't add Poison damage, then apply an Ability, then flip for Asleep, etc.",
+        "After both players have gone through these checks, any Pokémon that has no HP remaining is Knocked Out. (The player moves a new Pokémon into the Active Spot, and the opponent takes a Prize card.) Then, start the next player's turn!"
+      ]
+    },
+    {
+      "id": "special-conditions-overview",
+      "title": "Special Conditions Overview",
+      "category": "Special Conditions",
+      "paragraphs": [
+        "Some attacks make the Active Pokémon Asleep, Burned, Confused, Paralyzed, or Poisoned — these are called \"Special Conditions.\" They can only happen to an Active Pokémon — when a Pokémon goes to the Bench, it recovers from all Special Conditions. Pokémon also recover when they evolve."
+      ]
+    },
+    {
+      "id": "special-asleep",
+      "title": "Asleep",
+      "category": "Special Conditions",
+      "paragraphs": [
+        "Turn the Pokémon counterclockwise to show that it is Asleep.",
+        "If a Pokémon is Asleep, it cannot attack or retreat. During Pokémon Checkup, flip a coin. If you flip heads, the Pokémon recovers (turn the card right-side up), but if you flip tails, it stays Asleep."
+      ]
+    },
+    {
+      "id": "special-burned",
+      "title": "Burned",
+      "category": "Special Conditions",
+      "paragraphs": [
+        "When a Pokémon is Burned, put a Burn marker on it. During Pokémon Checkup, put 2 damage counters on your Burned Pokémon, then flip a coin. If heads, the Pokémon recovers (remove the Burn marker).",
+        "A Pokémon cannot have two Burn markers; if an attack gives it another Burn marker, the new Burned Condition simply replaces the old one. Make sure your Burn markers look different from your damage counters."
+      ]
+    },
+    {
+      "id": "special-confused",
+      "title": "Confused",
+      "category": "Special Conditions",
+      "paragraphs": [
+        "Turn a Confused Pokémon with the top of the card pointed toward you to show that it is Confused.",
+        "If your Pokémon is Confused, you must flip a coin before attacking with it. If heads, the attack works normally. If tails, the attack doesn't happen, and you put 3 damage counters on your Confused Pokémon."
+      ]
+    },
+    {
+      "id": "special-paralyzed",
+      "title": "Paralyzed",
+      "category": "Special Conditions",
+      "paragraphs": [
+        "Turn a Paralyzed Pokémon clockwise to show that it is Paralyzed.",
+        "If a Pokémon is Paralyzed, it cannot attack or retreat. After its owner's next turn, it recovers during Pokémon Checkup (turn the card right-side up)."
+      ]
+    },
+    {
+      "id": "special-poisoned",
+      "title": "Poisoned",
+      "category": "Special Conditions",
+      "paragraphs": [
+        "When a Pokémon is Poisoned, put a Poison marker on it. During Pokémon Checkup, put a damage counter on your Poisoned Pokémon.",
+        "A Pokémon cannot have two Poison markers; if an attack gives it another Poison marker, the new Poisoned Condition simply replaces the old one. Make sure your Poison markers look different from your damage counters."
+      ]
+    },
+    {
+      "id": "removing-special-conditions",
+      "title": "Removing Special Conditions",
+      "category": "Special Conditions",
+      "paragraphs": [
+        "When a Pokémon evolves or moves to the Bench, it recovers from all Special Conditions. The only Special Conditions that prevent Pokémon from retreating are Asleep and Paralyzed. Since Asleep, Confused, and Paralyzed all rotate the Pokémon card, whichever one happened last to the Pokémon is the only one that is still in effect. Since Poisoned and Burned use markers, those don't affect other Special Conditions. An unfortunate Pokémon could be Burned, Paralyzed, and Poisoned all at the same time!"
+      ]
+    },
+    {
+      "id": "other-checkup-effects",
+      "title": "Other Effects During Checkup",
+      "category": "Special Conditions",
+      "paragraphs": [
+        "If an effect of an Ability or Trainer card says it happens during Pokémon Checkup (or between turns), apply it as part of this step.",
+        "For example, Snorlax's Lazy Eating Ability says to heal 10 damage from it between turns. This would occur during Pokémon Checkup."
+      ]
+    },
+    {
+      "id": "advanced-mulligan",
+      "title": "Full Details of Taking a Mulligan",
+      "category": "Advanced Rules",
+      "paragraphs": [
+        "If either player has no Basic Pokémon in their opening hand, that player must take a mulligan.",
+        "If both players have no Basic Pokémon in their opening hands: Both players reveal their hands, then just start over as normal.",
+        "If only one player has no Basic Pokémon in their opening hand: 1) That player announces that they have a mulligan, then waits until the other player has finished setting up to play. 2) Then, the player with no Basic Pokémon reveals their hand and shuffles it back into their deck. The player keeps doing this until they get an opening hand with a Basic Pokémon, then proceeds as normal. 3) Then, the player who did not have to start over may draw a card for each extra mulligan their opponent took. For example, if both players took 2 mulligans, and then Player A took 3 additional mulligans, Player B may draw up to 3 cards. If any of those cards are Basic Pokémon, they may be put onto the Bench. 4) Then, reveal all Active and Benched Pokémon, and begin the game."
+      ]
+    },
+    {
+      "id": "advanced-what-counts-as-attack",
+      "title": "What Counts as an Attack?",
+      "category": "Advanced Rules",
+      "paragraphs": [
+        "Every attack has a cost and a name, and it might have a base damage and damage text. Most of the text on a Pokémon describes its attack, even if it doesn't do any damage.",
+        "For example, Squawkabilly's Call for Family attack does no damage, but it's still an attack! Anything else is called an Ability or something else. For instance, Blissey's Busybody Nurse Ability might let your Active Pokémon recover from all Special Conditions, but it doesn't count as an attack."
+      ]
+    },
+    {
+      "id": "advanced-attacking-details",
+      "title": "Full Details of Attacking",
+      "category": "Advanced Rules",
+      "paragraphs": [
+        "For most attacks, the order in which you do things doesn't really matter. However, for a complicated attack, here are the full steps:",
+        "A) Look at your Pokémon and decide which attack to use. Make sure you have the correct Energy attached. Then, announce you are using that attack.",
+        "B) Apply any effects that might alter or cancel the attack. (But remember — if an Active Pokémon moves to the Bench, all effects of attacks go away.)",
+        "C) If your Active Pokémon is Confused, check now to see if its attack doesn't happen.",
+        "D) Make any choices the attack requires you to make.",
+        "E) Do anything the attack requires you to do to use it (e.g. flip a coin if the attack says so).",
+        "F) Apply any effects that happen before damage, then place damage counters, and then do all other effects.",
+        "Damage calculation order: 1) Start with the base damage printed to the right of the attack. If an attack tells you to put damage counters on a Pokémon, you have no more calculations to do because damage counters aren't affected by Weakness, Resistance, or any other effects on a Pokémon. 2) Figure out damage effects on your Active Pokémon (Trainer cards or other relevant effects). Stop if the base damage is 0. 3) Increase the damage by the amount next to your opponent's Active Pokémon's Weakness, if it has Weakness to your Active Pokémon's type. 4) Reduce the damage by the amount next to your opponent's Active Pokémon's Resistance. 5) Figure out damage effects of Trainer or Energy cards, or other effects on your opponent's Active Pokémon. 6) For each 10 damage of the final attack, put 1 damage counter on the affected Pokémon. If the damage is 0 or less, don't put on any damage counters!"
+      ]
+    },
+    {
+      "id": "advanced-up-to-vs-any-amount",
+      "title": "\"Up to\" vs \"Any Amount\"",
+      "category": "Advanced Rules",
+      "paragraphs": [
+        "If a card uses the phrase \"up to X\" — for example, \"move up to 3 damage counters\" or \"attach up to 2 Energy cards\" — you can choose any number between 1 and X. (The exception is drawing cards: you can choose 0 for an effect that says \"draw up to X cards.\")",
+        "If a card uses the phrase \"any amount\" or \"any number\" — for example, \"discard any amount of Energy from this Pokémon\" — you can choose 0.",
+        "Things that say \"you may\" are optional, meaning you can choose not to do them."
+      ]
+    },
+    {
+      "id": "advanced-draw-more-than-have",
+      "title": "What if You Should Draw More Cards Than You Have?",
+      "category": "Advanced Rules",
+      "paragraphs": [
+        "If a card tells you to draw or look at more cards from your deck than you have left, draw or look at the cards you have and continue play as normal.",
+        "For example, if a card tells you to draw or look at the top 5 cards of your deck and you have only 3 cards left in your deck, draw or look at those 3. You lose if you cannot draw a card at the beginning of your turn, but not if you cannot draw one because a card told you to do so."
+      ]
+    },
+    {
+      "id": "advanced-both-win",
+      "title": "What if Both Players Win at the Same Time?",
+      "category": "Advanced Rules",
+      "paragraphs": [
+        "You win if you take your last Prize card or if your opponent has no Benched Pokémon to replace their Active Pokémon if it is Knocked Out (or otherwise removed from play). This makes it possible for both players to win at the same time.",
+        "If this happens, play Sudden Death. However, if you win in both ways and your opponent wins in only one way, you are the victor!"
+      ]
+    },
+    {
+      "id": "advanced-sudden-death",
+      "title": "What's Sudden Death?",
+      "category": "Advanced Rules",
+      "paragraphs": [
+        "In Sudden Death, you play a new game, but each player uses only 1 Prize card instead of the usual 6. Except for the single Prize card, treat the Sudden Death game like a whole new game! Flip a coin to see who goes first and set everything up as usual. The winner of this game is the overall winner. If the Sudden Death game also ends in Sudden Death, just keep playing Sudden Death games until somebody wins."
+      ]
+    },
+    {
+      "id": "advanced-pokemon-name",
+      "title": "What Counts for a Pokémon's Name?",
+      "category": "Advanced Rules",
+      "paragraphs": [
+        "Some Pokémon cards have extra information after their name, such as a Level or a symbol. A Pokémon's name changes how you can evolve or play certain cards.",
+        "Level is NOT part of a Pokémon's name: Gengar, Gengar LV. 43, Gengar LV. 44, and Gengar LV.X all have the same name.",
+        "Symbols at the end of a Pokémon's name ARE part of a Pokémon's name: Alakazam, Alakazam ★, and Alakazam h all have different names from each other. However, δ (Delta Species) is not part of a Pokémon's name.",
+        "An owner or form name in a Pokémon's name IS part of the Pokémon's name: Meowth, Alolan Meowth, and Rocket's Meowth have different names.",
+        "When you are building a deck, you can have only 4 copies of a card with the same name in it, except for Basic Energy cards. If your deck has 1 each of Gengar, Gengar LV.43, Gengar LV. 44, and Gengar LV.X, you can't put any more cards named Gengar in your deck! However, you could have 4 Meowth, 4 Alolan Meowth, and 4 Rocket's Meowth.",
+        "When evolving, the \"evolves from\" Pokémon name must match the Pokémon being evolved. So Graveler can evolve from Geodude, or Geodude LV. 12, but not Brock's Geodude."
+      ]
+    },
+    {
+      "id": "deck-building",
+      "title": "Deck Building",
+      "category": "Deck Building",
+      "paragraphs": [
+        "When building most decks, you'll need to follow a few rules. One of the most important rules is that your deck must be exactly 60 cards; it can't be any more or less, even 59 or 61 cards!",
+        "Also, except for Basic Energy, you can only have 4 cards with the same name in your deck. This means you can have only 4 cards called \"Pignite\" in your deck, even if they all have different attacks. Finally, your deck must have at least one Basic Pokémon in it.",
+        "Building your own deck can be challenging, but also a lot of fun. A League Leader at a Pokémon League can help you with some ideas. Another good idea is to find an ex Battle Deck you like and try modifying it. Remember to keep it at exactly 60 cards! If you're starting a whole new deck, though, try these guidelines for starters:",
+        "• Pick one or two Energy types at most. Remember, most Colorless Pokémon can use any Energy for attacks, so they can go in nearly any deck!",
+        "• To make sure you have enough Energy cards, try between 12 and 15 in your 60-card deck.",
+        "• Trainer cards are important, too. Cards like Nest Ball and Jacq can help you find exactly the cards you need! Around 20 to 25 Trainer cards is a good start.",
+        "• Of course, you need Pokémon! The rest of your deck will be Pokémon. Remember, you need at least one Basic Pokémon in your deck. Collect your favorite Pokémon so you can have 4 copies of them in your deck to make sure you draw them as much as possible. And, if that Pokémon evolves, try to get 4 of each Pokémon in its Evolution chain as well!",
+        "Every deck is different and will fit your personality and personal strategy. Over time you'll find the numbers of Pokémon, Trainer, and Energy cards you like the best."
+      ]
+    },
+    {
+      "id": "appendix-ancient-future",
+      "title": "Appendix 1: Ancient and Future",
+      "category": "Appendices",
+      "paragraphs": [
+        "Starting with the Scarlet & Violet—Paradox Rift expansion, you might encounter Pokémon or other cards that have a special label that denotes them as \"Ancient\" or \"Future.\" Ancient Pokémon tend to focus on primitive, hard-hitting attacks, while Future Pokémon are more proficient with technical, precise attacks."
+      ]
+    },
+    {
+      "id": "appendix-pokemon-ex",
+      "title": "Appendix 2: Pokémon ex",
+      "category": "Appendices",
+      "paragraphs": [
+        "Pokémon ex are powerful Pokémon that show off a Pokémon with more HP and stronger attacks than regular Pokémon, but there are risks to playing these powered-up Pokémon! When one of your Pokémon ex is Knocked Out, your opponent takes 2 Prize cards.",
+        "The ex is part of a Pokémon ex's name. Thus Miraidon and Miraidon ex have different names, so you can have up to 4 of each in your deck if you wish.",
+        "Note that Pokémon ex and Pokémon-EX are not the same name, so if you wanted to, you could have 4 Magnezone ex and 4 Magnezone-EX in your deck."
+      ]
+    },
+    {
+      "id": "appendix-tera-pokemon-ex",
+      "title": "Appendix 3: Tera Pokémon ex",
+      "category": "Appendices",
+      "paragraphs": [
+        "Tera Pokémon ex have a crystalline appearance and a new effect that prevents all attack damage done to them while they're on your Bench. This effect applies to all attacks, both yours and your opponent's.",
+        "Like other Pokémon ex, when a Tera Pokémon ex is Knocked Out, your opponent takes 2 Prize cards."
+      ]
+    },
+    {
+      "id": "appendix-lost-zone",
+      "title": "Appendix 4: Lost Zone",
+      "category": "Appendices",
+      "paragraphs": [
+        "The Lost Zone is a unique zone that's considered out of play. Cards can be sent to the Lost Zone in many ways, such as through the effects of attacks, Abilities, or Trainer cards. Unlike the discard pile, any cards sent to the Lost Zone cannot be recovered and are no longer playable during that game."
+      ]
+    },
+    {
+      "id": "appendix-radiant-pokemon",
+      "title": "Appendix 5: Radiant Pokémon",
+      "category": "Appendices",
+      "paragraphs": [
+        "All Radiant Pokémon appear with their special Shiny coloration and have the Radiant Pokémon Rule, which says you can't have more than 1 Radiant Pokémon in your deck. A Radiant Pokémon is considered a Pokémon with a Rule Box. Note that \"Radiant\" is part of the Pokémon's name, so your deck could include 4 Greninja and 1 Radiant Greninja. Radiant Pokémon are always Basic Pokémon and do not evolve from or into any other card."
+      ]
+    },
+    {
+      "id": "appendix-pokemon-vstar",
+      "title": "Appendix 6: Pokémon VSTAR",
+      "category": "Appendices",
+      "paragraphs": [
+        "There's a new Evolution in the Pokémon TCG: Pokémon VSTAR! These extraordinary Pokémon come with a game-changing Ability or attack that's called a VSTAR Power. You can't use more than one VSTAR Power during an entire game, regardless of how many Pokémon VSTAR you play. Make sure you use that VSTAR Power at the right strategic moment, because you only get one shot! Once you've used up your VSTAR Power for the game, be sure to flip over your VSTAR marker to show that you've used it.",
+        "Just like normal Pokémon V, if your Pokémon VSTAR is Knocked Out, your opponent takes 2 Prize cards.",
+        "Notice that Shaymin VSTAR evolves from Shaymin V. This means you can only evolve Shaymin VSTAR from Shaymin V, not regular Shaymin! Also, Pokémon VSTAR are a new stage: VSTAR. These cards count as Evolution cards, and all the normal rules for Evolution apply to Pokémon VSTAR. And although Pokémon VSTAR are a different stage, they are still considered Pokémon V — so if something affects Pokémon V, it also affects Pokémon VSTAR."
+      ]
+    },
+    {
+      "id": "appendix-pokemon-v-union",
+      "title": "Appendix 7: Pokémon V-UNION",
+      "category": "Appendices",
+      "paragraphs": [
+        "All four \"pieces\" of a Pokémon V-UNION have the same name (for example, \"Mewtwo V-UNION\"). Therefore, you can only have four total cards named Mewtwo V-UNION in your deck, not four of each individual piece. All four copies of a Pokémon V-UNION in your deck must be part of the same set and illustrated by the same artist.",
+        "You must play all four pieces of a Pokémon V-UNION onto your Bench at the same time from your discard pile. You can't play just one or two pieces of the Pokémon V-UNION. A Pokémon V-UNION only takes up one Bench spot and can only have one Pokémon Tool attached. Each Pokémon V-UNION may only be played once per game, per Pokémon name. You can play a Mewtwo V-UNION and then a Greninja V-UNION, but not Mewtwo V-UNION a second time.",
+        "Pokémon V-UNION are not Basic Pokémon! Thus, you cannot play them as your Active or Benched Pokémon during setup. Also, you must include at least one Basic Pokémon in your deck if you only have Pokémon V-UNION in it so far. Finally, Pokémon V-UNION are not Evolution cards. Pokémon V-UNION have their own unique Stage called V-UNION.",
+        "Cards or effects that refer to \"Basic,\" \"Stage 1,\" \"Stage 2,\" or \"Evolution\" cards don't affect Pokémon V-UNION. Also, cards that affect \"unevolved Pokémon\" will affect Pokémon V-UNION.",
+        "Pokémon V-UNION are still considered \"Pokémon V\" and fall into the category of \"Pokémon with a Rule Box\" while in play since they have the V-UNION rule and give up 3 Prize cards when Knocked Out."
+      ]
+    },
+    {
+      "id": "appendix-battle-styles",
+      "title": "Appendix 8: Battle Styles",
+      "category": "Appendices",
+      "paragraphs": [
+        "Starting with the Sword & Shield—Battle Styles expansion, you might encounter Pokémon that have a special label that denotes them as \"Single Strike\" or \"Rapid Strike\" style. Single Strike Pokémon tend to focus on powerful, hard-hitting attacks. Rapid Strike Pokémon are more proficient with sneaky, technical attacks.",
+        "\"Fusion Strike\" Pokémon, introduced in the Sword & Shield—Fusion Strike expansion, rely on teamwork and combine the strengths of both Single Strike and Rapid Strike styles.",
+        "Trainer cards and Energy cards can also be tagged as Single Strike, Rapid Strike, or Fusion Strike, and they tend to assist Pokémon of that particular Battle Style."
+      ]
+    },
+    {
+      "id": "appendix-pokemon-v",
+      "title": "Appendix 9: Pokémon V",
+      "category": "Appendices",
+      "paragraphs": [
+        "Pokémon V are powerful Basic Pokémon with big HP and strong attacks. These amazing Pokémon have a big impact on the game, but they come with a risk: when one of your Pokémon V is Knocked Out, your opponent takes 2 Prize cards."
+      ]
+    },
+    {
+      "id": "appendix-pokemon-vmax",
+      "title": "Appendix 10: Pokémon VMAX",
+      "category": "Appendices",
+      "paragraphs": [
+        "Pokémon VMAX can take your Pokémon V to the next level! These massively powerful cards come with monstrous HP and attacks — suitable for these giant Pokémon! Most Pokémon VMAX have 300 or more HP, making them very difficult to take down in battle.",
+        "But with great power comes great risk: if your Pokémon VMAX is Knocked Out, your opponent takes 3 Prize cards.",
+        "Notice that Lapras VMAX evolves from Lapras V. This means you can only evolve Lapras VMAX from Lapras V, not regular Lapras! Pokémon VMAX are a new stage: VMAX. These cards count as Evolution cards, and all the normal rules for Evolution apply to Pokémon VMAX. And although Pokémon VMAX are a different stage, they are still considered Pokémon V."
+      ]
+    },
+    {
+      "id": "appendix-regional-variants",
+      "title": "Appendix 11: Regional Variants",
+      "category": "Appendices",
+      "paragraphs": [
+        "You may find some familiar Pokémon with a new look! These are Paldean, Hisuian, Galarian, or Alolan Pokémon. You may even find a few that evolve into brand-new Pokémon!",
+        "Note that \"Paldean,\" \"Hisuian,\" \"Galarian,\" or \"Alolan\" is part of the Pokémon's name — this means that Paldean Clodsire ex can only evolve from Paldean Wooper, not from Wooper, and Alolan Persian can only evolve from Alolan Meowth, not from Meowth or Galarian Meowth. Also, you can have up to 4 Wooper and up to 4 Paldean Wooper in your deck if you wish."
+      ]
+    },
+    {
+      "id": "appendix-tag-team-supporter",
+      "title": "Appendix 12: TAG TEAM Supporter Cards",
+      "category": "Appendices",
+      "paragraphs": [
+        "Pokémon aren't the only ones who can form a TAG TEAM! These powerful Supporter cards feature two Trainers teaming up on one card. And just like the TAG TEAM Pokémon-GX, every TAG TEAM Supporter card offers a special team bonus: if you discard extra cards when you play it, you get an additional effect. Each TAG TEAM Supporter card has a unique effect, so be on the lookout for these powerful pairs!"
+      ]
+    },
+    {
+      "id": "appendix-tag-team",
+      "title": "Appendix 13: TAG TEAM",
+      "category": "Appendices",
+      "paragraphs": [
+        "A TAG TEAM is a special kind of Basic Pokémon-GX that features multiple Pokémon joining forces to form a super-powered team! TAG TEAM Pokémon-GX tend to have a lot of HP and big attacks, including a special GX attack that gains a bonus if a requirement is met, such as attaching extra Energy or playing a certain Trainer card. But be careful: when your TAG TEAM is Knocked Out, your opponent gets to take 3 Prize cards!"
+      ]
+    },
+    {
+      "id": "appendix-prism-star",
+      "title": "Appendix 14: Prism Star Cards",
+      "category": "Appendices",
+      "paragraphs": [
+        "Prism Star cards (denoted by a ◇ symbol) are powerful cards that come with a restriction: you can only have one copy of a Prism Star card in your deck. Unlike ACE SPEC cards, you can include Prism Star cards with different names in your deck, so you could have one Giratina ◇, one Lunala ◇, one Cyrus ◇, and one Super Boost Energy ◇ in the same deck.",
+        "They also have a unique rule — if a Prism Star card would go to the discard pile, you put it in the Lost Zone instead."
+      ]
+    },
+    {
+      "id": "appendix-rare-fossil",
+      "title": "Appendix 15: Rare Fossil and Unidentified Fossil",
+      "category": "Appendices",
+      "paragraphs": [
+        "The strange Item cards Rare Fossil and Unidentified Fossil can be played as Basic Pokémon. They can evolve into any Fossil Pokémon that says \"Evolves from Rare Fossil\" or \"Evolves from Unidentified Fossil,\" such as Dracozolt or Shieldon."
+      ]
+    },
+    {
+      "id": "appendix-pokemon-gx",
+      "title": "Appendix 16: Pokémon-GX",
+      "category": "Appendices",
+      "paragraphs": [
+        "Pokémon-GX are powerful Pokémon with more HP and stronger attacks. Each one also has a super-powerful GX attack. You can't use more than one GX attack during an entire game, regardless of how many Pokémon-GX you play. Make sure you use that GX attack at the right strategic moment, because you only get one shot!",
+        "The GX is part of a Pokémon-GX's name. Thus, Incineroar and Incineroar-GX have different names, and you can have up to 4 of each in your deck if you wish.",
+        "Pokémon-GX have the same Evolution stages as most other Pokémon and follow the same rules. This means you can use a Basic Pokémon-GX as your starting Active Pokémon if you like!",
+        "This greater power comes with a greater risk: when one of your Pokémon-GX is Knocked Out, your opponent takes 2 Prize cards."
+      ]
+    },
+    {
+      "id": "appendix-ultra-beasts",
+      "title": "Appendix 17: Ultra Beasts",
+      "category": "Appendices",
+      "paragraphs": [
+        "Ultra Beasts have invaded the Pokémon TCG! These mysterious creatures can appear as Pokémon-GX, which stand out with crimson colors instead of the typical blue GX colors. Some cards have effects that interact specifically with Ultra Beasts, which are labeled with a bar in the upper-right corner of the card. All Ultra Beasts have an attack that has something to do with Prize cards, so be on the lookout for interesting ways to use them."
+      ]
+    },
+    {
+      "id": "appendix-dual-type",
+      "title": "Appendix 18: Dual-Type Pokémon",
+      "category": "Appendices",
+      "paragraphs": [
+        "Dual-type Pokémon are just like regular Pokémon, but they have two types at the same time. For example, Azumarill is both a Water Pokémon and a Fairy Pokémon, so any card that affects one of those types will affect Azumarill.",
+        "If a dual-type Pokémon attacks a Pokémon that has a Weakness or Resistance to either of its types, the attack's damage will be affected. And if the Pokémon has a Weakness to one of the types and Resistance to the other, remember to apply Weakness and then Resistance!"
+      ]
+    },
+    {
+      "id": "appendix-break-evolution",
+      "title": "Appendix 19: BREAK Evolution",
+      "category": "Appendices",
+      "paragraphs": [
+        "BREAK Evolution is a special kind of Evolution. A Pokémon BREAK keeps all the attacks and Abilities of its previous Evolution (plus its Weakness, Resistance, and Retreat Cost), but it gains extra attacks or Abilities, its HP changes, and it could even change type!",
+        "Just like GX, BREAK is part of a Pokémon BREAK's name. Thus, Raichu and Raichu BREAK have different names, and you can have up to 4 of each in your deck if you wish.",
+        "Pokémon BREAK are a new stage: BREAK. These cards count as Evolution cards, and all the normal rules for Evolution apply to Pokémon BREAK."
+      ]
+    },
+    {
+      "id": "appendix-ancient-traits",
+      "title": "Appendix 20: Ancient Traits",
+      "category": "Appendices",
+      "paragraphs": [
+        "Ancient Traits appear on certain Pokémon cards, right under the Pokémon's name. These Ancient Traits give the Pokémon special powers, so be sure you read each one carefully! Note that Ancient Traits are not attacks or Abilities, so cards that prevent those from being used won't affect Ancient Traits."
+      ]
+    },
+    {
+      "id": "appendix-team-flare-hyper-gear",
+      "title": "Appendix 21: Team Flare Hyper Gear",
+      "category": "Appendices",
+      "paragraphs": [
+        "The name \"Team Flare Hyper Gear\" appears on special cards that you can use to mess with your opponent's plans. These are Pokémon Tool cards you attach to your opponent's Pokémon-EX. They have a negative impact on those Pokémon, making it harder for them to defeat you! Note that if the card is removed from the Pokémon for any reason, it goes to the discard pile of the player who originally played it."
+      ]
+    },
+    {
+      "id": "appendix-pokemon-ex-old",
+      "title": "Appendix 22: Pokémon-EX",
+      "category": "Appendices",
+      "paragraphs": [
+        "Pokémon-EX are powerful Pokémon that show off a Pokémon with more HP and stronger attacks than regular Pokémon, but there are risks to playing these powered-up Pokémon!",
+        "The EX is part of a Pokémon-EX's name. Thus Yveltal and Yveltal-EX have different names, so you can have up to 4 of each in your deck if you wish.",
+        "When one of your Pokémon-EX is Knocked Out, your opponent takes 2 Prize cards. Apart from this, Pokémon-EX play just like any other Pokémon card.",
+        "Also, Pokémon-EX can have a regular and a full-art rare Ultra version!"
+      ]
+    },
+    {
+      "id": "appendix-mega-evolution",
+      "title": "Appendix 23: Mega Evolution Pokémon",
+      "category": "Appendices",
+      "paragraphs": [
+        "Mega Evolution Pokémon represent a previously undiscovered peak of Evolution. These cards turn a Pokémon-EX into an even more powerful Pokémon! Knowing the right time to play these Pokémon will be key to your new strategies.",
+        "Just like EX, the M (which stands for Mega) is part of a Mega Evolution Pokémon's name. Thus, Mega Venusaur-EX and Venusaur-EX have different names, and you can have up to 4 of each in your deck if you wish.",
+        "Mega Evolution Pokémon are a new stage: MEGA. These cards count as Evolution cards, and all the normal rules for Evolution apply.",
+        "There are 2 special rules for Mega Evolution Pokémon. Since they are still Pokémon-EX, when one of them is Knocked Out, your opponent takes 2 Prize cards. Also, when 1 of your Pokémon becomes a Mega Evolution Pokémon, your turn ends. Make sure you've done everything else you want to do on your turn before you play one of these powerful Pokémon!",
+        "Note that Primal Reversion Pokémon work just like Mega Evolution Pokémon, so the same rules apply!"
+      ]
+    },
+    {
+      "id": "appendix-team-plasma",
+      "title": "Appendix 24: Team Plasma Cards",
+      "category": "Appendices",
+      "paragraphs": [
+        "Team Plasma cards — Pokémon, Trainer cards, and Energy — have a striking, unique look. You'll first notice the Plasma blue border, then you'll see the Team Plasma title. Finally, the villains' iconic shield appears in the text box.",
+        "For Pokémon, Team Plasma is not part of the Pokémon's name. So if you have 4 Team Plasma Liepard in your deck, you can't have any more Liepard cards in your deck. Also, Team Plasma Pokémon evolve as normal."
+      ]
+    },
+    {
+      "id": "appendix-ace-spec",
+      "title": "Appendix 25: ACE SPEC Trainer Cards",
+      "category": "Appendices",
+      "paragraphs": [
+        "ACE SPEC Trainer cards are so powerful that you can only have one in your deck. And that's not one of each: that's only one ACE SPEC card total in your deck. Be sure to assess all the ACE SPEC cards to decide which one will work best in your deck!"
+      ]
+    },
+    {
+      "id": "appendix-restored-pokemon",
+      "title": "Appendix 26: Restored Pokémon",
+      "category": "Appendices",
+      "paragraphs": [
+        "Some Fossil Pokémon have their own special Stage: Restored Pokémon. As you can see, Omanyte is a Restored Pokémon, and has the rule \"Put this card on your Bench only with the effect of Helix Fossil Omanyte.\" This means exactly what it says: the only way to play Omanyte to your Bench is to play the Helix Fossil Omanyte Item card.",
+        "Key Restored Pokémon Notes:",
+        "• If you have a Restored Pokémon in your hand, you cannot play it to your Bench unless you play an Item card and its effect tells you to.",
+        "• Restored Pokémon are not Basic Pokémon! Thus, you cannot play them as your Active or Benched Pokémon during setup. Also, you must still have at least one Basic Pokémon in your deck if you otherwise only have Restored Pokémon in your deck. Finally, Restored Pokémon are not Evolution cards.",
+        "• Cards or effects that refer to \"Basic,\" \"Stage 1,\" \"Stage 2,\" or \"Evolution\" cards don't affect Restored Pokémon. However, one that says \"Search your deck for a Pokémon\" can find Omanyte. Cards that affect unevolved Pokémon will affect Restored Pokémon.",
+        "• When playing with older Fossil Pokémon, the most important rules to follow are the \"Evolves from\" or \"Put this card into play…\" text."
+      ]
+    }
+  ],
+  "glossary": [
+    { "term": "Ability", "definition": "An effect on a Pokémon that is not an attack. Some will be active all of the time, while some you will need to choose to use." },
+    { "term": "ACE SPEC Trainer card", "definition": "A powerful Trainer card. You may only have one ACE SPEC Trainer card in your deck." },
+    { "term": "Active Pokémon", "definition": "Your in-play Pokémon that is not on the Bench. Only the Active Pokémon can attack." },
+    { "term": "Ancient Trait", "definition": "Special powers (like Ω Barrier or α Recovery) that appear on certain Pokémon cards. They are not attacks or Abilities." },
+    { "term": "attach", "definition": "When you take a card from your hand and put it on one of your Pokémon in play." },
+    { "term": "attack", "definition": "1) When your Active Pokémon fights your opponent's Pokémon. 2) The text written on each Pokémon card that shows what it does when it attacks." },
+    { "term": "Attacking Pokémon", "definition": "The Active Pokémon, as it performs an attack." },
+    { "term": "Basic Energy card", "definition": "A Grass, Fire, Water, Lightning, Psychic, Fighting, Darkness, Metal, or Fairy Energy card." },
+    { "term": "Basic Pokémon card", "definition": "A card you can play directly from your hand on your turn. See Evolution card." },
+    { "term": "Bench", "definition": "The place for your Pokémon that are in play but are not actively fighting. They come out and fight if the Active Pokémon retreats or is Knocked Out. When Benched Pokémon take damage, do not apply Weakness or Resistance." },
+    { "term": "between-turns step", "definition": "The part of each turn when the game shifts from one player to the other, now known as Pokémon Checkup." },
+    { "term": "BREAK Evolution", "definition": "A special kind of Evolution. When a Pokémon evolves into a Pokémon BREAK, it keeps the attacks, Abilities, Weakness, Resistance, and Retreat Cost of its previous Evolution." },
+    { "term": "Burn marker", "definition": "What you put on a Pokémon to remind you it is Burned. Remove the marker if the Pokémon is Benched or evolved." },
+    { "term": "damage", "definition": "What usually happens when one Pokémon attacks another. If a Pokémon has total damage greater than or equal to its Hit Points, it is Knocked Out." },
+    { "term": "damage counter", "definition": "A counter put on your Pokémon to show it has taken 10 damage. It stays on your Pokémon even if the Pokémon is Benched or evolved." },
+    { "term": "Defending Pokémon", "definition": "The Pokémon that receives an attack." },
+    { "term": "devolve", "definition": "Certain cards can devolve an evolved Pokémon, which is the opposite of evolving. When a Pokémon is devolved, it also loses Special Conditions and any other effects." },
+    { "term": "discard pile", "definition": "The cards you have discarded. These cards are always face up. Anyone can look at these cards at any time." },
+    { "term": "dual-type Pokémon", "definition": "A Pokémon that has two types at the same time." },
+    { "term": "Energy card", "definition": "Cards that power your Pokémon so they can attack. See Basic Energy card." },
+    { "term": "Evolution card", "definition": "A card you play on top of a Basic Pokémon card (or on top of another Evolution card) to make it stronger." },
+    { "term": "evolved Pokémon", "definition": "A Pokémon in play that has another Pokémon under it." },
+    { "term": "Fossil Trainer cards", "definition": "A special kind of Trainer card that acts like a Basic Pokémon when put into play. When in your hand, deck, or discard pile, it is not considered a Basic Pokémon." },
+    { "term": "GX attack", "definition": "A powerful kind of attack. Only Pokémon-GX have GX attacks. A player can't use more than one GX attack in a game." },
+    { "term": "GX marker", "definition": "A reminder tool. When you use your GX attack for the game, turn your GX marker face down." },
+    { "term": "Hit Points (HP)", "definition": "A number every Pokémon has, telling you how much damage it can take before it is Knocked Out." },
+    { "term": "in play", "definition": "Your cards are in play when they are on the table. Your deck, discard pile, and Prize cards are not in play, but your Benched Pokémon are." },
+    { "term": "Item card", "definition": "A type of Trainer card. Follow the instructions on the card and then discard it." },
+    { "term": "Knocked Out", "definition": "A Pokémon is Knocked Out if it has damage greater than or equal to its Hit Points. That Pokémon goes to the discard pile along with all cards attached to it. When one of your opponent's Pokémon is Knocked Out, take one of your Prize cards." },
+    { "term": "Lost Zone", "definition": "Cards sent to the Lost Zone are no longer playable during that game. Put them face up anywhere out of play." },
+    { "term": "Mega Evolution Pokémon", "definition": "A very powerful kind of Pokémon-EX with an additional drawback: when one of your Pokémon becomes a Mega Evolution Pokémon, your turn ends." },
+    { "term": "Owner", "definition": "A Pokémon with a Trainer's name in its title, such as Brock's Sandshrew or Team Rocket's Meowth." },
+    { "term": "Poison marker", "definition": "Object put on a Pokémon to remind you it is Poisoned. Remove the marker if the Pokémon is Benched or evolved." },
+    { "term": "Poké-Body", "definition": "An effect that is active as soon as that Pokémon is in play and lasts until the Pokémon leaves play." },
+    { "term": "Poké-Power", "definition": "A once-per-turn power on Active and Benched Pokémon you must choose to use. Most Poké-Powers are turned off if the Pokémon has a Special Condition." },
+    { "term": "Pokémon", "definition": "The colorful characters that fight for you in the Pokémon Trading Card Game. They are represented in the game by Basic Pokémon and Evolution cards." },
+    { "term": "Pokémon Checkup", "definition": "The part of each turn when the game shifts from one player to the other. Check Poisoned, Burned, Asleep, and Paralyzed at this step, and see whether any Pokémon are Knocked Out." },
+    { "term": "Pokémon ex", "definition": "A powerful Pokémon, but your opponent takes 2 Prize cards when it is Knocked Out. Pokémon ex and Pokémon-EX are not the same." },
+    { "term": "Pokémon-EX", "definition": "A stronger form of Pokémon with a special drawback: when your Pokémon-EX is Knocked Out, your opponent takes two Prize cards instead of one." },
+    { "term": "Pokémon-GX", "definition": "A stronger form of Pokémon with a special drawback: when your Pokémon-GX is Knocked Out, your opponent takes two Prize cards instead of one. Each Pokémon-GX has a powerful GX attack." },
+    { "term": "Pokémon LEGEND", "definition": "Special double cards that showcase powerful Legendary Pokémon. Both cards must be played together at the same time." },
+    { "term": "Pokémon LV.X", "definition": "Stronger versions of a regular Pokémon, put on top of the regular Pokémon of the same name and adding extra abilities." },
+    { "term": "Pokémon Power", "definition": "A special Ability some Pokémon have. Pokémon Powers are divided into two categories: Poké-Power and Poké-Body." },
+    { "term": "Pokémon SP", "definition": "A special Pokémon trained by a particular Trainer, with a symbol in its name to show its owner." },
+    { "term": "Pokémon Tool", "definition": "A type of Trainer card that is similar to an Item card but is attached to your Pokémon when you play it. Each Pokémon can have only 1 Pokémon Tool attached at a time." },
+    { "term": "Pokémon V", "definition": "Pokémon V are powerful Basic Pokémon with big HP and strong attacks. When one of your Pokémon V is Knocked Out, your opponent takes 2 Prize cards." },
+    { "term": "Pokémon VMAX", "definition": "Pokémon VMAX can take your Pokémon V to the next level! If your Pokémon VMAX is Knocked Out, your opponent takes 3 Prize cards." },
+    { "term": "Pokémon VSTAR", "definition": "Pokémon VSTAR evolve from Pokémon V and give up 2 Prize cards when Knocked Out. Each Pokémon VSTAR has a special VSTAR Power." },
+    { "term": "Pokémon V-UNION", "definition": "An enormous Pokémon made up of four separate cards. To play a Pokémon V-UNION, you must put all four cards from your discard pile onto your Bench at the same time." },
+    { "term": "Prism Star card", "definition": "A powerful kind of card with special rules. You can't have more than one card with the same name in your deck. If a Prism Star card would go to the discard pile, put it in the Lost Zone instead." },
+    { "term": "Prize cards", "definition": "The 6 cards you put face down while setting up to play. Every time one of your opponent's Pokémon is Knocked Out, you take 1 of your Prize cards (or 2 for certain kinds of Pokémon such as Pokémon ex). When you take your last Prize card, you win!" },
+    { "term": "Radiant Pokémon", "definition": "A unique Pokémon that appears with its special Shiny coloration and is always a Basic Pokémon. You can't have more than 1 Radiant Pokémon in your deck." },
+    { "term": "Resistance", "definition": "A Pokémon with Resistance takes less damage when attacked by Pokémon of a certain type. The amount is printed next to the type(s) of Resistance." },
+    { "term": "Restored Pokémon card", "definition": "A card you play with the associated fossil Item card." },
+    { "term": "retreat", "definition": "When you switch your Active Pokémon with one of your Benched Pokémon. To retreat, you must discard Energy from the retreating Pokémon equal to its Retreat Cost. You can only retreat once per turn." },
+    { "term": "Special Conditions", "definition": "Asleep, Burned, Confused, Paralyzed, and Poisoned are called Special Conditions." },
+    { "term": "Stadium card", "definition": "A type of Trainer card that is similar to an Item card but stays in play after you play it. Only one Stadium card can be in play at a time. You can play only one Stadium card each turn." },
+    { "term": "Sudden Death", "definition": "Sometimes both players win at the same time. In this case, you play a short game called \"Sudden Death\" (use only 1 Prize card each instead of 6)." },
+    { "term": "Supporter card", "definition": "A Trainer card similar to an Item card. You can play only one Supporter card each turn." },
+    { "term": "TAG TEAM", "definition": "A special kind of Basic Pokémon-GX with even more power and an even bigger drawback: when your TAG TEAM is Knocked Out, your opponent takes three Prize cards." },
+    { "term": "TAG TEAM Supporter card", "definition": "A special kind of Supporter card that pairs up two Trainers on one card. In addition to its primary effect, each TAG TEAM Supporter card offers a bonus effect if you discard extra cards when you play it." },
+    { "term": "Technical Machine", "definition": "A kind of Trainer card (an Item or Pokémon Tool) you can attach to your Pokémon. When attached, your Pokémon can use the Technical Machine attack as its own." },
+    { "term": "Tera Pokémon ex", "definition": "Tera Pokémon ex are like other Pokémon ex, with an additional effect that protects them from attack damage while they're on your Bench. Your opponent takes 2 Prize cards when 1 is Knocked Out." },
+    { "term": "Trainer card", "definition": "Special cards you play to gain advantages in the game. See Item card, Pokémon Tool card, Stadium card, Supporter card." },
+    { "term": "Trainers' Pokémon", "definition": "Pokémon with Trainers' names in their titles, like Brock's Sandshrew. You cannot evolve a regular Sandshrew into Brock's Sandslash, because \"Brock's\" is part of the name." },
+    { "term": "VSTAR marker", "definition": "A reminder tool. When you use your VSTAR Power for the game, turn your VSTAR marker face down." },
+    { "term": "VSTAR Power", "definition": "A powerful kind of attack or Ability. Only Pokémon VSTAR have a VSTAR Power. A player can't use more than one VSTAR Power in a game." },
+    { "term": "Weakness", "definition": "A Pokémon with Weakness takes more damage when attacked by Pokémon of a certain type. The effect is indicated next to the type(s) of Weakness." }
+  ]
+}

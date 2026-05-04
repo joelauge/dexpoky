@@ -115,6 +115,10 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - `/sign-up/*` — Clerk sign-up
 - `/profile` — Own profile (edit bio, seller details, view ratings)
 - `/seller/:clerkId` — Public seller profile (bio, ratings, contact if bid placed)
+- `/rules` — Public Pokémon TCG rulebook viewer with full-text search + accordion sections + glossary
+
+### Rulebook
+The official Pokémon TCG rulebook (Scarlet & Violet — Paradox Rift) is curated into `artifacts/api-server/src/data/rulebook.json` (50+ sections, 65+ glossary entries) and exposed via `GET /api/rules` and `GET /api/rules/search?q=...` (ranked title+paragraph+glossary search). The same `RulebookContent` component is rendered both on `/rules` and inside a Sheet drawer (`RulesSheet`) wired into the deck pages so deck-builders can reference the rules in context. The AI deck-suggestion prompt in `artifacts/api-server/src/routes/decks.ts` is enriched with the official deck-building rules (60 cards, max 4 same-name except Basic Energy, ≥1 Basic, energy/trainer ratio guidance).
 
 ### Codegen Note
 After changes to `lib/api-spec/openapi.yaml`, run `pnpm --filter @workspace/api-spec run codegen`. The chained `typecheck:libs` step may fail due to pre-existing errors in `lib/integrations-openai-ai-server` — that is non-blocking for the api-server (which uses esbuild) and dexpoky (which uses vite + tsc --noEmit). Verify with `pnpm --filter @workspace/dexpoky exec tsc --noEmit`.

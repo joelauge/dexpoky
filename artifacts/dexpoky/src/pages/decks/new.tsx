@@ -31,6 +31,7 @@ import {
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { RulesSheet } from "@/components/rules-sheet";
 
 const STYLES: Array<{
   value: keyof typeof CreateDeckBodyGameStyle;
@@ -155,11 +156,14 @@ export default function NewDeck() {
   return (
     <Layout>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/decks">
-          <Button variant="ghost" size="sm" className="mb-4 gap-1">
-            <ArrowLeft className="h-4 w-4" /> Back to decks
-          </Button>
-        </Link>
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <Link href="/decks">
+            <Button variant="ghost" size="sm" className="gap-1">
+              <ArrowLeft className="h-4 w-4" /> Back to decks
+            </Button>
+          </Link>
+          <RulesSheet />
+        </div>
 
         <h1 className="text-3xl font-bold tracking-tight mb-2 flex items-center gap-2">
           <Sparkles className="h-7 w-7 text-primary" />

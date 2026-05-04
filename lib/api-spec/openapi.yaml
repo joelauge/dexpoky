@@ -24,6 +24,8 @@ tags:
     description: Object storage operations
   - name: decks
     description: Deck builder operations
+  - name: rules
+    description: Pokémon TCG rulebook lookup and search
 
 paths:
   /storage/uploads/request-url:
@@ -625,6 +627,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuggestDeckResponse"
+
+  /rules:
+    get:
+      operationId: getRulebook
+      tags: [rules]
+      summary: Get the full Pokémon TCG rulebook (sections + glossary)
+      responses:
+        "200":
+          description: Rulebook data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RulebookResponse"
+
+  /rules/search:
+    get:
+      operationId: searchRulebook
+      tags: [rules]
+      summary: Search the rulebook by free-text query
+      description: |
+        Returns ranked rulebook hits matching the query. Queries shorter than
+        2 characters (or missing entirely) return an empty array rather than
+        a validation error so the client can call this hook unconditionally.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ranked search results (empty when q is missing or shorter than 2 characters)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RulebookSearchResult"
 
 components:
   schemas:
@@ -1245,3 +1285,67 @@ components:
         - gameStyle
         - strategy
         - cards
+
+    RulebookSection:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        category:
+          type: string
+        paragraphs:
+          type: array
+          items:
+            type: string
+      required: [id, title, category, paragraphs]
+
+    RulebookGlossaryEntry:
+      type: object
+      properties:
+        term:
+          type: string
+        definition:
+          type: string
+      required: [term, definition]
+
+    RulebookResponse:
+      type: object
+      properties:
+        title:
+          type: string
+        source:
+          type: string
+        version:
+          type: string
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/RulebookSection"
+        glossary:
+          type: array
+          items:
+            $ref: "#/components/schemas/RulebookGlossaryEntry"
+      required: [title, source, version, sections, glossary]
+
+    RulebookSearchResult:
+      type: object
+      properties:
+        sectionId:
+          type: string
+        sectionTitle:
+          type: string
+        category:
+          type: string
+        snippet:
+          type: string
+        matchType:
+          type: string
+          enum: [section, glossary]
+        term:
+          type: string
+          nullable: true
+        score:
+          type: number
+      required: [sectionId, sectionTitle, category, snippet, matchType, score]

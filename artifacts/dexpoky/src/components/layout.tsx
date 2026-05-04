@@ -16,6 +16,7 @@ import {
   LogIn,
   Scan,
   Sparkles,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -146,6 +147,7 @@ export function Layout({ children }: LayoutProps) {
 
   const publicNavItems = [
     { href: "/marketplace", label: "Marketplace", icon: Store },
+    { href: "/rules", label: "Rulebook", icon: BookOpen },
   ];
 
   const authNavItems = [

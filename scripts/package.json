@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "migrate-stripe": "tsx ./src/run-stripe-migrations.ts",
     "seed-products": "tsx ./src/seed-products.ts",
+    "ingest-rulebook": "tsx ./src/ingest-rulebook.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -15,6 +16,8 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/pdf-parse": "^1.1.5",
+    "pdf-parse": "^2.4.5",
     "tsx": "catalog:"
   }
 }

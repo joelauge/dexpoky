@@ -829,3 +829,48 @@ export const SuggestDeckResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary Get the full Pokémon TCG rulebook (sections + glossary)
+ */
+export const GetRulebookResponse = zod.object({
+  title: zod.string(),
+  source: zod.string(),
+  version: zod.string(),
+  sections: zod.array(
+    zod.object({
+      id: zod.string(),
+      title: zod.string(),
+      category: zod.string(),
+      paragraphs: zod.array(zod.string()),
+    }),
+  ),
+  glossary: zod.array(
+    zod.object({
+      term: zod.string(),
+      definition: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * Returns ranked rulebook hits matching the query. Queries shorter than
+2 characters (or missing entirely) return an empty array rather than
+a validation error so the client can call this hook unconditionally.
+
+ * @summary Search the rulebook by free-text query
+ */
+export const SearchRulebookQueryParams = zod.object({
+  q: zod.coerce.string().optional(),
+});
+
+export const SearchRulebookResponseItem = zod.object({
+  sectionId: zod.string(),
+  sectionTitle: zod.string(),
+  category: zod.string(),
+  snippet: zod.string(),
+  matchType: zod.enum(["section", "glossary"]),
+  term: zod.string().nullish(),
+  score: zod.number(),
+});
+export const SearchRulebookResponse = zod.array(SearchRulebookResponseItem);

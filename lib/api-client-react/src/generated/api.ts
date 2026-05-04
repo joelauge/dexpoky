@@ -36,7 +36,10 @@ import type {
   ListListingsParams,
   Listing,
   PokemonResult,
+  RulebookResponse,
+  RulebookSearchResult,
   SearchPokemonParams,
+  SearchRulebookParams,
   SuggestDeckBody,
   SuggestDeckResponse,
   UpdateCardBody,
@@ -2593,3 +2596,176 @@ export const useSuggestDeck = <
 > => {
   return useMutation(getSuggestDeckMutationOptions(options));
 };
+
+/**
+ * @summary Get the full Pokémon TCG rulebook (sections + glossary)
+ */
+export const getGetRulebookUrl = () => {
+  return `/api/rules`;
+};
+
+export const getRulebook = async (
+  options?: RequestInit,
+): Promise<RulebookResponse> => {
+  return customFetch<RulebookResponse>(getGetRulebookUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRulebookQueryKey = () => {
+  return [`/api/rules`] as const;
+};
+
+export const getGetRulebookQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRulebook>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getRulebook>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetRulebookQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRulebook>>> = ({
+    signal,
+  }) => getRulebook({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRulebook>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRulebookQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRulebook>>
+>;
+export type GetRulebookQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the full Pokémon TCG rulebook (sections + glossary)
+ */
+
+export function useGetRulebook<
+  TData = Awaited<ReturnType<typeof getRulebook>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getRulebook>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRulebookQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns ranked rulebook hits matching the query. Queries shorter than
+2 characters (or missing entirely) return an empty array rather than
+a validation error so the client can call this hook unconditionally.
+
+ * @summary Search the rulebook by free-text query
+ */
+export const getSearchRulebookUrl = (params?: SearchRulebookParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/rules/search?${stringifiedParams}`
+    : `/api/rules/search`;
+};
+
+export const searchRulebook = async (
+  params?: SearchRulebookParams,
+  options?: RequestInit,
+): Promise<RulebookSearchResult[]> => {
+  return customFetch<RulebookSearchResult[]>(getSearchRulebookUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getSearchRulebookQueryKey = (params?: SearchRulebookParams) => {
+  return [`/api/rules/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getSearchRulebookQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchRulebook>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: SearchRulebookParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchRulebook>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getSearchRulebookQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchRulebook>>> = ({
+    signal,
+  }) => searchRulebook(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchRulebook>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type SearchRulebookQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchRulebook>>
+>;
+export type SearchRulebookQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Search the rulebook by free-text query
+ */
+
+export function useSearchRulebook<
+  TData = Awaited<ReturnType<typeof searchRulebook>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: SearchRulebookParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchRulebook>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getSearchRulebookQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

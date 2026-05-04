@@ -426,6 +426,44 @@ export interface SuggestDeckResponse {
   cards: SuggestedDeckCard[];
 }
 
+export interface RulebookSection {
+  id: string;
+  title: string;
+  category: string;
+  paragraphs: string[];
+}
+
+export interface RulebookGlossaryEntry {
+  term: string;
+  definition: string;
+}
+
+export interface RulebookResponse {
+  title: string;
+  source: string;
+  version: string;
+  sections: RulebookSection[];
+  glossary: RulebookGlossaryEntry[];
+}
+
+export type RulebookSearchResultMatchType =
+  (typeof RulebookSearchResultMatchType)[keyof typeof RulebookSearchResultMatchType];
+
+export const RulebookSearchResultMatchType = {
+  section: "section",
+  glossary: "glossary",
+} as const;
+
+export interface RulebookSearchResult {
+  sectionId: string;
+  sectionTitle: string;
+  category: string;
+  snippet: string;
+  matchType: RulebookSearchResultMatchType;
+  term?: string | null;
+  score: number;
+}
+
 export type ListCardsParams = {
   categoryId?: number;
   forSale?: boolean;
@@ -455,4 +493,8 @@ export type GetRecentActivityParams = {
 
 export type SearchPokemonParams = {
   query: string;
+};
+
+export type SearchRulebookParams = {
+  q?: string;
 };

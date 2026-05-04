@@ -158,7 +158,11 @@ router.post("/decks", requireAuth, async (req, res) => {
       const cardId = typeof obj.cardId === "number" && Number.isInteger(obj.cardId) ? obj.cardId : null;
       if (cardId == null) continue;
       const rawCount = typeof obj.count === "number" && Number.isInteger(obj.count) ? obj.count : 1;
-      const count = Math.max(1, Math.min(4, rawCount));
+      // Per official rules a deck has 60 cards and is limited to 4 of any same-named card EXCEPT
+      // Basic Energy (no per-name cap). We can't always tell here whether this card is Basic Energy
+      // (we'd need to look up the card row), so we use a permissive 1..60 sanity bound and rely on
+      // the AI prompt + UI to enforce the 4-card cap for non-Basic-Energy cards.
+      const count = Math.max(1, Math.min(60, rawCount));
       const role = typeof obj.role === "string" ? obj.role : null;
       const notes = typeof obj.notes === "string" ? obj.notes : null;
       entryMap.set(cardId, { cardId, count, role, notes });
@@ -424,7 +428,20 @@ router.post("/decks/suggest", requireAuth, async (req, res) => {
     tank: "High-HP Pokémon supported by healing, energy ramp, and damage reduction.",
   };
 
-  const systemPrompt = `You are an expert Pokémon TCG deck builder. Build the strongest possible deck a player could realistically run from THEIR collection only. Pokémon TCG decks are 60 cards but here we are working with a curated subset of the user's collection — recommend the best 15–30 cards (or all of them if fewer) that fit the requested archetype. For each recommended card include: cardId (must exist in the supplied collection), count (1–4 typical), role (one of: attacker | support | trainer | energy | tech), and a short reason. Also produce a deck name and a 2–4 sentence strategy summary explaining the win condition and key turns.`;
+  const systemPrompt = `You are an expert Pokémon TCG deck builder. Build the strongest possible deck a player could realistically run from THEIR collection only.
+
+OFFICIAL DECK BUILDING RULES (Scarlet & Violet rulebook):
+- A legal deck is EXACTLY 60 cards.
+- Maximum 4 copies of any card with the same name (Basic Energy is exempt — you may include any number).
+- The deck must contain at least 1 Basic Pokémon (otherwise the player cannot start the game).
+- Special restrictions when relevant: only 1 Radiant Pokémon per deck; only 1 ACE SPEC card total per deck; only 1 of any specific Prism Star card.
+- Recommended starting ratios for a 60-card deck: 12–15 Energy, 20–25 Trainer cards (Items, Supporters, Stadiums, Tools), and the remainder Pokémon (try to run 4 of each Pokémon in an evolution line).
+- Pick 1–2 Energy types so attackers can reliably power up; Colorless costs accept any Energy.
+
+DECK BUILD TASK:
+We are working with a curated subset of the user's collection. Recommend the strongest 15–30 cards (or all of them if fewer) that fit the requested archetype, respecting the 4-copy limit and ensuring the suggestion includes at least one Basic Pokémon when possible.
+
+For each recommended card include: cardId (must exist in the supplied collection), count (1–4 typical, never more than 4 for non-Basic-Energy), role (one of: attacker | support | trainer | energy | tech), and a short reason. Also produce a deck name and a 2–4 sentence strategy summary explaining the win condition and key turns. If the collection cannot legally form a 60-card deck, still suggest the best partial core and call out what's missing in the strategy summary.`;
 
   const userPrompt = `Game style: ${gameStyle} — ${styleDescriptions[gameStyle] ?? ""}
 ${notes ? `Player notes: ${notes}\n` : ""}

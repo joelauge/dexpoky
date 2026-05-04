@@ -31,6 +31,7 @@ import PublicListingView from "@/pages/view/listing/[id]";
 import ShortLinkRedirect from "@/pages/s/[code]";
 import SubscriptionPage from "@/pages/subscription";
 import AdminPayouts from "@/pages/admin/payouts";
+import RulesPage from "@/pages/rules";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -206,6 +207,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/decks" component={() => <ProtectedRoute component={Decks} />} />
             <Route path="/decks/new" component={() => <ProtectedRoute component={NewDeck} />} />
             <Route path="/decks/:id" component={() => <ProtectedRoute component={DeckDetail} />} />
+            <Route path="/rules" component={RulesPage} />
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/marketplace/:id" component={ListingDetail} />
             <Route path="/sell" component={() => <ProtectedRoute component={Sell} />} />
