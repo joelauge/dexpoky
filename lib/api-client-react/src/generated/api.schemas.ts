@@ -444,6 +444,7 @@ export interface RulebookSection {
   category: string;
   /** Heading depth in the source PDF (1 = top-level chapter, 2 = section, 3 = sub-section). */
   level: number;
+  /** Section text preserved as the paragraph chunks emitted by the source PDF (par_rulebook_en.pdf). We deliberately keep this as an array (rather than a single `body` blob) so search snippet extraction and rendering can operate on the original paragraph boundaries without re-segmenting on every request. */
   paragraphs: string[];
 }
 
