@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import {
@@ -60,6 +60,15 @@ const STYLES: Array<{
  * position-stable index + name string. Shopping cards are never saved into the
  * deck (no IDs to link to), so their key is only used for React list keys.
  */
+function AnimatedDots() {
+  const [dots, setDots] = useState(1);
+  useEffect(() => {
+    const id = setInterval(() => setDots(d => (d % 3) + 1), 500);
+    return () => clearInterval(id);
+  }, []);
+  return <span className="inline-block w-5 text-left">{"•".repeat(dots)}</span>;
+}
+
 function suggestionKey(s: SuggestedDeckCard, index: number): string {
   if (s.source === "owned") return `owned:${s.cardId}`;
   if (s.source === "wishlist") return `wishlist:${s.wishlistItemId}`;
@@ -282,14 +291,15 @@ export default function NewDeck() {
                 <Button
                   onClick={handleSuggest}
                   disabled={suggestDeck.isPending || cardsLoading}
-                  className="mt-4 gap-2"
+                  className={`mt-4 gap-2 relative transition-all${suggestDeck.isPending ? " animate-pulse ring-2 ring-primary/40 ring-offset-2" : ""}`}
                   size="lg"
                 >
-                  <Wand2 className="h-4 w-4" />
+                  <Wand2 className={`h-4 w-4 transition-transform${suggestDeck.isPending ? " animate-spin" : ""}`} />
                   {suggestDeck.isPending
-                    ? isStarterMode
-                      ? "Building shopping list..."
-                      : "Building deck..."
+                    ? <span className="flex items-center gap-0.5">
+                        {isStarterMode ? "Building shopping list" : "Building deck"}
+                        <AnimatedDots />
+                      </span>
                     : hasSuggested
                       ? "Regenerate suggestion"
                       : isStarterMode
