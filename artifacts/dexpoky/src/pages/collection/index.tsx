@@ -12,10 +12,51 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, SlidersHorizontal, X, Share2 } from "lucide-react";
+import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown } from "lucide-react";
 import { ShareModal } from "@/components/share-modal";
 import { Link } from "wouter";
 import { formatLabel } from "@/lib/constants";
+
+type SortKey =
+  | "date_new"
+  | "date_old"
+  | "value_high"
+  | "value_low"
+  | "name_az"
+  | "pokemon_az"
+  | "rarity_high"
+  | "condition_best";
+
+const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: "date_new", label: "Date added (newest)" },
+  { value: "date_old", label: "Date added (oldest)" },
+  { value: "value_high", label: "Value (high to low)" },
+  { value: "value_low", label: "Value (low to high)" },
+  { value: "name_az", label: "Name (A–Z)" },
+  { value: "pokemon_az", label: "Pokémon (A–Z)" },
+  { value: "rarity_high", label: "Rarity (rarest first)" },
+  { value: "condition_best", label: "Condition (best first)" },
+];
+
+// Higher index = rarer / better
+const RARITY_ORDER: Record<string, number> = {
+  common: 0,
+  uncommon: 1,
+  rare: 2,
+  holo_rare: 3,
+  ultra_rare: 4,
+  secret_rare: 5,
+  promo: 6,
+};
+const CONDITION_ORDER: Record<string, number> = {
+  mint: 6,
+  near_mint: 5,
+  excellent: 4,
+  good: 3,
+  light_played: 2,
+  played: 1,
+  poor: 0,
+};
 
 export default function Collection() {
   const [search, setSearch] = useState("");
@@ -24,6 +65,7 @@ export default function Collection() {
   const [rarity, setRarity] = useState<string>("all");
   const [condition, setCondition] = useState<string>("all");
   const [forSale, setForSale] = useState<string>("all");
+  const [sort, setSort] = useState<SortKey>("date_new");
 
   const { data: categories } = useListCategories();
 
@@ -34,10 +76,42 @@ export default function Collection() {
     forSale: forSale === "all" ? undefined : forSale === "yes",
   });
 
-  const filteredCards = cards?.filter(card => {
-    if (condition !== "all" && card.condition !== condition) return false;
-    return true;
-  });
+  const filteredCards = cards
+    ?.filter((card) => {
+      if (condition !== "all" && card.condition !== condition) return false;
+      return true;
+    })
+    .slice()
+    .sort((a, b) => {
+      const av = a.estimatedValue == null ? null : Number(a.estimatedValue);
+      const bv = b.estimatedValue == null ? null : Number(b.estimatedValue);
+      switch (sort) {
+        case "date_new":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "date_old":
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case "value_high":
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          return bv - av;
+        case "value_low":
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          return av - bv;
+        case "name_az":
+          return a.name.localeCompare(b.name);
+        case "pokemon_az":
+          return a.pokemonName.localeCompare(b.pokemonName);
+        case "rarity_high":
+          return (RARITY_ORDER[b.rarity] ?? -1) - (RARITY_ORDER[a.rarity] ?? -1);
+        case "condition_best":
+          return (CONDITION_ORDER[b.condition] ?? -1) - (CONDITION_ORDER[a.condition] ?? -1);
+        default:
+          return 0;
+      }
+    });
 
   return (
     <Layout>
@@ -134,6 +208,32 @@ export default function Collection() {
                 <X className="h-4 w-4 mr-2" /> Clear
               </Button>
             )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-4 border-t border-border/50">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <ArrowUpDown className="h-4 w-4" />
+              <span>Sort by</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                <SelectTrigger className="w-full sm:w-[220px] bg-background/50 border-border/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {filteredCards && (
+                <span className="text-sm text-muted-foreground whitespace-nowrap hidden sm:inline">
+                  {filteredCards.length} card{filteredCards.length === 1 ? "" : "s"}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
