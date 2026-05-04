@@ -57,6 +57,7 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - **Ratings**: buyer-to-seller and seller-to-buyer ratings, only after completed transactions (status=sold)
 - Dashboard with portfolio stats and Recharts bar chart
 - **Image upload**: `CardImageUpload` component on edit and new card forms; presigned-URL upload to GCS via Replit Object Storage; served at `/api/storage/objects/*`
+- **Original Scan storage**: scanned camera frames from `/scan` and `/scan/bulk` are uploaded to Object Storage (helper at `artifacts/dexpoky/src/lib/upload-scan.ts` — base64 dataURL → Blob → presigned PUT) and persisted to `cards.original_scan_url`. Single scan kicks off the upload in parallel with TCG identify and the "Add to Collection" button awaits the in-flight upload (max 4s) before navigating, with a small spinner. Bulk scan fires the upload per-capture, stores the resulting URL on the `BulkEntry`, and `saveAll` includes it in `createCard` body. Card detail page (`/collection/:id`) shows an "Original Scan" section under the left column (below Notes) with a 5:7 thumbnail and Dialog lightbox.
 - **Decks (AI deck builder)**: build decks from owned cards. Pages at `/decks`, `/decks/new`, `/decks/:id`. Server route `artifacts/api-server/src/routes/decks.ts` with full CRUD plus `POST /api/decks/suggest` that calls OpenAI (`gpt-5.4`, `response_format: json_object`) and post-filters AI-suggested `cardId`s to ones the user actually owns. `POST /api/decks` accepts either legacy `cardIds: number[]` or rich `cards: [{cardId, count, role, notes}]` (preferred — preserves AI counts/roles, count clamped 1–4). Tables: `decksTable` + `deckCardsTable` with unique `(deck_id, card_id)` index and cascade delete. Deck detail page must use the same query key for fetch + invalidations: `[\`/api/decks/${id}\`]`.
 
 ### Database Tables
@@ -115,6 +116,8 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - `/seller/:clerkId` — Public seller profile (bio, ratings, contact if bid placed)
 
 ### Codegen Note
-After changes to `lib/api-spec/openapi.yaml`, run codegen then manually set `lib/api-zod/src/index.ts` to only export from `./generated/api` (orval regenerates the file with stale exports — this is a known issue with the orval zod client + split mode combo).
+After changes to `lib/api-spec/openapi.yaml`, run `pnpm --filter @workspace/api-spec run codegen`. The chained `typecheck:libs` step may fail due to pre-existing errors in `lib/integrations-openai-ai-server` — that is non-blocking for the api-server (which uses esbuild) and dexpoky (which uses vite + tsc --noEmit). Verify with `pnpm --filter @workspace/dexpoky exec tsc --noEmit`.
+
+`lib/api-zod/src/index.ts` should only export from `./generated/api` — orval's zod split mode produces a single `api.ts`, so any `./generated/api.schemas` re-export will fail to compile.
 
 New auction/user/rating fields were added to the DB without updating the OpenAPI spec. The frontend uses type-casting (`listing as AuctionListing`) for these extended fields. Future work: update spec and regenerate hooks.

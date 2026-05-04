@@ -25,6 +25,7 @@ const cardSelect = {
   rarity: cardsTable.rarity,
   condition: cardsTable.condition,
   imageUrl: cardsTable.imageUrl,
+  originalScanUrl: cardsTable.originalScanUrl,
   estimatedValue: sql<number | null>`${cardsTable.estimatedValue}::float`,
   acquiredDate: cardsTable.acquiredDate,
   categoryId: cardsTable.categoryId,
@@ -92,6 +93,7 @@ router.post("/cards", requireAuth, async (req, res) => {
     setName: data.setName ?? null,
     cardNumber: data.cardNumber ?? null,
     imageUrl: data.imageUrl ?? null,
+    originalScanUrl: data.originalScanUrl ?? null,
     estimatedValue: data.estimatedValue != null ? String(data.estimatedValue) : null,
     acquiredDate: data.acquiredDate ?? null,
     categoryId: data.categoryId ?? null,
@@ -198,6 +200,7 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
   if (data.rarity !== undefined) updateData.rarity = data.rarity;
   if (data.condition !== undefined) updateData.condition = data.condition;
   if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+  if (data.originalScanUrl !== undefined) updateData.originalScanUrl = data.originalScanUrl;
   if (data.estimatedValue !== undefined) updateData.estimatedValue = data.estimatedValue != null ? String(data.estimatedValue) : null;
   if (data.acquiredDate !== undefined) updateData.acquiredDate = data.acquiredDate;
   if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;

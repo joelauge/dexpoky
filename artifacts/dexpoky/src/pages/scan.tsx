@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Camera,
   CameraOff,
@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
 import { ScanPaywall } from "@/components/scan-paywall";
 import { captureCardCrop } from "@/lib/capture-crop";
+import { uploadScanImage } from "@/lib/upload-scan";
 
 interface TcgCard {
   id: string;
@@ -78,6 +79,8 @@ export default function ScanPage() {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const scanUploadRef = useRef<Promise<string | null> | null>(null);
+  const [, navigate] = useLocation();
 
   const [phase, setPhase]                     = useState<Phase>("idle");
   const [pokemonName, setPokemonName]         = useState<string | null>(null);
@@ -90,6 +93,7 @@ export default function ScanPage() {
   const [pricingLoading, setPricingLoading]   = useState(false);
 
   const [confirmSteps, setConfirmSteps] = useState<ConfirmStep[]>([]);
+  const [scanUrl, setScanUrl] = useState<string | null>(null);
 
   // Billing
   const { data: billing, isLoading: billingLoading } = useBillingStatus();
@@ -161,6 +165,14 @@ export default function ScanPage() {
     setPhase("analyzing");
     stopStream();
 
+    // Kick off the scan upload in parallel with identification — non-blocking.
+    // We hold the promise on a ref so the "Add to Collection" handler can
+    // await it (with a short timeout) before navigating.
+    setScanUrl(null);
+    const uploadPromise = uploadScanImage(imageData);
+    scanUploadRef.current = uploadPromise;
+    uploadPromise.then((url) => setScanUrl(url));
+
     try {
       const res = await fetch(`${BASE}/api/cards/identify`, {
         method: "POST",
@@ -205,6 +217,7 @@ export default function ScanPage() {
     setCard(null); setVariants([]); setSelectedVariant(null);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
     setConfirmSteps([]);
+    setScanUrl(null);
     try {
       const ms = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 } },
@@ -229,6 +242,7 @@ export default function ScanPage() {
     setCard(null); setVariants([]); setSelectedVariant(null);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
     setConfirmSteps([]);
+    setScanUrl(null);
     startCamera();
   };
 
@@ -459,19 +473,38 @@ export default function ScanPage() {
                         <p className="text-sm font-bold text-emerald-600 mt-1">{fmt(pricing.marketPrice)} <span className="text-[10px] font-normal text-muted-foreground">market</span></p>
                       )}
                     </div>
-                    <Link href={[
-                      `/collection/new`,
-                      `?name=${encodeURIComponent(displayCard.name)}`,
-                      `&pokemonName=${encodeURIComponent(pokemonName ?? displayCard.name)}`,
-                      `&setName=${encodeURIComponent(displayCard.setName)}`,
-                      `&cardNumber=${encodeURIComponent(displayCard.cardNumber)}`,
-                      `&imageUrl=${encodeURIComponent(displayCard.imageUrl)}`,
-                      pricing?.marketPrice != null ? `&estimatedValue=${pricing.marketPrice}` : "",
-                    ].join("")}>
-                      <Button size="sm" className="mt-3 rounded-lg">
-                        <Plus className="h-3.5 w-3.5 mr-1.5" /> Add to Collection
-                      </Button>
-                    </Link>
+                    <Button
+                      size="sm"
+                      className="mt-3 rounded-lg"
+                      onClick={async () => {
+                        // If the scan upload is still in flight, wait briefly
+                        // (max 4s) so we can attach `originalScanUrl`.
+                        let finalScanUrl = scanUrl;
+                        if (!finalScanUrl && scanUploadRef.current) {
+                          finalScanUrl = await Promise.race([
+                            scanUploadRef.current,
+                            new Promise<null>((r) => setTimeout(() => r(null), 4000)),
+                          ]);
+                        }
+                        const url = [
+                          `/collection/new`,
+                          `?name=${encodeURIComponent(displayCard.name)}`,
+                          `&pokemonName=${encodeURIComponent(pokemonName ?? displayCard.name)}`,
+                          `&setName=${encodeURIComponent(displayCard.setName)}`,
+                          `&cardNumber=${encodeURIComponent(displayCard.cardNumber)}`,
+                          `&imageUrl=${encodeURIComponent(displayCard.imageUrl)}`,
+                          finalScanUrl ? `&originalScanUrl=${encodeURIComponent(finalScanUrl)}` : "",
+                          pricing?.marketPrice != null ? `&estimatedValue=${pricing.marketPrice}` : "",
+                        ].join("");
+                        navigate(url);
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      Add to Collection
+                      {!scanUrl && scanUploadRef.current && (
+                        <Loader2 className="h-3 w-3 ml-1.5 animate-spin opacity-70" />
+                      )}
+                    </Button>
                   </div>
                 </div>
 

@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
 import { ScanPaywall } from "@/components/scan-paywall";
 import { captureCardCrop } from "@/lib/capture-crop";
+import { uploadScanImage } from "@/lib/upload-scan";
 import {
   useCreateCard,
   useListCategories,
@@ -60,6 +61,7 @@ type EntryStatus =
 interface BulkEntry {
   id: string;
   imageData: string;            // base64 captured frame
+  originalScanUrl?: string | null; // uploaded scan URL (resolved in background)
   status: EntryStatus;
   pokemonName?: string;
   variants: TcgCard[];
@@ -307,6 +309,10 @@ export default function ScanBulkPage() {
     };
     setEntries((prev) => [...prev, entry]);
     void processEntry(id, imageData);
+    // Upload the captured scan in the background so it's ready by save time.
+    void uploadScanImage(imageData).then((url) => {
+      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, originalScanUrl: url } : e)));
+    });
   }, [captureFrame, processEntry]);
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -421,6 +427,7 @@ export default function ScanBulkPage() {
           rarity,
           condition: entry.condition,
           imageUrl: variant.imageUrl || null,
+          originalScanUrl: entry.originalScanUrl ?? null,
           estimatedValue: entry.pricing?.marketPrice ?? null,
           categoryId: entry.categoryId ?? null,
           forSale: false,

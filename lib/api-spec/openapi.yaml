@@ -658,6 +658,9 @@ components:
         imageUrl:
           type: string
           nullable: true
+        originalScanUrl:
+          type: string
+          nullable: true
         estimatedValue:
           type: number
           nullable: true
@@ -715,6 +718,9 @@ components:
         imageUrl:
           type: string
           nullable: true
+        originalScanUrl:
+          type: string
+          nullable: true
         estimatedValue:
           type: number
           nullable: true
@@ -758,6 +764,9 @@ components:
           type: string
           enum: [mint, near_mint, excellent, good, light_played, played, poor]
         imageUrl:
+          type: string
+          nullable: true
+        originalScanUrl:
           type: string
           nullable: true
         estimatedValue:

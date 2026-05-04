@@ -9,7 +9,7 @@ import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/
 import {
   ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink,
   ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2, Calendar, Clock,
-  Share2,
+  Share2, Camera, Maximize2,
 } from "lucide-react";
 import { ShareModal } from "@/components/share-modal";
 import { toast } from "sonner";
@@ -441,6 +441,50 @@ export default function CardDetail() {
               <div className="mt-6 bg-amber-50 border border-amber-200/70 rounded-2xl p-4">
                 <p className="text-xs font-bold text-amber-700/70 uppercase tracking-wider mb-1.5">Collector's Notes</p>
                 <p className="text-sm text-amber-900 leading-relaxed">{card.notes}</p>
+              </div>
+            )}
+
+            {/* Original Scan */}
+            {card.originalScanUrl && (
+              <div className="mt-6 bg-card border rounded-2xl p-4">
+                <div className="flex items-center gap-1.5 mb-3">
+                  <Camera className="h-3.5 w-3.5 text-muted-foreground" />
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Original Scan</p>
+                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      className="relative group block w-full overflow-hidden rounded-xl border bg-muted"
+                      style={{ aspectRatio: "5 / 7" }}
+                    >
+                      <img
+                        src={card.originalScanUrl}
+                        alt={`Original scan of ${card.name}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-2">
+                          <Maximize2 className="h-4 w-4 text-foreground" />
+                        </div>
+                      </div>
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl p-2 bg-background">
+                    <DialogHeader className="sr-only">
+                      <DialogTitle>Original scan of {card.name}</DialogTitle>
+                    </DialogHeader>
+                    <img
+                      src={card.originalScanUrl}
+                      alt={`Original scan of ${card.name}`}
+                      className="w-full h-auto rounded-lg"
+                    />
+                  </DialogContent>
+                </Dialog>
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  The photo you took when adding this card.
+                </p>
               </div>
             )}
           </div>

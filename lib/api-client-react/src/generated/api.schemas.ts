@@ -42,6 +42,7 @@ export interface Card {
   rarity: CardRarity;
   condition: CardCondition;
   imageUrl?: string | null;
+  originalScanUrl?: string | null;
   estimatedValue?: number | null;
   acquiredDate?: string | null;
   categoryId?: number | null;
@@ -87,6 +88,7 @@ export interface CreateCardBody {
   rarity: CreateCardBodyRarity;
   condition: CreateCardBodyCondition;
   imageUrl?: string | null;
+  originalScanUrl?: string | null;
   estimatedValue?: number | null;
   acquiredDate?: string | null;
   categoryId?: number | null;
@@ -129,6 +131,7 @@ export interface UpdateCardBody {
   rarity?: UpdateCardBodyRarity;
   condition?: UpdateCardBodyCondition;
   imageUrl?: string | null;
+  originalScanUrl?: string | null;
   estimatedValue?: number | null;
   acquiredDate?: string | null;
   categoryId?: number | null;

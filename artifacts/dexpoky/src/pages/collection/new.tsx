@@ -106,6 +106,7 @@ export default function NewCard() {
   const scanSet        = getParam(search, "setName");
   const scanNumber     = getParam(search, "cardNumber");
   const scanImage      = getParam(search, "imageUrl");
+  const scanOriginal   = getParam(search, "originalScanUrl");
   const scanValue      = getParam(search, "estimatedValue");
   const fromScan       = !!(scanName && scanImage);
 
@@ -130,7 +131,10 @@ export default function NewCard() {
   const watchCondition = form.watch("condition");
 
   const onSubmit = (data: CardFormValues) => {
-    createCard.mutate({ data }, {
+    const payload = scanOriginal
+      ? ({ ...data, originalScanUrl: scanOriginal } as typeof data & { originalScanUrl: string })
+      : data;
+    createCard.mutate({ data: payload }, {
       onSuccess: (newCard) => {
         saveLastCategoryId(data.categoryId);
         saveLastCondition(data.condition);
