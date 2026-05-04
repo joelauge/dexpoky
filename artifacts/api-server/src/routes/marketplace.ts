@@ -109,10 +109,15 @@ router.post("/marketplace", requireAuth, async (req, res) => {
 
   const listingType = req.body.listingType === "auction" ? "auction" : "buy_now";
 
+  const listingImages = Array.isArray(req.body.listingImages)
+    ? (req.body.listingImages as string[]).slice(0, 10)
+    : null;
+
   const values: Record<string, unknown> = {
     cardId: parsed.data.cardId,
     price: String(parsed.data.price),
     description: parsed.data.description ?? null,
+    listingImages,
     status: "active",
     listingType,
     sellerClerkId,

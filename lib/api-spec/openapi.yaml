@@ -1043,6 +1043,12 @@ components:
         description:
           type: string
           nullable: true
+        listingImages:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Up to 10 seller-uploaded photo URLs for the physical card
         viewCount:
           type: integer
         createdAt:
@@ -1071,6 +1077,12 @@ components:
         description:
           type: string
           nullable: true
+        listingImages:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Up to 10 seller-uploaded photo URLs
       required:
         - cardId
         - price

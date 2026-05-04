@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HoloCard } from "@/components/holo-card";
+import { cn } from "@/lib/utils";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
-import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2 } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2, Camera, ChevronLeft, ChevronRight, X, ZoomIn } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, isPast, intervalToDuration } from "date-fns";
 
@@ -25,6 +26,7 @@ type AuctionListing = {
   startingBid?: number | null;
   minBidIncrement?: number | null;
   buyNowPrice?: number | null;
+  listingImages?: string[] | null;
 };
 
 interface Bid {
@@ -39,6 +41,136 @@ interface Rating {
   score: number;
   comment: string | null;
   type: string;
+}
+
+function SellerPhotoGallery({ images }: { images: string[] }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [lightbox, setLightbox] = useState<number | null>(null);
+
+  if (!images.length) return null;
+
+  const prev = () => setActiveIdx((i) => (i - 1 + images.length) % images.length);
+  const next = () => setActiveIdx((i) => (i + 1) % images.length);
+
+  return (
+    <div className="mt-6 space-y-3">
+      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+        <Camera className="h-3.5 w-3.5" /> Seller Photos ({images.length})
+      </p>
+
+      {/* Main large image */}
+      <div
+        className="relative rounded-2xl overflow-hidden border bg-muted/10 aspect-square cursor-zoom-in group"
+        onClick={() => setLightbox(activeIdx)}
+      >
+        <img
+          src={images[activeIdx]}
+          alt={`Seller photo ${activeIdx + 1}`}
+          className="w-full h-full object-contain"
+        />
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+          <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-70 transition-opacity drop-shadow-lg" />
+        </div>
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); prev(); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+              aria-label="Previous photo"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); next(); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+              aria-label="Next photo"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {activeIdx + 1} / {images.length}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Thumbnail strip */}
+      {images.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {images.map((url, i) => (
+            <button
+              key={url}
+              type="button"
+              onClick={() => setActiveIdx(i)}
+              className={cn(
+                "flex-none w-14 h-14 rounded-xl overflow-hidden border-2 transition-all",
+                i === activeIdx ? "border-primary ring-2 ring-primary/20 scale-105" : "border-border opacity-60 hover:opacity-100"
+              )}
+            >
+              <img src={url} alt={`Thumbnail ${i + 1}`} className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 right-4 text-white/70 hover:text-white bg-black/40 rounded-full p-2"
+            onClick={() => setLightbox(null)}
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/40 rounded-full p-2"
+                onClick={(e) => { e.stopPropagation(); setLightbox((lightbox - 1 + images.length) % images.length); }}
+              >
+                <ChevronLeft className="h-7 w-7" />
+              </button>
+              <button
+                type="button"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white bg-black/40 rounded-full p-2"
+                onClick={(e) => { e.stopPropagation(); setLightbox((lightbox + 1) % images.length); }}
+              >
+                <ChevronRight className="h-7 w-7" />
+              </button>
+            </>
+          )}
+          <img
+            src={images[lightbox]}
+            alt={`Seller photo ${lightbox + 1}`}
+            className="max-h-[88vh] max-w-[88vw] object-contain rounded-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {images.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setLightbox(i); }}
+                  className={cn("w-2 h-2 rounded-full transition-all", i === lightbox ? "bg-white scale-125" : "bg-white/40 hover:bg-white/70")}
+                />
+              ))}
+            </div>
+          )}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-sm font-medium">
+            {lightbox + 1} / {images.length}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -408,6 +540,9 @@ export default function ListingDetail() {
                 )}
                 <HoloCard imageUrl={card.imageUrl} name={card.name} />
               </div>
+
+              {/* Seller-uploaded photos */}
+              <SellerPhotoGallery images={extListing?.listingImages ?? []} />
 
               {/* Auction countdown under card on mobile — large blocks */}
               {isAuction && extListing?.auctionEndTime && isActive && (

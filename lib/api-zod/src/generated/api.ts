@@ -393,6 +393,10 @@ export const ListListingsResponseItem = zod.object({
   price: zod.number(),
   status: zod.enum(["active", "sold", "cancelled"]),
   description: zod.string().nullish(),
+  listingImages: zod
+    .array(zod.string())
+    .nullish()
+    .describe("Up to 10 seller-uploaded photo URLs for the physical card"),
   viewCount: zod.number(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -406,6 +410,10 @@ export const CreateListingBody = zod.object({
   cardId: zod.number(),
   price: zod.number(),
   description: zod.string().nullish(),
+  listingImages: zod
+    .array(zod.string())
+    .nullish()
+    .describe("Up to 10 seller-uploaded photo URLs"),
 });
 
 /**
@@ -459,6 +467,10 @@ export const GetListingResponse = zod.object({
   price: zod.number(),
   status: zod.enum(["active", "sold", "cancelled"]),
   description: zod.string().nullish(),
+  listingImages: zod
+    .array(zod.string())
+    .nullish()
+    .describe("Up to 10 seller-uploaded photo URLs for the physical card"),
   viewCount: zod.number(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -521,6 +533,10 @@ export const UpdateListingResponse = zod.object({
   price: zod.number(),
   status: zod.enum(["active", "sold", "cancelled"]),
   description: zod.string().nullish(),
+  listingImages: zod
+    .array(zod.string())
+    .nullish()
+    .describe("Up to 10 seller-uploaded photo URLs for the physical card"),
   viewCount: zod.number(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),

@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { CardItem } from "@/components/ui/card-item";
+import { ListingImageUpload } from "@/components/listing-image-upload";
 import {
   Tag, ArrowRight, CheckCircle2, ShoppingBag, Gavel,
-  Store, PlusCircle, ExternalLink, Check,
+  Store, PlusCircle, ExternalLink, Check, Camera,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -77,6 +78,7 @@ export default function Sell() {
   const [buyNowPrice, setBuyNowPrice] = useState("");
   const [minBidIncrement, setMinBidIncrement] = useState("1.00");
   const [auctionEndTime, setAuctionEndTime] = useState(addHoursFromNow(72));
+  const [listingImages, setListingImages] = useState<string[]>([]);
   const [createdListing, setCreatedListing] = useState<CreatedListing | null>(null);
 
   const { data: allCards, isLoading } = useListCards({});
@@ -106,9 +108,10 @@ export default function Sell() {
 
   const handlePublish = () => {
     if (!selectedCardId) { toast.error("Please select a card"); return; }
+    const images = listingImages.length > 0 ? listingImages : undefined;
     if (listingType === "buy_now") {
       if (!price || parseFloat(price) <= 0) { toast.error("Please enter a valid price"); return; }
-      createListing.mutate({ cardId: selectedCardId, price: parseFloat(price), description: description || undefined, listingType: "buy_now" });
+      createListing.mutate({ cardId: selectedCardId, price: parseFloat(price), description: description || undefined, listingType: "buy_now", listingImages: images });
     } else {
       if (!startingBid || parseFloat(startingBid) <= 0) { toast.error("Please enter a valid starting bid"); return; }
       if (!auctionEndTime) { toast.error("Please set an auction end time"); return; }
@@ -122,6 +125,7 @@ export default function Sell() {
         auctionEndTime,
         description: description || undefined,
         listingType: "auction",
+        listingImages: images,
       });
     }
   };
@@ -137,6 +141,7 @@ export default function Sell() {
     setBuyNowPrice("");
     setMinBidIncrement("1.00");
     setAuctionEndTime(addHoursFromNow(72));
+    setListingImages([]);
     setCreatedListing(null);
   };
 
@@ -263,6 +268,18 @@ export default function Sell() {
                     value={description} onChange={e => setDescription(e.target.value)}
                     className="min-h-[100px]"
                   />
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <label className="text-sm font-medium flex items-center gap-1.5">
+                    <Camera className="h-4 w-4 text-muted-foreground" />
+                    Card Photos
+                    <span className="text-muted-foreground font-normal text-xs">(Optional — up to 10)</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Show buyers the actual card — front, back, any flaws or special finishes.
+                  </p>
+                  <ListingImageUpload value={listingImages} onChange={setListingImages} />
                 </div>
               </div>
 

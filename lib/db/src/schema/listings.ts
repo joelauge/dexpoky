@@ -5,7 +5,6 @@ import {
   timestamp,
   numeric,
   integer,
-  boolean,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -31,6 +30,7 @@ export const listingsTable = pgTable("listings", {
   auctionEndTime: timestamp("auction_end_time"),
   status: text("status").default("active").notNull(),
   description: text("description"),
+  listingImages: text("listing_images").array(),
   viewCount: integer("view_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

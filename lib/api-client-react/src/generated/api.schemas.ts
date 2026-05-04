@@ -183,6 +183,8 @@ export interface Listing {
   price: number;
   status: ListingStatus;
   description?: string | null;
+  /** Up to 10 seller-uploaded photo URLs for the physical card */
+  listingImages?: string[] | null;
   viewCount: number;
   createdAt: string;
   updatedAt: string;
@@ -192,6 +194,8 @@ export interface CreateListingBody {
   cardId: number;
   price: number;
   description?: string | null;
+  /** Up to 10 seller-uploaded photo URLs */
+  listingImages?: string[] | null;
 }
 
 export type UpdateListingBodyStatus =
