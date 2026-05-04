@@ -15,10 +15,29 @@ import {
   Share2, Link2, Mail, MessageCircle, Copy, Check,
   ChevronRight, Package, Layers, FolderOpen, LayoutGrid, Sparkles,
   QrCode, ExternalLink, DollarSign, Truck, ChevronDown, ArrowLeft,
-  Search, Heart,
+  Search, Heart, Globe, Lock, Clock, Calendar,
 } from "lucide-react";
 import { CatalogSearch } from "@/components/catalog-search";
 import type { CatalogCard } from "@workspace/api-client-react";
+
+type ExpiryOption = "never" | "7d" | "30d" | "3m" | "custom";
+
+const EXPIRY_OPTIONS: { id: ExpiryOption; label: string }[] = [
+  { id: "never", label: "Never" },
+  { id: "7d",    label: "7 days" },
+  { id: "30d",   label: "30 days" },
+  { id: "3m",    label: "3 months" },
+  { id: "custom", label: "Custom" },
+];
+
+function computeExpiresAt(expiry: ExpiryOption, customDate: string): string | null {
+  if (expiry === "never") return null;
+  if (expiry === "7d")    return new Date(Date.now() + 7  * 86_400_000).toISOString();
+  if (expiry === "30d")   return new Date(Date.now() + 30 * 86_400_000).toISOString();
+  if (expiry === "3m")    return new Date(Date.now() + 90 * 86_400_000).toISOString();
+  if (expiry === "custom" && customDate) return new Date(customDate).toISOString();
+  return null;
+}
 
 type SellType = "single" | "group" | "category" | "collection";
 type PageMode = "sell" | "looking";
@@ -120,6 +139,10 @@ export default function SharePage() {
   const [wantedMaxPrice, setWantedMaxPrice] = useState("");
   const [wantedNotes, setWantedNotes] = useState("");
   const [wantedResult, setWantedResult] = useState<WantedListing | null>(null);
+  const [wantedIsPublic, setWantedIsPublic] = useState(true);
+  const [wantedExpiry, setWantedExpiry] = useState<ExpiryOption>("never");
+  const [wantedCustomDate, setWantedCustomDate] = useState("");
+  const [wantedCopied, setWantedCopied] = useState(false);
 
   const activeCards = useMemo(() => {
     if (sellType === "single" || sellType === "group") {
@@ -208,6 +231,7 @@ export default function SharePage() {
 
   const handleWantedPost = () => {
     if (!wantedCard) return;
+    const expiresAt = computeExpiresAt(wantedExpiry, wantedCustomDate) ?? undefined;
     createWanted.mutate({
       data: {
         catalogCardId: wantedCard.id,
@@ -220,8 +244,30 @@ export default function SharePage() {
         imageUrl: wantedCard.imageUrl ?? undefined,
         maxPrice: wantedMaxPrice ? parseFloat(wantedMaxPrice) : undefined,
         notes: wantedNotes.trim() || undefined,
+        isPublic: wantedIsPublic,
+        expiresAt: expiresAt,
       },
     });
+  };
+
+  const wantedShareLink = wantedResult ? `${window.location.origin}/w/${wantedResult.shortCode}` : "";
+
+  const handleWantedCopy = () => {
+    navigator.clipboard.writeText(wantedShareLink).then(() => {
+      setWantedCopied(true);
+      setTimeout(() => setWantedCopied(false), 2500);
+      toast.success("Link copied!");
+    });
+  };
+
+  const handleWantedShareAction = (action: string) => {
+    const title = `${wantedResult?.name ?? "Card"} — Looking For on DexPoky`;
+    if (action === "copy")     { handleWantedCopy(); return; }
+    if (action === "email")    window.open(`mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(wantedShareLink)}`);
+    if (action === "sms")      window.open(`sms:?body=${encodeURIComponent(title + ": " + wantedShareLink)}`);
+    if (action === "whatsapp") window.open(`https://wa.me/?text=${encodeURIComponent(title + ": " + wantedShareLink)}`);
+    if (action === "open")     window.open(wantedShareLink, "_blank");
+    if (action === "qr")       window.open(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(wantedShareLink)}`, "_blank");
   };
 
   const handleCopy = (link = shareLink) => {
@@ -261,6 +307,10 @@ export default function SharePage() {
     setWantedMaxPrice("");
     setWantedNotes("");
     setWantedResult(null);
+    setWantedIsPublic(true);
+    setWantedExpiry("never");
+    setWantedCustomDate("");
+    setWantedCopied(false);
     setShareLink("");
     setCopied(false);
     setCreatedListingId(null);
@@ -791,13 +841,91 @@ export default function SharePage() {
                   </div>
                 </div>
 
+                {/* Destination toggle */}
+                <div className="bg-card rounded-2xl border p-4 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Who can see this?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setWantedIsPublic(true)}
+                      className={`flex flex-col items-center gap-2 py-3 px-3 rounded-xl border-2 transition-all ${
+                        wantedIsPublic
+                          ? "border-rose-400 bg-rose-50 text-rose-700"
+                          : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/60"
+                      }`}
+                    >
+                      <Globe className="h-5 w-5" />
+                      <div className="text-center">
+                        <p className="text-xs font-bold">Public</p>
+                        <p className="text-[10px] leading-tight mt-0.5">Visible in marketplace</p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWantedIsPublic(false)}
+                      className={`flex flex-col items-center gap-2 py-3 px-3 rounded-xl border-2 transition-all ${
+                        !wantedIsPublic
+                          ? "border-rose-400 bg-rose-50 text-rose-700"
+                          : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/60"
+                      }`}
+                    >
+                      <Lock className="h-5 w-5" />
+                      <div className="text-center">
+                        <p className="text-xs font-bold">Private</p>
+                        <p className="text-[10px] leading-tight mt-0.5">Link only — not listed</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expiry picker */}
+                <div className="bg-card rounded-2xl border p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Expires after</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {EXPIRY_OPTIONS.map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setWantedExpiry(opt.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                          wantedExpiry === opt.id
+                            ? "bg-rose-500 text-white border-rose-500"
+                            : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted/60"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {wantedExpiry === "custom" && (
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="date"
+                        value={wantedCustomDate}
+                        onChange={e => setWantedCustomDate(e.target.value)}
+                        min={new Date().toISOString().split("T")[0]}
+                        className="pl-9 rounded-xl"
+                      />
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">
+                    {wantedExpiry === "never"
+                      ? "This request stays active until you find the card or remove it."
+                      : "The request will automatically stop showing after the selected period."}
+                  </p>
+                </div>
+
                 <Button
                   className="w-full h-12 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl"
                   onClick={handleWantedPost}
-                  disabled={createWanted.isPending}
+                  disabled={createWanted.isPending || (wantedExpiry === "custom" && !wantedCustomDate)}
                 >
                   <Heart className="h-4 w-4 mr-2" />
-                  {createWanted.isPending ? "Posting…" : "Post to Looking For"}
+                  {createWanted.isPending ? "Posting…" : "Post Looking For request"}
                 </Button>
               </div>
             )}
@@ -811,7 +939,9 @@ export default function SharePage() {
                   </div>
                   <h2 className="text-xl font-black">Request posted!</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Your "Looking For" post is live in the marketplace — sellers can reach out to you.
+                    {wantedIsPublic
+                      ? "Your request is live in the marketplace — share your link too."
+                      : "Your private request is ready — share the link with sellers."}
                   </p>
                 </div>
 
@@ -824,21 +954,66 @@ export default function SharePage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-bold truncate">{wantedResult.name}</p>
                     <p className="text-sm text-muted-foreground">{wantedResult.setName ?? wantedResult.pokemonName}</p>
-                    {wantedResult.maxPrice != null && (
-                      <Badge className="mt-1 bg-rose-100 text-rose-700 border-rose-200 text-xs">
-                        Up to ${wantedResult.maxPrice.toFixed(2)}
+                    <div className="flex items-center gap-2 mt-1">
+                      {wantedResult.maxPrice != null && (
+                        <Badge className="bg-rose-100 text-rose-700 border-rose-200 text-xs">
+                          Up to ${wantedResult.maxPrice.toFixed(2)}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="text-xs gap-1">
+                        {wantedIsPublic ? <Globe className="h-2.5 w-2.5" /> : <Lock className="h-2.5 w-2.5" />}
+                        {wantedIsPublic ? "Public" : "Private"}
                       </Badge>
-                    )}
+                    </div>
                   </div>
                 </div>
 
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setLocation("/marketplace")}
-                >
-                  <Search className="h-4 w-4 mr-2" /> View in Marketplace
-                </Button>
+                {/* Short link */}
+                <div className="bg-card rounded-2xl border p-4">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Your share link</p>
+                  <div className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-2.5 border">
+                    <span className="text-sm text-muted-foreground flex-1 truncate font-mono">{wantedShareLink}</span>
+                    <button
+                      type="button"
+                      onClick={handleWantedCopy}
+                      className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all ${
+                        wantedCopied
+                          ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                          : "bg-rose-100 text-rose-600 hover:bg-rose-200"
+                      }`}
+                    >
+                      {wantedCopied ? <><Check className="h-3.5 w-3.5" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Share via */}
+                <div className="bg-card rounded-2xl border p-4">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Share via</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {SHARE_VIA.map(opt => (
+                      <button
+                        key={opt.action}
+                        type="button"
+                        onClick={() => handleWantedShareAction(opt.action)}
+                        className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl transition-all text-center ${opt.color}`}
+                      >
+                        <opt.Icon className="h-4 w-4" />
+                        <span className="text-xs font-medium leading-tight">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {wantedIsPublic && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setLocation("/marketplace")}
+                  >
+                    <Search className="h-4 w-4 mr-2" /> View in Marketplace
+                  </Button>
+                )}
 
                 <button
                   type="button"

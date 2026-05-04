@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   numeric,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -26,6 +27,9 @@ export const wantedListingsTable = pgTable("wanted_listings", {
   maxPrice: numeric("max_price", { precision: 10, scale: 2 }),
   notes: text("notes"),
   status: text("status").default("active").notNull(),
+  shortCode: text("short_code").notNull().unique(),
+  isPublic: boolean("is_public").default(true).notNull(),
+  expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

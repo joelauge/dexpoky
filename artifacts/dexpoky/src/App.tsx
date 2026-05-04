@@ -30,6 +30,7 @@ import PublicCategoryView from "@/pages/view/category/[id]";
 import PublicCollectionView from "@/pages/view/collection";
 import PublicListingView from "@/pages/view/listing/[id]";
 import ShortLinkRedirect from "@/pages/s/[code]";
+import WantedPublicPage from "@/pages/w/[code]";
 import SubscriptionPage from "@/pages/subscription";
 import AdminPayouts from "@/pages/admin/payouts";
 import RulesPage from "@/pages/rules";
@@ -238,6 +239,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/view/collection" component={PublicCollectionView} />
             <Route path="/view/listing/:id" component={PublicListingView} />
             <Route path="/s/:code" component={ShortLinkRedirect} />
+            <Route path="/w/:code" component={WantedPublicPage} />
             <Route component={NotFound} />
           </Switch>
           <Toaster />

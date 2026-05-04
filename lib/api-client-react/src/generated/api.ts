@@ -3303,6 +3303,179 @@ export const useCreateWantedListing = <
 };
 
 /**
+ * @summary Get a single wanted listing by its short code (public)
+ */
+export const getGetWantedListingByCodeUrl = (code: string) => {
+  return `/api/wanted/by-code/${code}`;
+};
+
+export const getWantedListingByCode = async (
+  code: string,
+  options?: RequestInit,
+): Promise<WantedListing> => {
+  return customFetch<WantedListing>(getGetWantedListingByCodeUrl(code), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWantedListingByCodeQueryKey = (code: string) => {
+  return [`/api/wanted/by-code/${code}`] as const;
+};
+
+export const getGetWantedListingByCodeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWantedListingByCode>>,
+  TError = ErrorType<void>,
+>(
+  code: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWantedListingByCode>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetWantedListingByCodeQueryKey(code);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWantedListingByCode>>
+  > = ({ signal }) =>
+    getWantedListingByCode(code, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!code,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWantedListingByCode>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWantedListingByCodeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWantedListingByCode>>
+>;
+export type GetWantedListingByCodeQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a single wanted listing by its short code (public)
+ */
+
+export function useGetWantedListingByCode<
+  TData = Awaited<ReturnType<typeof getWantedListingByCode>>,
+  TError = ErrorType<void>,
+>(
+  code: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getWantedListingByCode>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWantedListingByCodeQueryOptions(code, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Mark a wanted listing as found/closed
+ */
+export const getCloseWantedListingUrl = (id: number) => {
+  return `/api/wanted/${id}`;
+};
+
+export const closeWantedListing = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WantedListing> => {
+  return customFetch<WantedListing>(getCloseWantedListingUrl(id), {
+    ...options,
+    method: "PATCH",
+  });
+};
+
+export const getCloseWantedListingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeWantedListing>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof closeWantedListing>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["closeWantedListing"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof closeWantedListing>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return closeWantedListing(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CloseWantedListingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof closeWantedListing>>
+>;
+
+export type CloseWantedListingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark a wanted listing as found/closed
+ */
+export const useCloseWantedListing = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeWantedListing>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof closeWantedListing>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCloseWantedListingMutationOptions(options));
+};
+
+/**
  * @summary Remove your own wanted listing
  */
 export const getDeleteWantedListingUrl = (id: number) => {

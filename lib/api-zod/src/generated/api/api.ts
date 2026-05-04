@@ -1054,6 +1054,9 @@ export const ListWantedListingsResponseItem = zod.object({
   maxPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
   status: zod.enum(["active", "closed"]),
+  shortCode: zod.string(),
+  isPublic: zod.boolean(),
+  expiresAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListWantedListingsResponse = zod.array(
@@ -1074,6 +1077,66 @@ export const CreateWantedListingBody = zod.object({
   imageUrl: zod.string().nullish(),
   maxPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
+  isPublic: zod.boolean().optional(),
+  expiresAt: zod.coerce.date().nullish(),
+});
+
+/**
+ * @summary Get a single wanted listing by its short code (public)
+ */
+export const GetWantedListingByCodeParams = zod.object({
+  code: zod.coerce.string(),
+});
+
+export const GetWantedListingByCodeResponse = zod.object({
+  id: zod.number(),
+  ownerClerkId: zod.string(),
+  ownerDisplayName: zod.string().nullish(),
+  ownerImageUrl: zod.string().nullish(),
+  catalogCardId: zod.string(),
+  name: zod.string(),
+  pokemonName: zod.string(),
+  setName: zod.string().nullish(),
+  setCode: zod.string().nullish(),
+  cardNumber: zod.string().nullish(),
+  rarity: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  maxPrice: zod.number().nullish(),
+  notes: zod.string().nullish(),
+  status: zod.enum(["active", "closed"]),
+  shortCode: zod.string(),
+  isPublic: zod.boolean(),
+  expiresAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Mark a wanted listing as found/closed
+ */
+export const CloseWantedListingParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CloseWantedListingResponse = zod.object({
+  id: zod.number(),
+  ownerClerkId: zod.string(),
+  ownerDisplayName: zod.string().nullish(),
+  ownerImageUrl: zod.string().nullish(),
+  catalogCardId: zod.string(),
+  name: zod.string(),
+  pokemonName: zod.string(),
+  setName: zod.string().nullish(),
+  setCode: zod.string().nullish(),
+  cardNumber: zod.string().nullish(),
+  rarity: zod.string().nullish(),
+  imageUrl: zod.string().nullish(),
+  maxPrice: zod.number().nullish(),
+  notes: zod.string().nullish(),
+  status: zod.enum(["active", "closed"]),
+  shortCode: zod.string(),
+  isPublic: zod.boolean(),
+  expiresAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
 });
 
 /**

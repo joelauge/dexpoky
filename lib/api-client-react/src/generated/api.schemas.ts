@@ -692,6 +692,9 @@ export interface WantedListing {
   maxPrice?: number | null;
   notes?: string | null;
   status: WantedListingStatus;
+  shortCode: string;
+  isPublic: boolean;
+  expiresAt?: string | null;
   createdAt: string;
 }
 
@@ -706,6 +709,8 @@ export interface CreateWantedBody {
   imageUrl?: string | null;
   maxPrice?: number | null;
   notes?: string | null;
+  isPublic?: boolean;
+  expiresAt?: string | null;
 }
 
 export type ListCardsParams = {
