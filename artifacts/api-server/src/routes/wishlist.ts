@@ -3,7 +3,11 @@ import { db, wishlistItemsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { AddWishlistItemBody, UpdateWishlistItemBody } from "@workspace/api-zod";
-import { pwGetCard, normalizeCatalogCard } from "../lib/pokewallet.js";
+import {
+  pwGetCard,
+  normalizeCatalogCard,
+  enrichCatalogCardImages,
+} from "../lib/pokewallet.js";
 
 const router = Router();
 
@@ -31,6 +35,46 @@ router.get("/wishlist", requireAuth, async (req, res) => {
     .from(wishlistItemsTable)
     .where(eq(wishlistItemsTable.ownerClerkId, userId))
     .orderBy(wishlistItemsTable.addedAt);
+
+  // Backfill missing images via TCGdex for legacy rows saved before the
+  // enrichment was wired in. Healed images are written back so subsequent
+  // loads are instant.
+  const missing = items.filter((it) => !it.imageUrl);
+  if (missing.length > 0) {
+    const enriched = await enrichCatalogCardImages(
+      missing.map((it) => ({
+        id: it.catalogCardId,
+        name: it.name,
+        pokemonName: it.pokemonName,
+        setName: it.setName ?? "",
+        setCode: it.setCode ?? "",
+        cardNumber: it.cardNumber ?? "",
+        rarity: it.rarity,
+        imageUrl: "",
+        marketPrice: null,
+        tcgplayerUrl: null,
+        cardmarketUrl: null,
+      })),
+    );
+    const byId = new Map(missing.map((it, i) => [it.id, enriched[i]?.imageUrl]));
+    await Promise.all(
+      Array.from(byId.entries())
+        .filter(([, url]) => !!url)
+        .map(([id, url]) =>
+          db
+            .update(wishlistItemsTable)
+            .set({ imageUrl: url as string })
+            .where(eq(wishlistItemsTable.id, id)),
+        ),
+    );
+    for (const it of items) {
+      if (!it.imageUrl) {
+        const url = byId.get(it.id);
+        if (url) it.imageUrl = url;
+      }
+    }
+  }
+
   res.json(items.reverse());
 });
 
@@ -53,7 +97,10 @@ router.post("/wishlist", requireAuth, async (req, res) => {
     });
     return;
   }
-  const normalized = normalizeCatalogCard(lookup.data);
+  const [enriched] = await enrichCatalogCardImages([
+    normalizeCatalogCard(lookup.data),
+  ]);
+  const normalized = enriched;
 
   const [inserted] = await db
     .insert(wishlistItemsTable)
@@ -79,6 +126,10 @@ router.post("/wishlist", requireAuth, async (req, res) => {
         notes: notes !== undefined ? notes : sql`${wishlistItemsTable.notes}`,
         lastSeenPrice:
           normalized.marketPrice != null ? String(normalized.marketPrice) : null,
+        // Heal stored imageUrl when we now have one and the existing row doesn't.
+        imageUrl: normalized.imageUrl
+          ? sql`coalesce(${wishlistItemsTable.imageUrl}, ${normalized.imageUrl})`
+          : sql`${wishlistItemsTable.imageUrl}`,
         updatedAt: new Date(),
       },
     })
