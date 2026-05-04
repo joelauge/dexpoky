@@ -189,7 +189,7 @@ router.post("/decks", requireAuth, async (req, res) => {
   if (entryMap.size > 0) {
     const requestedIds = Array.from(entryMap.keys());
     const owned = await db
-      .select({ id: cardsTable.id })
+      .select({ id: cardsTable.id, name: cardsTable.name })
       .from(cardsTable)
       .where(
         and(
@@ -197,16 +197,29 @@ router.post("/decks", requireAuth, async (req, res) => {
           inArray(cardsTable.id, requestedIds),
         ),
       );
-    const ownedSet = new Set(owned.map((c) => c.id));
+    // Heuristic for Basic Energy (Pokémon TCG rules: no per-name cap on
+    // Basic Energy; everything else is capped at 4 of the same name).
+    const isBasicEnergy = (name: string) =>
+      /^basic\s+.+\benergy\b/i.test(name.trim());
+    const ownedById = new Map(owned.map((c) => [c.id, c]));
     const toInsert = Array.from(entryMap.values())
-      .filter((e) => ownedSet.has(e.cardId))
-      .map((e) => ({
-        deckId: deck.id,
-        cardId: e.cardId,
-        count: e.count,
-        role: e.role,
-        notes: e.notes,
-      }));
+      .filter((e) => ownedById.has(e.cardId))
+      .map((e) => {
+        const card = ownedById.get(e.cardId)!;
+        // Server-side legality cap: enforce 4-of-a-kind for non-Basic-Energy
+        // cards. UI + AI prompt also enforce this, but a hostile/buggy client
+        // could otherwise persist illegal counts.
+        const cappedCount = isBasicEnergy(card.name)
+          ? e.count
+          : Math.min(4, e.count);
+        return {
+          deckId: deck.id,
+          cardId: e.cardId,
+          count: cappedCount,
+          role: e.role,
+          notes: e.notes,
+        };
+      });
     if (toInsert.length > 0) {
       await db.insert(deckCardsTable).values(toInsert).onConflictDoNothing();
     }

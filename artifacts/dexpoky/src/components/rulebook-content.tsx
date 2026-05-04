@@ -51,10 +51,16 @@ function escapeRegex(s: string): string {
 function highlight(text: string, terms: string[]): ReactNode {
   const cleaned = terms.map((t) => t.trim()).filter((t) => t.length >= 2);
   if (cleaned.length === 0) return text;
+  // Split on a capturing group so matched substrings appear in the resulting
+  // array. We then identify match parts by membership in a lowercase Set —
+  // this avoids the well-known stateful pitfall of calling `.test()` on a
+  // global RegExp inside a render loop (where `lastIndex` carries over and
+  // produces non-deterministic results).
   const pattern = new RegExp(`(${cleaned.map(escapeRegex).join("|")})`, "gi");
+  const termSet = new Set(cleaned.map((t) => t.toLowerCase()));
   const parts = text.split(pattern);
   return parts.map((part, i) =>
-    pattern.test(part) ? (
+    termSet.has(part.toLowerCase()) ? (
       <mark
         key={i}
         className="rounded px-0.5 bg-yellow-200/80 text-foreground dark:bg-yellow-300/40"
