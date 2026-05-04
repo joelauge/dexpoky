@@ -30,7 +30,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
+// `__dirname` is `<workspace>/scripts/src` when invoked via `tsx ./src/...`.
+// Two levels up reaches the pnpm workspace root that contains `artifacts/`.
+const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const RULEBOOK_JSON = path.resolve(
   REPO_ROOT,
   "artifacts/api-server/src/data/rulebook.json",
