@@ -36,7 +36,7 @@ router.post("/s", async (req, res) => {
     ? `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"]}`
     : `${req.protocol}://${req.get("host")}`;
 
-  res.json({ code, shortUrl: `${origin}/s/${code}` });
+  res.json({ code, shortUrl: `${origin}/api/og/s/${code}` });
 });
 
 router.get("/s/:code", async (req, res) => {

@@ -201,7 +201,7 @@ export default function SharePage() {
       qc.invalidateQueries({ queryKey: ["/api/marketplace"] });
       qc.invalidateQueries({ queryKey: ["/api/cards"] });
       setCreatedListingId(listing.id);
-      const link = `${window.location.origin}/marketplace/${listing.id}`;
+      const link = `${window.location.origin}/api/og/listing/${listing.id}`;
       setShareLink(link);
       setStep(3);
     },
@@ -274,7 +274,7 @@ export default function SharePage() {
     });
   };
 
-  const wantedShareLink = wantedResult ? `${window.location.origin}/w/${wantedResult.shortCode}` : "";
+  const wantedShareLink = wantedResult ? `${window.location.origin}/api/og/w/${wantedResult.shortCode}` : "";
 
   const handleWantedCopy = () => {
     navigator.clipboard.writeText(wantedShareLink).then(() => {
@@ -868,7 +868,7 @@ export default function SharePage() {
                                           type="button"
                                           title="Copy share link"
                                           onClick={() => {
-                                            const link = `${window.location.origin}/w/${listing.shortCode}`;
+                                            const link = `${window.location.origin}/api/og/w/${listing.shortCode}`;
                                             navigator.clipboard.writeText(link).then(() => {
                                               setCopiedListingId(listing.id.toString());
                                               toast.success("Link copied!");

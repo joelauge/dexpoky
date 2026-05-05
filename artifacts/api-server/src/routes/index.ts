@@ -20,6 +20,7 @@ import catalogRouter from "./catalog";
 import wishlistRouter from "./wishlist";
 import wantedRouter from "./wanted";
 import messagesRouter from "./messages";
+import ogRouter from "./og";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(catalogRouter);
 router.use(wishlistRouter);
 router.use(wantedRouter);
 router.use(messagesRouter);
+router.use(ogRouter);
 
 export default router;
