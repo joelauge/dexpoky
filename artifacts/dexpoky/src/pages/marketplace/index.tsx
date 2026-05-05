@@ -29,6 +29,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ContactSellerDialog } from "@/components/contact-seller-dialog";
+import { WelcomeModal } from "@/components/welcome-modal";
 
 type AuctionListing = {
   listingType?: string;
@@ -377,26 +378,7 @@ export default function Marketplace() {
   return (
     <Layout>
       <Show when="signed-out">
-        <div className="bg-gradient-to-br from-primary/15 via-primary/5 to-background border-b">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 text-center">
-            <img
-              src="/logo.png"
-              alt="DexPoky"
-              className="h-32 w-32 sm:h-40 sm:w-40 object-contain mx-auto mb-6 drop-shadow-xl"
-            />
-            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">
-              Welcome to <span className="text-primary">DexPoky</span>!
-            </h1>
-            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
-              Scan, manage, track and sell your cards anywhere!
-            </p>
-            <Link href="/sign-up">
-              <Button size="lg" className="h-12 px-8 text-base font-semibold shadow-md">
-                Join Free <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-        </div>
+        <WelcomeModal />
       </Show>
 
       <Show when="signed-in">
