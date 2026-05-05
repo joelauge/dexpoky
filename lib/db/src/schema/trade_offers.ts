@@ -1,4 +1,4 @@
-import { integer, json, numeric, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, integer, json, numeric, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { dmThreadsTable } from "./dm_threads";
 
 export interface OfferedCard {
@@ -34,6 +34,8 @@ export const tradeOffersTable = pgTable("trade_offers", {
   exchangeMethod: text("exchange_method"),
   videoCallScheduledAt: timestamp("video_call_scheduled_at", { withTimezone: true }),
   videoCallNotes: text("video_call_notes"),
+  videoCallConfirmedByBuyer: boolean("video_call_confirmed_by_buyer").default(false).notNull(),
+  videoCallConfirmedBySeller: boolean("video_call_confirmed_by_seller").default(false).notNull(),
   meetupLocation: text("meetup_location"),
   meetupProposedAt: timestamp("meetup_proposed_at", { withTimezone: true }),
   meetupNotes: text("meetup_notes"),

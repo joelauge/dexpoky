@@ -13,6 +13,7 @@ const UpdateOfferBody = z.object({
   action: z.enum([
     "schedule_video",
     "cancel_video",
+    "confirm_video",
     "accept",
     "decline",
     "counter",
@@ -103,6 +104,18 @@ router.patch("/threads/:threadId/offer", requireAuth, async (req, res) => {
   } else if (action === "cancel_video") {
     updates.videoCallScheduledAt = null;
     updates.videoCallNotes = null;
+    updates.videoCallConfirmedByBuyer = false;
+    updates.videoCallConfirmedBySeller = false;
+
+  } else if (action === "confirm_video") {
+    if (!existing.videoCallScheduledAt) {
+      res.status(400).json({ error: "No video call scheduled" }); return;
+    }
+    if (isBuyer) {
+      updates.videoCallConfirmedByBuyer = true;
+    } else {
+      updates.videoCallConfirmedBySeller = true;
+    }
 
   } else if (action === "schedule_meetup") {
     if (!location) { res.status(400).json({ error: "location required" }); return; }

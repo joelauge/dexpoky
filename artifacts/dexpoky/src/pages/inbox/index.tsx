@@ -61,6 +61,8 @@ interface TradeOffer {
   exchangeMethod: EscrowMethod | null;
   videoCallScheduledAt: string | null;
   videoCallNotes: string | null;
+  videoCallConfirmedByBuyer: boolean;
+  videoCallConfirmedBySeller: boolean;
   meetupLocation: string | null;
   meetupProposedAt: string | null;
   meetupNotes: string | null;
@@ -74,7 +76,7 @@ type ActiveAction = null | "offer" | "video" | "meetup";
 type ThreadItem =
   | { kind: "msg";    msg: DmMessage;                                           ts: number }
   | { kind: "offer";  entry: OfferHistoryEntry; isInitial: boolean;             ts: number }
-  | { kind: "video";  scheduledAt: Date; notes: string | null;                  ts: number }
+  | { kind: "video";  scheduledAt: Date; notes: string | null; confirmedByBuyer: boolean; confirmedBySeller: boolean; ts: number }
   | { kind: "meetup"; location: string; proposedAt: Date; notes: string | null; ts: number }
   | { kind: "status"; status: OfferStatus; finalAmount: number | null;          ts: number };
 
@@ -380,6 +382,8 @@ function TradeThread({
           kind: "video",
           scheduledAt: new Date(offer.videoCallScheduledAt),
           notes: offer.videoCallNotes,
+          confirmedByBuyer: offer.videoCallConfirmedByBuyer ?? false,
+          confirmedBySeller: offer.videoCallConfirmedBySeller ?? false,
           ts: new Date(offer.videoCallScheduledAt).getTime() - 500,
         });
       }
@@ -728,28 +732,56 @@ out center 25;`;
 
     // ── Video call event ──────────────────────────────────────────────────
     if (item.kind === "video") {
+      const iAmBuyer = myRole === "buyer";
+      const confirmedByMe = iAmBuyer ? item.confirmedByBuyer : item.confirmedBySeller;
+      const bothConfirmed = item.confirmedByBuyer && item.confirmedBySeller;
       return (
         <div key={`video-${idx}`} className="flex justify-center">
-          <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 text-blue-700 max-w-xs">
-            <Video className="h-4 w-4 shrink-0 text-blue-500" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold">Video call scheduled</p>
-              <p className="text-xs text-blue-600">
-                {format(item.scheduledAt, "EEEE, MMM d 'at' h:mm a")}
-              </p>
-              {item.notes && (
-                <p className="text-[11px] text-blue-500 mt-0.5">{item.notes}</p>
+          <div className="flex flex-col gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 text-blue-700 max-w-xs w-full">
+            <div className="flex items-center gap-2.5">
+              <Video className="h-4 w-4 shrink-0 text-blue-500" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold">Video call scheduled</p>
+                <p className="text-xs text-blue-600">
+                  {format(item.scheduledAt, "EEEE, MMM d 'at' h:mm a")}
+                </p>
+                {item.notes && (
+                  <p className="text-[11px] text-blue-500 mt-0.5">{item.notes}</p>
+                )}
+              </div>
+              {!bothConfirmed && (
+                <button
+                  type="button"
+                  title="Cancel video call"
+                  onClick={() => doAction({ action: "cancel_video" })}
+                  className="shrink-0 text-blue-300 hover:text-blue-600 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               )}
             </div>
-            {isActive && (
-              <button
-                type="button"
-                title="Cancel video call"
-                onClick={() => doAction({ action: "cancel_video" })}
-                className="shrink-0 text-blue-300 hover:text-blue-600 transition-colors"
+            {/* Confirmation row */}
+            {bothConfirmed ? (
+              <div className="flex items-center gap-1.5 bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                <p className="text-[11px] text-emerald-700 font-medium">Both parties confirmed the call happened</p>
+              </div>
+            ) : confirmedByMe ? (
+              <div className="flex items-center gap-1.5 text-blue-500 text-[11px]">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                <span>You confirmed — waiting for them</span>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] w-full border-blue-300 text-blue-700 hover:bg-blue-100"
+                disabled={updating}
+                onClick={() => doAction({ action: "confirm_video" })}
               >
-                <X className="h-3.5 w-3.5" />
-              </button>
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                Confirm call happened
+              </Button>
             )}
           </div>
         </div>
