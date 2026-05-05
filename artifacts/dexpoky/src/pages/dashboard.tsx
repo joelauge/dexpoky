@@ -165,11 +165,11 @@ function TradeStatCard({ icon: Icon, label, value, sub, accent, iconBg, loading,
         <Icon className={`h-5 w-5 ${accent}`} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-none mb-1">{label}</p>
         {loading
-          ? <Skeleton className="h-7 w-20 mt-1" />
+          ? <Skeleton className="h-7 w-20" />
           : <p className={`text-2xl font-black tracking-tight leading-none ${accent}`}>{value}</p>}
-        {sub && !loading && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-none mt-1">{label}</p>
+        {sub && !loading && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
       </div>
       {href && <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />}
     </CardContent>
