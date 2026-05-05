@@ -10,7 +10,7 @@ import {
 import {
   Share2, Link2, Copy, Check,
   Mail, MessageCircle, Package, FolderOpen, Layers, ArrowLeft,
-  Sparkles, Loader2,
+  Sparkles, Loader2, Heart,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -23,6 +23,7 @@ interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   target: ShareTarget;
+  context?: "sell" | "wanted";
 }
 
 function getLongUrl(target: ShareTarget, clerkId?: string | null): string {
@@ -35,13 +36,14 @@ function getLongUrl(target: ShareTarget, clerkId?: string | null): string {
   return `${origin}${base}/view/collection${owner}`;
 }
 
-function getSharePath(target: ShareTarget): string {
+function getSharePath(target: ShareTarget, context: "sell" | "wanted"): string {
+  if (target.type === "card" && context === "wanted") return `/share?mode=looking`;
   if (target.type === "card") return `/share?card=${target.id}`;
   if (target.type === "category") return `/share?categoryId=${target.id}`;
   return "/share";
 }
 
-export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, target, context = "sell" }: ShareModalProps) {
   const [, setLocation] = useLocation();
   const [mode, setMode] = useState<"pick" | "link">("pick");
   const [copied, setCopied] = useState(false);
@@ -50,7 +52,7 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
   const { user } = useUser();
 
   const longUrl = getLongUrl(target, user?.id);
-  const sharePath = getSharePath(target);
+  const sharePath = getSharePath(target, context);
   const displayUrl = shortUrl ?? longUrl;
 
   const targetLabel =
@@ -67,6 +69,19 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
     target.type === "card" ? "card"
     : target.type === "category" ? "category"
     : "collection";
+
+  const primaryLabel = context === "wanted" ? "Share This Desired Card" : "Share & Sell This Card";
+  const primaryDescription = context === "wanted"
+    ? "Set an offer price, the shipping you'd pay, and share it immediately."
+    : "Set a price, add images & video, and even setup a meeting and location for the exchange.";
+  const secondaryDescription = context === "wanted"
+    ? "Here's the card I'm looking for. Have it? Seen it?"
+    : `Share a quick view-only link for this ${typeDescription} — no selling or pricing.`;
+
+  const PrimaryIcon = context === "wanted" ? Heart : Sparkles;
+  const primaryAccent = context === "wanted"
+    ? { border: "border-rose-200", bg: "bg-rose-50/60 hover:bg-rose-50 hover:border-rose-300", icon: "bg-rose-100 text-rose-600 border-rose-200", badge: "text-rose-500" }
+    : { border: "border-violet-200", bg: "bg-violet-50/60 hover:bg-violet-50 hover:border-violet-300", icon: "bg-violet-100 text-violet-600 border-violet-200", badge: "text-violet-500" };
 
   useEffect(() => {
     if (mode !== "link") return;
@@ -129,26 +144,26 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
         {/* ── Mode: pick ── */}
         {mode === "pick" && (
           <div className="space-y-2.5 pt-1">
-            {/* PRIMARY: Create share link */}
+            {/* PRIMARY */}
             <button
               onClick={handleCreateShareLink}
-              className="w-full text-left p-4 rounded-2xl border-2 border-violet-200 bg-violet-50/60 hover:bg-violet-50 hover:border-violet-300 transition-all relative"
+              className={`w-full text-left p-4 rounded-2xl border-2 ${primaryAccent.border} ${primaryAccent.bg} transition-all relative`}
             >
               <div className="flex items-center gap-3 mb-1">
-                <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center border border-violet-200 shrink-0">
-                  <Sparkles className="h-4 w-4" />
+                <div className={`w-9 h-9 rounded-xl ${primaryAccent.icon} flex items-center justify-center border shrink-0`}>
+                  <PrimaryIcon className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground">Share & Sell This Card</p>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-violet-500">Recommended</span>
+                  <p className="font-semibold text-foreground">{primaryLabel}</p>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${primaryAccent.badge}`}>Recommended</span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground pl-12 leading-snug">
-                Set a price, add images & video, and even setup a meeting and location for the exchange.
+                {primaryDescription}
               </p>
             </button>
 
-            {/* SECONDARY: Quick view link */}
+            {/* SECONDARY: Quick view/show link */}
             <button
               onClick={() => setMode("link")}
               className="w-full text-left p-4 rounded-2xl border-2 border-transparent hover:border-border bg-muted/20 hover:bg-muted/40 transition-all"
@@ -160,7 +175,7 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
                 <p className="font-semibold text-foreground">Share & Show This Card</p>
               </div>
               <p className="text-xs text-muted-foreground pl-12 leading-snug">
-                Share a quick view-only link for this {typeDescription} — no selling or pricing.
+                {secondaryDescription}
               </p>
             </button>
           </div>

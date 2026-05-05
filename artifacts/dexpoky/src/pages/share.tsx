@@ -105,11 +105,12 @@ export default function SharePage() {
   const search = useSearch();
   const qc = useQueryClient();
 
-  const { preCardId, preCategoryId } = useMemo(() => {
+  const { preCardId, preCategoryId, preMode } = useMemo(() => {
     const p = new URLSearchParams(search);
     return {
       preCardId: p.get("card") ? parseInt(p.get("card")!) : null,
       preCategoryId: p.get("categoryId") ? parseInt(p.get("categoryId")!) : null,
+      preMode: (p.get("mode") === "looking" ? "looking" : "sell") as PageMode,
     };
   }, [search]);
 
@@ -120,7 +121,7 @@ export default function SharePage() {
 
   const initialSellType: SellType = preCategoryId ? "category" : "single";
 
-  const [mode, setMode] = useState<PageMode>("sell");
+  const [mode, setMode] = useState<PageMode>(preMode);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [sellType, setSellType] = useState<SellType>(initialSellType);
   const [selectedCardIds, setSelectedCardIds] = useState<number[]>(

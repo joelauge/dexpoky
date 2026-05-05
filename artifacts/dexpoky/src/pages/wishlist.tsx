@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { ShareModal } from "@/components/share-modal";
+import type { ShareTarget } from "@/components/share-modal";
 import { useCardSize } from "@/hooks/useCardSize";
 import { CardSizeSlider } from "@/components/card-size-slider";
 import { Layout } from "@/components/layout";
@@ -34,6 +36,7 @@ import {
   Folder,
   MoveRight,
   CheckCircle2,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CatalogSearch } from "@/components/catalog-search";
@@ -101,6 +104,7 @@ export default function WishlistPage() {
   const [activeTab, setActiveTab] = useState<string>(TAB_ALL);
   const [gotItItem, setGotItItem] = useState<WishlistItem | null>(null);
   const [gotItCategoryId, setGotItCategoryId] = useState<number | null>(null);
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [cardSize, setCardSize, gridClass] = useCardSize();
 
   const wishedIds = new Set((items ?? []).map((i) => i.catalogCardId));
@@ -332,6 +336,7 @@ export default function WishlistPage() {
                 onSetPriority={handleSetPriority}
                 onMoveToCategory={handleMoveToCategory}
                 onGotIt={(item) => { setGotItItem(item); setGotItCategoryId(item.categoryId ?? null); }}
+                onShare={(item) => setShareTarget({ type: "card", id: item.id, name: item.name, imageUrl: item.imageUrl, setName: item.setName })}
               />
             ))}
           </div>
@@ -411,6 +416,16 @@ export default function WishlistPage() {
 
         {/* Discreet enum reference */}
         <div className="hidden">{Object.values(AddWishlistBodyPriority).join(",")}</div>
+
+        {/* Share modal — wanted context */}
+        {shareTarget && (
+          <ShareModal
+            isOpen={!!shareTarget}
+            onClose={() => setShareTarget(null)}
+            target={shareTarget}
+            context="wanted"
+          />
+        )}
       </div>
 
       {/* Got It confirmation dialog */}
@@ -514,6 +529,7 @@ function WishlistCard({
   onSetPriority,
   onMoveToCategory,
   onGotIt,
+  onShare,
 }: {
   item: WishlistItem;
   categories: Category[];
@@ -521,6 +537,7 @@ function WishlistCard({
   onSetPriority: (item: WishlistItem, priority: "low" | "normal" | "high") => void;
   onMoveToCategory: (item: WishlistItem, catId: number | null) => void;
   onGotIt: (item: WishlistItem) => void;
+  onShare: (item: WishlistItem) => void;
 }) {
   const cat = item.categoryId ? categories.find((c) => c.id === item.categoryId) : null;
 
@@ -649,14 +666,25 @@ function WishlistCard({
           )}
         </div>
 
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full h-8 text-xs gap-1.5"
-          onClick={() => onGotIt(item)}
-        >
-          <Sparkles className="h-3 w-3" /> I got this!
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 h-8 text-xs gap-1.5"
+            onClick={() => onGotIt(item)}
+          >
+            <Sparkles className="h-3 w-3" /> I got this!
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 w-8 p-0 shrink-0"
+            onClick={() => onShare(item)}
+            title="Share this card"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     </div>
   );
