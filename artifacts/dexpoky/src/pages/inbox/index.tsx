@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useSearch } from "wouter";
 import { Layout } from "@/components/layout";
 import {
   useListThreads,
@@ -1158,8 +1159,10 @@ function TradeThread({
 
 export default function InboxPage() {
   const { user } = useUser();
+  const search = useSearch();
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const [autoOpened, setAutoOpened] = useState(false);
 
   const { data: threads, isLoading } = useListThreads({
     query: {
@@ -1167,6 +1170,22 @@ export default function InboxPage() {
       refetchInterval: 15000,
     },
   });
+
+  // Auto-open thread from ?thread=<id> URL param (e.g. after clicking Counter Offer)
+  useEffect(() => {
+    if (autoOpened || !threads || threads.length === 0) return;
+    const params = new URLSearchParams(search);
+    const threadParam = params.get("thread");
+    if (!threadParam) return;
+    const threadId = parseInt(threadParam, 10);
+    if (isNaN(threadId)) return;
+    const match = threads.find(t => t.id === threadId);
+    if (match) {
+      setActiveThreadId(threadId);
+      setShowChat(true);
+      setAutoOpened(true);
+    }
+  }, [threads, search, autoOpened]);
 
   const activeThread = threads?.find(t => t.id === activeThreadId) ?? null;
 

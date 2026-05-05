@@ -149,8 +149,7 @@ router.post("/marketplace/:id/thread", requireAuth, async (req, res) => {
   const buyerClerkId = (req as AuthRequest).userId;
 
   const parsed = z.object({
-    initialMessage: z.string().trim().min(1).max(2000),
-    offerAmount: z.number().nonnegative().optional(),
+    initialMessage: z.string().trim().min(1).max(2000).optional(),
   }).safeParse(req.body);
 
   if (!parsed.success) {
@@ -163,6 +162,7 @@ router.post("/marketplace/:id/thread", requireAuth, async (req, res) => {
       id: listingsTable.id,
       sellerClerkId: listingsTable.sellerClerkId,
       cardName: cardsTable.name,
+      price: listingsTable.price,
     })
     .from(listingsTable)
     .leftJoin(cardsTable, eq(listingsTable.cardId, cardsTable.id))
@@ -198,6 +198,7 @@ router.post("/marketplace/:id/thread", requireAuth, async (req, res) => {
     .limit(1);
 
   let thread = existing[0];
+  const isNew = !thread;
 
   if (!thread) {
     const [created] = await db
@@ -211,21 +212,34 @@ router.post("/marketplace/:id/thread", requireAuth, async (req, res) => {
     thread = created;
   }
 
-  const { initialMessage, offerAmount } = parsed.data;
-  const messageContent = offerAmount != null
-    ? `Counter Offer: ${offerAmount.toLocaleString("en-US", { style: "currency", currency: "USD" })}\n\n${initialMessage}`
-    : initialMessage;
+  // On a new thread: create the trade offer seeded with the listing's asking price
+  if (isNew) {
+    const askingPrice = listingRow.price != null ? parseFloat(String(listingRow.price)) : null;
+    const initialHistory: OfferHistoryEntry[] = askingPrice != null
+      ? [{ amount: askingPrice, from: "seller", sentAt: new Date().toISOString() }]
+      : [];
+    await db.insert(tradeOffersTable).values({
+      threadId: thread.id,
+      sellerClerkId,
+      askingPrice: askingPrice != null ? String(askingPrice) : null,
+      offerHistory: initialHistory,
+      status: "pending",
+    });
+  }
 
-  await db.insert(dmMessagesTable).values({
-    threadId: thread.id,
-    senderClerkId: buyerClerkId,
-    content: messageContent,
-  });
-
-  await db
-    .update(dmThreadsTable)
-    .set({ updatedAt: new Date() })
-    .where(eq(dmThreadsTable.id, thread.id));
+  // Send an optional introductory message
+  const { initialMessage } = parsed.data;
+  if (initialMessage) {
+    await db.insert(dmMessagesTable).values({
+      threadId: thread.id,
+      senderClerkId: buyerClerkId,
+      content: initialMessage,
+    });
+    await db
+      .update(dmThreadsTable)
+      .set({ updatedAt: new Date() })
+      .where(eq(dmThreadsTable.id, thread.id));
+  }
 
   res.json({ threadId: thread.id });
 });

@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthFetch } from "@/lib/use-auth-fetch";
 import { HoloCard } from "@/components/holo-card";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
@@ -333,6 +333,7 @@ export default function ListingDetail() {
   const [, setLocation] = useLocation();
   const { user } = useUser();
   const qc = useQueryClient();
+  const authFetch = useAuthFetch();
 
   const { data: listing, isLoading, refetch } = useGetListing(id, {
     query: { enabled: !!id, queryKey: ["/api/marketplace", id], refetchInterval: 8000 },
@@ -360,33 +361,26 @@ export default function ListingDetail() {
   const [showProxyBid, setShowProxyBid] = useState(false);
   const [ratingScore, setRatingScore] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
-  const [showCounterOffer, setShowCounterOffer] = useState(false);
-  const [offerAmount, setOfferAmount] = useState("");
-  const [offerMessage, setOfferMessage] = useState("");
+  const [openingThread, setOpeningThread] = useState(false);
 
-  const sendCounterOffer = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/marketplace/${id}/thread`, {
+  const handleCounterOffer = async () => {
+    if (!user) { setLocation("/sign-in"); return; }
+    setOpeningThread(true);
+    try {
+      const res = await authFetch(`/api/marketplace/${id}/thread`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          initialMessage: offerMessage || `Hi, I'm interested in ${card?.name ?? "this card"}. Would you consider a counter offer?`,
-          offerAmount: offerAmount ? parseFloat(offerAmount) : undefined,
-        }),
+        body: JSON.stringify({}),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to send offer");
-      return data as { threadId: number };
-    },
-    onSuccess: () => {
-      toast.success("Counter offer sent! Check your inbox.");
-      setShowCounterOffer(false);
-      setOfferAmount("");
-      setOfferMessage("");
-      setLocation("/inbox");
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+      const data = await res.json() as { threadId?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed to open thread");
+      setLocation(`/inbox?thread=${data.threadId}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to open thread");
+    } finally {
+      setOpeningThread(false);
+    }
+  };
 
   const placeBid = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -733,11 +727,13 @@ export default function ListingDetail() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setShowCounterOffer(true)}
-                            disabled={!isActive}
+                            onClick={handleCounterOffer}
+                            disabled={!isActive || openingThread}
                           >
-                            <MessageCircle className="w-4 h-4 mr-1.5" />
-                            Counter Offer
+                            {openingThread
+                              ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                              : <MessageCircle className="w-4 h-4 mr-1.5" />}
+                            {openingThread ? "Opening…" : "Counter Offer"}
                           </Button>
                           <Button
                             size="sm"
@@ -837,57 +833,6 @@ export default function ListingDetail() {
         </div>
       </div>
 
-      {/* Counter Offer Dialog */}
-      <Dialog open={showCounterOffer} onOpenChange={setShowCounterOffer}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Make a Counter Offer</DialogTitle>
-            <DialogDescription>
-              Send the seller a message with your offer. They'll see it in their inbox.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 pt-2">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Your offer price (optional)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                <Input
-                  className="pl-7"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={offerAmount}
-                  onChange={e => setOfferAmount(e.target.value)}
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Message to seller</label>
-              <Textarea
-                placeholder="Hi, I'm interested in this card. Would you consider..."
-                rows={4}
-                value={offerMessage}
-                onChange={e => setOfferMessage(e.target.value)}
-                maxLength={2000}
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" onClick={() => setShowCounterOffer(false)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={sendCounterOffer.isPending}
-                onClick={() => sendCounterOffer.mutate()}
-              >
-                {sendCounterOffer.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5" />}
-                Send Offer
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </Layout>
   );
 }
