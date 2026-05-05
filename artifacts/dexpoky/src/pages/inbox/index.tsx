@@ -556,10 +556,10 @@ function TradeThread({
                 ? `Accept (${item.entry.amount > 0 ? `$${item.entry.amount.toFixed(2)} + ` : ""}${item.entry.cards!.length} card${item.entry.cards!.length > 1 ? "s" : ""})`
                 : `Accept $${item.entry.amount.toFixed(2)}`;
               return (
-                <div className="border-t px-3 py-2.5 flex gap-2 bg-white/60">
+                <div className="border-t px-3 py-2.5 flex flex-col gap-1.5 bg-white/60">
                   <Button
                     size="sm"
-                    className="flex-1 h-8 bg-emerald-500 hover:bg-emerald-600 text-white text-xs"
+                    className="w-full h-8 bg-emerald-500 hover:bg-emerald-600 text-white text-xs"
                     disabled={updating}
                     onClick={() => doAction({ action: "accept" })}
                   >
@@ -569,21 +569,22 @@ function TradeThread({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-8 text-xs"
+                    className="w-full h-8 text-xs"
                     disabled={updating}
                     onClick={() => toggleAction("offer")}
                   >
                     <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                    Counter
+                    Counter Offer
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                    className="w-full h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
                     disabled={updating}
                     onClick={() => doAction({ action: "decline" })}
                   >
-                    <XCircle className="h-3.5 w-3.5" />
+                    <XCircle className="h-3.5 w-3.5 mr-1" />
+                    Decline
                   </Button>
                 </div>
               );
