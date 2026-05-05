@@ -159,7 +159,7 @@ router.get("/cards/lookup", async (req, res) => {
   const cardNumber = String(req.query.cardNumber ?? "").trim() || undefined;
   const targetNum = cardNumber ? parseCardNumLocal(cardNumber) : NaN;
 
-  const pw = await pwSearch(name, 20);
+  const pw = await pwSearch(name, 100);
   if (pw.ok && pw.data.results.length > 0) {
     const normalized = pw.data.results.map(normalizeCatalogCard);
     const enriched = await enrichCatalogCardImages(normalized);

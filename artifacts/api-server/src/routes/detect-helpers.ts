@@ -430,7 +430,7 @@ function buildTcgdexImageUrl(cardId: string): string {
 }
 
 async function buildResults(cards: CardBrief[]): Promise<TcgResult[]> {
-  const filtered = cards.filter((c) => !c.id.startsWith("tk")).slice(0, 20);
+  const filtered = cards.filter((c) => !c.id.startsWith("tk")).slice(0, 100);
   const setIds = [...new Set(filtered.map((c) => c.id.split("-")[0]).filter(Boolean))] as string[];
   const setMap: Record<string, string> = {};
   await Promise.all(setIds.map(async (id) => { setMap[id] = await fetchSetName(id); }));
