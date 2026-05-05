@@ -390,38 +390,52 @@ async function lookupTcgdexImage(
   name: string,
   cardNumber: string,
 ): Promise<string | null> {
-  const localId = normalizeLocalId(cardNumber);
-  if (!name.trim() || !localId) return null;
-  const key = `${name.trim().toLowerCase()}::${localId}`;
-  const cached = tcgdexImageCache.get(key);
+  const localIdPadded = normalizeLocalId(cardNumber);      // "080"
+  if (!name.trim() || !localIdPadded) return null;
+  const localIdInt = String(parseInt(localIdPadded, 10));  // "80"
+
+  // Cache keyed on the padded form (canonical)
+  const cacheKey = `${name.trim().toLowerCase()}::${localIdPadded}`;
+  const cached = tcgdexImageCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return cached.data;
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
-    const url = `${TCGDEX_BASE}/cards?name=${encodeURIComponent(name)}&localId=${encodeURIComponent(localId)}`;
-    const res = await fetch(url, {
-      headers: { Accept: "application/json", "User-Agent": "DexPoky/1.0" },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) {
-      tcgdexImageCache.set(key, { expires: Date.now() + TCGDEX_TTL_MS, data: null });
+  async function tryFetch(localId: string): Promise<TcgdexCardSummary | null> {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(
+        `${TCGDEX_BASE}/cards?name=${encodeURIComponent(name)}&localId=${encodeURIComponent(localId)}`,
+        { headers: { Accept: "application/json", "User-Agent": "DexPoky/1.0" }, signal: controller.signal },
+      );
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const list = (await res.json()) as TcgdexCardSummary[];
+      if (!Array.isArray(list) || list.length === 0) return null;
+      // Prefer exact localId match; fall back to first result
+      return list.find((c) => c.localId === localId) ?? list[0] ?? null;
+    } catch {
       return null;
     }
-    const list = (await res.json()) as TcgdexCardSummary[];
-    const match = Array.isArray(list)
-      ? list.find((c) => c.localId === localId) ?? list[0]
-      : null;
-    // TCGdex list endpoints don't include the `image` field — derive URL from card ID instead
+  }
+
+  try {
+    // Try both the zero-padded form ("080") and the plain integer form ("80")
+    // in parallel — TCGdex sets vary in which convention they use.
+    const [paddedMatch, intMatch] = await Promise.all([
+      tryFetch(localIdPadded),
+      localIdPadded !== localIdInt ? tryFetch(localIdInt) : Promise.resolve(null),
+    ]);
+    const match = paddedMatch ?? intMatch;
+
+    // TCGdex list endpoints omit `image` — derive the URL from the card ID.
     const full = match
       ? (match.image ? `${match.image}/high.webp` : buildTcgdexImageUrlFromId(match.id))
       : null;
-    tcgdexImageCache.set(key, { expires: Date.now() + TCGDEX_TTL_MS, data: full });
+    tcgdexImageCache.set(cacheKey, { expires: Date.now() + TCGDEX_TTL_MS, data: full });
     return full;
   } catch (err) {
-    logger.debug({ err, name, localId }, "TCGdex image lookup failed");
-    tcgdexImageCache.set(key, { expires: Date.now() + TCGDEX_TTL_MS, data: null });
+    logger.debug({ err, name, localIdPadded }, "TCGdex image lookup failed");
+    tcgdexImageCache.set(cacheKey, { expires: Date.now() + TCGDEX_TTL_MS, data: null });
     return null;
   }
 }

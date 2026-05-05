@@ -182,7 +182,13 @@ router.get("/cards/lookup", async (req, res) => {
       });
     }
 
-    const pricing = buildPricingFromCatalog(pw.data.results[0]);
+    // Price from the variant that's actually on top, not always results[0].
+    // After sorting, variants[0] may differ from the first PokeWallet result.
+    const topId = variants[0]?.id;
+    const topRaw =
+      (topId ? pw.data.results.find((r) => r.id === topId) : null) ??
+      pw.data.results[0];
+    const pricing = buildPricingFromCatalog(topRaw);
     res.json({ card: variants[0] ?? null, variants, pricing });
     return;
   }
