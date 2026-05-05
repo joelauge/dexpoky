@@ -1174,16 +1174,16 @@ export default function SharePage() {
                     {user.imageUrl ? (
                       <img
                         src={user.imageUrl}
-                        alt={user.fullName ?? ""}
+                        alt={user.username ?? ""}
                         className="w-10 h-10 rounded-full object-cover shrink-0"
                       />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-rose-200 flex items-center justify-center text-rose-700 font-bold shrink-0">
-                        {(user.fullName ?? user.username ?? "?").charAt(0).toUpperCase()}
+                        {(user.username ?? "?").charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div>
-                      <p className="font-semibold text-sm">{user.fullName ?? user.username}</p>
+                      <p className="font-semibold text-sm">{user.username ?? user.fullName}</p>
                       <p className="text-xs text-muted-foreground">is looking for this card</p>
                     </div>
                   </div>
