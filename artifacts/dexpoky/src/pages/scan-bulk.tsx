@@ -589,14 +589,19 @@ export default function ScanBulkPage() {
               </div>
               {/* Flip camera button — top-right corner during capture */}
               {phase === "capturing" && (
-                <button
-                  type="button"
-                  onClick={flipCamera}
-                  aria-label={facingMode === "environment" ? "Switch to front camera" : "Switch to rear camera"}
-                  className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/80 transition-colors z-10"
-                >
-                  <SwitchCamera style={{ width: "1.125rem", height: "1.125rem" }} />
-                </button>
+                <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
+                  <span className="bg-black/60 backdrop-blur-sm text-white/80 text-xs font-medium px-2 py-1 rounded-full select-none">
+                    {facingMode === "environment" ? "Rear" : "Front"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={flipCamera}
+                    aria-label={facingMode === "environment" ? "Switch to front camera" : "Switch to rear camera"}
+                    className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/80 transition-colors"
+                  >
+                    <SwitchCamera style={{ width: "1.125rem", height: "1.125rem" }} />
+                  </button>
+                </div>
               )}
               {phase !== "capturing" && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40">
