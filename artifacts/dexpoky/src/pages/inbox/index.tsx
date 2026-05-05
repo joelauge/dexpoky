@@ -19,7 +19,7 @@ import {
   MessageSquare, Send, ArrowLeft, User, Heart,
   Video, DollarSign, CheckCircle2, XCircle, RefreshCw,
   Store, Shield, Gem, Calendar, MapPin, X, Lock, CreditCard, Banknote,
-  Package,
+  Package, Navigation, Loader2, Search,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
@@ -227,6 +227,8 @@ function TradeThread({
   const [videoNotes, setVideoNotes] = useState("");
   const [meetupLocation, setMeetupLocation] = useState("");
   const [meetupNotes, setMeetupNotes] = useState("");
+  const [shopResults, setShopResults] = useState<{ name: string; address: string; label: string }[]>([]);
+  const [shopSearching, setShopSearching] = useState(false);
   const [offer, setOffer] = useState<TradeOffer | null | undefined>(undefined);
   const [updating, setUpdating] = useState(false);
   const [selectedCards, setSelectedCards] = useState<OfferedCard[]>([]);
@@ -435,6 +437,73 @@ function TradeThread({
         notes: meetupNotes || undefined,
       });
     }
+  };
+
+  const searchNearbyShops = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+    setShopSearching(true);
+    setShopResults([]);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        try {
+          const query = `[out:json][timeout:15];
+(
+  node["shop"~"games|hobby|toys|collectibles"](around:25000,${lat},${lng});
+  way["shop"~"games|hobby|toys|collectibles"](around:25000,${lat},${lng});
+  node["name"~"card|tcg|pokemon|magic|trading|yugioh|yu-gi-oh|collectible",i](around:25000,${lat},${lng});
+  way["name"~"card|tcg|pokemon|magic|trading|yugioh|yu-gi-oh|collectible",i](around:25000,${lat},${lng});
+);
+out center 25;`;
+          const res = await fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            body: query,
+          });
+          if (!res.ok) throw new Error("Overpass API error");
+          const data = await res.json() as { elements: Record<string, unknown>[] };
+
+          type OsmEl = { tags?: Record<string, string>; lat?: number; lon?: number; center?: { lat: number; lon: number } };
+          const seen = new Set<string>();
+          const shops = (data.elements as OsmEl[])
+            .filter(el => el.tags?.name)
+            .map(el => {
+              const tags = el.tags!;
+              const name = tags.name;
+              const street = tags["addr:housenumber"] && tags["addr:street"]
+                ? `${tags["addr:housenumber"]} ${tags["addr:street"]}`
+                : tags["addr:street"] ?? "";
+              const city = tags["addr:city"] ?? "";
+              const state = tags["addr:state"] ?? "";
+              const address = [street, city, state].filter(Boolean).join(", ") || "Address not listed";
+              const label = address !== "Address not listed" ? `${name}, ${address}` : name;
+              return { name, address, label };
+            })
+            .filter(s => {
+              if (seen.has(s.name)) return false;
+              seen.add(s.name);
+              return true;
+            })
+            .slice(0, 10);
+
+          setShopResults(shops);
+          if (shops.length === 0) {
+            toast.info("No card shops found within 25 km. Try typing the address manually.");
+          }
+        } catch {
+          toast.error("Search failed — please type the address manually.");
+        } finally {
+          setShopSearching(false);
+        }
+      },
+      () => {
+        setShopSearching(false);
+        toast.error("Location access denied — please type the store address manually.");
+      },
+      { timeout: 10000 },
+    );
   };
 
   const handleSendMessage = () => {
@@ -1047,13 +1116,45 @@ function TradeThread({
           <p className="text-xs text-muted-foreground">
             Suggest a local card shop where staff can validate the card while you exchange.
           </p>
-          <Input
-            value={meetupLocation}
-            onChange={e => setMeetupLocation(e.target.value)}
-            placeholder="Store name & address (e.g. Card Kingdom, 123 Main St, Seattle)"
-            className="h-9 text-sm"
-            autoFocus
-          />
+          {/* Shop search combobox */}
+          <div className="relative">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={meetupLocation}
+                onChange={e => { setMeetupLocation(e.target.value); setShopResults([]); }}
+                placeholder="Search for a local card shop…"
+                className="h-9 text-sm pl-8 pr-24"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={searchNearbyShops}
+                disabled={shopSearching}
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-60 transition-colors"
+              >
+                {shopSearching
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Navigation className="h-3.5 w-3.5" />}
+                {shopSearching ? "Searching…" : "Near me"}
+              </button>
+            </div>
+            {shopResults.length > 0 && (
+              <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden max-h-52 overflow-y-auto">
+                {shopResults.map((shop, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="w-full text-left px-3 py-2.5 hover:bg-muted transition-colors border-b border-border/40 last:border-0"
+                    onClick={() => { setMeetupLocation(shop.label); setShopResults([]); }}
+                  >
+                    <p className="text-xs font-semibold text-foreground">{shop.name}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{shop.address}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <Input
               value={meetupNotes}
