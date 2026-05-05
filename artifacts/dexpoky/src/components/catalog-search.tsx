@@ -128,14 +128,14 @@ export function CatalogSearch({
                         <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[96px] opacity-[0.12] grayscale select-none pointer-events-none" />
                       </div>
                     )}
-                    {c.marketPrice != null && (
-                      <span className="absolute top-1.5 right-1.5 bg-emerald-600/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                        ${c.marketPrice.toFixed(2)}
-                      </span>
-                    )}
                   </div>
                   <div className="p-2">
-                    <p className="text-xs font-semibold truncate">{c.name}</p>
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-xs font-semibold truncate">{c.name}</p>
+                      {c.marketPrice != null && (
+                        <span className="text-[10px] font-bold text-emerald-600 shrink-0">${c.marketPrice.toFixed(2)}</span>
+                      )}
+                    </div>
                     <p className="text-[10px] text-muted-foreground truncate">
                       {c.setName || "—"}
                       {c.cardNumber ? ` · #${c.cardNumber}` : ""}

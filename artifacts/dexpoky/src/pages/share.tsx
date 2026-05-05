@@ -984,7 +984,12 @@ export default function SharePage() {
                       <div className="w-8 h-10 rounded bg-muted shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{wantedCard.name}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold truncate">{wantedCard.name}</p>
+                        {wantedCard.marketPrice != null && (
+                          <span className="text-sm font-bold text-emerald-600 shrink-0">${wantedCard.marketPrice.toFixed(2)}</span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">{wantedCard.setName ?? wantedCard.pokemonName}</p>
                     </div>
                   </div>
