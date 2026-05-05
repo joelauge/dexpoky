@@ -24,7 +24,6 @@ export function HoloCard({ imageUrl, name, children }: HoloCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState<TiltState>(NEUTRAL);
 
-  const gyroActiveRef = useRef(false);
   const mouseActiveRef = useRef(false);
   const rafRef = useRef<number | null>(null);
 
@@ -50,72 +49,12 @@ export function HoloCard({ imageUrl, name, children }: HoloCardProps) {
     setTilt(NEUTRAL);
   }, []);
 
-  // ── Gyroscope ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let baseGamma = 0;
-    let baseBeta = 45;
-    let calibrated = false;
-
-    const applyOrientation = (e: DeviceOrientationEvent) => {
-      if (mouseActiveRef.current) return;
-      if (e.beta == null || e.gamma == null) return;
-
-      if (!calibrated) {
-        baseGamma = e.gamma;
-        baseBeta = e.beta;
-        calibrated = true;
-      }
-
-      gyroActiveRef.current = true;
-
-      const dGamma = e.gamma - baseGamma;
-      const dBeta = e.beta - baseBeta;
-      const rotY = Math.max(-MAX_ROTATION, Math.min(MAX_ROTATION, dGamma * 0.7));
-      const rotX = Math.max(-MAX_ROTATION, Math.min(MAX_ROTATION, -dBeta * 0.7));
-      const glareX = ((rotY / MAX_ROTATION) + 1) * 50;
-      const glareY = (1 - (rotX / MAX_ROTATION)) * 50;
-
-      setTilt({ rotX, rotY, glareX, glareY, active: Math.abs(rotX) > 0.3 || Math.abs(rotY) > 0.3 });
-    };
-
-    const attach = () => {
-      window.addEventListener("deviceorientation", applyOrientation, true);
-    };
-
-    // iOS 13+ needs an explicit permission request triggered by a user gesture.
-    // We hook into the first tap on the card for this.
-    if (
-      typeof DeviceOrientationEvent !== "undefined" &&
-      typeof (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission === "function"
-    ) {
-      const card = cardRef.current;
-      if (!card) return;
-      const requestOnTap = async () => {
-        try {
-          const result = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission();
-          if (result === "granted") attach();
-        } catch {
-          // permission denied or not available — scroll tilt remains active
-        }
-        card.removeEventListener("click", requestOnTap);
-      };
-      card.addEventListener("click", requestOnTap);
-      return () => {
-        card.removeEventListener("click", requestOnTap);
-        window.removeEventListener("deviceorientation", applyOrientation, true);
-      };
-    } else {
-      attach();
-      return () => window.removeEventListener("deviceorientation", applyOrientation, true);
-    }
-  }, []);
-
-  // ── Scroll tilt (mobile fallback + ambient layer) ────────────────────────
+  // ── Scroll tilt (mobile ambient layer) ──────────────────────────────────
   // Gives a gentle rotX as the card travels through the viewport.
-  // Skipped when the mouse is hovering (desktop), gyro overrides it entirely.
+  // Skipped when the mouse is hovering (desktop).
   useEffect(() => {
     const update = () => {
-      if (mouseActiveRef.current || gyroActiveRef.current) return;
+      if (mouseActiveRef.current) return;
       const el = cardRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
