@@ -230,7 +230,7 @@ export default function WishlistPage() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <Heart className="h-7 w-7 text-primary fill-primary" />
+              <Heart className="h-7 w-7 text-primary" />
               <h1 className="text-2xl font-bold tracking-tight">Looking For</h1>
             </div>
             <p className="text-muted-foreground">

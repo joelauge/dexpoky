@@ -348,7 +348,7 @@ export default function SharePage() {
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
           {mode === "looking"
-            ? <Heart className="h-7 w-7 text-primary fill-primary shrink-0" />
+            ? <Heart className="h-7 w-7 text-primary shrink-0" />
             : <Share2 className="h-7 w-7 text-primary shrink-0" />}
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{mode === "looking" ? "Looking For" : "Create Share Link"}</h1>
