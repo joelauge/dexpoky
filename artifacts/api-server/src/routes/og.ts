@@ -214,7 +214,7 @@ router.get("/og/card/:id", async (req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(
     buildHtml({
-      title: `${cardName} — My DexPoky Collection`,
+      title: "Check this out on my DexPoky.com account.",
       description: descParts.join("  ·  "),
       imageUrl: card.imageUrl ?? null,
       cardAspect: true,
@@ -270,7 +270,7 @@ router.get("/og/s/:code", async (req, res) => {
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(
         buildHtml({
-          title: `${card.name ?? "Pokémon Card"} — My DexPoky Collection`,
+          title: "Check this out on my DexPoky.com account.",
           description: descParts.join("  ·  "),
           imageUrl: card.imageUrl ?? null,
           cardAspect: true,
