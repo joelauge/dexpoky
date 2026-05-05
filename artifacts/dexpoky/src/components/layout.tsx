@@ -2,6 +2,7 @@ import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk, Show } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
+import { useAuthFetch } from "@/lib/use-auth-fetch";
 import {
   LayoutDashboard,
   Layers,
@@ -88,9 +89,10 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
   const { user, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
+  const authFetch = useAuthFetch();
   const { data: profile } = useQuery<{ username?: string }>({
     queryKey: ["/api/users/me"],
-    queryFn: () => fetch("/api/users/me").then(r => r.json()),
+    queryFn: () => authFetch("/api/users/me").then(r => r.ok ? r.json() : null),
     enabled: !!isSignedIn,
   });
   const displayName = profile?.username || user?.username || user?.firstName?.split(" ")[0] || "My Profile";

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, AtSign } from "lucide-react";
 import { toast } from "sonner";
+import { useAuthFetch } from "@/lib/use-auth-fetch";
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -14,6 +15,7 @@ interface UserProfile {
 
 export function UsernameGate({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useUser();
+  const authFetch = useAuthFetch();
   const qc = useQueryClient();
   const [value, setValue] = useState("");
   const [touched, setTouched] = useState(false);
@@ -21,7 +23,7 @@ export function UsernameGate({ children }: { children: React.ReactNode }) {
   const { data: profile, isLoading } = useQuery<UserProfile>({
     queryKey: ["/api/users/me"],
     queryFn: () =>
-      fetch("/api/users/me").then(async r => {
+      authFetch("/api/users/me").then(async r => {
         if (!r.ok) throw new Error("auth");
         return r.json();
       }),
@@ -31,7 +33,7 @@ export function UsernameGate({ children }: { children: React.ReactNode }) {
 
   const setUsername = useMutation({
     mutationFn: async (username: string) => {
-      const r = await fetch("/api/users/me", {
+      const r = await authFetch("/api/users/me", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
@@ -83,7 +85,7 @@ export function UsernameGate({ children }: { children: React.ReactNode }) {
                 <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="e.g. pokémaster99"
+                  placeholder="e.g. pokemaster99"
                   value={value}
                   maxLength={20}
                   onChange={e => { setValue(e.target.value); setTouched(true); }}

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useUser, useClerk, Show } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useAuthFetch } from "@/lib/use-auth-fetch";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +77,7 @@ export default function Profile() {
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
+  const authFetch = useAuthFetch();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ username: "", bio: "", sellerDetails: "" });
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -102,7 +104,7 @@ export default function Profile() {
 
   const { data: profile } = useQuery<UserProfile>({
     queryKey: ["/api/users/me"],
-    queryFn: () => fetch("/api/users/me").then(r => r.json()),
+    queryFn: () => authFetch("/api/users/me").then(r => r.json()),
     enabled: !!user,
   });
 
@@ -114,13 +116,13 @@ export default function Profile() {
 
   const { data: adminCheck } = useQuery<{ isAdmin: boolean }>({
     queryKey: ["/api/admin/me"],
-    queryFn: () => fetch("/api/admin/me").then(r => r.json()),
+    queryFn: () => authFetch("/api/admin/me").then(r => r.json()),
     enabled: !!user,
   });
 
   const { data: earnings } = useQuery<EarningsData>({
     queryKey: ["/api/users/me/earnings"],
-    queryFn: () => fetch("/api/users/me/earnings").then(r => r.json()),
+    queryFn: () => authFetch("/api/users/me/earnings").then(r => r.json()),
     enabled: !!user,
   });
 
@@ -133,7 +135,7 @@ export default function Profile() {
 
   const savePayoutMethod = useMutation({
     mutationFn: (data: { payoutMethod: string; payoutDestination: string }) =>
-      fetch("/api/users/me/payout-method", {
+      authFetch("/api/users/me/payout-method", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -151,7 +153,7 @@ export default function Profile() {
 
   const requestPayout = useMutation({
     mutationFn: (amountCents: number) =>
-      fetch("/api/users/me/payouts/request", {
+      authFetch("/api/users/me/payouts/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amountCents }),
@@ -186,7 +188,7 @@ export default function Profile() {
 
   const updateProfile = useMutation({
     mutationFn: async (data: Partial<UserProfile>) => {
-      const r = await fetch("/api/users/me", {
+      const r = await authFetch("/api/users/me", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
