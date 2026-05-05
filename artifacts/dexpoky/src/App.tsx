@@ -107,13 +107,19 @@ const clerkAppearance = {
 };
 
 function SignInPage() {
+  const params = new URLSearchParams(window.location.search);
+  const redirectUrl = params.get("redirect_url") ?? undefined;
+  const signUpUrl = redirectUrl
+    ? `${basePath}/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`
+    : `${basePath}/sign-up`;
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100 px-4 py-8">
       <div className="w-full max-w-md">
         <SignIn
           routing="path"
           path={`${basePath}/sign-in`}
-          signUpUrl={`${basePath}/sign-up`}
+          signUpUrl={signUpUrl}
+          forceRedirectUrl={redirectUrl}
           appearance={clerkAppearance}
         />
       </div>
@@ -122,13 +128,19 @@ function SignInPage() {
 }
 
 function SignUpPage() {
+  const params = new URLSearchParams(window.location.search);
+  const redirectUrl = params.get("redirect_url") ?? undefined;
+  const signInUrl = redirectUrl
+    ? `${basePath}/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`
+    : `${basePath}/sign-in`;
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100 px-4 py-8">
       <div className="w-full max-w-md">
         <SignUp
           routing="path"
           path={`${basePath}/sign-up`}
-          signInUrl={`${basePath}/sign-in`}
+          signInUrl={signInUrl}
+          forceRedirectUrl={redirectUrl}
           appearance={clerkAppearance}
         />
       </div>

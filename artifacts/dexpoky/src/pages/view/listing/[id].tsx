@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useUser } from "@clerk/react";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
 import { HoloCard } from "@/components/holo-card";
-import { User, Gavel, ShoppingCart, Timer, Camera, ChevronLeft, ChevronRight, X, ZoomIn, PlayCircle } from "lucide-react";
+import { User, Gavel, ShoppingCart, Timer, Camera, ChevronLeft, ChevronRight, X, ZoomIn, PlayCircle, ArrowRight, LogIn } from "lucide-react";
 import { isPast, intervalToDuration } from "date-fns";
 
 interface PublicListing {
@@ -253,7 +254,16 @@ function PublicMediaGallery({ images, video }: { images: string[]; video: string
 
 export default function PublicListingView() {
   const [, params] = useRoute("/view/listing/:id");
+  const [, setLocation] = useLocation();
   const listingId = params?.id ? parseInt(params.id) : 0;
+  const { isLoaded, isSignedIn } = useUser();
+
+  // Signed-in users get redirected straight to the full marketplace listing page
+  useEffect(() => {
+    if (isLoaded && isSignedIn && listingId) {
+      setLocation(`/marketplace/${listingId}`);
+    }
+  }, [isLoaded, isSignedIn, listingId]);
 
   const { data: listing } = useQuery<PublicListing>({
     queryKey: ["/api/marketplace/public", listingId],
@@ -416,14 +426,38 @@ export default function PublicListingView() {
       {/* CTA footer */}
       <div className="shrink-0 px-6 pb-8 pt-4 border-t border-white/5 text-center">
         <p className="text-white/35 text-xs mb-3">Trade · Collect · Battle</p>
-        <a
-          href={`${basePath}/sign-up`}
-          className={`inline-flex items-center justify-center w-full max-w-sm text-white font-bold text-sm py-3.5 px-6 rounded-2xl transition-colors shadow-lg ${isAuction && isActive && !auctionEnded ? "bg-amber-600 hover:bg-amber-500 active:bg-amber-700 shadow-amber-900/50" : "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 shadow-indigo-900/50"}`}
-        >
-          {isAuction && isActive && !auctionEnded
-            ? "Join DexPoky to place a bid! 🔨"
-            : "Join DexPoky to buy and sell cards! ✨"}
-        </a>
+
+        {/* Signed-in: deep-link straight to the marketplace listing */}
+        {isLoaded && isSignedIn ? (
+          <a
+            href={`${basePath}/marketplace/${listingId}`}
+            className={`inline-flex items-center justify-center gap-2 w-full max-w-sm text-white font-bold text-sm py-3.5 px-6 rounded-2xl transition-colors shadow-lg ${isAuction && isActive && !auctionEnded ? "bg-amber-600 hover:bg-amber-500 active:bg-amber-700 shadow-amber-900/50" : "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 shadow-indigo-900/50"}`}
+          >
+            Get more details
+            <ArrowRight className="h-4 w-4" />
+          </a>
+        ) : (
+          <>
+            {/* Signed-out: primary CTA = sign up, secondary = sign in */}
+            <a
+              href={`${basePath}/sign-up?redirect_url=${encodeURIComponent(`/marketplace/${listingId}`)}`}
+              className={`inline-flex items-center justify-center gap-2 w-full max-w-sm text-white font-bold text-sm py-3.5 px-6 rounded-2xl transition-colors shadow-lg ${isAuction && isActive && !auctionEnded ? "bg-amber-600 hover:bg-amber-500 active:bg-amber-700 shadow-amber-900/50" : "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 shadow-indigo-900/50"}`}
+            >
+              {isAuction && isActive && !auctionEnded
+                ? "Join DexPoky to place a bid!"
+                : "Join DexPoky to buy and sell cards!"}
+              <ArrowRight className="h-4 w-4" />
+            </a>
+            <a
+              href={`${basePath}/sign-in?redirect_url=${encodeURIComponent(`/marketplace/${listingId}`)}`}
+              className="inline-flex items-center justify-center gap-1.5 mt-3 text-white/45 hover:text-white/70 text-xs font-medium transition-colors"
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              Already a member? Sign in
+            </a>
+          </>
+        )}
+
         <div className="flex items-center justify-center gap-2 mt-4 opacity-40">
           <img src={`${basePath}/logo.png`} alt="DexPoky" className="h-5 w-5 rounded-full" />
           <span className="text-white text-sm font-bold tracking-tight">DexPoky</span>
