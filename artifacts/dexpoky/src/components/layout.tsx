@@ -93,7 +93,7 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
     queryFn: () => fetch("/api/users/me").then(r => r.json()),
     enabled: !!isSignedIn,
   });
-  const displayName = profile?.username ?? user?.fullName ?? user?.firstName ?? "My Profile";
+  const displayName = profile?.username ?? user?.username ?? user?.firstName ?? "My Profile";
 
   return (
     <Show
