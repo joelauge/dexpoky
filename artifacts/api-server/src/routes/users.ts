@@ -2,18 +2,22 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
 import { usersTable, ratingsTable, auctionBidsTable, listingsTable, sellerPayoutsTable } from "@workspace/db";
-import { eq, and, or, sql, desc } from "drizzle-orm";
+import { eq, and, or, sql, desc, ne } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router = Router();
 
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+
 const UpdateProfileBody = z.object({
-  username: z.string().min(2).max(40).optional(),
+  username: z.string().regex(USERNAME_RE, "Username must be 3–20 characters: letters, numbers, underscores only.").optional(),
   bio: z.string().max(500).optional(),
   avatarUrl: z.string().url().optional(),
   sellerDetails: z.string().max(1000).optional(),
 });
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 const PayoutMethodBody = z.object({
   payoutMethod: z.enum(["paypal", "stripe", "bank"]),
@@ -59,13 +63,40 @@ router.put("/users/me", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
   const parsed = UpdateProfileBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid body", details: parsed.error });
+    res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid body" });
     return;
   }
-  await getOrCreateUser(userId);
+  const current = await getOrCreateUser(userId);
+  const updates: Record<string, unknown> = { ...parsed.data, updatedAt: new Date() };
+
+  if (parsed.data.username && parsed.data.username !== current.username) {
+    const normalised = parsed.data.username.toLowerCase();
+    const [taken] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(sql`lower(${usersTable.username}) = ${normalised}`, ne(usersTable.clerkId, userId)));
+    if (taken) {
+      res.status(409).json({ error: "That username is already taken. Please choose another." });
+      return;
+    }
+    if (current.username && current.usernameChangedAt) {
+      const msSinceChange = Date.now() - new Date(current.usernameChangedAt).getTime();
+      if (msSinceChange < THIRTY_DAYS_MS) {
+        const nextAllowedAt = new Date(new Date(current.usernameChangedAt).getTime() + THIRTY_DAYS_MS);
+        res.status(429).json({
+          error: `You can change your username again on ${nextAllowedAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`,
+          nextAllowedAt: nextAllowedAt.toISOString(),
+        });
+        return;
+      }
+    }
+    updates.usernameChangedAt = new Date();
+  }
+
   const [updated] = await db
     .update(usersTable)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .set(updates as any)
     .where(eq(usersTable.clerkId, userId))
     .returning();
   res.json(updated);

@@ -37,6 +37,7 @@ import AdminPayouts from "@/pages/admin/payouts";
 import RulesPage from "@/pages/rules";
 import Wishlist from "@/pages/wishlist";
 import InboxPage from "@/pages/inbox/index";
+import { UsernameGate } from "@/components/username-gate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -233,6 +234,7 @@ function ClerkProviderWithRoutes() {
           <ScrollToTop />
           <ClerkAuthSync />
           <ClerkQueryClientCacheInvalidator />
+          <UsernameGate>
           <Switch>
             <Route path="/" component={HomeRoute} />
             <Route path="/sign-in/*?" component={SignInPage} />
@@ -267,6 +269,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/w/:code" component={WantedPublicPage} />
             <Route component={NotFound} />
           </Switch>
+          </UsernameGate>
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

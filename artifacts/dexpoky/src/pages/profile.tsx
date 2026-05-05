@@ -45,6 +45,7 @@ interface UserProfile {
   sellerDetails: string | null;
   ratingCount: number;
   ratingAverage: number | null;
+  usernameChangedAt: string | null;
 }
 
 interface Rating {
@@ -184,18 +185,22 @@ export default function Profile() {
   };
 
   const updateProfile = useMutation({
-    mutationFn: (data: Partial<UserProfile>) =>
-      fetch("/api/users/me", {
+    mutationFn: async (data: Partial<UserProfile>) => {
+      const r = await fetch("/api/users/me", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }).then(r => r.json()),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error ?? "Failed to update profile");
+      return body;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/users/me"] });
       setEditing(false);
       toast.success("Profile updated!");
     },
-    onError: () => toast.error("Failed to update profile"),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const handleEdit = () => {
@@ -311,7 +316,7 @@ export default function Profile() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <h2 className="text-xl font-bold text-foreground">
-                  {profile?.username ?? user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? "Anonymous"}
+                  {profile?.username ?? user?.username ?? user?.firstName?.split(" ")[0] ?? user?.primaryEmailAddress?.emailAddress ?? "Anonymous"}
                 </h2>
                 {profile?.ratingCount && profile.ratingCount > 0 ? (
                   <Badge variant="outline" className="flex items-center gap-1 text-amber-600 border-amber-200 bg-amber-50">
@@ -330,12 +335,29 @@ export default function Profile() {
             {editing ? (
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground block mb-1">Display Name</label>
-                  <Input
-                    value={form.username}
-                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                    placeholder="Choose a username"
-                  />
+                  <label className="text-sm font-medium text-muted-foreground block mb-1">Username</label>
+                  {(() => {
+                    const canChange = !profile?.usernameChangedAt ||
+                      Date.now() - new Date(profile.usernameChangedAt).getTime() >= 30 * 24 * 60 * 60 * 1000;
+                    const nextDate = profile?.usernameChangedAt
+                      ? new Date(new Date(profile.usernameChangedAt).getTime() + 30 * 24 * 60 * 60 * 1000)
+                      : null;
+                    return (
+                      <>
+                        <Input
+                          value={form.username}
+                          onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                          placeholder="your_handle"
+                          disabled={!canChange}
+                        />
+                        {!canChange && nextDate && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Username can be changed again on {nextDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground block mb-1">Bio</label>

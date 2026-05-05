@@ -54,7 +54,7 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - Category management
 - Marketplace for listing and trading cards (buy now + auction)
 - **Auction system**: proxy bidding, 5-min auto-extension, reserve prices, buy-it-now price on auctions
-- **User profiles**: username, bio, seller details (gated to qualifying bidders), avatar via Clerk
+- **User profiles**: username (required on signup — gate modal enforces it; editable once per 30 days), bio, seller details (gated to qualifying bidders), avatar via Clerk
 - **Ratings**: buyer-to-seller and seller-to-buyer ratings, only after completed transactions (status=sold)
 - Dashboard with portfolio stats and Recharts bar chart
 - **Image upload**: `CardImageUpload` component on edit and new card forms; presigned-URL upload to GCS via Replit Object Storage; served at `/api/storage/objects/*`
@@ -66,7 +66,7 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - `categories` — Card categories with name, description, color
 - `cards` — Pokemon cards with rarity, condition, value, category
 - `listings` — Marketplace listings with price, status, listing_type (buy_now|auction), seller_clerk_id, auction fields (start_bid, reserve_price, current_bid, current_bidder_clerk_id, auction_end_time, min_bid_increment, buy_now_price)
-- `users` — User profiles (clerk_id, username, bio, avatar_url, seller_details)
+- `users` — User profiles (clerk_id, username, bio, avatar_url, seller_details, username_changed_at)
 - `ratings` — Buyer/seller ratings (rater_clerk_id, rated_clerk_id, listing_id, score 1-5, comment, type)
 - `auction_bids` — All bids (listing_id, bidder_clerk_id, amount, max_amount for proxy bidding)
 - `seller_payouts` — Seller earnings ledger (kind: sale_credit | payout_request, amount_cents, status, listing_id, stripe_session_id, payout_method, payout_destination)
