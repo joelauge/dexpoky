@@ -378,6 +378,14 @@ export default function ScanBulkPage() {
     });
   }, [captureFrame, captureCorner, processEntry]);
 
+  // Disable pull-to-refresh for the duration of this page so an accidental
+  // downward swipe during scanning doesn't wipe the session.
+  useEffect(() => {
+    const prev = document.body.style.overscrollBehaviorY;
+    document.body.style.overscrollBehaviorY = "none";
+    return () => { document.body.style.overscrollBehaviorY = prev; };
+  }, []);
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (billingLoading || !billing) return;

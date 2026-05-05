@@ -302,6 +302,14 @@ export default function ScanPage() {
     }
   }, []);
 
+  // Disable pull-to-refresh for the duration of this page so an accidental
+  // downward swipe during scanning doesn't wipe the session.
+  useEffect(() => {
+    const prev = document.body.style.overscrollBehaviorY;
+    document.body.style.overscrollBehaviorY = "none";
+    return () => { document.body.style.overscrollBehaviorY = prev; };
+  }, []);
+
   // Check billing on mount — show paywall or auto-start camera
   useEffect(() => {
     if (billingLoading) return;
