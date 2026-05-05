@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, dmThreadsTable, dmMessagesTable, wantedListingsTable } from "@workspace/db";
+import { db, dmThreadsTable, dmMessagesTable, wantedListingsTable, tradeOffersTable } from "@workspace/db";
 import { eq, and, or, desc, ne } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
@@ -10,6 +10,8 @@ const router = Router();
 
 const StartThreadBody = z.object({
   initialMessage: z.string().trim().min(1).max(2000),
+  sellerImages: z.array(z.string()).max(5).optional(),
+  askingPrice: z.number().nonnegative().optional(),
 });
 
 const SendMessageBody = z.object({
@@ -20,8 +22,8 @@ async function getDisplayInfo(clerkId: string): Promise<{ displayName: string | 
   try {
     const user = await clerkClient.users.getUser(clerkId);
     const displayName =
-      [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
       user.username ||
+      [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
       null;
     return { displayName, imageUrl: user.imageUrl ?? null };
   } catch (err) {
@@ -96,6 +98,34 @@ router.post("/wanted/:id/thread", requireAuth, async (req, res) => {
     .update(dmThreadsTable)
     .set({ updatedAt: new Date() })
     .where(eq(dmThreadsTable.id, thread.id));
+
+  // Create or update trade offer if seller included images or an asking price
+  const { sellerImages, askingPrice } = parsed.data;
+  if (sellerImages?.length || askingPrice != null) {
+    const [existingOffer] = await db
+      .select()
+      .from(tradeOffersTable)
+      .where(eq(tradeOffersTable.threadId, thread.id));
+
+    if (!existingOffer) {
+      await db.insert(tradeOffersTable).values({
+        threadId: thread.id,
+        sellerClerkId,
+        sellerImages: sellerImages ?? [],
+        askingPrice: askingPrice != null ? String(askingPrice) : null,
+        status: "pending",
+      });
+    } else {
+      await db
+        .update(tradeOffersTable)
+        .set({
+          sellerImages: sellerImages ?? existingOffer.sellerImages,
+          askingPrice: askingPrice != null ? String(askingPrice) : existingOffer.askingPrice,
+          updatedAt: new Date(),
+        })
+        .where(eq(tradeOffersTable.id, existingOffer.id));
+    }
+  }
 
   res.json(thread);
 });

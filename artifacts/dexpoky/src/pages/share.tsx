@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { CatalogSearch } from "@/components/catalog-search";
 import { HoloCard } from "@/components/holo-card";
+import { ImageUploader } from "@/components/image-uploader";
 import type { CatalogCard } from "@workspace/api-client-react";
 
 type ExpiryOption = "never" | "7d" | "30d" | "3m" | "custom";
@@ -137,6 +138,7 @@ export default function SharePage() {
   const [copiedListingId, setCopiedListingId] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState("");
   const [createdListingId, setCreatedListingId] = useState<number | null>(null);
+  const [listingImagePaths, setListingImagePaths] = useState<string[]>([]);
 
   const [wantedCard, setWantedCard] = useState<CatalogCard | null>(null);
   const [wantedMaxPrice, setWantedMaxPrice] = useState("");
@@ -235,7 +237,8 @@ export default function SharePage() {
         price: finalPrice,
         listingType: "buy_now",
         description: includeShipping ? `Includes shipping: $${shippingCost}` : undefined,
-      });
+        listingImages: listingImagePaths.length > 0 ? listingImagePaths : undefined,
+      } as Parameters<typeof createListing.mutate>[0]);
     } else {
       const origin = window.location.origin;
       let link = origin + "/collection";
@@ -611,6 +614,20 @@ export default function SharePage() {
                     {SELL_TYPES.find(t => t.id === sellType)?.label}
                   </Badge>
                 </div>
+
+                {sellType === "single" && (
+                  <div className="bg-card rounded-2xl border p-4">
+                    <ImageUploader
+                      images={listingImagePaths}
+                      onChange={setListingImagePaths}
+                      max={5}
+                      label="Listing photos (up to 5)"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-2">
+                      Photos help buyers see condition and details — strongly recommended.
+                    </p>
+                  </div>
+                )}
 
                 <div className="bg-card rounded-2xl border p-4 space-y-4">
                   <div className="space-y-1.5">
