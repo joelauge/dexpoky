@@ -1,9 +1,40 @@
 import { Router, type Request } from "express";
 import { db } from "@workspace/db";
-import { wantedListingsTable, listingsTable, cardsTable, shortLinksTable } from "@workspace/db";
+import { wantedListingsTable, listingsTable, cardsTable, shortLinksTable, categoriesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import sharp from "sharp";
+import dns from "node:dns/promises";
 
 const router = Router();
+
+/* ── Rarity → accent color ─────────────────────────────────────────────── */
+
+const RARITY_COLORS: Record<string, string> = {
+  secret_rare: "#FFD700",
+  ultra_rare: "#FFD700",
+  holo_rare: "#A855F7",
+  rare: "#3B82F6",
+  uncommon: "#C0C0C0",
+  common: "#C0C0C0",
+  promo: "#F97316",
+};
+
+const DEFAULT_ACCENT = "#C0C0C0";
+
+/**
+ * Returns the accent hex color for a card.
+ * categoryColor (if present) takes highest priority, then rarity.
+ */
+function accentForCard(rarity: string | null | undefined, categoryColor: string | null | undefined): string {
+  if (categoryColor && /^#[0-9A-Fa-f]{3,8}$/.test(categoryColor)) return categoryColor;
+  if (rarity) {
+    const normalized = rarity.toLowerCase().replace(/[\s-]/g, "_");
+    return RARITY_COLORS[normalized] ?? DEFAULT_ACCENT;
+  }
+  return DEFAULT_ACCENT;
+}
+
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
 
 function getOrigin(req: Request): string {
   return req.headers["x-forwarded-host"]
@@ -11,10 +42,16 @@ function getOrigin(req: Request): string {
     : `${req.protocol}://${req.get("host")}`;
 }
 
-/** Strip https:// / http:// to get a clean display domain. */
 function cleanDomain(origin: string): string {
   return origin.replace(/^https?:\/\//, "");
 }
+
+/** Build an /api/og/img URL with the card image + accent color encoded. */
+function borderedImageUrl(origin: string, rawUrl: string, color: string): string {
+  return `${origin}/api/og/img?url=${encodeURIComponent(rawUrl)}&color=${encodeURIComponent(color)}`;
+}
+
+/* ── buildHtml ─────────────────────────────────────────────────────────────*/
 
 function buildHtml(opts: {
   title: string;
@@ -24,14 +61,19 @@ function buildHtml(opts: {
   redirectUrl: string;
   origin: string;
   siteName?: string;
+  accentColor?: string;
 }): string {
-  const { title, description, imageUrl, cardAspect, redirectUrl, origin, siteName = "DexPoky" } = opts;
+  const { title, description, imageUrl, cardAspect, redirectUrl, origin, siteName = "DexPoky", accentColor } = opts;
   const absRedirect = redirectUrl.startsWith("http") ? redirectUrl : `${origin}${redirectUrl}`;
   const image = imageUrl ?? `${origin}/logo.png`;
   const t = title.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   const d = description.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   const imgW = cardAspect ? "734" : "1200";
   const imgH = cardAspect ? "1024" : "630";
+  const accent = accentColor ?? DEFAULT_ACCENT;
+
+  const borderRadius = cardAspect ? "10px" : "16px";
+  const maxW = cardAspect ? "120px" : "160px";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -58,20 +100,299 @@ function buildHtml(opts: {
   <meta name="twitter:description" content="${d}">
   <meta name="twitter:image" content="${image}">
 
-  <!-- Instant redirect for human visitors -->
-  <meta http-equiv="refresh" content="0;url=${absRedirect}">
-  <script>window.location.replace(${JSON.stringify(absRedirect)});</script>
+  <!-- Delayed redirect — gives humans a moment to see the card -->
+  <meta http-equiv="refresh" content="3;url=${absRedirect}">
 </head>
 <body style="margin:0;background:#0a0a0f;color:#fff;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;box-sizing:border-box">
   <div style="text-align:center;max-width:380px;width:100%;padding:36px 32px;background:#141420;border-radius:24px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 24px 64px rgba(0,0,0,.7)">
-    <img src="${image}" alt="" style="max-width:${cardAspect ? "120px" : "160px"};border-radius:${cardAspect ? "10px" : "16px"};box-shadow:0 12px 40px rgba(0,0,0,.6);margin-bottom:24px;display:block;margin-left:auto;margin-right:auto">
+    <div id="card-wrap" style="display:inline-block;perspective:600px;margin-bottom:24px">
+      <img
+        id="og-card"
+        src="${image}"
+        alt=""
+        style="max-width:${maxW};border-radius:${borderRadius};display:block;will-change:transform;transition:transform 0.15s ease-out;box-shadow:0 0 0 3px ${accent},0 0 18px 4px ${accent}66,0 12px 40px rgba(0,0,0,.6);cursor:pointer"
+      >
+    </div>
     <p style="font-size:18px;font-weight:700;margin:0 0 10px;line-height:1.35;letter-spacing:-0.2px">${t}</p>
     <p style="font-size:13px;color:#8888aa;margin:0 0 20px;line-height:1.6">${d}</p>
     <p style="font-size:11px;color:#44445a;letter-spacing:0.5px">Redirecting&hellip;</p>
   </div>
+
+  <script>
+  (function() {
+    var card = document.getElementById('og-card');
+    var wrap = document.getElementById('card-wrap');
+    if (!card || !wrap) return;
+
+    var MAX_TILT = 15;
+    var reset = 'rotateX(0deg) rotateY(0deg)';
+
+    function applyTilt(rx, ry) {
+      card.style.transform = 'rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+    }
+
+    wrap.addEventListener('pointermove', function(e) {
+      var r = wrap.getBoundingClientRect();
+      var x = (e.clientX - r.left) / r.width - 0.5;
+      var y = (e.clientY - r.top) / r.height - 0.5;
+      applyTilt(-y * MAX_TILT * 2, x * MAX_TILT * 2);
+    });
+
+    wrap.addEventListener('pointerleave', function() {
+      card.style.transition = 'transform 0.4s ease-out';
+      card.style.transform = reset;
+    });
+
+    wrap.addEventListener('pointerenter', function() {
+      card.style.transition = 'transform 0.1s ease-out';
+    });
+
+    wrap.addEventListener('touchmove', function(e) {
+      if (!e.touches[0]) return;
+      e.preventDefault();
+      var r = wrap.getBoundingClientRect();
+      var x = (e.touches[0].clientX - r.left) / r.width - 0.5;
+      var y = (e.touches[0].clientY - r.top) / r.height - 0.5;
+      card.style.transition = 'transform 0.05s ease-out';
+      applyTilt(-y * MAX_TILT * 2, x * MAX_TILT * 2);
+    }, { passive: false });
+
+    wrap.addEventListener('touchend', function() {
+      card.style.transition = 'transform 0.4s ease-out';
+      card.style.transform = reset;
+    });
+
+    if (window.DeviceOrientationEvent) {
+      var baseBeta = null;
+      var baseGamma = null;
+      window.addEventListener('deviceorientation', function(e) {
+        if (e.beta === null || e.gamma === null) return;
+        if (baseBeta === null) { baseBeta = e.beta; baseGamma = e.gamma; return; }
+        var dy = Math.max(-MAX_TILT, Math.min(MAX_TILT, (e.beta - baseBeta) * 0.8));
+        var dx = Math.max(-MAX_TILT, Math.min(MAX_TILT, (e.gamma - baseGamma) * 0.8));
+        card.style.transition = 'transform 0.1s ease-out';
+        applyTilt(dy, dx);
+      });
+    }
+
+    card.addEventListener('click', function() {
+      window.location.replace(${JSON.stringify(absRedirect)});
+    });
+
+    // Delayed auto-redirect (JS takes over from meta refresh)
+    var redirectTimer = setTimeout(function() {
+      window.location.replace(${JSON.stringify(absRedirect)});
+    }, 3000);
+
+    // Cancel timer if user navigates away (e.g. tapped card)
+    window.addEventListener('beforeunload', function() { clearTimeout(redirectTimer); });
+  })();
+  </script>
 </body>
 </html>`;
 }
+
+/* ── /api/og/img — server-side bordered image ──────────────────────────── */
+
+/** Hex color → {r, g, b} */
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map(c => c + c).join("") : clean;
+  return {
+    r: parseInt(full.slice(0, 2), 16),
+    g: parseInt(full.slice(2, 4), 16),
+    b: parseInt(full.slice(4, 6), 16),
+  };
+}
+
+/** Max image payload accepted from upstream (10 MB). */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Return true if the given IPv4 dotted-decimal string is in a private,
+ * loopback, link-local, or otherwise non-routable range.
+ */
+function isPrivateIPv4(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) return true;
+  const [a, b] = parts;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254) ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    a === 198 && b === 51 && parts[2] === 100 ||
+    a === 203 && b === 0 && parts[2] === 113 ||
+    a >= 224
+  );
+}
+
+/**
+ * Return true if the given IPv6 address string is loopback, link-local,
+ * ULA (fc00::/7), or any other non-global-unicast range.
+ */
+function isPrivateIPv6(ip: string): boolean {
+  const lower = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  if (lower === "::1") return true;
+  if (lower.startsWith("fe80:")) return true;
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+  if (lower === "::" || lower === "0:0:0:0:0:0:0:0" || lower === "0:0:0:0:0:0:0:1") return true;
+  if (lower.startsWith("ff")) return true;
+  // Mapped IPv4 loopback/private via ::ffff:
+  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return isPrivateIPv4(mapped[1]);
+  return false;
+}
+
+/**
+ * Resolve the hostname of `raw` URL via DNS and verify the result is a safe,
+ * public address. Blocks:
+ *  - non-http(s) schemes
+ *  - .local / localhost hostnames
+ *  - any hostname that resolves to a private/loopback/link-local IPv4 or IPv6
+ *
+ * Throws an error with a human-readable message on failure.
+ */
+async function assertSafeImageUrl(raw: string): Promise<URL> {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("Invalid URL");
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Only http/https URLs are allowed");
+  }
+
+  const host = parsed.hostname.toLowerCase();
+
+  if (host === "localhost" || host.endsWith(".local") || host === "::1") {
+    throw new Error("Disallowed host");
+  }
+
+  // Resolve hostname → all addresses, check every result
+  let addresses: Awaited<ReturnType<typeof dns.lookup<true>>>;
+  try {
+    addresses = await dns.lookup(host, { all: true });
+  } catch {
+    throw new Error("DNS resolution failed");
+  }
+
+  if (!addresses || addresses.length === 0) {
+    throw new Error("No DNS records found");
+  }
+
+  for (const { address, family } of addresses) {
+    if (family === 4 && isPrivateIPv4(address)) {
+      throw new Error("Disallowed address");
+    }
+    if (family === 6 && isPrivateIPv6(address)) {
+      throw new Error("Disallowed address");
+    }
+  }
+
+  return parsed;
+}
+
+router.get("/og/img", async (req, res) => {
+  const { url, color, size } = req.query as Record<string, string>;
+
+  if (!url) {
+    res.status(400).send("Missing url");
+    return;
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = await assertSafeImageUrl(url);
+  } catch {
+    res.status(400).send("Invalid or disallowed URL");
+    return;
+  }
+
+  const accent = color && /^#[0-9A-Fa-f]{3,8}$/.test(color) ? color : DEFAULT_ACCENT;
+
+  // Optional output size override (max 1200px to avoid abuse)
+  const requestedSize = size ? parseInt(size, 10) : null;
+  const outputSize = requestedSize && requestedSize > 0 && requestedSize <= 1200 ? requestedSize : null;
+
+  try {
+    const resp = await fetch(parsedUrl.toString(), { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) throw new Error(`Upstream ${resp.status}`);
+
+    // Validate content-type is an image
+    const contentType = resp.headers.get("content-type") ?? "";
+    if (!contentType.startsWith("image/")) {
+      res.status(400).send("URL did not return an image");
+      return;
+    }
+
+    // Guard against oversized payloads before buffering
+    const contentLength = resp.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > MAX_IMAGE_BYTES) {
+      res.status(400).send("Image too large");
+      return;
+    }
+
+    // Stream and cap at MAX_IMAGE_BYTES
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    const reader = resp.body!.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_IMAGE_BYTES) {
+        await reader.cancel();
+        res.status(400).send("Image too large");
+        return;
+      }
+      chunks.push(value);
+    }
+    const srcBuf = Buffer.concat(chunks.map(c => Buffer.from(c)));
+
+    const meta = await sharp(srcBuf).metadata();
+    let w = meta.width ?? 400;
+    let h = meta.height ?? 560;
+
+    // If output size requested, scale while preserving aspect ratio
+    if (outputSize) {
+      const aspect = h / w;
+      w = outputSize;
+      h = Math.round(outputSize * aspect);
+    }
+
+    const bx = Math.round(w * 0.05);
+    const by = Math.round(h * 0.05);
+
+    const rgb = hexToRgb(accent);
+
+    const result = await sharp({
+      create: { width: w, height: h, channels: 4, background: { r: rgb.r, g: rgb.g, b: rgb.b, alpha: 1 } },
+    })
+      .composite([
+        {
+          input: await sharp(srcBuf)
+            .resize(w - bx * 2, h - by * 2, { fit: "fill" })
+            .toBuffer(),
+          top: by,
+          left: bx,
+        },
+      ])
+      .png()
+      .toBuffer();
+
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+    res.send(result);
+  } catch (err) {
+    res.status(502).send("Failed to process image");
+  }
+});
 
 /* ── "Looking For" wanted listing ──────────────────────────────────────── */
 router.get("/og/w/:code", async (req, res) => {
@@ -99,15 +420,19 @@ router.get("/og/w/:code", async (req, res) => {
   if (row.maxPrice) descParts.push(`Budget: $${parseFloat(String(row.maxPrice)).toFixed(2)}`);
   descParts.push(shareUrl);
 
+  const accent = accentForCard(row.rarity, null);
+  const imageUrl = row.imageUrl ? borderedImageUrl(origin, row.imageUrl, accent) : null;
+
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(
     buildHtml({
       title: `I'm looking for ${name} on DexPoky.com`,
       description: descParts.join("  ·  "),
-      imageUrl: row.imageUrl ?? null,
+      imageUrl,
       cardAspect: true,
       redirectUrl: `/w/${code}`,
       origin,
+      accentColor: accent,
     }),
   );
 });
@@ -132,6 +457,8 @@ router.get("/og/listing/:id", async (req, res) => {
       cardName: cardsTable.name,
       cardImage: cardsTable.imageUrl,
       setName: cardsTable.setName,
+      rarity: cardsTable.rarity,
+      categoryId: cardsTable.categoryId,
     })
     .from(listingsTable)
     .leftJoin(cardsTable, eq(listingsTable.cardId, cardsTable.id))
@@ -143,10 +470,20 @@ router.get("/og/listing/:id", async (req, res) => {
     return;
   }
 
+  let categoryColor: string | null = null;
+  if (row.categoryId) {
+    const [cat] = await db
+      .select({ color: categoriesTable.color })
+      .from(categoriesTable)
+      .where(eq(categoriesTable.id, row.categoryId))
+      .limit(1);
+    categoryColor = cat?.color ?? null;
+  }
+
   const cardName = row.cardName ?? "a Pokémon Card";
   const price = row.price ? `$${parseFloat(String(row.price)).toFixed(2)}` : null;
-  const listingImage = Array.isArray(row.listingImages) && row.listingImages.length > 0
-    ? row.listingImages[0]
+  const rawImage = Array.isArray(row.listingImages) && row.listingImages.length > 0
+    ? row.listingImages[0] as string
     : (row.cardImage ?? null);
   const isAuction = row.listingType === "auction";
   const action = isAuction ? "auctioning" : "selling";
@@ -158,15 +495,19 @@ router.get("/og/listing/:id", async (req, res) => {
   if (price) descParts.push(isAuction ? `Starting at ${price}` : price);
   descParts.push(shareUrl);
 
+  const accent = accentForCard(row.rarity, categoryColor);
+  const imageUrl = rawImage ? borderedImageUrl(origin, rawImage, accent) : null;
+
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(
     buildHtml({
       title: `I'm ${action} ${cardName} on DexPoky.com`,
       description: descParts.join("  ·  "),
-      imageUrl: listingImage,
+      imageUrl,
       cardAspect: true,
       redirectUrl: `/view/listing/${id}`,
       origin,
+      accentColor: accent,
     }),
   );
 });
@@ -190,6 +531,7 @@ router.get("/og/card/:id", async (req, res) => {
       cardNumber: cardsTable.cardNumber,
       rarity: cardsTable.rarity,
       condition: cardsTable.condition,
+      categoryId: cardsTable.categoryId,
     })
     .from(cardsTable)
     .where(eq(cardsTable.id, id))
@@ -198,6 +540,16 @@ router.get("/og/card/:id", async (req, res) => {
   if (!card) {
     res.redirect(`/view/card/${id}`);
     return;
+  }
+
+  let categoryColor: string | null = null;
+  if (card.categoryId) {
+    const [cat] = await db
+      .select({ color: categoriesTable.color })
+      .from(categoriesTable)
+      .where(eq(categoriesTable.id, card.categoryId))
+      .limit(1);
+    categoryColor = cat?.color ?? null;
   }
 
   const cardName = card.name ?? "a Pokémon Card";
@@ -211,15 +563,19 @@ router.get("/og/card/:id", async (req, res) => {
   if (card.condition) descParts.push(card.condition);
   descParts.push(shareUrl);
 
+  const accent = accentForCard(card.rarity, categoryColor);
+  const imageUrl = card.imageUrl ? borderedImageUrl(origin, card.imageUrl, accent) : null;
+
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(
     buildHtml({
       title: "Check this out on my DexPoky.com account.",
       description: descParts.join("  ·  "),
-      imageUrl: card.imageUrl ?? null,
+      imageUrl,
       cardAspect: true,
       redirectUrl: `/view/card/${id}`,
       origin,
+      accentColor: accent,
     }),
   );
 });
@@ -243,7 +599,101 @@ router.get("/og/s/:code", async (req, res) => {
   const domain = cleanDomain(origin);
   const shareUrl = `${domain}/s/${code}`;
 
-  // Detect card links — match /api/og/card/:id or /view/card/:id
+  // Detect listing links
+  const listingMatch = link.targetUrl.match(/\/(?:api\/og\/listing|view\/listing)\/(\d+)/);
+  if (listingMatch) {
+    const listingId = Number(listingMatch[1]);
+    const [row] = await db
+      .select({
+        id: listingsTable.id,
+        price: listingsTable.price,
+        listingType: listingsTable.listingType,
+        listingImages: listingsTable.listingImages,
+        cardName: cardsTable.name,
+        cardImage: cardsTable.imageUrl,
+        setName: cardsTable.setName,
+        rarity: cardsTable.rarity,
+        categoryId: cardsTable.categoryId,
+      })
+      .from(listingsTable)
+      .leftJoin(cardsTable, eq(listingsTable.cardId, cardsTable.id))
+      .where(eq(listingsTable.id, listingId))
+      .limit(1);
+
+    if (row) {
+      let categoryColor: string | null = null;
+      if (row.categoryId) {
+        const [cat] = await db
+          .select({ color: categoriesTable.color })
+          .from(categoriesTable)
+          .where(eq(categoriesTable.id, row.categoryId))
+          .limit(1);
+        categoryColor = cat?.color ?? null;
+      }
+      const cardName = row.cardName ?? "a Pokémon Card";
+      const price = row.price ? `$${parseFloat(String(row.price)).toFixed(2)}` : null;
+      const isAuction = row.listingType === "auction";
+      const rawImage = Array.isArray(row.listingImages) && row.listingImages.length > 0
+        ? row.listingImages[0] as string
+        : (row.cardImage ?? null);
+      const descParts: string[] = [];
+      if (row.setName) descParts.push(row.setName);
+      if (price) descParts.push(isAuction ? `Starting at ${price}` : price);
+      descParts.push(shareUrl);
+      const accent = accentForCard(row.rarity, categoryColor);
+      const imageUrl = rawImage ? borderedImageUrl(origin, rawImage, accent) : null;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(
+        buildHtml({
+          title: `I'm ${isAuction ? "auctioning" : "selling"} ${cardName} on DexPoky.com`,
+          description: descParts.join("  ·  "),
+          imageUrl,
+          cardAspect: true,
+          redirectUrl: `/view/listing/${listingId}`,
+          origin,
+          accentColor: accent,
+        }),
+      );
+      return;
+    }
+  }
+
+  // Detect wanted listing links
+  const wantedMatch = link.targetUrl.match(/\/w\/([^/?]+)/);
+  if (wantedMatch) {
+    const wCode = wantedMatch[1];
+    const [wRow] = await db
+      .select()
+      .from(wantedListingsTable)
+      .where(eq(wantedListingsTable.shortCode, wCode))
+      .limit(1);
+
+    if (wRow) {
+      const name = wRow.name ?? "a Pokémon Card";
+      const descParts: string[] = [];
+      if (wRow.setName) descParts.push(wRow.setName);
+      if (wRow.rarity) descParts.push(wRow.rarity);
+      if (wRow.maxPrice) descParts.push(`Budget: $${parseFloat(String(wRow.maxPrice)).toFixed(2)}`);
+      descParts.push(shareUrl);
+      const accent = accentForCard(wRow.rarity, null);
+      const imageUrl = wRow.imageUrl ? borderedImageUrl(origin, wRow.imageUrl, accent) : null;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(
+        buildHtml({
+          title: `I'm looking for ${name} on DexPoky.com`,
+          description: descParts.join("  ·  "),
+          imageUrl,
+          cardAspect: true,
+          redirectUrl: `/w/${wCode}`,
+          origin,
+          accentColor: accent,
+        }),
+      );
+      return;
+    }
+  }
+
+  // Detect card links
   const cardMatch = link.targetUrl.match(/\/(?:api\/og\/card|view\/card)\/(\d+)/);
   if (cardMatch) {
     const cardId = Number(cardMatch[1]);
@@ -255,34 +705,48 @@ router.get("/og/s/:code", async (req, res) => {
         cardNumber: cardsTable.cardNumber,
         rarity: cardsTable.rarity,
         condition: cardsTable.condition,
+        categoryId: cardsTable.categoryId,
       })
       .from(cardsTable)
       .where(eq(cardsTable.id, cardId))
       .limit(1);
 
     if (card) {
+      let categoryColor: string | null = null;
+      if (card.categoryId) {
+        const [cat] = await db
+          .select({ color: categoriesTable.color })
+          .from(categoriesTable)
+          .where(eq(categoriesTable.id, card.categoryId))
+          .limit(1);
+        categoryColor = cat?.color ?? null;
+      }
+
       const descParts: string[] = [];
       if (card.setName) descParts.push(card.setName);
       if (card.cardNumber) descParts.push(`#${card.cardNumber}`);
       if (card.rarity) descParts.push(card.rarity);
       descParts.push(shareUrl);
 
+      const accent = accentForCard(card.rarity, categoryColor);
+      const imageUrl = card.imageUrl ? borderedImageUrl(origin, card.imageUrl, accent) : null;
+
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(
         buildHtml({
           title: "Check this out on my DexPoky.com account.",
           description: descParts.join("  ·  "),
-          imageUrl: card.imageUrl ?? null,
+          imageUrl,
           cardAspect: true,
           redirectUrl: `/view/card/${cardId}`,
           origin,
+          accentColor: accent,
         }),
       );
       return;
     }
   }
 
-  // Generic fallback (collections, categories, etc.)
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(
     buildHtml({

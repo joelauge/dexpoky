@@ -43,6 +43,12 @@ interface Rating {
   type: string;
 }
 
+function mediaUrl(path: string): string {
+  if (!path) return path;
+  if (path.startsWith("http") || path.startsWith("/api/")) return path;
+  return `/api/storage${path}`;
+}
+
 function SellerPhotoGallery({ images }: { images: string[] }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [lightbox, setLightbox] = useState<number | null>(null);
@@ -64,7 +70,7 @@ function SellerPhotoGallery({ images }: { images: string[] }) {
         onClick={() => setLightbox(activeIdx)}
       >
         <img
-          src={images[activeIdx]}
+          src={mediaUrl(images[activeIdx])}
           alt={`Seller photo ${activeIdx + 1}`}
           className="w-full h-full object-contain"
         />
@@ -109,7 +115,7 @@ function SellerPhotoGallery({ images }: { images: string[] }) {
                 i === activeIdx ? "border-primary ring-2 ring-primary/20 scale-105" : "border-border opacity-60 hover:opacity-100"
               )}
             >
-              <img src={url} alt={`Thumbnail ${i + 1}`} className="w-full h-full object-cover" />
+              <img src={mediaUrl(url)} alt={`Thumbnail ${i + 1}`} className="w-full h-full object-cover" />
             </button>
           ))}
         </div>
@@ -147,7 +153,7 @@ function SellerPhotoGallery({ images }: { images: string[] }) {
             </>
           )}
           <img
-            src={images[lightbox]}
+            src={mediaUrl(images[lightbox])}
             alt={`Seller photo ${lightbox + 1}`}
             className="max-h-[88vh] max-w-[88vw] object-contain rounded-xl shadow-2xl"
             onClick={(e) => e.stopPropagation()}
