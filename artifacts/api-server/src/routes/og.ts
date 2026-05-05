@@ -1,7 +1,7 @@
 import { Router, type Request } from "express";
 import { db } from "@workspace/db";
-import { wantedListingsTable, listingsTable, cardsTable, shortLinksTable, categoriesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { wantedListingsTable, listingsTable, cardsTable, shortLinksTable, categoriesTable, groupSharesTable, groupShareCardsTable } from "@workspace/db";
+import { eq, inArray } from "drizzle-orm";
 import sharp from "sharp";
 import dns from "node:dns/promises";
 
@@ -797,6 +797,89 @@ router.get("/og/s/:code", async (req, res) => {
       cardAspect: false,
       redirectUrl: link.targetUrl,
       origin,
+    }),
+  );
+});
+
+/* ── Group share OG page ─────────────────────────────────────────────────── */
+router.get("/og/g/:code", async (req, res) => {
+  const { code } = req.params;
+  const origin = getOrigin(req);
+
+  const [groupShare] = await db
+    .select()
+    .from(groupSharesTable)
+    .where(eq(groupSharesTable.code, code))
+    .limit(1);
+
+  if (!groupShare) {
+    res.redirect(`/view/group/${code}`);
+    return;
+  }
+
+  const shareCards = await db
+    .select({
+      images: groupShareCardsTable.images,
+      cardId: groupShareCardsTable.cardId,
+    })
+    .from(groupShareCardsTable)
+    .where(eq(groupShareCardsTable.groupShareId, groupShare.id))
+    .orderBy(groupShareCardsTable.displayOrder);
+
+  const cardIds = shareCards.map(sc => sc.cardId);
+  const cardRows = cardIds.length > 0
+    ? await db
+        .select({ id: cardsTable.id, name: cardsTable.name, imageUrl: cardsTable.imageUrl, rarity: cardsTable.rarity, categoryId: cardsTable.categoryId })
+        .from(cardsTable)
+        .where(inArray(cardsTable.id, cardIds))
+    : [];
+  const cardMap = new Map(cardRows.map(c => [c.id, c]));
+
+  const title = groupShare.title || `${shareCards.length} Pokémon Card${shareCards.length !== 1 ? "s" : ""} for Sale`;
+  const askingPrice = groupShare.askingPrice ? `$${parseFloat(String(groupShare.askingPrice)).toFixed(2)}` : null;
+
+  const names = shareCards.slice(0, 4).map(sc => cardMap.get(sc.cardId)?.name).filter(Boolean);
+  const descParts: string[] = names.length > 0 ? [names.join(", ")] : [];
+  if (shareCards.length > 4) descParts.push(`+${shareCards.length - 4} more`);
+  if (askingPrice) descParts.push(askingPrice);
+
+  // Get first card image: prefer uploaded photo, fall back to TCG image
+  const firstShare = shareCards[0];
+  let rawImage: string | null = null;
+  if (firstShare) {
+    const uploadedPhotos = firstShare.images as string[];
+    rawImage = (Array.isArray(uploadedPhotos) && uploadedPhotos.length > 0)
+      ? uploadedPhotos[0]
+      : (cardMap.get(firstShare.cardId)?.imageUrl ?? null);
+  }
+
+  const firstCard = firstShare ? cardMap.get(firstShare.cardId) : undefined;
+  let accent = DEFAULT_ACCENT;
+  if (firstCard) {
+    let categoryColor: string | null = null;
+    if (firstCard.categoryId) {
+      const [cat] = await db
+        .select({ color: categoriesTable.color })
+        .from(categoriesTable)
+        .where(eq(categoriesTable.id, firstCard.categoryId))
+        .limit(1);
+      categoryColor = cat?.color ?? null;
+    }
+    accent = accentForCard(firstCard.rarity, categoryColor);
+  }
+
+  const imageUrl = rawImage ? borderedImageUrl(origin, rawImage, accent) : null;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(
+    buildHtml({
+      title: `${title} on DexPoky.com`,
+      description: descParts.join("  ·  "),
+      imageUrl,
+      cardAspect: true,
+      redirectUrl: `/view/group/${code}`,
+      origin,
+      accentColor: accent,
     }),
   );
 });

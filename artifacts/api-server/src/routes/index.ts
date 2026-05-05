@@ -21,6 +21,7 @@ import wishlistRouter from "./wishlist";
 import wantedRouter from "./wanted";
 import messagesRouter from "./messages";
 import tradesRouter from "./trades";
+import groupSharesRouter from "./group-shares";
 import ogRouter from "./og";
 
 const router: IRouter = Router();
@@ -47,6 +48,7 @@ router.use(wishlistRouter);
 router.use(wantedRouter);
 router.use(messagesRouter);
 router.use(tradesRouter);
+router.use(groupSharesRouter);
 router.use(ogRouter);
 
 export default router;

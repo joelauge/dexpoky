@@ -461,6 +461,14 @@ export default function SharePage() {
   const [createdListingId, setCreatedListingId] = useState<number | null>(null);
   const [listingImagePaths, setListingImagePaths] = useState<string[]>([]);
   const [listingVideo, setListingVideo] = useState<string | null>(null);
+  const [groupCardMedia, setGroupCardMedia] = useState<Record<number, { photos: string[]; video: string | null }>>({});
+
+  const updateGroupCardMedia = (cardId: number, update: Partial<{ photos: string[]; video: string | null }>) => {
+    setGroupCardMedia(prev => {
+      const existing = prev[cardId] ?? { photos: [], video: null };
+      return { ...prev, [cardId]: { ...existing, ...update } };
+    });
+  };
 
   // For single-card mode: pre-seed photos with the card's original scan
   const seededSingleCardIdRef = useRef<number | null>(null);
@@ -551,6 +559,33 @@ export default function SharePage() {
     onError: () => toast.error("Failed to create listing"),
   });
 
+  const createGroupShare = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/group-shares", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: linkTitle.trim() || undefined,
+          askingPrice: parseFloat(price || "0"),
+          shippingCost: includeShipping ? parseFloat(shippingCost || "0") : undefined,
+          cards: activeCards.map(c => ({
+            cardId: c.id,
+            images: groupCardMedia[c.id]?.photos ?? [],
+            video: groupCardMedia[c.id]?.video ?? undefined,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to create group share");
+      return res.json() as Promise<{ code: string; url: string }>;
+    },
+    onSuccess: (data) => {
+      const link = `${window.location.origin}/api/og/g/${data.code}`;
+      setShareLink(link);
+      setStep(3);
+    },
+    onError: () => toast.error("Failed to create group share"),
+  });
+
   const createWanted = useCreateWantedListing({
     mutation: {
       onSuccess: (data) => {
@@ -595,6 +630,8 @@ export default function SharePage() {
         listingImages: listingImagePaths.length > 0 ? listingImagePaths : undefined,
         listingVideo: listingVideo ?? undefined,
       } as Parameters<typeof createListing.mutate>[0]);
+    } else if (sellType === "group") {
+      createGroupShare.mutate();
     } else {
       const origin = window.location.origin;
       let link = origin + "/collection";
@@ -1141,6 +1178,35 @@ export default function SharePage() {
                   </div>
                 )}
 
+                {sellType === "group" && (
+                  <div className="bg-card rounded-2xl border p-4 space-y-4">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Photos & video per card <span className="font-normal normal-case text-muted-foreground/60">(optional)</span>
+                    </p>
+                    {activeCards.map((card, idx) => (
+                      <div key={card.id} className={`${idx !== activeCards.length - 1 ? "border-b pb-4" : ""}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          {card.imageUrl
+                            ? <img src={card.imageUrl} alt={card.name} className="w-7 h-9 object-contain rounded shrink-0" />
+                            : <div className="w-7 h-9 rounded bg-muted shrink-0" />
+                          }
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{card.name}</p>
+                            {card.setName && <p className="text-[10px] text-muted-foreground truncate">{card.setName}</p>}
+                          </div>
+                        </div>
+                        <ImageUploader
+                          photos={groupCardMedia[card.id]?.photos ?? []}
+                          video={groupCardMedia[card.id]?.video ?? null}
+                          onPhotosChange={(photos) => updateGroupCardMedia(card.id, { photos })}
+                          onVideoChange={(video) => updateGroupCardMedia(card.id, { video })}
+                          maxPhotos={5}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="bg-card rounded-2xl border p-4 space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Page title</label>
@@ -1236,10 +1302,10 @@ export default function SharePage() {
                 <Button
                   className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-semibold rounded-xl"
                   onClick={handleGenerate}
-                  disabled={createListing.isPending}
+                  disabled={createListing.isPending || createGroupShare.isPending}
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
-                  {createListing.isPending ? "Creating…" : "Generate share link"}
+                  {(createListing.isPending || createGroupShare.isPending) ? "Creating…" : "Generate share link"}
                 </Button>
               </div>
             )}

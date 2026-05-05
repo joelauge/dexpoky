@@ -29,6 +29,7 @@ import PublicCardView from "@/pages/view/card/[id]";
 import PublicCategoryView from "@/pages/view/category/[id]";
 import PublicCollectionView from "@/pages/view/collection";
 import PublicListingView from "@/pages/view/listing/[id]";
+import GroupShareView from "@/pages/view/group/[code]";
 import ShortLinkRedirect from "@/pages/s/[code]";
 import WantedPublicPage from "@/pages/w/[code]";
 import SubscriptionPage from "@/pages/subscription";
@@ -261,6 +262,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/view/category/:id" component={PublicCategoryView} />
             <Route path="/view/collection" component={PublicCollectionView} />
             <Route path="/view/listing/:id" component={PublicListingView} />
+            <Route path="/view/group/:code" component={GroupShareView} />
             <Route path="/s/:code" component={ShortLinkRedirect} />
             <Route path="/w/:code" component={WantedPublicPage} />
             <Route component={NotFound} />
