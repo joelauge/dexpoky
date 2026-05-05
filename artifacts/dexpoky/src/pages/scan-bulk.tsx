@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Loader2,
   Plus,
+  RefreshCw,
   ScanLine,
   SwitchCamera,
   Trash2,
@@ -19,6 +20,12 @@ import {
   Sparkles,
   CheckCircle2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
 import { useCameraFacing } from "@/hooks/useCameraFacing";
@@ -130,6 +137,7 @@ export default function ScanBulkPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [savedCount, setSavedCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
+  const [previewEntryId, setPreviewEntryId] = useState<string | null>(null);
 
   const { facingMode, facingModeRef, setFacingMode } = useCameraFacing();
   const [hasSingleCamera, setHasSingleCamera] = useState(false);
@@ -400,6 +408,28 @@ export default function ScanBulkPage() {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   }, []);
 
+  const reidentifyEntry = useCallback((id: string) => {
+    if (haltedRef.current) {
+      toast.warning("Scan limit reached — re-scan is unavailable.");
+      return;
+    }
+    const entry = entries.find((e) => e.id === id);
+    if (!entry) return;
+    // Abort any still-running detection for this entry
+    const ctrl = abortControllersRef.current.get(id);
+    if (ctrl) {
+      ctrl.abort();
+      abortControllersRef.current.delete(id);
+    }
+    // Reset to analyzing state, clear prior results
+    setEntries((prev) => prev.map((e) =>
+      e.id === id
+        ? { ...e, status: "analyzing", variants: [], selectedVariantId: undefined, pokemonName: undefined, errorMsg: undefined }
+        : e
+    ));
+    void processEntry(id, entry.imageData);
+  }, [entries, processEntry]);
+
   // ── Save All ──────────────────────────────────────────────────────────────
   const saveAll = useCallback(async () => {
     // Snapshot the entries to save at the moment Save is pressed, so any
@@ -653,14 +683,21 @@ export default function ScanBulkPage() {
                       key={e.id}
                       className="relative shrink-0 w-12 h-16 rounded-lg overflow-hidden border border-border bg-muted"
                     >
-                      <img src={e.imageData} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                        <StatusDot status={e.status} />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewEntryId(e.id)}
+                        className="absolute inset-0 w-full h-full focus:outline-none"
+                        aria-label={`Preview card ${e.pokemonName ?? e.id}`}
+                      >
+                        <img src={e.imageData} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <StatusDot status={e.status} />
+                        </div>
+                      </button>
                       <button
                         type="button"
                         onClick={() => removeEntry(e.id)}
-                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs shadow"
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs shadow z-10"
                         aria-label="Remove"
                       >
                         <X className="h-2.5 w-2.5" />
@@ -984,6 +1021,123 @@ export default function ScanBulkPage() {
         }}
         reason={paywallReason}
       />
+
+      {/* Thumbnail preview modal */}
+      {(() => {
+        const previewEntry = entries.find((e) => e.id === previewEntryId);
+        const isFailed =
+          previewEntry &&
+          (previewEntry.status === "no_card" ||
+            previewEntry.status === "error" ||
+            previewEntry.status === "save_failed");
+        const isAnalyzing = previewEntry?.status === "analyzing";
+        const cardName =
+          previewEntry?.pokemonName ??
+          previewEntry?.variants.find((v) => v.id === previewEntry.selectedVariantId)?.name ??
+          previewEntry?.variants[0]?.name;
+        const setLabel =
+          previewEntry?.variants.find((v) => v.id === previewEntry.selectedVariantId)?.setName ??
+          previewEntry?.variants[0]?.setName;
+
+        const statusLabel = !previewEntry
+          ? null
+          : previewEntry.status === "analyzing"
+            ? "Analyzing…"
+            : previewEntry.status === "saving"
+              ? "Saving…"
+              : previewEntry.status === "saved"
+                ? "Saved"
+                : previewEntry.status === "ready"
+                  ? "Identified"
+                  : previewEntry.errorMsg ?? "Not identified";
+
+        return (
+          <Dialog open={!!previewEntry} onOpenChange={(open) => { if (!open) setPreviewEntryId(null); }}>
+            <DialogContent className="max-w-xs w-full p-0 overflow-hidden rounded-2xl">
+              <DialogHeader className="px-4 pt-4 pb-2">
+                <DialogTitle className="text-base">
+                  {cardName ?? "Card Preview"}
+                </DialogTitle>
+              </DialogHeader>
+
+              {previewEntry && (
+                <div className="flex flex-col gap-3 pb-4">
+                  {/* Full photo */}
+                  <div className="px-4">
+                    <div className="relative w-full aspect-[5/7] rounded-xl overflow-hidden bg-muted">
+                      <img
+                        src={previewEntry.imageData}
+                        alt={cardName ?? "Captured card"}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Card info */}
+                  <div className="px-4 space-y-1">
+                    {isAnalyzing ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Identifying card…</span>
+                      </div>
+                    ) : (
+                      <>
+                        {cardName ? (
+                          <p className="text-sm font-semibold">{cardName}</p>
+                        ) : null}
+                        {setLabel ? (
+                          <p className="text-xs text-muted-foreground">{setLabel}</p>
+                        ) : null}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {isFailed ? (
+                            <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                          ) : previewEntry.status === "saved" || previewEntry.status === "ready" ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          ) : null}
+                          <span className={`text-xs ${isFailed ? "text-red-500" : "text-muted-foreground"}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="px-4 flex gap-2">
+                    {(isFailed || previewEntry.status === "ready") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-1.5"
+                        disabled={isAnalyzing}
+                        onClick={() => {
+                          reidentifyEntry(previewEntry.id);
+                          setPreviewEntryId(null);
+                        }}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Re-scan
+                      </Button>
+                    )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="flex-1 gap-1.5"
+                      onClick={() => {
+                        removeEntry(previewEntry.id);
+                        setPreviewEntryId(null);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </Layout>
   );
 }
