@@ -9,7 +9,7 @@ import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/
 import {
   ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, ExternalLink,
   ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2, Calendar, Clock,
-  Share2, Camera, Maximize2, BookOpen,
+  Share2, Camera, Maximize2, BookOpen, CheckCircle2,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { ShareModal } from "@/components/share-modal";
