@@ -160,18 +160,17 @@ interface TradeStatCardProps {
 
 function TradeStatCard({ icon: Icon, label, value, sub, accent, iconBg, loading, href }: TradeStatCardProps) {
   const inner = (
-    <CardContent className="p-5 flex items-center gap-4 group">
-      <div className={`${iconBg} p-3 rounded-2xl shrink-0`}>
-        <Icon className={`h-5 w-5 ${accent}`} />
+    <CardContent className="p-4 group">
+      <div className={`inline-flex items-center justify-center p-1.5 rounded-lg ${iconBg} mb-2.5`}>
+        <Icon className={`h-3.5 w-3.5 ${accent}`} />
       </div>
-      <div className="min-w-0 flex-1">
-        {loading
-          ? <Skeleton className="h-7 w-20" />
-          : <p className={`text-2xl font-black tracking-tight leading-none ${accent}`}>{value}</p>}
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-none mt-1">{label}</p>
-        {sub && !loading && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-      </div>
-      {href && <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />}
+      {loading
+        ? <Skeleton className="h-6 w-16 mb-1" />
+        : <p className={`text-xl font-black tracking-tight leading-none ${accent}`}>{value}</p>}
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-none mt-1.5 truncate">{label}</p>
+      {href && (
+        <ArrowRight className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors mt-1.5" />
+      )}
     </CardContent>
   );
 
