@@ -133,7 +133,7 @@ export function CatalogSearch({
                     <div className="flex items-center justify-between gap-1">
                       <p className="text-xs font-semibold truncate">{c.name}</p>
                       {c.marketPrice != null && (
-                        <span className="text-[10px] font-bold text-emerald-600 shrink-0">Market value ${c.marketPrice.toFixed(2)}</span>
+                        <span className="text-[10px] font-bold text-foreground shrink-0">Market value ${c.marketPrice.toFixed(2)}</span>
                       )}
                     </div>
                     <p className="text-[10px] text-muted-foreground truncate">
