@@ -139,12 +139,12 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
                   <Sparkles className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground">Create share link</p>
+                  <p className="font-semibold text-foreground">Share & Sell This Card</p>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-violet-500">Recommended</span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground pl-12 leading-snug">
-                Set a price, pick shipping, and get a checkout link buyers can pay in seconds.
+                Set a price, add images & video, and even setup a meeting and location for the exchange.
               </p>
             </button>
 
@@ -157,7 +157,7 @@ export function ShareModal({ isOpen, onClose, target }: ShareModalProps) {
                 <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center border border-slate-200 shrink-0">
                   <Link2 className="h-4 w-4" />
                 </div>
-                <p className="font-semibold text-foreground">Copy view link</p>
+                <p className="font-semibold text-foreground">Share & Show This Card</p>
               </div>
               <p className="text-xs text-muted-foreground pl-12 leading-snug">
                 Share a quick view-only link for this {typeDescription} — no selling or pricing.
