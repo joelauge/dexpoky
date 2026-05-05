@@ -19,10 +19,18 @@ import {
   BookOpen,
   Heart,
   MessageSquare,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -99,44 +107,86 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
       }
     >
       {collapsed ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Link href="/profile">
-              <div className="flex items-center justify-center p-2.5 rounded-md cursor-pointer hover:bg-secondary transition-colors">
-                {user?.imageUrl ? (
-                  <img src={user.imageUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
-                ) : (
-                  <User className="h-5 w-5 text-muted-foreground" />
-                )}
-              </div>
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="right">{user?.firstName ?? "Profile"}</TooltipContent>
-        </Tooltip>
-      ) : (
-        <div className="mx-2 rounded-xl border bg-muted/30 p-3">
-          <Link href="/profile">
-            <div className="flex items-center gap-2.5 cursor-pointer mb-2 hover:opacity-80 transition-opacity">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="flex items-center justify-center p-2.5 rounded-md cursor-pointer hover:bg-secondary transition-colors">
               {user?.imageUrl ? (
-                <img src={user.imageUrl} alt="" className="h-8 w-8 rounded-full object-cover border border-border shrink-0" />
+                <img src={user.imageUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
               ) : (
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <User className="h-4 w-4 text-primary" />
-                </div>
+                <User className="h-5 w-5 text-muted-foreground" />
               )}
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-foreground truncate">{user?.firstName ?? "My Profile"}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{user?.primaryEmailAddress?.emailAddress}</p>
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="end" className="w-48">
+            <DropdownMenuItem asChild>
+              <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
+                <User className="h-4 w-4" /> Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/inbox" className="flex items-center gap-2 cursor-pointer">
+                <MessageSquare className="h-4 w-4" /> Inbox
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/subscription" className="flex items-center gap-2 cursor-pointer">
+                <Sparkles className="h-4 w-4" /> Subscription
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => signOut(() => setLocation("/marketplace"))}
+              className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
+            >
+              <LogOut className="h-4 w-4" /> Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="mx-2 rounded-xl border bg-muted/30 p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center gap-2.5 mb-0">
+                {user?.imageUrl ? (
+                  <img src={user.imageUrl} alt="" className="h-8 w-8 rounded-full object-cover border border-border shrink-0" />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <User className="h-4 w-4 text-primary" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-foreground truncate">{user?.firstName ?? "My Profile"}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{user?.primaryEmailAddress?.emailAddress}</p>
+                </div>
+                <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </div>
             </div>
-          </Link>
-          <button
-            onClick={() => signOut(() => setLocation("/marketplace"))}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
-          >
-            <LogOut className="h-3 w-3" /> Sign Out
-          </button>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="end" className="w-52 mb-1">
+            <DropdownMenuItem asChild>
+              <Link href="/profile" className="flex items-center gap-2 cursor-pointer">
+                <User className="h-4 w-4" /> Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/inbox" className="flex items-center gap-2 cursor-pointer">
+                <MessageSquare className="h-4 w-4" /> Inbox
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/subscription" className="flex items-center gap-2 cursor-pointer">
+                <Sparkles className="h-4 w-4" /> Subscription
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => signOut(() => setLocation("/marketplace"))}
+              className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
+            >
+              <LogOut className="h-4 w-4" /> Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </Show>
   );
@@ -155,11 +205,9 @@ export function Layout({ children }: LayoutProps) {
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/collection", label: "Collection", icon: Layers },
     { href: "/wishlist", label: "Wishlist", icon: Heart },
-    { href: "/inbox", label: "Inbox", icon: MessageSquare },
     { href: "/decks", label: "Decks", icon: Library },
     { href: "/categories", label: "Categories", icon: FolderTree },
     { href: "/share", label: "Share/Sell", icon: Share2 },
-    { href: "/subscription", label: "Subscription", icon: Sparkles },
     { href: "/rules", label: "Rules", icon: BookOpen },
   ];
 
@@ -229,6 +277,20 @@ export function Layout({ children }: LayoutProps) {
               location === "/profile" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}>
               <User className="h-5 w-5" /><span>Profile</span>
+            </div>
+          </Link>
+          <Link href="/inbox">
+            <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
+              location === "/inbox" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}>
+              <MessageSquare className="h-5 w-5" /><span>Inbox</span>
+            </div>
+          </Link>
+          <Link href="/subscription">
+            <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
+              location === "/subscription" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}>
+              <Sparkles className="h-5 w-5" /><span>Subscription</span>
             </div>
           </Link>
         </Show>
