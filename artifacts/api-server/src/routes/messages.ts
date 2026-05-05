@@ -6,6 +6,7 @@ import { clerkClient } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { logger } from "../lib/logger.js";
 import { z } from "zod/v4";
+import { notifyNewMessage } from "../lib/notifyNewMessage.js";
 
 const router = Router();
 
@@ -412,6 +413,18 @@ router.post("/threads/:threadId/messages", requireAuth, async (req, res) => {
     .update(dmThreadsTable)
     .set({ updatedAt: new Date() })
     .where(eq(dmThreadsTable.id, threadId));
+
+  // Fire-and-forget email notification to the recipient
+  const recipientClerkId =
+    thread.buyerClerkId === userId ? thread.sellerClerkId : thread.buyerClerkId;
+  if (recipientClerkId) {
+    void notifyNewMessage({
+      toClerkId: recipientClerkId,
+      fromClerkId: userId,
+      threadId,
+      preview: parsed.data.content,
+    });
+  }
 
   res.status(201).json(msg);
 });

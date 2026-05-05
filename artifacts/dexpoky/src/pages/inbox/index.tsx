@@ -1160,9 +1160,20 @@ function TradeThread({
 export default function InboxPage() {
   const { user } = useUser();
   const search = useSearch();
+  const qcInbox = useQueryClient();
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [autoOpened, setAutoOpened] = useState(false);
+
+  // When arriving from ?thread=<id> (e.g. via Counter Offer button), force a
+  // fresh fetch so the brand-new thread is immediately available.
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    if (params.get("thread")) {
+      qcInbox.invalidateQueries({ queryKey: ["/api/threads"] });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: threads, isLoading } = useListThreads({
     query: {
@@ -1173,7 +1184,7 @@ export default function InboxPage() {
 
   // Auto-open thread from ?thread=<id> URL param (e.g. after clicking Counter Offer)
   useEffect(() => {
-    if (autoOpened || !threads || threads.length === 0) return;
+    if (autoOpened || !threads) return;
     const params = new URLSearchParams(search);
     const threadParam = params.get("thread");
     if (!threadParam) return;

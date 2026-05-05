@@ -1,8 +1,9 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk, Show } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthFetch } from "@/lib/use-auth-fetch";
+import { useListThreads } from "@workspace/api-client-react";
 import {
   LayoutDashboard,
   Layers,
@@ -88,13 +89,51 @@ function JoinCTA({ collapsed }: { collapsed?: boolean }) {
 function UserWidget({ collapsed }: { collapsed: boolean }) {
   const { user, isSignedIn } = useUser();
   const { signOut } = useClerk();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const authFetch = useAuthFetch();
+  const prevUnreadRef = useRef(0);
+
   const { data: profile } = useQuery<{ username?: string }>({
     queryKey: ["/api/users/me"],
     queryFn: () => authFetch("/api/users/me").then(r => r.ok ? r.json() : null),
     enabled: !!isSignedIn,
   });
+
+  const { data: threads } = useListThreads({
+    query: {
+      queryKey: ["/api/threads"],
+      refetchInterval: 30000,
+      enabled: !!isSignedIn,
+    },
+  });
+
+  const totalUnread = threads?.reduce((sum, t) => sum + (t.unreadCount ?? 0), 0) ?? 0;
+
+  // Request browser notification permission and fire a notification when new messages arrive
+  useEffect(() => {
+    if (!isSignedIn || totalUnread === 0) return;
+    if (!("Notification" in window)) return;
+
+    if (Notification.permission === "default") {
+      void Notification.requestPermission();
+    }
+
+    if (totalUnread > prevUnreadRef.current && !location.startsWith("/inbox")) {
+      if (Notification.permission === "granted") {
+        const n = new Notification("DexPoky — New Message", {
+          body: `You have ${totalUnread} unread message${totalUnread !== 1 ? "s" : ""} in your inbox.`,
+          icon: "/dexpoky-logo.png",
+        });
+        n.onclick = () => {
+          window.focus();
+          setLocation("/inbox");
+          n.close();
+        };
+      }
+    }
+    prevUnreadRef.current = totalUnread;
+  }, [totalUnread, isSignedIn, location, setLocation]);
+
   const displayName = profile?.username || user?.username || user?.firstName?.split(" ")[0] || "My Profile";
 
   return (
@@ -118,11 +157,14 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
       {collapsed ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="flex items-center justify-center p-2.5 rounded-md cursor-pointer hover:bg-secondary transition-colors">
+            <div className="flex items-center justify-center p-2.5 rounded-md cursor-pointer hover:bg-secondary transition-colors relative">
               {user?.imageUrl ? (
                 <img src={user.imageUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
               ) : (
                 <User className="h-5 w-5 text-muted-foreground" />
+              )}
+              {totalUnread > 0 && (
+                <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-background" />
               )}
             </div>
           </DropdownMenuTrigger>
@@ -135,6 +177,11 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
             <DropdownMenuItem asChild>
               <Link href="/inbox" className="flex items-center gap-2 cursor-pointer">
                 <MessageSquare className="h-4 w-4" /> Inbox
+                {totalUnread > 0 && (
+                  <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                    {totalUnread > 9 ? "9+" : totalUnread}
+                  </span>
+                )}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
@@ -156,13 +203,18 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
           <DropdownMenuTrigger asChild>
             <div className="mx-2 rounded-xl border bg-muted/30 p-3 cursor-pointer hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-2.5 mb-0">
-                {user?.imageUrl ? (
-                  <img src={user.imageUrl} alt="" className="h-8 w-8 rounded-full object-cover border border-border shrink-0" />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <User className="h-4 w-4 text-primary" />
-                  </div>
-                )}
+                <div className="relative shrink-0">
+                  {user?.imageUrl ? (
+                    <img src={user.imageUrl} alt="" className="h-8 w-8 rounded-full object-cover border border-border" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="h-4 w-4 text-primary" />
+                    </div>
+                  )}
+                  {totalUnread > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500 ring-2 ring-background" />
+                  )}
+                </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-foreground truncate">{displayName}</p>
                   <p className="text-[10px] text-muted-foreground truncate">{user?.primaryEmailAddress?.emailAddress}</p>
@@ -180,6 +232,11 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
             <DropdownMenuItem asChild>
               <Link href="/inbox" className="flex items-center gap-2 cursor-pointer">
                 <MessageSquare className="h-4 w-4" /> Inbox
+                {totalUnread > 0 && (
+                  <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                    {totalUnread > 9 ? "9+" : totalUnread}
+                  </span>
+                )}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
