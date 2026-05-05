@@ -760,7 +760,7 @@ export default function ScanBulkPage() {
               return (
                 <div
                   key={e.id}
-                  className={`border rounded-2xl overflow-hidden transition-colors ${
+                  className={`relative border rounded-2xl overflow-hidden transition-colors ${
                     e.include && e.status === "ready" ? "border-border" : "border-dashed border-border opacity-70"
                   }`}
                 >
@@ -817,7 +817,7 @@ export default function ScanBulkPage() {
                         <p className="text-[11px] text-red-500 mt-1">{e.saveError}</p>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <div className="shrink-0">
                       {e.status === "ready" && (
                         <button
                           type="button"
@@ -828,15 +828,16 @@ export default function ScanBulkPage() {
                           Edit
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => removeEntry(e.id)}
-                        className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30"
-                        aria-label="Remove from batch"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
                     </div>
+                    {/* Trash pinned to bottom-right so it can't be hit accidentally */}
+                    <button
+                      type="button"
+                      onClick={() => removeEntry(e.id)}
+                      className="absolute bottom-3 right-3 text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                      aria-label="Remove from batch"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
 
                   {/* Expanded editor */}
