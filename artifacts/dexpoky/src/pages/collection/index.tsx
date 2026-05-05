@@ -129,7 +129,7 @@ export default function Collection() {
           </div>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" className="gap-2" onClick={() => setIsShareOpen(true)}>
-              <Share2 className="h-4 w-4" /> Share/Sell
+              <Share2 className="h-4 w-4" /> Share
             </Button>
             <Link href="/collection/new">
               <Button className="gap-2 shadow-md hover:shadow-lg transition-all">

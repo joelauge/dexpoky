@@ -158,7 +158,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/inbox", label: "Inbox", icon: MessageSquare },
     { href: "/decks", label: "Decks", icon: Library },
     { href: "/categories", label: "Categories", icon: FolderTree },
-    { href: "/share", label: "Share", icon: Share2 },
+    { href: "/share", label: "Share/Sell", icon: Share2 },
     { href: "/subscription", label: "Subscription", icon: Sparkles },
     { href: "/rules", label: "Rules", icon: BookOpen },
   ];
