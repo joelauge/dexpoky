@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
 import {
-  ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, CheckCircle2, ExternalLink,
+  ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, ExternalLink,
   ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2, Calendar, Clock,
   Share2, Camera, Maximize2, BookOpen,
 } from "lucide-react";
@@ -76,9 +76,6 @@ export default function CardDetail() {
   const deleteCard = useDeleteCard();
   const updateCard = useUpdateCard();
   const qc = useQueryClient();
-  const [sellPrice, setSellPrice] = useState<string>("");
-  const [isSellOpen, setIsSellOpen] = useState(false);
-  const [listedId, setListedId] = useState<number | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
   // ── Card Story (inline-editable) ──────────────────────────────────────
@@ -230,24 +227,6 @@ export default function CardDetail() {
   }, [prevCard, nextCard]);
   // ──────────────────────────────────────────────────────────────────────────
 
-  const listCard = useMutation({
-    mutationFn: async ({ cardId, price }: { cardId: number; price: number }) => {
-      const res = await fetch("/api/marketplace", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId, price, listingType: "buy_now" }),
-      });
-      if (!res.ok) throw new Error("Failed to create listing");
-      return res.json() as Promise<{ id: number }>;
-    },
-    onSuccess: (data) => {
-      setListedId(data.id);
-      qc.invalidateQueries({ queryKey: ["/api/cards", id] });
-      qc.invalidateQueries({ queryKey: ["/api/marketplace"] });
-      qc.invalidateQueries({ queryKey: ["/api/cards/listing", id] });
-    },
-    onError: () => toast.error("Failed to list card — please try again."),
-  });
 
   interface ActiveListing {
     id: number;
@@ -285,17 +264,6 @@ export default function CardDetail() {
       },
       onError: () => toast.error("Failed to delete card"),
     });
-  };
-
-  const handleSell = () => {
-    const price = parseFloat(sellPrice);
-    if (!sellPrice || price <= 0) { toast.error("Please enter a valid price"); return; }
-    listCard.mutate({ cardId: id, price });
-  };
-
-  const handleSellDialogChange = (open: boolean) => {
-    setIsSellOpen(open);
-    if (!open) { setSellPrice(""); setListedId(null); listCard.reset(); }
   };
 
   // ── Loading skeleton ───────────────────────────────────────────────────────
@@ -433,80 +401,25 @@ export default function CardDetail() {
                   </Button>
                 </div>
               ) : (
-                <Dialog open={isSellOpen} onOpenChange={handleSellDialogChange}>
-                  <DialogTrigger asChild>
-                    <Button size="lg" className="w-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground h-12 text-base font-bold">
-                      <Tag className="h-5 w-5 mr-2" /> Sell on Marketplace
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    {listedId ? (
-                      <>
-                        <DialogHeader>
-                          <DialogTitle className="flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-emerald-500" /> Listed Successfully!
-                          </DialogTitle>
-                          <DialogDescription>
-                            <span className="font-medium text-foreground">{card.name}</span> is now live on the marketplace for {formatCurrency(parseFloat(sellPrice))}.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter className="mt-2 gap-2 sm:gap-0">
-                          <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Close</Button>
-                          <Button onClick={() => { handleSellDialogChange(false); setLocation(`/marketplace/${listedId}`); }}>
-                            <ExternalLink className="h-4 w-4 mr-2" /> View Listing
-                          </Button>
-                        </DialogFooter>
-                      </>
-                    ) : (
-                      <>
-                        <DialogHeader>
-                          <DialogTitle>List Card for Sale</DialogTitle>
-                          <DialogDescription>
-                            Set your asking price for <span className="font-medium text-foreground">{card.name}</span>.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="py-4 space-y-3">
-                          <div>
-                            <label className="block text-sm font-medium mb-1.5">Asking Price ($)</label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder={card.estimatedValue?.toString() ?? "0.00"}
-                              value={sellPrice}
-                              onChange={(e) => setSellPrice(e.target.value)}
-                              onKeyDown={(e) => e.key === "Enter" && handleSell()}
-                              className="text-xl py-5 font-bold"
-                              autoFocus
-                            />
-                          </div>
-                          {card.estimatedValue && (
-                            <div className="flex items-center justify-between text-sm bg-muted/40 rounded-lg px-3 py-2">
-                              <span className="text-muted-foreground">Estimated value</span>
-                              <span className="font-semibold">{formatCurrency(card.estimatedValue)}</span>
-                            </div>
-                          )}
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => handleSellDialogChange(false)}>Cancel</Button>
-                          <Button onClick={handleSell} disabled={listCard.isPending}>
-                            {listCard.isPending ? "Listing…" : "Confirm Listing"}
-                          </Button>
-                        </DialogFooter>
-                      </>
-                    )}
-                  </DialogContent>
-                </Dialog>
+                <>
+                  <Button
+                    size="lg"
+                    className="w-full shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground h-12 text-base font-bold"
+                    onClick={() => setLocation(`/share?card=${id}`)}
+                  >
+                    <Tag className="h-5 w-5 mr-2" /> Sell on Marketplace
+                  </Button>
+                  <p className="text-center text-xs text-muted-foreground mt-3">
+                    Want to auction instead?{" "}
+                    <button
+                      onClick={() => setLocation(`/sell?card=${id}`)}
+                      className="text-primary underline underline-offset-2 hover:no-underline font-medium"
+                    >
+                      Use Sell page
+                    </button>
+                  </p>
+                </>
               )}
-
-              <p className="text-center text-xs text-muted-foreground mt-3">
-                Want to auction instead?{" "}
-                <button
-                  onClick={() => setLocation("/sell")}
-                  className="text-primary underline underline-offset-2 hover:no-underline font-medium"
-                >
-                  Use Sell page
-                </button>
-              </p>
             </div>
 
             {/* Notes */}
