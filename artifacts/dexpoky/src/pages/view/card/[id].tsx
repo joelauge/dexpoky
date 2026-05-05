@@ -90,12 +90,16 @@ export default function PublicCardView() {
 
           {card && (
             <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${RARITY_COLORS[card.rarity] ?? "bg-white/10 border-white/10 text-white/60"}`}>
-                {formatLabel(card.rarity)}
-              </span>
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${CONDITION_COLORS[card.condition] ?? "bg-white/10 border-white/10 text-white/60"}`}>
-                {formatLabel(card.condition)}
-              </span>
+              {card.rarity && (
+                <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${RARITY_COLORS[card.rarity] ?? "bg-white/10 border-white/10 text-white/60"}`}>
+                  {formatLabel(card.rarity)}
+                </span>
+              )}
+              {card.condition && (
+                <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${CONDITION_COLORS[card.condition] ?? "bg-white/10 border-white/10 text-white/60"}`}>
+                  {formatLabel(card.condition)}
+                </span>
+              )}
             </div>
           )}
 

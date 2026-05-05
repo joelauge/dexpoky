@@ -160,6 +160,14 @@ function HomeRoute() {
   return <Dashboard />;
 }
 
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [location]);
+  return null;
+}
+
 function ClerkAuthSync() {
   const { getToken } = useAuth();
 
@@ -209,6 +217,7 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <ScrollToTop />
           <ClerkAuthSync />
           <ClerkQueryClientCacheInvalidator />
           <Switch>
