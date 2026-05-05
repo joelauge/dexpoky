@@ -242,11 +242,10 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Mobile Header */}
         <header className="md:hidden flex items-center justify-between p-4 border-b bg-card sticky top-0 z-30">
-          <img src="/logo.png" alt="DexPoky" className="h-9 w-9 object-contain" />
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-6 w-6" />
+              <Button variant="ghost" size="icon" className="!h-18 !w-18 [&_svg]:size-12">
+                <Menu />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0">
@@ -262,6 +261,7 @@ export function Layout({ children }: LayoutProps) {
               </ScrollArea>
             </SheetContent>
           </Sheet>
+          <img src="/logo.png" alt="DexPoky" className="h-18 w-18 object-contain" />
         </header>
 
         {/* Desktop Sidebar */}
