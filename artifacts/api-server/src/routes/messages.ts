@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, dmThreadsTable, dmMessagesTable, wantedListingsTable, tradeOffersTable } from "@workspace/db";
+import { db, dmThreadsTable, dmMessagesTable, wantedListingsTable, listingsTable, cardsTable, tradeOffersTable } from "@workspace/db";
 import { eq, and, or, desc, ne } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
@@ -133,6 +133,98 @@ router.post("/wanted/:id/thread", requireAuth, async (req, res) => {
   res.json(thread);
 });
 
+/* ── Start or resume a counter-offer thread for a marketplace listing ────── */
+router.post("/marketplace/:id/thread", requireAuth, async (req, res) => {
+  const listingId = parseInt(String(req.params.id), 10);
+  if (isNaN(listingId)) {
+    res.status(400).json({ error: "Invalid listing id" });
+    return;
+  }
+
+  const buyerClerkId = (req as AuthRequest).userId;
+
+  const parsed = z.object({
+    initialMessage: z.string().trim().min(1).max(2000),
+    offerAmount: z.number().nonnegative().optional(),
+  }).safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+
+  const [listingRow] = await db
+    .select({
+      id: listingsTable.id,
+      sellerClerkId: listingsTable.sellerClerkId,
+      cardName: cardsTable.name,
+    })
+    .from(listingsTable)
+    .leftJoin(cardsTable, eq(listingsTable.cardId, cardsTable.id))
+    .where(eq(listingsTable.id, listingId))
+    .limit(1);
+
+  if (!listingRow) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+
+  const sellerClerkId = listingRow.sellerClerkId;
+  if (!sellerClerkId) {
+    res.status(400).json({ error: "Listing has no seller" });
+    return;
+  }
+
+  if (sellerClerkId === buyerClerkId) {
+    res.status(403).json({ error: "You cannot message yourself" });
+    return;
+  }
+
+  // Find or create thread
+  const existing = await db
+    .select()
+    .from(dmThreadsTable)
+    .where(
+      and(
+        eq(dmThreadsTable.listingId, listingId),
+        eq(dmThreadsTable.buyerClerkId, buyerClerkId),
+      ),
+    )
+    .limit(1);
+
+  let thread = existing[0];
+
+  if (!thread) {
+    const [created] = await db
+      .insert(dmThreadsTable)
+      .values({
+        listingId,
+        buyerClerkId,
+        sellerClerkId,
+      })
+      .returning();
+    thread = created;
+  }
+
+  const { initialMessage, offerAmount } = parsed.data;
+  const messageContent = offerAmount != null
+    ? `Counter Offer: ${offerAmount.toLocaleString("en-US", { style: "currency", currency: "USD" })}\n\n${initialMessage}`
+    : initialMessage;
+
+  await db.insert(dmMessagesTable).values({
+    threadId: thread.id,
+    senderClerkId: buyerClerkId,
+    content: messageContent,
+  });
+
+  await db
+    .update(dmThreadsTable)
+    .set({ updatedAt: new Date() })
+    .where(eq(dmThreadsTable.id, thread.id));
+
+  res.json({ threadId: thread.id });
+});
+
 router.get("/threads", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
 
@@ -171,23 +263,43 @@ router.get("/threads", requireAuth, async (req, res) => {
         ),
       );
 
-      const [wanted] = await db
-        .select({
-          id: wantedListingsTable.id,
-          name: wantedListingsTable.name,
-          imageUrl: wantedListingsTable.imageUrl,
-          ownerClerkId: wantedListingsTable.ownerClerkId,
-        })
-        .from(wantedListingsTable)
-        .where(eq(wantedListingsTable.id, thread.wantedListingId));
+      // Wanted-listing-based thread
+      let wantedCardName: string | null = null;
+      let wantedCardImageUrl: string | null = null;
+      if (thread.wantedListingId != null) {
+        const [wanted] = await db
+          .select({
+            id: wantedListingsTable.id,
+            name: wantedListingsTable.name,
+            imageUrl: wantedListingsTable.imageUrl,
+          })
+          .from(wantedListingsTable)
+          .where(eq(wantedListingsTable.id, thread.wantedListingId));
+        wantedCardName = wanted?.name ?? null;
+        wantedCardImageUrl = wanted?.imageUrl ?? null;
+      }
+
+      // Listing-based thread (counter-offer)
+      let listingCardName: string | null = null;
+      let listingCardImageUrl: string | null = null;
+      if (thread.listingId != null) {
+        const [lr] = await db
+          .select({ cardName: cardsTable.name, cardImage: cardsTable.imageUrl })
+          .from(listingsTable)
+          .leftJoin(cardsTable, eq(listingsTable.cardId, cardsTable.id))
+          .where(eq(listingsTable.id, thread.listingId));
+        listingCardName = lr?.cardName ?? null;
+        listingCardImageUrl = lr?.cardImage ?? null;
+      }
 
       const otherUserInfo = await getDisplayInfo(otherClerkId);
 
       return {
         id: thread.id,
         wantedListingId: thread.wantedListingId,
-        wantedCardName: wanted?.name ?? null,
-        wantedCardImageUrl: wanted?.imageUrl ?? null,
+        listingId: thread.listingId,
+        wantedCardName: wantedCardName ?? listingCardName,
+        wantedCardImageUrl: wantedCardImageUrl ?? listingCardImageUrl,
         role,
         otherUserId: otherClerkId,
         otherUserDisplayName: otherUserInfo.displayName,

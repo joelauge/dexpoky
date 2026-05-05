@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HoloCard } from "@/components/holo-card";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
-import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2, Camera, ChevronLeft, ChevronRight, X, ZoomIn } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2, Camera, ChevronLeft, ChevronRight, X, ZoomIn, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, isPast, intervalToDuration } from "date-fns";
 
@@ -359,6 +360,33 @@ export default function ListingDetail() {
   const [showProxyBid, setShowProxyBid] = useState(false);
   const [ratingScore, setRatingScore] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
+  const [showCounterOffer, setShowCounterOffer] = useState(false);
+  const [offerAmount, setOfferAmount] = useState("");
+  const [offerMessage, setOfferMessage] = useState("");
+
+  const sendCounterOffer = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/marketplace/${id}/thread`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          initialMessage: offerMessage || `Hi, I'm interested in ${card?.name ?? "this card"}. Would you consider a counter offer?`,
+          offerAmount: offerAmount ? parseFloat(offerAmount) : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send offer");
+      return data as { threadId: number };
+    },
+    onSuccess: () => {
+      toast.success("Counter offer sent! Check your inbox.");
+      setShowCounterOffer(false);
+      setOfferAmount("");
+      setOfferMessage("");
+      setLocation("/inbox");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const placeBid = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -701,18 +729,29 @@ export default function ListingDetail() {
                     </div>
                     {!isMyListing && (
                       user ? (
-                        <Button
-                          size="lg"
-                          className="h-14 px-8 text-lg font-bold shadow-lg"
-                          disabled={!isActive || checkout.isPending}
-                          onClick={handleBuy}
-                        >
-                          {checkout.isPending ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <ShoppingCart className="w-5 h-5 mr-2" />}
-                          {checkout.isPending ? "Redirecting…" : isActive ? "Purchase Card" : "Unavailable"}
-                        </Button>
+                        <div className="flex gap-2 items-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowCounterOffer(true)}
+                            disabled={!isActive}
+                          >
+                            <MessageCircle className="w-4 h-4 mr-1.5" />
+                            Counter Offer
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="font-semibold shadow"
+                            disabled={!isActive || checkout.isPending}
+                            onClick={handleBuy}
+                          >
+                            {checkout.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShoppingCart className="w-4 h-4 mr-1.5" />}
+                            {checkout.isPending ? "Redirecting…" : isActive ? "Purchase Card" : "Unavailable"}
+                          </Button>
+                        </div>
                       ) : (
                         <Link href="/sign-in">
-                          <Button size="lg" className="h-14 px-8 text-lg font-bold">Sign In to Buy</Button>
+                          <Button size="sm">Sign In to Buy</Button>
                         </Link>
                       )
                     )}
@@ -797,6 +836,58 @@ export default function ListingDetail() {
           </div>
         </div>
       </div>
+
+      {/* Counter Offer Dialog */}
+      <Dialog open={showCounterOffer} onOpenChange={setShowCounterOffer}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Make a Counter Offer</DialogTitle>
+            <DialogDescription>
+              Send the seller a message with your offer. They'll see it in their inbox.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 pt-2">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Your offer price (optional)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input
+                  className="pl-7"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={offerAmount}
+                  onChange={e => setOfferAmount(e.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Message to seller</label>
+              <Textarea
+                placeholder="Hi, I'm interested in this card. Would you consider..."
+                rows={4}
+                value={offerMessage}
+                onChange={e => setOfferMessage(e.target.value)}
+                maxLength={2000}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowCounterOffer(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={sendCounterOffer.isPending}
+                onClick={() => sendCounterOffer.mutate()}
+              >
+                {sendCounterOffer.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5" />}
+                Send Offer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

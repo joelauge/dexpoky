@@ -52,10 +52,23 @@ function cleanDomain(origin: string): string {
   return origin.replace(/^https?:\/\//, "");
 }
 
+/**
+ * Normalize a stored image path to a routable URL path.
+ * Stored object-storage paths come in as "/objects/..." — they need the "/api/storage" prefix.
+ * External URLs (http/https) and already-prefixed API paths are returned unchanged.
+ */
+function normalizeImagePath(path: string): string {
+  if (!path) return path;
+  if (path.startsWith("http")) return path;
+  if (path.startsWith("/api/")) return path;
+  return `/api/storage${path}`;
+}
+
 /** Build an /api/og/img URL with the card image + accent color encoded. */
 function borderedImageUrl(origin: string, rawUrl: string, color: string): string {
-  // Relative paths (e.g. /api/storage/...) must be made absolute for external crawlers.
-  const absUrl = rawUrl.startsWith("/") ? `${origin}${rawUrl}` : rawUrl;
+  const normalized = normalizeImagePath(rawUrl);
+  // Relative paths must be made absolute for external crawlers.
+  const absUrl = normalized.startsWith("/") ? `${origin}${normalized}` : normalized;
   return `${origin}/api/og/img?url=${encodeURIComponent(absUrl)}&color=${encodeURIComponent(color)}`;
 }
 
