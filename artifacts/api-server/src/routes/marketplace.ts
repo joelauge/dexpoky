@@ -33,6 +33,7 @@ const cardSelect = {
   forSale: cardsTable.forSale,
   listingPrice: sql<number | null>`${cardsTable.listingPrice}::float`,
   notes: cardsTable.notes,
+  cardStory: cardsTable.cardStory,
   createdAt: cardsTable.createdAt,
   updatedAt: cardsTable.updatedAt,
 };

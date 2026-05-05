@@ -31,6 +31,7 @@ interface PublicListing {
     condition: string;
     imageUrl: string | null;
     estimatedValue: number | null;
+    cardStory: string | null;
   };
 }
 
@@ -392,6 +393,20 @@ export default function PublicListingView() {
             </div>
           )}
         </div>
+
+        {/* ── Card story ── */}
+        {card?.cardStory && (
+          <div className="w-full max-w-sm mx-auto space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-px flex-1 bg-white/10" />
+              <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Card Story</p>
+              <div className="h-px flex-1 bg-white/10" />
+            </div>
+            <blockquote className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4">
+              <p className="text-white/70 text-sm leading-relaxed italic">{card.cardStory}</p>
+            </blockquote>
+          </div>
+        )}
 
         {/* ── Seller photos & video ── */}
         <PublicMediaGallery images={images} video={video} />

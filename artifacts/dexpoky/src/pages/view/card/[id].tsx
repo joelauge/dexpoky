@@ -14,6 +14,7 @@ interface Card {
   condition: string;
   imageUrl: string | null;
   estimatedValue: number | null;
+  cardStory: string | null;
 }
 
 interface PublicUser {
@@ -107,6 +108,19 @@ export default function PublicCardView() {
             <div className="inline-flex flex-col items-center bg-white/5 border border-white/10 rounded-2xl px-6 py-3 mt-1">
               <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest mb-0.5">Estimated Value</p>
               <p className="text-white text-2xl font-black">{formatCurrency(card.estimatedValue)}</p>
+            </div>
+          )}
+
+          {card?.cardStory && (
+            <div className="w-full space-y-3 pt-1">
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-white/10" />
+                <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Card Story</p>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+              <blockquote className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-left">
+                <p className="text-white/70 text-sm leading-relaxed italic">{card.cardStory}</p>
+              </blockquote>
             </div>
           )}
         </div>
