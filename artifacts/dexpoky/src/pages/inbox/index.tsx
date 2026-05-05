@@ -5,6 +5,7 @@ import {
   useListThreadMessages,
   useSendMessage,
   useMarkThreadRead,
+  useListCards,
 } from "@workspace/api-client-react";
 import type { DmThreadSummary, DmMessage } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
@@ -17,6 +18,7 @@ import {
   MessageSquare, Send, ArrowLeft, User, Heart,
   Video, DollarSign, CheckCircle2, XCircle, RefreshCw,
   Store, Shield, Gem, Calendar, MapPin, X, Lock, CreditCard, Banknote,
+  Package,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
@@ -28,8 +30,18 @@ import { useAuthFetch } from "@/lib/use-auth-fetch";
 type OfferStatus = "pending" | "countered" | "accepted" | "declined" | "cancelled";
 type EscrowMethod = "store" | "psa_vault" | "courtyard_nft" | "paypal_gs" | "escrow_com" | "cash_in_person";
 
+interface OfferedCard {
+  cardId: number;
+  cardName: string;
+  imageUrl: string | null;
+  estimatedValue: number | null;
+  rarity: string | null;
+  condition: string | null;
+}
+
 interface OfferHistoryEntry {
   amount: number;
+  cards?: OfferedCard[];
   from: "buyer" | "seller";
   sentAt: string;
   note?: string;
@@ -216,6 +228,16 @@ function TradeThread({
   const [meetupNotes, setMeetupNotes] = useState("");
   const [offer, setOffer] = useState<TradeOffer | null | undefined>(undefined);
   const [updating, setUpdating] = useState(false);
+  const [selectedCards, setSelectedCards] = useState<OfferedCard[]>([]);
+  const [showCardPicker, setShowCardPicker] = useState(false);
+  const [cardSearch, setCardSearch] = useState("");
+
+  const { data: myCards } = useListCards(undefined, {
+    query: {
+      enabled: activeAction === "offer",
+      queryKey: ["/api/cards"],
+    },
+  });
 
   // ── Fetch offer ──────────────────────────────────────────────────────────
 
@@ -372,6 +394,7 @@ function TradeThread({
       setCounterAmount(""); setCounterNote("");
       setVideoDate(""); setVideoNotes("");
       setMeetupLocation(""); setMeetupNotes("");
+      setSelectedCards([]); setShowCardPicker(false); setCardSearch("");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Action failed");
     } finally {
@@ -380,10 +403,17 @@ function TradeThread({
   };
 
   const sendCounter = () => {
-    const amt = parseFloat(counterAmount);
-    if (!isNaN(amt) && amt > 0) {
-      doAction({ action: "counter", amount: amt, notes: counterNote || undefined });
+    const amt = parseFloat(counterAmount) || 0;
+    if (amt === 0 && selectedCards.length === 0) {
+      toast.error("Add a cash amount or select at least one card to offer");
+      return;
     }
+    doAction({
+      action: "counter",
+      amount: amt,
+      cards: selectedCards.length > 0 ? selectedCards.map(c => ({ cardId: c.cardId })) : undefined,
+      notes: counterNote || undefined,
+    });
   };
 
   const sendVideoCall = () => {
@@ -473,49 +503,90 @@ function TradeThread({
             </div>
             {/* Amount */}
             <div className="px-4 pt-3 pb-2">
-              <div className={cn("text-3xl font-bold tabular-nums", isMe ? "text-primary" : "text-amber-800")}>
-                ${item.entry.amount.toFixed(2)}
-              </div>
+              {item.entry.amount > 0 && (
+                <div className={cn("text-3xl font-bold tabular-nums", isMe ? "text-primary" : "text-amber-800")}>
+                  ${item.entry.amount.toFixed(2)}
+                </div>
+              )}
+              {item.entry.amount === 0 && (!item.entry.cards || item.entry.cards.length === 0) && (
+                <div className={cn("text-3xl font-bold tabular-nums", isMe ? "text-primary" : "text-amber-800")}>
+                  $0.00
+                </div>
+              )}
+              {/* Offered cards strip */}
+              {item.entry.cards && item.entry.cards.length > 0 && (
+                <div className={cn("mt-2", item.entry.amount > 0 && "border-t pt-2")}>
+                  <p className={cn("text-[10px] font-bold uppercase tracking-wide mb-1.5", isMe ? "text-primary/70" : "text-amber-700/70")}>
+                    <Package className="inline h-2.5 w-2.5 mr-0.5" />
+                    {item.entry.amount > 0 ? "+" : ""}{item.entry.cards.length} card{item.entry.cards.length > 1 ? "s" : ""} included
+                  </p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {item.entry.cards.map(c => (
+                      <div key={c.cardId} className="flex flex-col items-center">
+                        {c.imageUrl ? (
+                          <img src={c.imageUrl} alt={c.cardName} className="w-10 h-14 rounded-md object-cover border border-border/50 shadow-sm" />
+                        ) : (
+                          <div className="w-10 h-14 rounded-md border border-border/50 bg-muted flex items-center justify-center">
+                            <Package className="h-3 w-3 text-muted-foreground" />
+                          </div>
+                        )}
+                        <p className="text-[8px] text-muted-foreground truncate w-10 text-center mt-0.5 leading-tight">{c.cardName}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {item.entry.cards.some(c => c.estimatedValue != null) && (
+                    <p className={cn("text-[10px] mt-1.5", isMe ? "text-primary/60" : "text-amber-700/60")}>
+                      Cards est. ~${item.entry.cards.reduce((s, c) => s + (c.estimatedValue ?? 0), 0).toFixed(2)}
+                    </p>
+                  )}
+                </div>
+              )}
               {item.entry.note && (
-                <p className="text-xs text-muted-foreground mt-1 italic">{item.entry.note}</p>
+                <p className="text-xs text-muted-foreground mt-1.5 italic">{item.entry.note}</p>
               )}
               <p className="text-[10px] text-muted-foreground/70 mt-1.5">
                 {format(new Date(item.entry.sentAt), "MMM d, h:mm a")}
               </p>
             </div>
             {/* Action buttons when it's your turn */}
-            {canAct && (
-              <div className="border-t px-3 py-2.5 flex gap-2 bg-white/60">
-                <Button
-                  size="sm"
-                  className="flex-1 h-8 bg-emerald-500 hover:bg-emerald-600 text-white text-xs"
-                  disabled={updating}
-                  onClick={() => doAction({ action: "accept" })}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                  Accept ${item.entry.amount.toFixed(2)}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs"
-                  disabled={updating}
-                  onClick={() => toggleAction("offer")}
-                >
-                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                  Counter
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-                  disabled={updating}
-                  onClick={() => doAction({ action: "decline" })}
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            )}
+            {canAct && (() => {
+              const hasCards = (item.entry.cards?.length ?? 0) > 0;
+              const acceptLabel = hasCards
+                ? `Accept (${item.entry.amount > 0 ? `$${item.entry.amount.toFixed(2)} + ` : ""}${item.entry.cards!.length} card${item.entry.cards!.length > 1 ? "s" : ""})`
+                : `Accept $${item.entry.amount.toFixed(2)}`;
+              return (
+                <div className="border-t px-3 py-2.5 flex gap-2 bg-white/60">
+                  <Button
+                    size="sm"
+                    className="flex-1 h-8 bg-emerald-500 hover:bg-emerald-600 text-white text-xs"
+                    disabled={updating}
+                    onClick={() => doAction({ action: "accept" })}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                    {acceptLabel}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    disabled={updating}
+                    onClick={() => toggleAction("offer")}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                    Counter
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                    disabled={updating}
+                    onClick={() => doAction({ action: "decline" })}
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              );
+            })()}
           </div>
           {/* Waiting label */}
           {!canAct && isLatest && isActive && !isMe && (
@@ -751,45 +822,171 @@ function TradeThread({
       {/* ── Expansion panels (counter / video / meetup) ─────────────────── */}
 
       {activeAction === "offer" && (
-        <div className="border-t px-4 py-3 bg-muted/40 space-y-2 shrink-0">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Counter Offer
-            </p>
-            <button type="button" onClick={() => setActiveAction(null)}>
-              <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={counterAmount}
-                onChange={e => setCounterAmount(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") sendCounter(); }}
-                className="pl-7 h-9 text-sm"
-                placeholder="Your price"
-                autoFocus
-              />
+        <div className="border-t bg-muted/40 shrink-0 flex flex-col" style={{ maxHeight: "min(480px, 55vh)", overflowY: "auto" }}>
+          <div className="px-4 pt-3 pb-2 space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Make an Offer</p>
+              <button type="button" onClick={() => { setActiveAction(null); setSelectedCards([]); setShowCardPicker(false); setCardSearch(""); }}>
+                <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+              </button>
             </div>
+
+            {/* Cash amount */}
+            <div>
+              <p className="text-[11px] text-muted-foreground mb-1">
+                Cash amount{selectedCards.length > 0 ? " (optional — 0 for a pure card swap)" : ""}
+              </p>
+              <div className="relative">
+                <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={counterAmount}
+                  onChange={e => setCounterAmount(e.target.value)}
+                  className="pl-7 h-9 text-sm"
+                  placeholder={selectedCards.length > 0 ? "0.00" : "Your price"}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Selected cards preview */}
+            {selectedCards.length > 0 && (
+              <div>
+                <p className="text-[11px] text-muted-foreground mb-1.5">
+                  Offering {selectedCards.length} card{selectedCards.length > 1 ? "s" : ""}
+                  {selectedCards.some(c => c.estimatedValue != null) && (
+                    <span className="ml-1 text-primary font-medium">
+                      (~${selectedCards.reduce((s, c) => s + (c.estimatedValue ?? 0), 0).toFixed(2)} est. value)
+                    </span>
+                  )}
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  {selectedCards.map(c => (
+                    <div key={c.cardId} className="relative group flex flex-col items-center">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCards(v => v.filter(x => x.cardId !== c.cardId))}
+                        className="absolute -top-1.5 -right-1.5 z-10 w-4 h-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                      {c.imageUrl ? (
+                        <img src={c.imageUrl} alt={c.cardName} className="w-12 h-[68px] rounded-lg object-cover border-2 border-primary/40 shadow-sm" />
+                      ) : (
+                        <div className="w-12 h-[68px] rounded-lg border-2 border-primary/40 bg-muted flex items-center justify-center">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                      <p className="text-[9px] text-muted-foreground truncate w-12 text-center mt-0.5">{c.cardName}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Toggle card picker */}
+            <button
+              type="button"
+              onClick={() => setShowCardPicker(v => !v)}
+              className="flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
+            >
+              <Package className="h-3.5 w-3.5" />
+              {showCardPicker ? "Hide collection" : "Add cards from your collection"}
+            </button>
+
+            {/* Card picker grid */}
+            {showCardPicker && (
+              <div className="space-y-2">
+                <Input
+                  value={cardSearch}
+                  onChange={e => setCardSearch(e.target.value)}
+                  placeholder="Search your cards…"
+                  className="h-8 text-sm"
+                />
+                {!myCards && (
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {[1,2,3,4,5].map(i => <Skeleton key={i} className="aspect-[5/7] rounded-lg" />)}
+                  </div>
+                )}
+                {myCards && myCards.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-3">No cards in your collection yet</p>
+                )}
+                {myCards && myCards.length > 0 && (
+                  <div className="grid grid-cols-5 gap-1.5 max-h-44 overflow-y-auto pb-1">
+                    {myCards
+                      .filter(c =>
+                        !cardSearch ||
+                        c.name.toLowerCase().includes(cardSearch.toLowerCase()) ||
+                        c.pokemonName.toLowerCase().includes(cardSearch.toLowerCase())
+                      )
+                      .map(c => {
+                        const isSel = selectedCards.some(s => s.cardId === c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              if (isSel) {
+                                setSelectedCards(v => v.filter(s => s.cardId !== c.id));
+                              } else {
+                                setSelectedCards(v => [...v, {
+                                  cardId: c.id,
+                                  cardName: c.name,
+                                  imageUrl: c.imageUrl ?? null,
+                                  estimatedValue: c.estimatedValue != null ? parseFloat(String(c.estimatedValue)) : null,
+                                  rarity: c.rarity,
+                                  condition: c.condition,
+                                }]);
+                              }
+                            }}
+                            className={cn(
+                              "relative rounded-lg overflow-hidden border-2 transition-all",
+                              isSel ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/50",
+                            )}
+                          >
+                            {c.imageUrl ? (
+                              <img src={c.imageUrl} alt={c.name} className="w-full aspect-[5/7] object-cover" />
+                            ) : (
+                              <div className="w-full aspect-[5/7] bg-muted flex items-center justify-center">
+                                <Package className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            {isSel && (
+                              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                <CheckCircle2 className="h-5 w-5 text-primary drop-shadow" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Note */}
+            <Input
+              value={counterNote}
+              onChange={e => setCounterNote(e.target.value)}
+              placeholder="Add a note (optional)"
+              className="h-9 text-sm"
+            />
+
+            {/* Send */}
             <Button
               size="sm"
-              className="h-9"
-              disabled={!counterAmount || parseFloat(counterAmount) <= 0 || updating}
+              className="w-full"
+              disabled={updating || ((parseFloat(counterAmount) || 0) === 0 && selectedCards.length === 0)}
               onClick={sendCounter}
             >
-              Send Counter
+              Send Offer
+              {(parseFloat(counterAmount) || 0) > 0 && ` — $${parseFloat(counterAmount).toFixed(2)}`}
+              {selectedCards.length > 0 && ` + ${selectedCards.length} card${selectedCards.length > 1 ? "s" : ""}`}
             </Button>
           </div>
-          <Input
-            value={counterNote}
-            onChange={e => setCounterNote(e.target.value)}
-            placeholder="Add a note to your counter (optional)"
-            className="h-9 text-sm"
-          />
         </div>
       )}
 

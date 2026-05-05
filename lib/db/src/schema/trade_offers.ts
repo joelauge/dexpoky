@@ -1,8 +1,18 @@
 import { integer, json, numeric, pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
 import { dmThreadsTable } from "./dm_threads";
 
+export interface OfferedCard {
+  cardId: number;
+  cardName: string;
+  imageUrl: string | null;
+  estimatedValue: number | null;
+  rarity: string | null;
+  condition: string | null;
+}
+
 export interface OfferHistoryEntry {
   amount: number;
+  cards?: OfferedCard[];
   from: "buyer" | "seller";
   sentAt: string;
   note?: string;
