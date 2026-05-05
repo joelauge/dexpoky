@@ -16,7 +16,7 @@ import {
   Share2, Link2, Mail, MessageCircle, Copy, Check,
   ChevronRight, Package, Layers, FolderOpen, LayoutGrid, Sparkles,
   QrCode, ExternalLink, DollarSign, Truck, ChevronDown, ArrowLeft,
-  Search, Heart, Globe, Lock, Clock, Calendar, Trash2,
+  Search, Heart, Globe, Lock, Clock, Calendar, Trash2, X,
   Eye, Gavel, TrendingUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -159,6 +159,7 @@ function ActiveSharesPanel({ listings, shortLinks, onRefresh }: {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const total = listings.length + shortLinks.length;
 
@@ -174,6 +175,7 @@ function ActiveSharesPanel({ listings, shortLinks, onRefresh }: {
   const deleteListing = async (id: number) => {
     const key = `listing-${id}`;
     setDeletingId(key);
+    setConfirmId(null);
     try {
       await fetch(`/api/marketplace/${id}`, { method: "DELETE" });
       onRefresh();
@@ -185,6 +187,7 @@ function ActiveSharesPanel({ listings, shortLinks, onRefresh }: {
   const deleteShortLink = async (id: number) => {
     const key = `link-${id}`;
     setDeletingId(key);
+    setConfirmId(null);
     try {
       await fetch(`/api/inventory/short-links/${id}`, { method: "DELETE" });
       onRefresh();
@@ -282,15 +285,36 @@ function ActiveSharesPanel({ listings, shortLinks, onRefresh }: {
                     aria-label="Open listing">
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
-                  <button
-                    type="button"
-                    onClick={() => deleteListing(item.id)}
-                    disabled={isDeleting}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
-                    aria-label="Remove listing"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {confirmId === copyKey ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => deleteListing(item.id)}
+                        disabled={isDeleting}
+                        className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-40"
+                      >
+                        {isDeleting ? "Deleting…" : "Delete"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmId(null)}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        aria-label="Cancel"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(copyKey)}
+                      disabled={isDeleting}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+                      aria-label="Remove listing"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -351,15 +375,36 @@ function ActiveSharesPanel({ listings, shortLinks, onRefresh }: {
                     aria-label="Open link">
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
-                  <button
-                    type="button"
-                    onClick={() => deleteShortLink(link.id)}
-                    disabled={isDeleting}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
-                    aria-label="Delete link"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {confirmId === copyKey ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => deleteShortLink(link.id)}
+                        disabled={isDeleting}
+                        className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-40"
+                      >
+                        {isDeleting ? "Deleting…" : "Delete"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmId(null)}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        aria-label="Cancel"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(copyKey)}
+                      disabled={isDeleting}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+                      aria-label="Delete link"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             );
