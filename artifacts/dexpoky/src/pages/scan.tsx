@@ -17,6 +17,7 @@ import {
   Award,
   Brain,
   Aperture,
+  SwitchCamera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
@@ -60,6 +61,15 @@ interface ConfirmStep {
 }
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const CAMERA_FACING_KEY = "dexpoky:cameraFacing";
+
+function readFacingMode(): "environment" | "user" {
+  try {
+    const v = localStorage.getItem(CAMERA_FACING_KEY);
+    if (v === "user" || v === "environment") return v;
+  } catch { /* ignore */ }
+  return "environment";
+}
 
 const PSA_GRADES = [10, 9, 8, 7, 6, 5] as const;
 const PSA_LABELS: Record<number, string> = {
@@ -81,6 +91,9 @@ export default function ScanPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const scanUploadRef = useRef<Promise<string | null> | null>(null);
   const [, navigate] = useLocation();
+
+  const [facingMode, setFacingMode] = useState<"environment" | "user">(readFacingMode);
+  const facingModeRef = useRef<"environment" | "user">(facingMode);
 
   const [phase, setPhase]                     = useState<Phase>("idle");
   const [pokemonName, setPokemonName]         = useState<string | null>(null);
@@ -212,7 +225,8 @@ export default function ScanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captureFrame, stopStream, lookupCard]);
 
-  const startCamera = async () => {
+  const startCamera = async (facing?: "environment" | "user") => {
+    const mode = facing ?? facingModeRef.current;
     setPhase("idle");
     setCard(null); setVariants([]); setSelectedVariant(null);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
@@ -220,7 +234,7 @@ export default function ScanPage() {
     setScanUrl(null);
     try {
       const ms = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 } },
+        video: { facingMode: mode, width: { ideal: 1280 } },
       });
       streamRef.current = ms;
       const video = videoRef.current!;
@@ -233,6 +247,15 @@ export default function ScanPage() {
     } catch {
       toast.error("Camera permission denied or unavailable.");
     }
+  };
+
+  const flipCamera = () => {
+    const next = facingModeRef.current === "environment" ? "user" : "environment";
+    facingModeRef.current = next;
+    setFacingMode(next);
+    try { localStorage.setItem(CAMERA_FACING_KEY, next); } catch { /* ignore */ }
+    stopStream();
+    void startCamera(next);
   };
 
   const stopCamera = useCallback(() => { stopStream(); setPhase("idle"); }, [stopStream]);
@@ -370,7 +393,7 @@ export default function ScanPage() {
                 <Camera className="h-7 w-7 text-white/70" />
               </div>
               <p className="text-white/60 text-sm text-center px-8 max-w-xs">Start the camera, line up your Pokémon card in the frame, and tap the shutter</p>
-              <Button onClick={startCamera} className="rounded-full px-6">
+              <Button onClick={() => void startCamera()} className="rounded-full px-6">
                 <Camera className="h-4 w-4 mr-2" /> Start Camera
               </Button>
             </div>
@@ -421,6 +444,18 @@ export default function ScanPage() {
                 {displayCard ? `${displayCard.setName} · #${displayCard.cardNumber}` : "Scroll down for details"}
               </p>
             </div>
+          )}
+
+          {/* Flip camera button — top-right corner during capture */}
+          {capturing && (
+            <button
+              type="button"
+              onClick={flipCamera}
+              aria-label={facingMode === "environment" ? "Switch to front camera" : "Switch to rear camera"}
+              className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/60 backdrop-blur flex items-center justify-center text-white/90 hover:bg-black/80 transition-colors z-10"
+            >
+              <SwitchCamera className="h-4.5 w-4.5" style={{ width: "1.125rem", height: "1.125rem" }} />
+            </button>
           )}
 
           {/* Bottom hint pill while capturing */}

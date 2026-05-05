@@ -12,6 +12,7 @@ import {
   Loader2,
   Plus,
   ScanLine,
+  SwitchCamera,
   Trash2,
   X,
   AlertTriangle,
@@ -80,6 +81,15 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const MAX_CARDS = 25;
 const LAST_CAT_KEY = "dexpoky:lastCategoryId";
 const LAST_CONDITION_KEY = "dexpoky:lastCondition";
+const CAMERA_FACING_KEY = "dexpoky:cameraFacing";
+
+function readFacingMode(): "environment" | "user" {
+  try {
+    const v = localStorage.getItem(CAMERA_FACING_KEY);
+    if (v === "user" || v === "environment") return v;
+  } catch { /* ignore */ }
+  return "environment";
+}
 
 const CONDITIONS: { value: CreateCardBodyCondition; label: string }[] = [
   { value: CreateCardBodyCondition.mint,         label: "Mint" },
@@ -129,6 +139,9 @@ export default function ScanBulkPage() {
   const [savedCount, setSavedCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
 
+  const [facingMode, setFacingMode] = useState<"environment" | "user">(readFacingMode);
+  const facingModeRef = useRef<"environment" | "user">(facingMode);
+
   // Refs to prevent races during async ops:
   //  - inflightCountRef: tracks captures NOT yet added to state, so we don't blow past MAX_CARDS
   //  - haltedRef: set to true once billing limit hit, stops further detections + captures
@@ -154,10 +167,11 @@ export default function ScanBulkPage() {
     }
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (facing?: "environment" | "user") => {
+    const mode = facing ?? facingModeRef.current;
     try {
       const ms = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 } },
+        video: { facingMode: mode, width: { ideal: 1280 } },
       });
       streamRef.current = ms;
       const video = videoRef.current;
@@ -173,6 +187,16 @@ export default function ScanBulkPage() {
       setPhase("idle");
     }
   }, []);
+
+  const flipCamera = useCallback(() => {
+    const next = facingModeRef.current === "environment" ? "user" : "environment";
+    facingModeRef.current = next;
+    setFacingMode(next);
+    try { localStorage.setItem(CAMERA_FACING_KEY, next); } catch { /* ignore */ }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    void startCamera(next);
+  }, [startCamera]);
 
   // Crop to the on-screen card guide (85% of the 5:3 viewport height in bulk
   // mode). Sending only the card region keeps each detection fast.
@@ -563,9 +587,20 @@ export default function ScanBulkPage() {
               <div className="absolute top-3 left-3 bg-black/60 text-white text-xs font-semibold px-2.5 py-1 rounded-full backdrop-blur-sm">
                 {entries.length} / {MAX_CARDS}
               </div>
+              {/* Flip camera button — top-right corner during capture */}
+              {phase === "capturing" && (
+                <button
+                  type="button"
+                  onClick={flipCamera}
+                  aria-label={facingMode === "environment" ? "Switch to front camera" : "Switch to rear camera"}
+                  className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/80 transition-colors z-10"
+                >
+                  <SwitchCamera style={{ width: "1.125rem", height: "1.125rem" }} />
+                </button>
+              )}
               {phase !== "capturing" && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                  <Button onClick={startCamera} size="lg" className="gap-2">
+                  <Button onClick={() => void startCamera()} size="lg" className="gap-2">
                     <Camera className="h-4 w-4" /> Start Camera
                   </Button>
                 </div>
