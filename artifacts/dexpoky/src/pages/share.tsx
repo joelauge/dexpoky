@@ -135,6 +135,8 @@ export default function SharePage() {
   const [shippingCost, setShippingCost] = useState("5.99");
   const [linkTitle, setLinkTitle] = useState("");
   const [collectionExpanded, setCollectionExpanded] = useState(false);
+  // For single mode: hide the full picker list when a card is already chosen (pre-selected or picked)
+  const [showCardPicker, setShowCardPicker] = useState(!preCardId);
   const [copied, setCopied] = useState(false);
   const [copiedListingId, setCopiedListingId] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState("");
@@ -418,11 +420,16 @@ export default function SharePage() {
                       type="button"
                       onClick={() => {
                         setSellType(t.id);
-                        if (t.id === "single" && availableCards.length > 0) {
-                          setSelectedCardIds([availableCards[0]!.id]);
+                        if (t.id === "single") {
+                          // keep pre-selected card if present; otherwise default to first
+                          if (!preCardId && availableCards.length > 0) {
+                            setSelectedCardIds([availableCards[0]!.id]);
+                          }
+                          setShowCardPicker(false);
                         }
                         if (t.id === "group") {
-                          setSelectedCardIds(availableCards.slice(0, 2).map(c => c.id));
+                          setSelectedCardIds(preCardId ? [preCardId] : availableCards.slice(0, 2).map(c => c.id));
+                          setShowCardPicker(true);
                         }
                         if (t.id === "category" && categories.length > 0) {
                           setSelectedCategoryId(preCategoryId ?? categories[0]!.id);
@@ -443,16 +450,120 @@ export default function SharePage() {
                   ))}
                 </div>
 
-                {/* Single / Group: card selector */}
-                {(sellType === "single" || sellType === "group") && (
+                {/* ── Single card selector ── */}
+                {sellType === "single" && (
                   <div className="bg-card rounded-2xl border p-4">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                      {sellType === "single" ? "Select card" : "Pick cards for bundle"}
-                    </p>
+                    {availableCards.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">No available cards to share.</p>
+                    ) : (() => {
+                      const chosen = availableCards.find(c => selectedCardIds.includes(c.id));
+                      return (
+                        <>
+                          {/* Selected card preview */}
+                          {chosen && !showCardPicker && (
+                            <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-xl px-3 py-2.5 mb-3">
+                              {chosen.imageUrl
+                                ? <img src={chosen.imageUrl} alt={chosen.name} className="w-10 h-14 object-contain rounded shrink-0" />
+                                : <div className="w-10 h-14 rounded bg-muted shrink-0" />}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold truncate">{chosen.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{chosen.setName}{chosen.condition ? ` · ${chosen.condition}` : ""}</p>
+                                {chosen.estimatedValue != null && (
+                                  <p className="text-xs font-bold text-primary mt-0.5">${parseFloat(String(chosen.estimatedValue)).toFixed(2)}</p>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setShowCardPicker(true)}
+                                className="text-xs font-semibold text-primary hover:text-primary/80 shrink-0 px-2.5 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
+                              >
+                                Change
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Full picker list — shown when no card chosen yet, or "Change" was clicked */}
+                          {(!chosen || showCardPicker) && (
+                            <>
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Select card</p>
+                                {chosen && showCardPicker && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowCardPicker(false)}
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                  >
+                                    ✕ Cancel
+                                  </button>
+                                )}
+                              </div>
+                              <div className="space-y-1 max-h-64 overflow-y-auto">
+                                {availableCards.map(card => (
+                                  <CardRow
+                                    key={card.id}
+                                    name={card.name}
+                                    setName={card.setName}
+                                    imageUrl={card.imageUrl}
+                                    value={card.estimatedValue}
+                                    condition={card.condition}
+                                    selectable
+                                    selected={selectedCardIds.includes(card.id)}
+                                    onToggle={() => {
+                                      setSelectedCardIds([card.id]);
+                                      setShowCardPicker(false);
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* ── Group / bundle card selector ── */}
+                {sellType === "group" && (
+                  <div className="bg-card rounded-2xl border p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pick cards for bundle</p>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${selectedCardIds.length > 0 ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}>
+                        {selectedCardIds.length} selected
+                      </span>
+                    </div>
+
+                    {/* Selected cards tray */}
+                    {selectedCardIds.length > 0 && (
+                      <div className="flex gap-2 overflow-x-auto pb-2 mb-3 no-scrollbar">
+                        {selectedCardIds.map(cid => {
+                          const c = availableCards.find(x => x.id === cid);
+                          if (!c) return null;
+                          return (
+                            <div key={cid} className="relative shrink-0 group/tray">
+                              {c.imageUrl
+                                ? <img src={c.imageUrl} alt={c.name} className="w-11 h-[60px] object-contain rounded-lg border-2 border-primary/30" />
+                                : <div className="w-11 h-[60px] rounded-lg border-2 border-primary/30 bg-muted" />}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCardIds(prev => prev.filter(id => id !== cid))}
+                                className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 bg-destructive text-white rounded-full flex items-center justify-center text-[9px] font-bold shadow leading-none opacity-0 group-hover/tray:opacity-100 focus:opacity-100 transition-opacity"
+                                aria-label={`Remove ${c.name}`}
+                                style={{ width: 16, height: 16, fontSize: 9 }}
+                              >
+                                ×
+                              </button>
+                              <p className="text-[9px] text-center text-muted-foreground mt-0.5 w-11 truncate">{c.name}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {availableCards.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">No available cards to share.</p>
                     ) : (
-                      <div className="space-y-1 max-h-72 overflow-y-auto">
+                      <div className="space-y-1 max-h-64 overflow-y-auto">
                         {availableCards.map(card => (
                           <CardRow
                             key={card.id}
@@ -463,17 +574,13 @@ export default function SharePage() {
                             condition={card.condition}
                             selectable
                             selected={selectedCardIds.includes(card.id)}
-                            onToggle={() => {
-                              if (sellType === "single") {
-                                setSelectedCardIds([card.id]);
-                              } else {
-                                setSelectedCardIds(prev =>
-                                  prev.includes(card.id)
-                                    ? prev.filter(id => id !== card.id)
-                                    : [...prev, card.id]
-                                );
-                              }
-                            }}
+                            onToggle={() =>
+                              setSelectedCardIds(prev =>
+                                prev.includes(card.id)
+                                  ? prev.filter(id => id !== card.id)
+                                  : [...prev, card.id]
+                              )
+                            }
                           />
                         ))}
                       </div>
