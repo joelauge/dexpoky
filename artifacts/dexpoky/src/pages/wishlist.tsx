@@ -225,15 +225,15 @@ export default function WishlistPage() {
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
-            <div className="flex items-center gap-3 mb-1">
+            <div className="flex items-center gap-3 mb-2">
               <Heart className="h-7 w-7 text-primary fill-primary" />
               <h1 className="text-2xl font-bold tracking-tight">Looking For</h1>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground">
               Cards you'd like to track down. Organised by category — the AI deck builder will weave these into deck ideas.
             </p>
           </div>
