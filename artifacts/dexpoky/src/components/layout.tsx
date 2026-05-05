@@ -254,14 +254,14 @@ export function Layout({ children }: LayoutProps) {
                 <SheetDescription>Main navigation for DexPoky app</SheetDescription>
               </VisuallyHidden.Root>
               <div className="p-6 border-b flex justify-center">
-                <img src="/logo.png" alt="DexPoky" className="h-20 w-20 object-contain" />
+                <img src="/dexpoky-logo.png" alt="DexPoky" className="w-44 h-auto object-contain" />
               </div>
               <ScrollArea className="h-[calc(100vh-112px)] px-4 py-6">
                 <MobileNavLinks />
               </ScrollArea>
             </SheetContent>
           </Sheet>
-          <img src="/logo.png" alt="DexPoky" className="h-18 w-18 object-contain" />
+          <img src="/dexpoky-logo.png" alt="DexPoky" className="h-10 w-auto object-contain" />
         </header>
 
         {/* Desktop Sidebar */}
@@ -269,7 +269,7 @@ export function Layout({ children }: LayoutProps) {
           <div className={`border-b flex flex-col items-center transition-all duration-300 ${collapsed ? "p-3 gap-2" : "p-5 gap-3"}`}>
             {!collapsed && (
               <Link href={isSignedIn ? "/" : "/marketplace"}>
-                <img src="/logo.png" alt="DexPoky" className="h-40 w-40 object-contain cursor-pointer" />
+                <img src="/dexpoky-logo.png" alt="DexPoky" className="w-48 h-auto object-contain cursor-pointer" />
               </Link>
             )}
             <button
