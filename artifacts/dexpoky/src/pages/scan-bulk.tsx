@@ -141,6 +141,7 @@ export default function ScanBulkPage() {
 
   const [facingMode, setFacingMode] = useState<"environment" | "user">(readFacingMode);
   const facingModeRef = useRef<"environment" | "user">(facingMode);
+  const [hasSingleCamera, setHasSingleCamera] = useState(false);
 
   // Refs to prevent races during async ops:
   //  - inflightCountRef: tracks captures NOT yet added to state, so we don't blow past MAX_CARDS
@@ -169,33 +170,45 @@ export default function ScanBulkPage() {
 
   const startCamera = useCallback(async (facing?: "environment" | "user") => {
     const mode = facing ?? facingModeRef.current;
+    const ms = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: mode, width: { ideal: 1280 } },
+    });
+    streamRef.current = ms;
+    const video = videoRef.current;
+    if (!video) return;
+    video.srcObject = ms;
+    await new Promise<void>((resolve) => {
+      video.oncanplay = () => resolve();
+      video.play().catch(() => resolve());
+    });
+    setPhase("capturing");
     try {
-      const ms = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode, width: { ideal: 1280 } },
-      });
-      streamRef.current = ms;
-      const video = videoRef.current;
-      if (!video) return;
-      video.srcObject = ms;
-      await new Promise<void>((resolve) => {
-        video.oncanplay = () => resolve();
-        video.play().catch(() => resolve());
-      });
-      setPhase("capturing");
-    } catch {
-      toast.error("Camera permission denied or unavailable.");
-      setPhase("idle");
-    }
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter((d) => d.kind === "videoinput");
+      setHasSingleCamera(videoInputs.length <= 1);
+    } catch { /* ignore — flip button stays visible */ }
   }, []);
 
-  const flipCamera = useCallback(() => {
-    const next = facingModeRef.current === "environment" ? "user" : "environment";
+  const flipCamera = useCallback(async () => {
+    const prev = facingModeRef.current;
+    const next = prev === "environment" ? "user" : "environment";
     facingModeRef.current = next;
     setFacingMode(next);
     try { localStorage.setItem(CAMERA_FACING_KEY, next); } catch { /* ignore */ }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    void startCamera(next);
+    try {
+      await startCamera(next);
+    } catch {
+      facingModeRef.current = prev;
+      setFacingMode(prev);
+      try { localStorage.setItem(CAMERA_FACING_KEY, prev); } catch { /* ignore */ }
+      toast.error("This device only has one camera.");
+      startCamera(prev).catch(() => {
+        toast.error("Camera permission denied or unavailable.");
+        setPhase("idle");
+      });
+    }
   }, [startCamera]);
 
   // Crop to the on-screen card guide (85% of the 5:3 viewport height in bulk
@@ -343,7 +356,7 @@ export default function ScanBulkPage() {
   useEffect(() => {
     if (billingLoading || !billing) return;
     if (billing.canScan) {
-      void startCamera();
+      startCamera().catch(() => { toast.error("Camera permission denied or unavailable."); setPhase("idle"); });
     } else {
       const reason = !billing.freeTrialActivated
         ? "trial_not_activated"
@@ -374,7 +387,7 @@ export default function ScanBulkPage() {
 
   const backToCapturing = useCallback(() => {
     setPhase("idle");
-    void startCamera();
+    startCamera().catch(() => { toast.error("Camera permission denied or unavailable."); setPhase("idle"); });
   }, [startCamera]);
 
   const removeEntry = useCallback((id: string) => {
@@ -588,14 +601,14 @@ export default function ScanBulkPage() {
                 {entries.length} / {MAX_CARDS}
               </div>
               {/* Flip camera button — top-right corner during capture */}
-              {phase === "capturing" && (
+              {phase === "capturing" && !hasSingleCamera && (
                 <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
                   <span className="bg-black/60 backdrop-blur-sm text-white/80 text-xs font-medium px-2 py-1 rounded-full select-none">
                     {facingMode === "environment" ? "Rear" : "Front"}
                   </span>
                   <button
                     type="button"
-                    onClick={flipCamera}
+                    onClick={() => { void flipCamera(); }}
                     aria-label={facingMode === "environment" ? "Switch to front camera" : "Switch to rear camera"}
                     className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/80 transition-colors"
                   >
@@ -605,7 +618,7 @@ export default function ScanBulkPage() {
               )}
               {phase !== "capturing" && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                  <Button onClick={() => void startCamera()} size="lg" className="gap-2">
+                  <Button onClick={() => startCamera().catch(() => { toast.error("Camera permission denied or unavailable."); setPhase("idle"); })} size="lg" className="gap-2">
                     <Camera className="h-4 w-4" /> Start Camera
                   </Button>
                 </div>
@@ -918,7 +931,7 @@ export default function ScanBulkPage() {
                       setSavedCount(0);
                       setFailedCount(0);
                       setPhase("idle");
-                      void startCamera();
+                      startCamera().catch(() => { toast.error("Camera permission denied or unavailable."); setPhase("idle"); });
                     }}
                     size="sm"
                     variant="outline"
