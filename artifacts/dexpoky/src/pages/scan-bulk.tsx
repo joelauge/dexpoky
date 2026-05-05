@@ -236,7 +236,12 @@ export default function ScanBulkPage() {
       });
       if (!idRes.ok) throw new Error("identify failed");
       const idData = await idRes.json() as {
-        detected: boolean; confidence: "high"|"medium"|"low"; pokemonName: string | null;
+        detected: boolean;
+        confidence: "high"|"medium"|"low";
+        pokemonName: string | null;
+        setCode?: string | null;
+        cardNumber?: string | null;
+        hp?: number | null;
       };
       if (isAborted()) return;
       if (!idData.detected || !idData.pokemonName) {
@@ -274,8 +279,10 @@ export default function ScanBulkPage() {
 
       // 3. Look up TCG variants + pricing
       if (isAborted()) return;
+      const lookupParams = new URLSearchParams({ name: idData.pokemonName });
+      if (idData.cardNumber) lookupParams.set("cardNumber", idData.cardNumber);
       const lookupRes = await fetch(
-        `${BASE}/api/cards/lookup?name=${encodeURIComponent(idData.pokemonName)}`,
+        `${BASE}/api/cards/lookup?${lookupParams.toString()}`,
         { signal },
       );
       if (!lookupRes.ok) throw new Error("lookup failed");

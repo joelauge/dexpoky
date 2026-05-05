@@ -448,7 +448,20 @@ async function buildResults(cards: CardBrief[]): Promise<TcgResult[]> {
   });
 }
 
-export async function searchTcgdex(query: string): Promise<{ variants: TcgResult[]; pricing: PricingData }> {
+/**
+ * Parse a raw card number string into a plain integer for comparison.
+ * Accepts "002", "002/094", "XY95", etc.
+ * Returns NaN if no leading digits are found.
+ */
+function parseCardNum(raw: string): number {
+  const m = raw.match(/^(\d+)/);
+  return m ? parseInt(m[1], 10) : NaN;
+}
+
+export async function searchTcgdex(
+  query: string,
+  cardNumber?: string,
+): Promise<{ variants: TcgResult[]; pricing: PricingData }> {
   const emptyPricing: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
   try {
     let cards = await fetchCards(`*${query}*`);
@@ -494,6 +507,19 @@ export async function searchTcgdex(query: string): Promise<{ variants: TcgResult
       buildResults(filteredCards),
       fetchPricing(bestName),
     ]);
+
+    // If a card number was supplied, float the exact-number match to the top
+    // so the identified printing is always shown first.
+    if (cardNumber) {
+      const targetNum = parseCardNum(cardNumber);
+      if (!isNaN(targetNum)) {
+        variants.sort((a, b) => {
+          const aMatch = parseCardNum(a.cardNumber) === targetNum ? 0 : 1;
+          const bMatch = parseCardNum(b.cardNumber) === targetNum ? 0 : 1;
+          return aMatch - bMatch;
+        });
+      }
+    }
 
     // Add eBay sold-listing validation against the best matched variant
     const top = variants[0];

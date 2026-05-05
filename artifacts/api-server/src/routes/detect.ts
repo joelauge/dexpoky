@@ -25,20 +25,27 @@ router.post("/cards/identify", async (req, res) => {
         {
           role: "user",
           content: [
-            { type: "image_url", image_url: { url: imageData, detail: "low" } },
+            { type: "image_url", image_url: { url: imageData, detail: "high" } },
             {
               type: "text",
-              text: `You are a Pokemon trading card expert. Examine this image carefully.
+              text: `You are a Pokémon TCG card expert with perfect OCR ability. Examine every part of this image carefully, including small text at the bottom of the card.
 
 Respond with ONLY valid JSON — no markdown, no explanation, nothing else.
 
-If a Pokemon trading card IS visible (even partially):
-{"detected": true, "confidence": "high", "pokemonName": "Pikachu"}
-- confidence: "high" if clearly visible, "medium" if partially visible
-- pokemonName: MUST be the Pokemon's name shown on the card — never null when detected is true
+If a Pokémon trading card IS visible (even partially):
+{"detected":true,"confidence":"high","pokemonName":"Gloom","setCode":"PFL","cardNumber":"002","hp":70}
 
-If NO Pokemon trading card is visible at all:
-{"detected": false, "confidence": "low", "pokemonName": null}`,
+Fields:
+- confidence: "high" if card clearly visible, "medium" if partially visible
+- pokemonName: the Pokémon's name printed at the top of the card (REQUIRED, never null when detected)
+- setCode: the abbreviated set code printed at the bottom of the card, usually 2-5 capital letters directly before or after the card number (e.g. "PFL", "SVI", "PAF", "SVP", "SV5", "SWSH") — read it carefully from the bottom-left area
+- cardNumber: only the digits before the slash in the card number printed at the bottom (e.g. "002" from "002/094", "138" from "138/193") — if no slash found, use the full number
+- hp: the HP value as a plain integer from the top-right of the card (e.g. 70)
+
+All fields except pokemonName may be null if not legible.
+
+If NO Pokémon trading card is visible at all:
+{"detected":false,"confidence":"low","pokemonName":null,"setCode":null,"cardNumber":null,"hp":null}`,
             },
           ],
         },
@@ -47,12 +54,22 @@ If NO Pokemon trading card is visible at all:
     const raw = (completion.choices[0]?.message?.content ?? "").trim();
     req.log.info({ imageSizeKB: Math.round((imageData.length * 3) / 4 / 1024), rawResponse: raw }, "identify");
     const cleaned = raw.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "");
-    let parsed: { detected?: boolean; confidence?: string; pokemonName?: string | null } = {};
+    let parsed: {
+      detected?: boolean;
+      confidence?: string;
+      pokemonName?: string | null;
+      setCode?: string | null;
+      cardNumber?: string | null;
+      hp?: number | null;
+    } = {};
     try { parsed = JSON.parse(cleaned); } catch { /* ignore */ }
     res.json({
       detected: !!parsed.detected && !!parsed.pokemonName,
       confidence: (parsed.confidence ?? "low") as "high" | "medium" | "low",
       pokemonName: parsed.pokemonName ?? null,
+      setCode: parsed.setCode ?? null,
+      cardNumber: parsed.cardNumber ?? null,
+      hp: parsed.hp ?? null,
     });
   } catch (err) {
     req.log?.error({ err }, "Card identify failed");

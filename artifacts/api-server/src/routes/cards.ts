@@ -140,15 +140,30 @@ router.post("/cards", requireAuth, async (req, res) => {
  * Primary: PokeWallet (rich pricing, single hit). Falls back to TCGdex if
  * PokeWallet is rate limited or unavailable so the scan flow never breaks.
  */
+/**
+ * Parse a raw card number string into a plain integer for exact-printing matching.
+ * "002", "002/094", "138/193" → leading integer. Returns NaN on failure.
+ */
+function parseCardNumLocal(raw: string | null | undefined): number {
+  if (!raw) return NaN;
+  const m = String(raw).match(/^(\d+)/);
+  return m ? parseInt(m[1], 10) : NaN;
+}
+
 router.get("/cards/lookup", async (req, res) => {
   const name = String(req.query.name ?? "").trim();
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
+
+  // Optional hint fields extracted from the card image by the vision model.
+  // When provided they are used to float the exact printing to position [0].
+  const cardNumber = String(req.query.cardNumber ?? "").trim() || undefined;
+  const targetNum = cardNumber ? parseCardNumLocal(cardNumber) : NaN;
 
   const pw = await pwSearch(name, 20);
   if (pw.ok && pw.data.results.length > 0) {
     const normalized = pw.data.results.map(normalizeCatalogCard);
     const enriched = await enrichCatalogCardImages(normalized);
-    const variants = enriched.map((v) => ({
+    let variants = enriched.map((v) => ({
       id: v.id,
       name: v.name,
       imageUrl: v.imageUrl,
@@ -157,13 +172,23 @@ router.get("/cards/lookup", async (req, res) => {
       cardNumber: v.cardNumber,
       rarity: v.rarity,
     }));
+
+    // Float the exact-number match to the top when a card number hint is available
+    if (!isNaN(targetNum)) {
+      variants = variants.sort((a, b) => {
+        const aMatch = parseCardNumLocal(a.cardNumber) === targetNum ? 0 : 1;
+        const bMatch = parseCardNumLocal(b.cardNumber) === targetNum ? 0 : 1;
+        return aMatch - bMatch;
+      });
+    }
+
     const pricing = buildPricingFromCatalog(pw.data.results[0]);
     res.json({ card: variants[0] ?? null, variants, pricing });
     return;
   }
 
-  // Fallback to TCGdex
-  const { variants, pricing } = await searchTcgdex(name);
+  // Fallback to TCGdex — pass cardNumber so it can sort the results too
+  const { variants, pricing } = await searchTcgdex(name, cardNumber);
   res.json({ card: variants[0] ?? null, variants, pricing });
 });
 

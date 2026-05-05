@@ -126,7 +126,11 @@ export default function ScanPage() {
     streamRef.current = null;
   }, []);
 
-  const lookupCard = useCallback(async (name: string, conf: "high"|"medium"|"low") => {
+  const lookupCard = useCallback(async (
+    name: string,
+    conf: "high"|"medium"|"low",
+    extras?: { cardNumber?: string | null },
+  ) => {
     setPhase("confirming");
     setPokemonName(name);
     setConfidence(conf);
@@ -137,7 +141,9 @@ export default function ScanPage() {
     ]);
 
     try {
-      const res = await fetch(`${BASE}/api/cards/lookup?name=${encodeURIComponent(name)}`);
+      const params = new URLSearchParams({ name });
+      if (extras?.cardNumber) params.set("cardNumber", extras.cardNumber);
+      const res = await fetch(`${BASE}/api/cards/lookup?${params.toString()}`);
       if (!res.ok) throw new Error("lookup failed");
       const data = await res.json() as { card: TcgCard | null; variants: TcgCard[]; pricing: PricingData };
 
@@ -194,7 +200,14 @@ export default function ScanPage() {
         body: JSON.stringify({ imageData }),
       });
       if (!res.ok) throw new Error("identify failed");
-      const data = await res.json() as { detected: boolean; confidence: "high"|"medium"|"low"; pokemonName: string | null };
+      const data = await res.json() as {
+        detected: boolean;
+        confidence: "high"|"medium"|"low";
+        pokemonName: string | null;
+        setCode?: string | null;
+        cardNumber?: string | null;
+        hp?: number | null;
+      };
       if (!data.detected || !data.pokemonName) {
         toast.error("No card detected — try again with better lighting and the card centered in the frame.");
         setPhase("idle");
@@ -216,7 +229,7 @@ export default function ScanPage() {
           }
         },
       });
-      lookupCard(data.pokemonName, data.confidence);
+      lookupCard(data.pokemonName, data.confidence, { cardNumber: data.cardNumber });
     } catch {
       toast.error("Couldn't analyze photo — please try again.");
       setPhase("idle");
