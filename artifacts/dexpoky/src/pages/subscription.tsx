@@ -62,7 +62,7 @@ export default function SubscriptionPage() {
 
   return (
     <Layout>
-      <div className="max-w-2xl mx-auto px-4 py-8 pb-20">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-1">
             <Crown className="h-7 w-7 text-primary" />
