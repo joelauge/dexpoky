@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { cardsTable, categoriesTable, listingsTable, activityEventsTable } from "@workspace/db";
+import { cardsTable, categoriesTable, listingsTable, activityEventsTable, shortLinksTable, dmThreadsTable } from "@workspace/db";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 
@@ -97,6 +97,39 @@ router.get("/inventory/recent-activity", requireAuth, async (req, res) => {
     .limit(limit);
 
   res.json(events);
+});
+
+router.get("/inventory/trading-stats", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
+
+  const [listingAgg] = await db
+    .select({
+      activeListings: sql<number>`count(*) filter (where ${listingsTable.status} = 'active')::int`,
+      soldListings:   sql<number>`count(*) filter (where ${listingsTable.status} = 'sold')::int`,
+      totalRevenue:   sql<number>`coalesce(sum(${listingsTable.price}::numeric) filter (where ${listingsTable.status} = 'sold'), 0)::float`,
+      totalViews:     sql<number>`coalesce(sum(${listingsTable.viewCount}), 0)::int`,
+    })
+    .from(listingsTable)
+    .where(eq(listingsTable.sellerClerkId, userId));
+
+  const [{ linksShared }] = await db
+    .select({ linksShared: sql<number>`count(*)::int` })
+    .from(shortLinksTable)
+    .where(eq(shortLinksTable.clerkId, userId));
+
+  const [{ offersIn }] = await db
+    .select({ offersIn: sql<number>`count(*)::int` })
+    .from(dmThreadsTable)
+    .where(eq(dmThreadsTable.sellerClerkId, userId));
+
+  res.json({
+    activeListings: listingAgg?.activeListings ?? 0,
+    soldListings:   listingAgg?.soldListings   ?? 0,
+    totalRevenue:   listingAgg?.totalRevenue   ?? 0,
+    totalViews:     listingAgg?.totalViews     ?? 0,
+    linksShared:    linksShared  ?? 0,
+    offersIn:       offersIn     ?? 0,
+  });
 });
 
 export default router;

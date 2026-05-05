@@ -1,14 +1,21 @@
 import { useGetInventoryStats, useGetValueByCategory, useGetRecentActivity, useListCards } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
+import { useUser } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/constants";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
-import { Activity, CreditCard, DollarSign, TrendingUp, Layers, ArrowRight, PackagePlus, Edit3, ScanLine, Tag, ShoppingCart, XCircle, Gavel, Bell } from "lucide-react";
+import {
+  Activity, CreditCard, DollarSign, TrendingUp, Layers, ArrowRight,
+  PackagePlus, Edit3, ScanLine, Tag, ShoppingCart, XCircle, Gavel, Bell,
+  Link2, Eye, MessageCircle, BadgeCheck, Store,
+} from "lucide-react";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card-item";
 import { formatDistanceToNow } from "date-fns";
+import { WelcomeBackModal } from "@/components/welcome-back-modal";
 
 type ActivityEventType =
   | "card_added"
@@ -35,6 +42,15 @@ interface ActivityEvent {
     listingUrl?: string | null;
   } | null;
   createdAt: string;
+}
+
+interface TradingStats {
+  activeListings: number;
+  soldListings: number;
+  totalRevenue: number;
+  totalViews: number;
+  linksShared: number;
+  offersIn: number;
 }
 
 const EVENT_CONFIG: Record<ActivityEventType, {
@@ -127,17 +143,55 @@ function ActivityEventRow({ event }: { event: ActivityEvent }) {
     </div>
   );
 
-  if (href) {
-    return <Link href={href}>{inner}</Link>;
-  }
+  if (href) return <Link href={href}>{inner}</Link>;
   return inner;
 }
 
+interface TradeStatCardProps {
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent: string;
+  iconBg: string;
+  loading?: boolean;
+  href?: string;
+}
+
+function TradeStatCard({ icon: Icon, label, value, sub, accent, iconBg, loading, href }: TradeStatCardProps) {
+  const inner = (
+    <CardContent className="p-5 flex items-center gap-4 group">
+      <div className={`${iconBg} p-3 rounded-2xl shrink-0`}>
+        <Icon className={`h-5 w-5 ${accent}`} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider leading-none mb-1">{label}</p>
+        {loading
+          ? <Skeleton className="h-7 w-20 mt-1" />
+          : <p className={`text-2xl font-black tracking-tight leading-none ${accent}`}>{value}</p>}
+        {sub && !loading && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+      </div>
+      {href && <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />}
+    </CardContent>
+  );
+
+  return (
+    <Card className="shadow-sm border-border/50 hover:shadow-md transition-shadow overflow-hidden">
+      {href ? <Link href={href}>{inner}</Link> : inner}
+    </Card>
+  );
+}
+
 export default function Dashboard() {
+  const { user } = useUser();
   const { data: stats, isLoading: statsLoading } = useGetInventoryStats();
   const { data: categoryData, isLoading: categoryLoading } = useGetValueByCategory();
   const { data: recentActivityRaw, isLoading: activityLoading } = useGetRecentActivity({ limit: 10 });
   const { data: recentCards, isLoading: cardsLoading } = useListCards({ categoryId: undefined });
+  const { data: tradingStats, isLoading: tradingLoading } = useQuery<TradingStats>({
+    queryKey: ["trading-stats"],
+    queryFn: () => fetch("/api/inventory/trading-stats").then(r => r.json()),
+  });
 
   const recentActivity = (recentActivityRaw ?? []) as unknown as ActivityEvent[];
 
@@ -146,87 +200,145 @@ export default function Dashboard() {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 4);
 
-  const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+  const CHART_COLORS = [
+    "hsl(var(--primary))",
+    "hsl(var(--chart-2))",
+    "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))",
+    "hsl(var(--chart-5))",
+  ];
+
+  const username = user?.firstName || user?.username || null;
 
   return (
     <Layout>
+      <WelcomeBackModal username={username} />
+
       <div className="pb-10">
-        {/* Hero Section */}
-        <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-b relative overflow-hidden">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMCwwLDAsMC4wNSkiLz48L3N2Zz4=')] opacity-50" />
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
-            <div className="flex items-center gap-3 mb-2">
-              <Activity className="h-7 w-7 text-primary" />
-              <h1 className="text-2xl font-bold tracking-tight">Welcome back to DexPoky</h1>
+        {/* Compact page header */}
+        <div className="border-b bg-background/95 backdrop-blur sticky top-0 z-10">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-lg font-bold tracking-tight">Trading Dashboard</h1>
+              <p className="text-xs text-muted-foreground hidden sm:block">Your live marketplace & collection stats</p>
             </div>
-            <p className="text-lg text-muted-foreground max-w-2xl">
-              Your collection command center. Track values, manage inventory, and trade with other collectors.
-            </p>
+            <Link href="/share">
+              <Button size="sm" className="shrink-0 font-semibold rounded-xl">
+                <Tag className="h-3.5 w-3.5 mr-1.5" /> Create listing
+              </Button>
+            </Link>
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="shadow-sm border-border/50">
-              <CardContent className="p-5 flex items-center gap-3">
-                <div className="bg-primary/10 p-3 rounded-xl shrink-0">
-                  <DollarSign className="h-5 w-5 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Value</p>
-                  {statsLoading ? <Skeleton className="h-7 w-24 mt-1" /> : (
-                    <h3 className="text-xl font-bold tracking-tight truncate">{formatCurrency(stats?.totalValue)}</h3>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="shadow-sm border-border/50">
-              <CardContent className="p-5 flex items-center gap-3">
-                <div className="bg-blue-500/10 p-3 rounded-xl shrink-0">
-                  <CreditCard className="h-5 w-5 text-blue-500" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Cards</p>
-                  {statsLoading ? <Skeleton className="h-7 w-16 mt-1" /> : (
-                    <h3 className="text-xl font-bold tracking-tight">{stats?.totalCards || 0}</h3>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
 
-            <Card className="shadow-sm border-border/50">
-              <CardContent className="p-5 flex items-center gap-3">
-                <div className="bg-emerald-500/10 p-3 rounded-xl shrink-0">
-                  <TrendingUp className="h-5 w-5 text-emerald-500" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">For Sale Value</p>
-                  {statsLoading ? <Skeleton className="h-7 w-24 mt-1" /> : (
-                    <h3 className="text-xl font-bold tracking-tight truncate">{formatCurrency(stats?.forSaleValue)}</h3>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          {/* ── Trading Stats Grid ── */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Trading Activity</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <TradeStatCard
+                icon={Store}
+                label="Listed"
+                value={tradingStats?.activeListings ?? 0}
+                sub="active on market"
+                accent="text-purple-600"
+                iconBg="bg-purple-50"
+                loading={tradingLoading}
+                href="/marketplace"
+              />
+              <TradeStatCard
+                icon={Eye}
+                label="Listing Views"
+                value={(tradingStats?.totalViews ?? 0).toLocaleString()}
+                sub="total clicks"
+                accent="text-sky-600"
+                iconBg="bg-sky-50"
+                loading={tradingLoading}
+              />
+              <TradeStatCard
+                icon={MessageCircle}
+                label="Offers In"
+                value={tradingStats?.offersIn ?? 0}
+                sub="trade threads"
+                accent="text-orange-600"
+                iconBg="bg-orange-50"
+                loading={tradingLoading}
+                href="/inbox"
+              />
+              <TradeStatCard
+                icon={Link2}
+                label="Links Shared"
+                value={tradingStats?.linksShared ?? 0}
+                sub="share links created"
+                accent="text-indigo-600"
+                iconBg="bg-indigo-50"
+                loading={tradingLoading}
+                href="/share"
+              />
+              <TradeStatCard
+                icon={BadgeCheck}
+                label="Cards Sold"
+                value={tradingStats?.soldListings ?? 0}
+                sub="completed sales"
+                accent="text-emerald-600"
+                iconBg="bg-emerald-50"
+                loading={tradingLoading}
+              />
+              <TradeStatCard
+                icon={DollarSign}
+                label="Revenue"
+                value={formatCurrency(tradingStats?.totalRevenue ?? 0)}
+                sub="from sales"
+                accent="text-primary"
+                iconBg="bg-primary/10"
+                loading={tradingLoading}
+              />
+            </div>
+          </div>
 
-            <Card className="shadow-sm border-border/50">
-              <CardContent className="p-5 flex items-center gap-3">
-                <div className="bg-purple-500/10 p-3 rounded-xl shrink-0">
-                  <Layers className="h-5 w-5 text-purple-500" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Active Listings</p>
-                  {statsLoading ? <Skeleton className="h-7 w-16 mt-1" /> : (
-                    <h3 className="text-xl font-bold tracking-tight">{stats?.totalListings || 0}</h3>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+          {/* ── Collection Stats Row ── */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Collection</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <TradeStatCard
+                icon={DollarSign}
+                label="Total Value"
+                value={formatCurrency(stats?.totalValue)}
+                accent="text-primary"
+                iconBg="bg-primary/10"
+                loading={statsLoading}
+              />
+              <TradeStatCard
+                icon={CreditCard}
+                label="Total Cards"
+                value={(stats?.totalCards ?? 0).toLocaleString()}
+                accent="text-blue-600"
+                iconBg="bg-blue-50"
+                loading={statsLoading}
+                href="/collection"
+              />
+              <TradeStatCard
+                icon={TrendingUp}
+                label="For Sale Value"
+                value={formatCurrency(stats?.forSaleValue)}
+                accent="text-emerald-600"
+                iconBg="bg-emerald-50"
+                loading={statsLoading}
+              />
+              <TradeStatCard
+                icon={Layers}
+                label="Categories"
+                value={stats?.categoryCount ?? 0}
+                accent="text-violet-600"
+                iconBg="bg-violet-50"
+                loading={statsLoading}
+                href="/categories"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Charts Area */}
+            {/* Charts + Recent */}
             <div className="lg:col-span-2 space-y-8">
               <Card className="shadow-sm">
                 <CardHeader className="pb-2">
@@ -235,27 +347,22 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   {categoryLoading ? (
-                    <div className="h-[300px] flex items-center justify-center">
+                    <div className="h-[260px] flex items-center justify-center">
                       <Skeleton className="h-full w-full rounded-lg" />
                     </div>
                   ) : categoryData && categoryData.length > 0 ? (
-                    <div className="h-[300px] w-full mt-4">
+                    <div className="h-[260px] w-full mt-4">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={categoryData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <XAxis dataKey="categoryName" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                          <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
-                            tickFormatter={(value) => `$${value}`}
-                          />
-                          <Tooltip 
-                            cursor={{ fill: 'hsl(var(--muted)/0.5)' }}
-                            contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                            formatter={(value: number) => [formatCurrency(value), 'Value']}
+                          <XAxis dataKey="categoryName" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `$${v}`} />
+                          <Tooltip
+                            cursor={{ fill: "hsl(var(--muted)/0.5)" }}
+                            contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                            formatter={(value: number) => [formatCurrency(value), "Value"]}
                           />
                           <Bar dataKey="totalValue" radius={[4, 4, 0, 0]}>
-                            {categoryData.map((entry, index) => (
+                            {categoryData.map((_, index) => (
                               <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                             ))}
                           </Bar>
@@ -263,9 +370,9 @@ export default function Dashboard() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <div className="h-[300px] flex flex-col items-center justify-center text-center p-6 border-2 border-dashed rounded-lg bg-muted/10">
+                    <div className="h-[260px] flex flex-col items-center justify-center text-center p-6 border-2 border-dashed rounded-lg bg-muted/10">
                       <Layers className="h-10 w-10 text-muted-foreground mb-4 opacity-50" />
-                      <h4 className="text-lg font-medium text-foreground mb-1">No Category Data</h4>
+                      <h4 className="text-lg font-medium mb-1">No Category Data</h4>
                       <p className="text-sm text-muted-foreground mb-4">Add cards to categories to see your portfolio distribution.</p>
                       <Link href="/collection/new">
                         <Button variant="outline">Add Your First Card</Button>
@@ -275,22 +382,19 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              {/* Recent Additions — sorted by createdAt DESC */}
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Recent Additions</h2>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent Additions</p>
                   <Link href="/collection">
                     <Button variant="ghost" size="sm" className="gap-1">
                       View All <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
                 </div>
-                
+
                 {cardsLoading ? (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map(i => (
-                      <Skeleton key={i} className="aspect-[3/4] w-full rounded-xl" />
-                    ))}
+                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="aspect-[3/4] w-full rounded-xl" />)}
                   </div>
                 ) : recentCardsSlice.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -301,17 +405,15 @@ export default function Dashboard() {
                 ) : (
                   <div className="text-center p-8 border-2 border-dashed rounded-lg bg-muted/10">
                     <p className="text-muted-foreground mb-4">Your collection is empty.</p>
-                    <Link href="/collection/new">
-                      <Button>Add Card</Button>
-                    </Link>
+                    <Link href="/collection/new"><Button>Add Card</Button></Link>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Activity Feed */}
-            <div className="space-y-6">
-              <Card className="shadow-sm h-full max-h-[700px] flex flex-col">
+            <div>
+              <Card className="shadow-sm max-h-[680px] flex flex-col">
                 <CardHeader className="pb-3 border-b">
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="h-5 w-5 text-primary" />
@@ -333,7 +435,7 @@ export default function Dashboard() {
                     </div>
                   ) : recentActivity.length > 0 ? (
                     <div className="divide-y">
-                      {recentActivity.map((event) => (
+                      {recentActivity.map(event => (
                         <ActivityEventRow key={event.id} event={event} />
                       ))}
                     </div>
@@ -341,7 +443,7 @@ export default function Dashboard() {
                     <div className="p-8 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
                       <Activity className="h-8 w-8 mb-2 opacity-20" />
                       <p className="text-sm font-medium">No activity yet</p>
-                      <p className="text-xs mt-1">Events will appear as you add cards, list items, and place bids.</p>
+                      <p className="text-xs mt-1">Events appear as you add cards, list items, and place bids.</p>
                     </div>
                   )}
                 </CardContent>
