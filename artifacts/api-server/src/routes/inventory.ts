@@ -132,4 +132,37 @@ router.get("/inventory/trading-stats", requireAuth, async (req, res) => {
   });
 });
 
+router.get("/inventory/my-shares", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
+
+  const listings = await db
+    .select({
+      id: listingsTable.id,
+      listingType: listingsTable.listingType,
+      status: listingsTable.status,
+      price: listingsTable.price,
+      viewCount: listingsTable.viewCount,
+      createdAt: listingsTable.createdAt,
+      auctionEndTime: listingsTable.auctionEndTime,
+      cardId: cardsTable.id,
+      cardName: cardsTable.name,
+      cardImageUrl: cardsTable.imageUrl,
+      cardSetName: cardsTable.setName,
+    })
+    .from(listingsTable)
+    .leftJoin(cardsTable, eq(cardsTable.id, listingsTable.cardId))
+    .where(eq(listingsTable.sellerClerkId, userId))
+    .orderBy(desc(listingsTable.createdAt))
+    .limit(30);
+
+  const shortLinks = await db
+    .select()
+    .from(shortLinksTable)
+    .where(eq(shortLinksTable.clerkId, userId))
+    .orderBy(desc(shortLinksTable.createdAt))
+    .limit(30);
+
+  res.json({ listings, shortLinks });
+});
+
 export default router;

@@ -6,7 +6,7 @@ import {
   useCreateWantedListing, useListMyWantedListings, useDeleteWantedListing,
 } from "@workspace/api-client-react";
 import type { WantedListing } from "@workspace/api-client-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,9 @@ import {
   ChevronRight, Package, Layers, FolderOpen, LayoutGrid, Sparkles,
   QrCode, ExternalLink, DollarSign, Truck, ChevronDown, ArrowLeft,
   Search, Heart, Globe, Lock, Clock, Calendar, Trash2,
+  Eye, Gavel, TrendingUp,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { CatalogSearch } from "@/components/catalog-search";
 import { HoloCard } from "@/components/holo-card";
 import { ImageUploader } from "@/components/image-uploader";
@@ -100,6 +102,222 @@ const SHARE_VIA = [
   { label: "Open in browser", action: "open",     Icon: ExternalLink, color: "bg-orange-50 hover:bg-orange-100 text-orange-700" },
 ];
 
+type MyShareListing = {
+  id: number; listingType: string; status: string; price: string;
+  viewCount: number; createdAt: string; auctionEndTime: string | null;
+  cardId: number | null; cardName: string | null;
+  cardImageUrl: string | null; cardSetName: string | null;
+};
+type MyShareLink = { id: number; code: string; targetUrl: string; createdAt: string };
+
+const STATUS_STYLE: Record<string, string> = {
+  active:    "bg-emerald-100 text-emerald-700 border-emerald-200",
+  sold:      "bg-slate-100 text-slate-600 border-slate-200",
+  cancelled: "bg-red-100 text-red-600 border-red-200",
+};
+const STATUS_LABEL: Record<string, string> = {
+  active: "Live", sold: "Sold", cancelled: "Ended",
+};
+
+function parseLinkLabel(targetUrl: string): string {
+  try {
+    const u = new URL(targetUrl);
+    const p = u.pathname;
+    if (/\/view\/listing\/\d+/.test(p)) return "Marketplace listing";
+    if (/\/api\/og\/listing\/\d+/.test(p)) return "Marketplace listing";
+    if (/\/api\/og\/card\/\d+/.test(p)) return "Private card view";
+    if (/\/api\/og\/w\//.test(p)) return "Looking For request";
+    return "Shared link";
+  } catch {
+    return "Shared link";
+  }
+}
+
+function ActiveSharesPanel({ listings, shortLinks }: { listings: MyShareListing[]; shortLinks: MyShareLink[] }) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(true);
+
+  const total = listings.length + shortLinks.length;
+
+  const copyText = (text: string, key: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(key);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  const listingUrl = (id: number) =>
+    `${window.location.origin}/view/listing/${id}`;
+
+  if (total === 0) return (
+    <div className="mt-8 border border-dashed rounded-2xl p-5 text-center">
+      <TrendingUp className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
+      <p className="text-sm font-semibold text-muted-foreground">No active shares yet</p>
+      <p className="text-xs text-muted-foreground mt-1">Cards and links you share will appear here.</p>
+    </div>
+  );
+
+  return (
+    <div className="mt-8 space-y-3">
+      {/* Section header */}
+      <button
+        type="button"
+        className="w-full flex items-center gap-2 text-left"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <div className="h-px flex-1 bg-border" />
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            Active Links &amp; Cards
+          </span>
+          <span className="text-[10px] font-bold bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">{total}</span>
+          <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </div>
+        <div className="h-px flex-1 bg-border" />
+      </button>
+
+      {expanded && (
+        <div className="space-y-2">
+
+          {/* ── Marketplace listings ── */}
+          {listings.map(item => {
+            const copyKey = `listing-${item.id}`;
+            const url = listingUrl(item.id);
+            const isCopied = copiedId === copyKey;
+            const isAuction = item.listingType === "auction";
+            const statusStyle = STATUS_STYLE[item.status] ?? "bg-muted text-muted-foreground border-border";
+            const statusLabel = STATUS_LABEL[item.status] ?? item.status;
+
+            return (
+              <div key={item.id} className="bg-card border rounded-2xl p-3 flex items-center gap-3">
+                {/* Card thumbnail */}
+                {item.cardImageUrl ? (
+                  <img
+                    src={item.cardImageUrl}
+                    alt={item.cardName ?? "Card"}
+                    className="w-9 h-12 object-contain rounded shrink-0"
+                  />
+                ) : (
+                  <div className="w-9 h-12 rounded bg-muted shrink-0" />
+                )}
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    <span className="text-sm font-semibold truncate max-w-[140px]">
+                      {item.cardName ?? "Card"}
+                    </span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${statusStyle}`}>
+                      {statusLabel}
+                    </span>
+                    {isAuction && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 flex items-center gap-0.5">
+                        <Gavel className="h-2.5 w-2.5" /> Auction
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-bold text-foreground">${parseFloat(item.price).toFixed(2)}</span>
+                    <span className="flex items-center gap-0.5">
+                      <Eye className="h-3 w-3" />{item.viewCount}
+                    </span>
+                    <span className="flex items-center gap-0.5">
+                      <Clock className="h-3 w-3" />
+                      {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => copyText(url, copyKey)}
+                    className={`flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-all ${
+                      isCopied
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-primary/8 text-primary hover:bg-primary/15"
+                    }`}
+                  >
+                    {isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    {isCopied ? "Copied" : "Copy"}
+                  </button>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    aria-label="Open listing"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* ── Short links ── */}
+          {shortLinks.length > 0 && (
+            <div className="bg-card border rounded-2xl overflow-hidden">
+              <div className="px-3 py-2 border-b bg-muted/30">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Link2 className="h-3 w-3" /> Short Links
+                </p>
+              </div>
+              <div className="divide-y">
+                {shortLinks.map(link => {
+                  const copyKey = `link-${link.id}`;
+                  const isCopied = copiedId === copyKey;
+                  const shortUrl = `${window.location.origin}/s/${link.code}`;
+                  const label = parseLinkLabel(link.targetUrl);
+                  return (
+                    <div key={link.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-mono text-foreground truncate">/s/{link.code}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-muted-foreground">{label}</span>
+                          <span className="text-[10px] text-muted-foreground">·</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatDistanceToNow(new Date(link.createdAt), { addSuffix: true })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => copyText(shortUrl, copyKey)}
+                          className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1.5 rounded-lg transition-all ${
+                            isCopied
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-muted text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                          {isCopied ? "Copied" : "Copy"}
+                        </button>
+                        <a
+                          href={link.targetUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          aria-label="Open link"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SharePage() {
   const [, setLocation] = useLocation();
   const search = useSearch();
@@ -159,6 +377,14 @@ export default function SharePage() {
 
   const { isSignedIn, user } = useUser();
   const { data: myWantedListings = [] } = useListMyWantedListings();
+
+  type MySharesData = { listings: MyShareListing[]; shortLinks: MyShareLink[] };
+
+  const { data: myShares } = useQuery<MySharesData>({
+    queryKey: ["/api/inventory/my-shares"],
+    queryFn: () => fetch("/api/inventory/my-shares").then(r => r.json()),
+    enabled: !!isSignedIn,
+  });
 
   const deleteWanted = useDeleteWantedListing({
     mutation: {
@@ -1510,6 +1736,16 @@ export default function SharePage() {
               </div>
             )}
           </>
+        )}
+
+        {/* ══════════════════════════════════════════ */}
+        {/* ACTIVE LINKS & CARDS — always step 1      */}
+        {/* ══════════════════════════════════════════ */}
+        {step === 1 && isSignedIn && (
+          <ActiveSharesPanel
+            listings={myShares?.listings ?? []}
+            shortLinks={myShares?.shortLinks ?? []}
+          />
         )}
 
       </div>
