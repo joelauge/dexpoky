@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk, Show } from "@clerk/react";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Layers,
@@ -84,9 +85,15 @@ function JoinCTA({ collapsed }: { collapsed?: boolean }) {
 }
 
 function UserWidget({ collapsed }: { collapsed: boolean }) {
-  const { user } = useUser();
+  const { user, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
+  const { data: profile } = useQuery<{ username?: string }>({
+    queryKey: ["/api/users/me"],
+    queryFn: () => fetch("/api/users/me").then(r => r.json()),
+    enabled: !!isSignedIn,
+  });
+  const displayName = profile?.username ?? user?.fullName ?? user?.firstName ?? "My Profile";
 
   return (
     <Show
@@ -155,7 +162,7 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-foreground truncate">{user?.fullName ?? user?.firstName ?? "My Profile"}</p>
+                  <p className="text-xs font-semibold text-foreground truncate">{displayName}</p>
                   <p className="text-[10px] text-muted-foreground truncate">{user?.primaryEmailAddress?.emailAddress}</p>
                 </div>
                 <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
