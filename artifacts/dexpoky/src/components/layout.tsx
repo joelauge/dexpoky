@@ -155,7 +155,7 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-foreground truncate">{user?.firstName ?? "My Profile"}</p>
+                  <p className="text-xs font-semibold text-foreground truncate">{user?.fullName ?? user?.firstName ?? "My Profile"}</p>
                   <p className="text-[10px] text-muted-foreground truncate">{user?.primaryEmailAddress?.emailAddress}</p>
                 </div>
                 <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
