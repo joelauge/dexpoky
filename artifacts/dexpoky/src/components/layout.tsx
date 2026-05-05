@@ -23,6 +23,7 @@ import {
   Heart,
   MessageSquare,
   ChevronUp,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -185,6 +186,11 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
+              <Link href="/wallet" className="flex items-center gap-2 cursor-pointer">
+                <Wallet className="h-4 w-4" /> Wallet
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
               <Link href="/subscription" className="flex items-center gap-2 cursor-pointer">
                 <Sparkles className="h-4 w-4" /> Subscription
               </Link>
@@ -237,6 +243,11 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
                     {totalUnread > 9 ? "9+" : totalUnread}
                   </span>
                 )}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/wallet" className="flex items-center gap-2 cursor-pointer">
+                <Wallet className="h-4 w-4" /> Wallet
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>

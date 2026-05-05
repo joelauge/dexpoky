@@ -14,6 +14,7 @@ export const usersTable = pgTable("users", {
   freeTrialScansUsed: integer("free_trial_scans_used").default(0).notNull(),
   payoutMethod: text("payout_method"),
   payoutDestination: text("payout_destination"),
+  walletBalanceCents: integer("wallet_balance_cents").default(0).notNull(),
   usernameChangedAt: timestamp("username_changed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

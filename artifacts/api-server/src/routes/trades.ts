@@ -24,7 +24,7 @@ const UpdateOfferBody = z.object({
   notes: z.string().max(500).optional(),
   amount: z.number().nonnegative().optional(),
   cards: z.array(OfferedCardRef).max(10).optional(),
-  method: z.enum(["store", "psa_vault", "courtyard_nft", "paypal_gs", "escrow_com", "cash_in_person"]).optional(),
+  method: z.enum(["store", "psa_vault", "courtyard_nft", "paypal_gs", "escrow_com", "cash_in_person", "dexpoky_pay"]).optional(),
   location: z.string().max(300).optional(),
 });
 

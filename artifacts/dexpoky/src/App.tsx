@@ -37,6 +37,7 @@ import AdminPayouts from "@/pages/admin/payouts";
 import RulesPage from "@/pages/rules";
 import Wishlist from "@/pages/wishlist";
 import InboxPage from "@/pages/inbox/index";
+import WalletPage from "@/pages/wallet/index";
 import { UsernameGate } from "@/components/username-gate";
 
 const queryClient = new QueryClient({
@@ -250,6 +251,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/rules" component={() => <ProtectedRoute component={RulesPage} />} />
             <Route path="/wishlist" component={() => <ProtectedRoute component={Wishlist} />} />
             <Route path="/inbox" component={() => <ProtectedRoute component={InboxPage} />} />
+            <Route path="/wallet" component={() => <ProtectedRoute component={WalletPage} />} />
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/marketplace/:id" component={ListingDetail} />
             <Route path="/sell" component={() => <ProtectedRoute component={Sell} />} />

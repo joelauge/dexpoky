@@ -15,4 +15,5 @@ export * from "./wanted_listings";
 export * from "./dm_threads";
 export * from "./dm_messages";
 export * from "./trade_offers";
+export * from "./trade_payments";
 export * from "./group_shares";

@@ -21,6 +21,8 @@ import wishlistRouter from "./wishlist";
 import wantedRouter from "./wanted";
 import messagesRouter from "./messages";
 import tradesRouter from "./trades";
+import walletRouter from "./wallet";
+import tradepayRouter from "./tradepay";
 import groupSharesRouter from "./group-shares";
 import ogRouter from "./og";
 
@@ -48,6 +50,8 @@ router.use(wishlistRouter);
 router.use(wantedRouter);
 router.use(messagesRouter);
 router.use(tradesRouter);
+router.use(walletRouter);
+router.use(tradepayRouter);
 router.use(groupSharesRouter);
 router.use(ogRouter);
 

@@ -19,7 +19,7 @@ import {
   MessageSquare, Send, ArrowLeft, User, Heart,
   Video, DollarSign, CheckCircle2, XCircle, RefreshCw,
   Store, Shield, Gem, Calendar, MapPin, X, Lock, CreditCard, Banknote,
-  Package, Navigation, Loader2, Search,
+  Package, Navigation, Loader2, Search, Wallet, Clock,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
@@ -28,8 +28,8 @@ import { useAuthFetch } from "@/lib/use-auth-fetch";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type OfferStatus = "pending" | "countered" | "accepted" | "declined" | "cancelled";
-type EscrowMethod = "store" | "psa_vault" | "courtyard_nft" | "paypal_gs" | "escrow_com" | "cash_in_person";
+type OfferStatus = "pending" | "countered" | "accepted" | "declined" | "cancelled" | "paid";
+type EscrowMethod = "store" | "psa_vault" | "courtyard_nft" | "paypal_gs" | "escrow_com" | "cash_in_person" | "dexpoky_pay";
 
 interface OfferedCard {
   cardId: number;
@@ -87,6 +87,13 @@ const ESCROW_OPTIONS: {
   Icon: React.ElementType;
   color: string;
 }[] = [
+  {
+    id: "dexpoky_pay",
+    label: "Pay with DexPoky",
+    desc: "Credit card or wallet balance — fast, secure, in-app payment with 3% platform fee",
+    Icon: Wallet,
+    color: "bg-emerald-50 border-emerald-300 text-emerald-700",
+  },
   {
     id: "store",
     label: "Meet at Card Shop",
@@ -230,6 +237,8 @@ function TradeThread({
   const [shopResults, setShopResults] = useState<{ name: string; address: string; label: string }[]>([]);
   const [shopSearching, setShopSearching] = useState(false);
   const [offer, setOffer] = useState<TradeOffer | null | undefined>(undefined);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [paying, setPaying] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [selectedCards, setSelectedCards] = useState<OfferedCard[]>([]);
   const [showCardPicker, setShowCardPicker] = useState(false);
@@ -261,6 +270,52 @@ function TradeThread({
     const interval = setInterval(fetchOffer, 6000);
     return () => clearInterval(interval);
   }, [fetchOffer]);
+
+  // ── Wallet balance (fetch when dexpoky_pay is selected or deal is accepted) ──
+  useEffect(() => {
+    if (offer?.status === "accepted" && offer.exchangeMethod === "dexpoky_pay" && offer.role === "buyer") {
+      authFetch("/api/wallet/balance")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d != null) setWalletBalance(d.balanceCents ?? 0); })
+        .catch(() => {});
+    }
+  }, [offer?.status, offer?.exchangeMethod, offer?.role, authFetch]);
+
+  // ── Payment ───────────────────────────────────────────────────────────────
+  const handleCardPayment = async () => {
+    setPaying(true);
+    try {
+      const res = await authFetch(`/api/threads/${thread.id}/payment/checkout`, { method: "POST" });
+      const json = await res.json();
+      if (json.url) {
+        window.location.href = json.url;
+      } else {
+        toast.error(json.error ?? "Could not initiate payment");
+        setPaying(false);
+      }
+    } catch {
+      toast.error("Something went wrong");
+      setPaying(false);
+    }
+  };
+
+  const handleWalletPayment = async () => {
+    setPaying(true);
+    try {
+      const res = await authFetch(`/api/threads/${thread.id}/payment/wallet`, { method: "POST" });
+      const json = await res.json();
+      if (json.success) {
+        toast.success("Payment sent from your wallet!");
+        await fetchOffer();
+      } else {
+        toast.error(json.error ?? "Payment failed");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setPaying(false);
+    }
+  };
 
   // ── Messages ─────────────────────────────────────────────────────────────
 
@@ -342,7 +397,8 @@ function TradeThread({
       if (
         offer.status === "accepted" ||
         offer.status === "declined" ||
-        offer.status === "cancelled"
+        offer.status === "cancelled" ||
+        offer.status === "paid"
       ) {
         const last = (offer.offerHistory ?? [])[offer.offerHistory.length - 1];
         items.push({
@@ -873,8 +929,105 @@ out center 25;`;
           </div>
         )}
 
-        {/* ── Escrow confirmed pill ────────────────────────────────────── */}
-        {offer?.status === "accepted" && offer.exchangeMethod && (() => {
+        {/* ── DexPoky Pay panel ────────────────────────────────────────── */}
+        {offer?.status === "accepted" && offer.exchangeMethod === "dexpoky_pay" && (() => {
+          const agreedAmount = offer.offerAmount ?? offer.askingPrice ?? 0;
+          const amountCents = Math.round(agreedAmount * 100);
+          const isBuyer = offer.role === "buyer";
+          const hasEnough = walletBalance !== null && walletBalance >= amountCents;
+
+          return (
+            <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-4 space-y-3 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <Wallet className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm text-emerald-800">Pay with DexPoky — ${agreedAmount.toFixed(2)}</p>
+                  <p className="text-xs text-emerald-600 mt-0.5">
+                    {isBuyer ? "Choose how you'd like to pay the seller." : "Waiting for buyer to complete payment…"}
+                  </p>
+                </div>
+              </div>
+
+              {isBuyer && (
+                <div className="space-y-2">
+                  {/* Wallet option */}
+                  <div className={cn(
+                    "rounded-xl border-2 p-3 space-y-2 transition-colors",
+                    hasEnough ? "border-emerald-200 bg-emerald-50/50" : "border-border bg-muted/30 opacity-70",
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4 text-emerald-600" />
+                        <p className="text-sm font-semibold">Pay from Wallet</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Balance: {walletBalance !== null ? `$${(walletBalance / 100).toFixed(2)}` : "—"}
+                      </p>
+                    </div>
+                    {hasEnough ? (
+                      <Button
+                        size="sm"
+                        className="w-full h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                        disabled={paying}
+                        onClick={handleWalletPayment}
+                      >
+                        {paying ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                        Pay ${agreedAmount.toFixed(2)} instantly
+                      </Button>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] text-muted-foreground">Insufficient balance</p>
+                        <a href="/wallet" className="text-[11px] text-emerald-700 font-semibold hover:underline">Top up →</a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card option */}
+                  <div className="rounded-xl border-2 border-sky-200 bg-sky-50/50 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-sky-600" />
+                      <p className="text-sm font-semibold">Pay by Card</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full h-8 bg-sky-600 hover:bg-sky-700 text-white text-xs"
+                      disabled={paying}
+                      onClick={handleCardPayment}
+                    >
+                      {paying ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                      Pay ${agreedAmount.toFixed(2)} with Stripe
+                    </Button>
+                    <p className="text-[11px] text-muted-foreground">Redirects to Stripe checkout. Cards are not stored on DexPoky.</p>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground text-center">3% platform fee included. Seller receives ${(agreedAmount * 0.97).toFixed(2)}.</p>
+                </div>
+              )}
+
+              {!isBuyer && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
+                  <Clock className="h-3.5 w-3.5" />
+                  Waiting for the buyer to complete payment. You'll be notified when funds arrive.
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── Payment confirmed banner ──────────────────────────────────── */}
+        {offer?.status === "paid" && (
+          <div className="flex justify-center">
+            <div className="flex items-center gap-2 bg-emerald-100 border border-emerald-300 rounded-full px-4 py-1.5 text-sm text-emerald-700 font-semibold">
+              <CheckCircle2 className="h-4 w-4" />
+              Payment confirmed ✓
+            </div>
+          </div>
+        )}
+
+        {/* ── Escrow confirmed pill (non-dexpoky_pay methods) ──────────── */}
+        {(offer?.status === "accepted" || offer?.status === "paid") && offer.exchangeMethod && offer.exchangeMethod !== "dexpoky_pay" && (() => {
           const opt = ESCROW_OPTIONS.find(o => o.id === offer.exchangeMethod);
           if (!opt) return null;
           return (
