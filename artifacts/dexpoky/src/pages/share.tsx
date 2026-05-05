@@ -347,9 +347,9 @@ export default function SharePage() {
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${mode === "looking" ? "bg-rose-500" : "bg-primary"}`}>
-            {mode === "looking" ? <Heart className="h-5 w-5 text-white" /> : <Share2 className="h-5 w-5 text-white" />}
-          </div>
+          {mode === "looking"
+            ? <Heart className="h-7 w-7 text-primary fill-primary shrink-0" />
+            : <Share2 className="h-7 w-7 text-primary shrink-0" />}
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{mode === "looking" ? "Looking For" : "Create Share Link"}</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
