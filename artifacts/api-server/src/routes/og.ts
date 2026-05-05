@@ -11,6 +11,11 @@ function getOrigin(req: Request): string {
     : `${req.protocol}://${req.get("host")}`;
 }
 
+/** Strip https:// / http:// to get a clean display domain. */
+function cleanDomain(origin: string): string {
+  return origin.replace(/^https?:\/\//, "");
+}
+
 function buildHtml(opts: {
   title: string;
   description: string;
@@ -57,11 +62,13 @@ function buildHtml(opts: {
   <meta http-equiv="refresh" content="0;url=${absRedirect}">
   <script>window.location.replace(${JSON.stringify(absRedirect)});</script>
 </head>
-<body style="margin:0;background:#0f0f0f;color:#fff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:12px">
-  <img src="${image}" alt="" style="max-width:160px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.6)">
-  <p style="font-size:18px;font-weight:700;margin:0">${t}</p>
-  <p style="font-size:14px;color:#aaa;margin:0">${d}</p>
-  <p style="font-size:12px;color:#666;margin-top:8px">Redirecting to DexPoky&hellip;</p>
+<body style="margin:0;background:#0a0a0f;color:#fff;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;box-sizing:border-box">
+  <div style="text-align:center;max-width:380px;width:100%;padding:36px 32px;background:#141420;border-radius:24px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 24px 64px rgba(0,0,0,.7)">
+    <img src="${image}" alt="" style="max-width:${cardAspect ? "120px" : "160px"};border-radius:${cardAspect ? "10px" : "16px"};box-shadow:0 12px 40px rgba(0,0,0,.6);margin-bottom:24px;display:block;margin-left:auto;margin-right:auto">
+    <p style="font-size:18px;font-weight:700;margin:0 0 10px;line-height:1.35;letter-spacing:-0.2px">${t}</p>
+    <p style="font-size:13px;color:#8888aa;margin:0 0 20px;line-height:1.6">${d}</p>
+    <p style="font-size:11px;color:#44445a;letter-spacing:0.5px">Redirecting&hellip;</p>
+  </div>
 </body>
 </html>`;
 }
@@ -82,18 +89,21 @@ router.get("/og/w/:code", async (req, res) => {
     return;
   }
 
-  const name = row.name ?? "A Pokémon Card";
-  const parts: string[] = [];
-  if (row.ownerDisplayName) parts.push(`Wanted by @${row.ownerDisplayName}`);
-  if (row.setName) parts.push(row.setName);
-  if (row.rarity) parts.push(row.rarity);
-  if (row.maxPrice) parts.push(`Budget: $${parseFloat(String(row.maxPrice)).toFixed(2)}`);
+  const name = row.name ?? "a Pokémon Card";
+  const domain = cleanDomain(origin);
+  const shareUrl = `${domain}/w/${code}`;
+
+  const descParts: string[] = [];
+  if (row.setName) descParts.push(row.setName);
+  if (row.rarity) descParts.push(row.rarity);
+  if (row.maxPrice) descParts.push(`Budget: $${parseFloat(String(row.maxPrice)).toFixed(2)}`);
+  descParts.push(shareUrl);
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(
     buildHtml({
-      title: `${name} — Looking For on DexPoky`,
-      description: parts.join(" · ") || "Someone is looking for this Pokémon card on DexPoky",
+      title: `I'm looking for ${name} on DexPoky.com`,
+      description: descParts.join("  ·  "),
       imageUrl: row.imageUrl ?? null,
       cardAspect: true,
       redirectUrl: `/w/${code}`,
@@ -133,22 +143,26 @@ router.get("/og/listing/:id", async (req, res) => {
     return;
   }
 
-  const cardName = row.cardName ?? "Pokémon Card";
+  const cardName = row.cardName ?? "a Pokémon Card";
   const price = row.price ? `$${parseFloat(String(row.price)).toFixed(2)}` : null;
   const listingImage = Array.isArray(row.listingImages) && row.listingImages.length > 0
     ? row.listingImages[0]
     : (row.cardImage ?? null);
   const isAuction = row.listingType === "auction";
-  const parts: string[] = [];
-  if (price) parts.push(isAuction ? `Starting at ${price}` : price);
-  if (row.setName) parts.push(row.setName);
-  parts.push(isAuction ? "Auction on DexPoky" : "For sale on DexPoky");
+  const action = isAuction ? "auctioning" : "selling";
+  const domain = cleanDomain(origin);
+  const shareUrl = `${domain}/view/listing/${id}`;
+
+  const descParts: string[] = [];
+  if (row.setName) descParts.push(row.setName);
+  if (price) descParts.push(isAuction ? `Starting at ${price}` : price);
+  descParts.push(shareUrl);
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(
     buildHtml({
-      title: `${cardName} — ${isAuction ? "Auction" : "For Sale"} on DexPoky`,
-      description: parts.join(" · "),
+      title: `I'm ${action} ${cardName} on DexPoky.com`,
+      description: descParts.join("  ·  "),
       imageUrl: listingImage,
       cardAspect: true,
       redirectUrl: `/view/listing/${id}`,
@@ -173,11 +187,14 @@ router.get("/og/s/:code", async (req, res) => {
     return;
   }
 
+  const domain = cleanDomain(origin);
+  const shareUrl = `${domain}/s/${code}`;
+
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(
     buildHtml({
-      title: "DexPoky — Pokémon Card Marketplace",
-      description: "Trade, collect & battle — check out this Pokémon card collection",
+      title: "I'm sharing my collection on DexPoky.com",
+      description: `Check out my Pokémon card collection!  ·  ${shareUrl}`,
       imageUrl: null,
       cardAspect: false,
       redirectUrl: link.targetUrl,
