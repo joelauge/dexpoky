@@ -24,6 +24,13 @@ interface CreatedListing {
   startingBid?: string | number | null;
 }
 
+/** Strip the full URL prefix from an originalScanUrl so ImageUploader gets just the objectPath. */
+function scanUrlToObjectPath(url: string): string {
+  const marker = "/api/storage";
+  const idx = url.indexOf(marker);
+  return idx !== -1 ? url.slice(idx + marker.length) : url;
+}
+
 function addHoursFromNow(hours: number) {
   const d = new Date();
   d.setHours(d.getHours() + hours);
@@ -94,7 +101,7 @@ export default function Sell() {
     const card = allCards?.find(c => c.id === selectedCardId);
     if (!card) return;
     seededCardIdRef.current = selectedCardId;
-    setListingImages(card.originalScanUrl ? [card.originalScanUrl] : []);
+    setListingImages(card.originalScanUrl ? [scanUrlToObjectPath(card.originalScanUrl)] : []);
   }, [selectedCardId, allCards]);
 
   const createListing = useMutation({

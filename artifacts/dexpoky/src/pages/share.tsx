@@ -35,6 +35,13 @@ const EXPIRY_OPTIONS: { id: ExpiryOption; label: string }[] = [
   { id: "custom", label: "Custom" },
 ];
 
+/** Strip the full URL prefix from an originalScanUrl so ImageUploader gets just the objectPath. */
+function scanUrlToObjectPath(url: string): string {
+  const marker = "/api/storage";
+  const idx = url.indexOf(marker);
+  return idx !== -1 ? url.slice(idx + marker.length) : url;
+}
+
 function computeExpiresAt(expiry: ExpiryOption, customDate: string): string | null {
   if (expiry === "never") return null;
   if (expiry === "7d")    return new Date(Date.now() + 7  * 86_400_000).toISOString();
@@ -372,7 +379,7 @@ export default function SharePage() {
     const card = allCards.find(c => c.id === singleSelectedCardId);
     if (!card) return;
     seededSingleCardIdRef.current = singleSelectedCardId;
-    setListingImagePaths(card.originalScanUrl ? [card.originalScanUrl] : []);
+    setListingImagePaths(card.originalScanUrl ? [scanUrlToObjectPath(card.originalScanUrl)] : []);
   }, [singleSelectedCardId, allCards]);
 
   const [wantedCard, setWantedCard] = useState<CatalogCard | null>(null);
