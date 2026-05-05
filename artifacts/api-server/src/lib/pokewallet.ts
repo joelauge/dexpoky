@@ -392,7 +392,11 @@ async function lookupTcgdexImage(
 ): Promise<string | null> {
   const localIdPadded = normalizeLocalId(cardNumber);      // "080"
   if (!name.trim() || !localIdPadded) return null;
-  const localIdInt = String(parseInt(localIdPadded, 10));  // "80"
+
+  // Only compute the plain-integer form for numeric IDs (e.g. "080" → "80").
+  // Promo/alphanumeric IDs like "XY95" stay as-is; parseInt would produce NaN.
+  const parsedInt = parseInt(localIdPadded, 10);
+  const localIdInt = Number.isFinite(parsedInt) ? String(parsedInt) : localIdPadded;
 
   // Cache keyed on the padded form (canonical)
   const cacheKey = `${name.trim().toLowerCase()}::${localIdPadded}`;
@@ -400,14 +404,13 @@ async function lookupTcgdexImage(
   if (cached && cached.expires > Date.now()) return cached.data;
 
   async function tryFetch(localId: string): Promise<TcgdexCardSummary | null> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 6000);
       const res = await fetch(
         `${TCGDEX_BASE}/cards?name=${encodeURIComponent(name)}&localId=${encodeURIComponent(localId)}`,
         { headers: { Accept: "application/json", "User-Agent": "DexPoky/1.0" }, signal: controller.signal },
       );
-      clearTimeout(timer);
       if (!res.ok) return null;
       const list = (await res.json()) as TcgdexCardSummary[];
       if (!Array.isArray(list) || list.length === 0) return null;
@@ -415,6 +418,8 @@ async function lookupTcgdexImage(
       return list.find((c) => c.localId === localId) ?? list[0] ?? null;
     } catch {
       return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
