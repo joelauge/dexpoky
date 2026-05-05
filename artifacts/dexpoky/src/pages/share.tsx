@@ -133,6 +133,7 @@ export default function SharePage() {
   const [price, setPrice] = useState("");
   const [includeShipping, setIncludeShipping] = useState(false);
   const [shippingCost, setShippingCost] = useState("5.99");
+  const [isPrivateListing, setIsPrivateListing] = useState(false);
   const [linkTitle, setLinkTitle] = useState("");
   const [collectionExpanded, setCollectionExpanded] = useState(false);
   // For single mode: hide the full picker list when a card is already chosen (pre-selected or picked)
@@ -234,6 +235,20 @@ export default function SharePage() {
   const handleGenerate = () => {
     const finalPrice = parseFloat(price || "0");
     if (finalPrice <= 0) { toast.error("Please enter a valid price"); return; }
+
+    // Private / P2P: skip marketplace, build a direct view link
+    if (isPrivateListing) {
+      const origin = window.location.origin;
+      let link = origin + "/collection";
+      if (sellType === "single" && activeCards[0]) {
+        link = `${origin}/api/og/card/${activeCards[0].id}`;
+      } else if (sellType === "category" && selectedCategoryId) {
+        link = `${origin}/collection?category=${selectedCategoryId}`;
+      }
+      setShareLink(link);
+      setStep(3);
+      return;
+    }
 
     if (sellType === "single" && activeCards[0]) {
       createListing.mutate({
@@ -766,33 +781,65 @@ export default function SharePage() {
                     <p className="text-xs text-muted-foreground">Market value: ${totalValue.toFixed(2)}</p>
                   </div>
 
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-muted-foreground" />
-                        <label className="text-sm font-medium">Charge for shipping</label>
+                  <div className="border-t pt-4 space-y-4">
+                    {/* Shipping toggle */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Truck className="h-4 w-4 text-muted-foreground" />
+                          <label className="text-sm font-medium">Charge for shipping</label>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIncludeShipping(v => !v)}
+                          className={`rounded-full transition-colors relative ${includeShipping ? "bg-primary" : "bg-muted"}`}
+                          style={{ width: 40, height: 22 }}
+                        >
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${includeShipping ? "left-5" : "left-0.5"}`} />
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setIncludeShipping(v => !v)}
-                        className={`rounded-full transition-colors relative ${includeShipping ? "bg-primary" : "bg-muted"}`}
-                        style={{ width: 40, height: 22 }}
-                      >
-                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${includeShipping ? "left-5" : "left-0.5"}`} />
-                      </button>
+                      {includeShipping && (
+                        <div className="relative">
+                          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            type="number" step="0.01"
+                            value={shippingCost}
+                            onChange={e => setShippingCost(e.target.value)}
+                            className="pl-8 rounded-xl"
+                            placeholder="Shipping cost"
+                          />
+                        </div>
+                      )}
                     </div>
-                    {includeShipping && (
-                      <div className="relative">
-                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="number" step="0.01"
-                          value={shippingCost}
-                          onChange={e => setShippingCost(e.target.value)}
-                          className="pl-8 rounded-xl"
-                          placeholder="Shipping cost"
-                        />
+
+                    {/* Marketplace visibility toggle */}
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {isPrivateListing
+                            ? <Lock className="h-4 w-4 text-amber-600" />
+                            : <Globe className="h-4 w-4 text-muted-foreground" />}
+                          <div>
+                            <p className="text-sm font-medium">
+                              {isPrivateListing ? "Private / P2P only" : "Post on marketplace"}
+                            </p>
+                            <p className="text-xs text-muted-foreground leading-snug">
+                              {isPrivateListing
+                                ? "Link only — not listed publicly. Good for trades & private deals."
+                                : "Visible to anyone browsing the DexPoky marketplace."}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsPrivateListing(v => !v)}
+                          className={`rounded-full transition-colors relative shrink-0 ml-3 ${isPrivateListing ? "bg-amber-500" : "bg-primary"}`}
+                          style={{ width: 40, height: 22 }}
+                        >
+                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${isPrivateListing ? "left-5" : "left-0.5"}`} />
+                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
 
@@ -816,11 +863,19 @@ export default function SharePage() {
             {step === 3 && (
               <div className="space-y-4">
                 <div className="text-center py-2">
-                  <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-3">
-                    <Check className="h-7 w-7 text-white" />
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isPrivateListing ? "bg-amber-500" : "bg-primary"}`}>
+                    {isPrivateListing
+                      ? <Lock className="h-7 w-7 text-white" />
+                      : <Check className="h-7 w-7 text-white" />}
                   </div>
-                  <h2 className="text-xl font-black">Your page is live!</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Share it anywhere — buyers can pay in under a minute.</p>
+                  <h2 className="text-xl font-black">
+                    {isPrivateListing ? "Private link ready!" : "Your page is live!"}
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {isPrivateListing
+                      ? "Share this link directly — it won't appear on the marketplace."
+                      : "Share it anywhere — buyers can pay in under a minute."}
+                  </p>
                 </div>
 
                 <div className="bg-card rounded-2xl border p-4">
