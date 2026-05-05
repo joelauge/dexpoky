@@ -33,6 +33,7 @@ interface TradeOffer {
   threadId: number;
   sellerClerkId: string;
   sellerImages: string[] | null;
+  sellerVideo: string | null;
   askingPrice: number | null;
   offerAmount: number | null;
   status: OfferStatus;
@@ -138,10 +139,10 @@ function DealCard({ thread, currentUserId }: { thread: DmThreadSummary; currentU
       {expanded && (
         <div className="px-4 pb-4 space-y-3">
 
-          {/* Seller photos */}
-          {offer.sellerImages && offer.sellerImages.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {offer.sellerImages.map((path, i) => (
+          {/* Seller photos & video */}
+          {((offer.sellerImages && offer.sellerImages.length > 0) || offer.sellerVideo) && (
+            <div className="flex gap-2 overflow-x-auto pb-1 items-start">
+              {offer.sellerImages?.map((path, i) => (
                 <img
                   key={i}
                   src={`/api/storage${path}`}
@@ -150,6 +151,14 @@ function DealCard({ thread, currentUserId }: { thread: DmThreadSummary; currentU
                   style={{ height: 80 }}
                 />
               ))}
+              {offer.sellerVideo && (
+                <video
+                  src={`/api/storage${offer.sellerVideo}`}
+                  controls
+                  className="w-28 rounded-lg border shrink-0 bg-black"
+                  style={{ height: 80 }}
+                />
+              )}
             </div>
           )}
 

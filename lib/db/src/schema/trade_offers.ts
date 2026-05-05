@@ -9,6 +9,7 @@ export const tradeOffersTable = pgTable("trade_offers", {
     .references(() => dmThreadsTable.id, { onDelete: "cascade" }),
   sellerClerkId: text("seller_clerk_id").notNull(),
   sellerImages: text("seller_images").array(),
+  sellerVideo: text("seller_video"),
   askingPrice: numeric("asking_price", { precision: 10, scale: 2 }),
   offerAmount: numeric("offer_amount", { precision: 10, scale: 2 }),
   status: text("status").default("pending").notNull(),

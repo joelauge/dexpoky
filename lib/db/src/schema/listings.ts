@@ -31,6 +31,7 @@ export const listingsTable = pgTable("listings", {
   status: text("status").default("active").notNull(),
   description: text("description"),
   listingImages: text("listing_images").array(),
+  listingVideo: text("listing_video"),
   viewCount: integer("view_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

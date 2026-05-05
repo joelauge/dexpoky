@@ -24,6 +24,7 @@ export default function WantedListingPublicPage() {
 
   const [responseStep, setResponseStep] = useState<ResponseStep>("idle");
   const [sellerImages, setSellerImages] = useState<string[]>([]);
+  const [sellerVideo, setSellerVideo] = useState<string | null>(null);
   const [askingPrice, setAskingPrice] = useState("");
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
@@ -44,6 +45,7 @@ export default function WantedListingPublicPage() {
         body: JSON.stringify({
           initialMessage: messageParts.join(" "),
           sellerImages: sellerImages.length > 0 ? sellerImages : undefined,
+          sellerVideo: sellerVideo ?? undefined,
           askingPrice: price > 0 ? price : undefined,
         }),
       });
@@ -266,10 +268,12 @@ export default function WantedListingPublicPage() {
               Clear photos build trust and help the buyer see condition, holofoil, and any wear.
             </p>
             <ImageUploader
-              images={sellerImages}
-              onChange={setSellerImages}
-              max={5}
-              label="Your card photos (up to 5)"
+              photos={sellerImages}
+              video={sellerVideo}
+              onPhotosChange={setSellerImages}
+              onVideoChange={setSellerVideo}
+              maxPhotos={10}
+              label="Your card photos & video"
             />
             <Button
               className="w-full"
@@ -297,17 +301,25 @@ export default function WantedListingPublicPage() {
               <p className="font-semibold text-sm">Step 2 of 2 — Your asking price</p>
             </div>
 
-            {sellerImages.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-1">
+            {(sellerImages.length > 0 || sellerVideo) && (
+              <div className="flex gap-2 overflow-x-auto pb-1 items-start">
                 {sellerImages.map((path, i) => (
                   <img
                     key={i}
                     src={`/api/storage${path}`}
                     alt=""
-                    className="w-14 h-18 object-cover rounded-lg shrink-0 border"
+                    className="w-14 object-cover rounded-lg shrink-0 border"
                     style={{ height: 72 }}
                   />
                 ))}
+                {sellerVideo && (
+                  <video
+                    src={`/api/storage${sellerVideo}`}
+                    className="w-24 rounded-lg shrink-0 border bg-black"
+                    style={{ height: 72 }}
+                    muted
+                  />
+                )}
               </div>
             )}
 

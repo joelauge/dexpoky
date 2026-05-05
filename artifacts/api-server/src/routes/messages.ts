@@ -10,7 +10,8 @@ const router = Router();
 
 const StartThreadBody = z.object({
   initialMessage: z.string().trim().min(1).max(2000),
-  sellerImages: z.array(z.string()).max(5).optional(),
+  sellerImages: z.array(z.string()).max(10).optional(),
+  sellerVideo: z.string().optional(),
   askingPrice: z.number().nonnegative().optional(),
 });
 
@@ -99,9 +100,9 @@ router.post("/wanted/:id/thread", requireAuth, async (req, res) => {
     .set({ updatedAt: new Date() })
     .where(eq(dmThreadsTable.id, thread.id));
 
-  // Create or update trade offer if seller included images or an asking price
-  const { sellerImages, askingPrice } = parsed.data;
-  if (sellerImages?.length || askingPrice != null) {
+  // Create or update trade offer if seller included images/video or an asking price
+  const { sellerImages, sellerVideo, askingPrice } = parsed.data;
+  if (sellerImages?.length || sellerVideo || askingPrice != null) {
     const [existingOffer] = await db
       .select()
       .from(tradeOffersTable)
@@ -112,6 +113,7 @@ router.post("/wanted/:id/thread", requireAuth, async (req, res) => {
         threadId: thread.id,
         sellerClerkId,
         sellerImages: sellerImages ?? [],
+        sellerVideo: sellerVideo ?? null,
         askingPrice: askingPrice != null ? String(askingPrice) : null,
         status: "pending",
       });
@@ -120,6 +122,7 @@ router.post("/wanted/:id/thread", requireAuth, async (req, res) => {
         .update(tradeOffersTable)
         .set({
           sellerImages: sellerImages ?? existingOffer.sellerImages,
+          sellerVideo: sellerVideo ?? existingOffer.sellerVideo,
           askingPrice: askingPrice != null ? String(askingPrice) : existingOffer.askingPrice,
           updatedAt: new Date(),
         })

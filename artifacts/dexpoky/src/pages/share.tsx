@@ -139,6 +139,7 @@ export default function SharePage() {
   const [shareLink, setShareLink] = useState("");
   const [createdListingId, setCreatedListingId] = useState<number | null>(null);
   const [listingImagePaths, setListingImagePaths] = useState<string[]>([]);
+  const [listingVideo, setListingVideo] = useState<string | null>(null);
 
   const [wantedCard, setWantedCard] = useState<CatalogCard | null>(null);
   const [wantedMaxPrice, setWantedMaxPrice] = useState("");
@@ -238,6 +239,7 @@ export default function SharePage() {
         listingType: "buy_now",
         description: includeShipping ? `Includes shipping: $${shippingCost}` : undefined,
         listingImages: listingImagePaths.length > 0 ? listingImagePaths : undefined,
+        listingVideo: listingVideo ?? undefined,
       } as Parameters<typeof createListing.mutate>[0]);
     } else {
       const origin = window.location.origin;
@@ -618,10 +620,12 @@ export default function SharePage() {
                 {sellType === "single" && (
                   <div className="bg-card rounded-2xl border p-4">
                     <ImageUploader
-                      images={listingImagePaths}
-                      onChange={setListingImagePaths}
-                      max={5}
-                      label="Listing photos (up to 5)"
+                      photos={listingImagePaths}
+                      video={listingVideo}
+                      onPhotosChange={setListingImagePaths}
+                      onVideoChange={setListingVideo}
+                      maxPhotos={10}
+                      label="Listing photos & video"
                     />
                     <p className="text-[10px] text-muted-foreground mt-2">
                       Photos help buyers see condition and details — strongly recommended.
