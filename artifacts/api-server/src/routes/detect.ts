@@ -12,23 +12,45 @@ const openai = process.env.OPENAI_API_KEY
 
 /** Phase 1 — OpenAI vision only. Fast identify, no TCGdex. */
 router.post("/cards/identify", async (req, res) => {
-  const { imageData } = req.body as { imageData?: string };
+  const { imageData, cornerImageData } = req.body as {
+    imageData?: string;
+    cornerImageData?: string;
+  };
   if (!imageData || typeof imageData !== "string") {
     res.status(400).json({ error: "imageData is required" });
     return;
   }
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5-mini",
-      max_completion_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image_url", image_url: { url: imageData, detail: "high" } },
-            {
-              type: "text",
-              text: `You are a Pokémon TCG card expert with perfect OCR ability. Examine every part of this image carefully, including small text at the bottom of the card.
+    const imageContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+      { type: "image_url", image_url: { url: imageData, detail: "high" } },
+    ];
+    if (cornerImageData && typeof cornerImageData === "string") {
+      imageContent.push({ type: "image_url", image_url: { url: cornerImageData, detail: "high" } });
+    }
+    const promptText = cornerImageData
+      ? `You are a Pokémon TCG card expert with perfect OCR ability.
+
+You have been given TWO images:
+1. The full card — use this to identify the Pokémon name and HP.
+2. A zoomed crop of the bottom strip of the same card — use this to read the small set code and card number printed there (e.g. "PFL EN 002/094").
+
+Respond with ONLY valid JSON — no markdown, no explanation, nothing else.
+
+If a Pokémon trading card IS visible (even partially):
+{"detected":true,"confidence":"high","pokemonName":"Gloom","setCode":"PFL","cardNumber":"002","hp":70}
+
+Fields:
+- confidence: "high" if card clearly visible, "medium" if partially visible
+- pokemonName: the Pokémon's name printed at the top of the card (REQUIRED, never null when detected)
+- setCode: the abbreviated set code in the bottom strip, usually 2-5 capital letters in a box (e.g. "PFL", "SVI", "PAF", "SVP", "SV5", "SWSH") — read it from the zoomed image
+- cardNumber: only the digits before the slash in the card number (e.g. "002" from "002/094") — read it from the zoomed image
+- hp: the HP value as a plain integer from the top-right of the card (e.g. 70)
+
+All fields except pokemonName may be null if not legible.
+
+If NO Pokémon trading card is visible at all:
+{"detected":false,"confidence":"low","pokemonName":null,"setCode":null,"cardNumber":null,"hp":null}`
+      : `You are a Pokémon TCG card expert with perfect OCR ability. Examine every part of this image carefully, including small text at the bottom of the card.
 
 Respond with ONLY valid JSON — no markdown, no explanation, nothing else.
 
@@ -45,14 +67,23 @@ Fields:
 All fields except pokemonName may be null if not legible.
 
 If NO Pokémon trading card is visible at all:
-{"detected":false,"confidence":"low","pokemonName":null,"setCode":null,"cardNumber":null,"hp":null}`,
-            },
+{"detected":false,"confidence":"low","pokemonName":null,"setCode":null,"cardNumber":null,"hp":null}`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5-mini",
+      max_completion_tokens: 2000,
+      messages: [
+        {
+          role: "user",
+          content: [
+            ...imageContent,
+            { type: "text", text: promptText },
           ],
         },
       ],
     });
     const raw = (completion.choices[0]?.message?.content ?? "").trim();
-    req.log.info({ imageSizeKB: Math.round((imageData.length * 3) / 4 / 1024), rawResponse: raw }, "identify");
+    req.log.info({ imageSizeKB: Math.round((imageData.length * 3) / 4 / 1024), hasCorner: !!cornerImageData, rawResponse: raw }, "identify");
     const cleaned = raw.replace(/^```(?:json)?\n?/m, "").replace(/\n?```$/m, "");
     let parsed: {
       detected?: boolean;

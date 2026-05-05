@@ -52,6 +52,42 @@ async function fetchSetName(setId: string): Promise<string> {
   }
 }
 
+/**
+ * Direct exact-match lookup: name + localId (the card number as printed).
+ * Tries the raw form ("002") and the integer form ("2") in parallel since
+ * TCGdex sets use either convention depending on the era.
+ */
+async function fetchCardsByNameAndLocalId(name: string, rawNumber: string): Promise<CardBrief[]> {
+  const stripped = rawNumber.split("/")[0].trim();
+  if (!stripped) return [];
+  const asInt = String(parseInt(stripped, 10));
+
+  async function tryLocalId(localId: string): Promise<CardBrief[]> {
+    try {
+      const res = await fetch(
+        `${TCGDEX_BASE}/cards?name=${encodeURIComponent(name)}&localId=${encodeURIComponent(localId)}`,
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? (data as CardBrief[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  const [withPad, withoutPad] = await Promise.all([
+    stripped !== asInt ? tryLocalId(stripped) : Promise.resolve([] as CardBrief[]),
+    tryLocalId(asInt),
+  ]);
+
+  const seen = new Set<string>();
+  const results: CardBrief[] = [];
+  for (const card of [...withPad, ...withoutPad]) {
+    if (!seen.has(card.id)) { seen.add(card.id); results.push(card); }
+  }
+  return results;
+}
+
 async function fetchCards(namePattern: string): Promise<CardBrief[]> {
   try {
     const encoded = namePattern.split("*").map(encodeURIComponent).join("*");
@@ -464,9 +500,25 @@ export async function searchTcgdex(
 ): Promise<{ variants: TcgResult[]; pricing: PricingData }> {
   const emptyPricing: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
   try {
-    let cards = await fetchCards(`*${query}*`);
+    // ── Exact-match shortcut ──────────────────────────────────────────────
+    // When we have both a name and card number, do a targeted
+    // name+localId lookup first. If it returns results, those become the
+    // primary variants (the correct printing is guaranteed first); the
+    // broader name search is still run in parallel for "other printings".
+    let exactCards: CardBrief[] = [];
+    let broadCards: CardBrief[] = [];
 
-    if (cards.filter((c) => !c.id.startsWith("tk")).length === 0) {
+    if (cardNumber) {
+      [exactCards, broadCards] = await Promise.all([
+        fetchCardsByNameAndLocalId(query, cardNumber),
+        fetchCards(`*${query}*`),
+      ]);
+    } else {
+      broadCards = await fetchCards(`*${query}*`);
+    }
+
+    // Fall back to word-by-word search if the broad search returned nothing
+    if (broadCards.filter((c) => !c.id.startsWith("tk")).length === 0) {
       const words = query
         .toLowerCase()
         .split(/\s+/)
@@ -487,11 +539,12 @@ export async function searchTcgdex(
           const scoreB = b.name.toLowerCase().split(/\s+/).filter((w) => queryWords.has(w)).length;
           return scoreB - scoreA;
         });
-        cards = merged;
+        broadCards = merged;
       }
     }
 
-    const bestMatch = cards.find((c) => !c.id.startsWith("tk"));
+    // Anchor filter: keep only cards whose name contains the same root word
+    const bestMatch = (exactCards[0] ?? broadCards.find((c) => !c.id.startsWith("tk")));
     const bestName = bestMatch?.name ?? query;
 
     const bestWords = bestName
@@ -499,18 +552,25 @@ export async function searchTcgdex(
       .split(/\s+/)
       .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
     const anchorWord = bestWords[0];
-    const filteredCards = anchorWord
-      ? cards.filter((c) => c.name.toLowerCase().includes(anchorWord))
-      : cards;
+    const filteredBroad = anchorWord
+      ? broadCards.filter((c) => c.name.toLowerCase().includes(anchorWord))
+      : broadCards;
+
+    // Merge: exact matches first (deduped), then broader results
+    const exactIds = new Set(exactCards.map((c) => c.id));
+    const mergedCards: CardBrief[] = [
+      ...exactCards,
+      ...filteredBroad.filter((c) => !exactIds.has(c.id)),
+    ];
 
     const [variants, pricing] = await Promise.all([
-      buildResults(filteredCards),
+      buildResults(mergedCards),
       fetchPricing(bestName),
     ]);
 
-    // If a card number was supplied, float the exact-number match to the top
-    // so the identified printing is always shown first.
-    if (cardNumber) {
+    // Secondary sort safety net: if no exact lookup was done (or returned
+    // nothing), float the number-matched card to position 0 anyway.
+    if (cardNumber && exactCards.length === 0) {
       const targetNum = parseCardNum(cardNumber);
       if (!isNaN(targetNum)) {
         variants.sort((a, b) => {

@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
 import { useCameraFacing } from "@/hooks/useCameraFacing";
 import { ScanPaywall } from "@/components/scan-paywall";
-import { captureCardCrop } from "@/lib/capture-crop";
+import { captureCardCrop, captureBottomCrop } from "@/lib/capture-crop";
 import { uploadScanImage } from "@/lib/upload-scan";
 import {
   useCreateCard,
@@ -206,14 +206,18 @@ export default function ScanBulkPage() {
     }
   }, [startCamera, setFacingMode, facingModeRef]);
 
-  // Crop to the on-screen card guide (85% of the 5:3 viewport height in bulk
-  // mode). Sending only the card region keeps each detection fast.
+  // Crop to the on-screen card guide (85% of viewport height in bulk mode).
   const captureFrame = useCallback((): string | null => {
     return captureCardCrop(videoRef.current, canvasRef.current, 0.85);
   }, []);
 
+  // Zoomed crop of just the bottom strip where set code + number are printed.
+  const captureCorner = useCallback((): string | null => {
+    return captureBottomCrop(videoRef.current, canvasRef.current, 0.85);
+  }, []);
+
   // ── Background detection per entry ────────────────────────────────────────
-  const processEntry = useCallback(async (entryId: string, imageData: string) => {
+  const processEntry = useCallback(async (entryId: string, imageData: string, cornerImageData?: string) => {
     const controller = new AbortController();
     abortControllersRef.current.set(entryId, controller);
     const signal = controller.signal;
@@ -226,7 +230,7 @@ export default function ScanBulkPage() {
       const idRes = await fetch(`${BASE}/api/cards/identify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData }),
+        body: JSON.stringify({ imageData, ...(cornerImageData ? { cornerImageData } : {}) }),
         signal,
       });
       if (!idRes.ok) throw new Error("identify failed");
@@ -335,6 +339,8 @@ export default function ScanBulkPage() {
       toast.error("Couldn't capture photo — please try again.");
       return;
     }
+    // Capture the bottom-corner strip immediately after — same canvas, sequential
+    const cornerImageData = captureCorner() ?? undefined;
     inflightCountRef.current += 1;
     const id = uid();
     const entry: BulkEntry = {
@@ -347,12 +353,12 @@ export default function ScanBulkPage() {
       include: true,
     };
     setEntries((prev) => [...prev, entry]);
-    void processEntry(id, imageData);
+    void processEntry(id, imageData, cornerImageData);
     // Upload the captured scan in the background so it's ready by save time.
     void uploadScanImage(imageData).then((url) => {
       setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, originalScanUrl: url } : e)));
     });
-  }, [captureFrame, processEntry]);
+  }, [captureFrame, captureCorner, processEntry]);
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   useEffect(() => {

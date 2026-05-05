@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
 import { useCameraFacing } from "@/hooks/useCameraFacing";
 import { ScanPaywall } from "@/components/scan-paywall";
-import { captureCardCrop } from "@/lib/capture-crop";
+import { captureCardCrop, captureBottomCrop } from "@/lib/capture-crop";
 import { uploadScanImage } from "@/lib/upload-scan";
 
 interface TcgCard {
@@ -106,10 +106,14 @@ export default function ScanPage() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] = useState<"trial_not_activated" | "trial_exhausted" | "monthly_limit_reached" | null>(null);
 
-  // Crop to the on-screen card guide (88% of the 5:3 viewport height) — the
-  // vision API only sees what the user lined up.
+  // Crop to the on-screen card guide (88% of viewport height).
   const captureFrame = useCallback((): string | null => {
     return captureCardCrop(videoRef.current, canvasRef.current, 0.88);
+  }, []);
+
+  // Zoomed crop of just the bottom strip where set code + number are printed.
+  const captureCorner = useCallback((): string | null => {
+    return captureBottomCrop(videoRef.current, canvasRef.current, 0.88);
   }, []);
 
   const stopStream = useCallback(() => {
@@ -185,10 +189,11 @@ export default function ScanPage() {
     uploadPromise.then((url) => setScanUrl(url));
 
     try {
+      const cornerImageData = captureCorner() ?? undefined;
       const res = await fetch(`${BASE}/api/cards/identify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData }),
+        body: JSON.stringify({ imageData, ...(cornerImageData ? { cornerImageData } : {}) }),
       });
       if (!res.ok) throw new Error("identify failed");
       const data = await res.json() as {
@@ -228,7 +233,7 @@ export default function ScanPage() {
       startCamera().catch(() => toast.error("Camera permission denied or unavailable."));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [captureFrame, stopStream, lookupCard]);
+  }, [captureFrame, captureCorner, stopStream, lookupCard]);
 
   const startCamera = async (facing?: "environment" | "user") => {
     const mode = facing ?? facingModeRef.current;
