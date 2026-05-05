@@ -149,7 +149,10 @@ export default function Sell() {
     <Layout>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight mb-2">Sell a Card</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <Tag className="h-7 w-7 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight">Sell a Card</h1>
+          </div>
           <p className="text-muted-foreground">List a card from your collection on the global marketplace.</p>
         </div>
 

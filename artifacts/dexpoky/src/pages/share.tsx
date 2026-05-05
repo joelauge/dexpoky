@@ -351,7 +351,7 @@ export default function SharePage() {
             {mode === "looking" ? <Heart className="h-5 w-5 text-white" /> : <Share2 className="h-5 w-5 text-white" />}
           </div>
           <div>
-            <h1 className="text-lg font-bold leading-none">{mode === "looking" ? "Looking For" : "Create Share Link"}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{mode === "looking" ? "Looking For" : "Create Share Link"}</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               {mode === "looking" ? "Broadcast a card you want to buy" : "Share & get paid in seconds"}
             </p>

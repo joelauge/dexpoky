@@ -517,10 +517,10 @@ export default function ScanBulkPage() {
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4 pb-32">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-black flex items-center gap-2">
-              <ScanLine className="h-5 w-5 text-primary" />
-              Bulk Scan
-            </h1>
+            <div className="flex items-center gap-3">
+              <ScanLine className="h-7 w-7 text-primary" />
+              <h1 className="text-2xl font-bold tracking-tight">Bulk Scan</h1>
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               Snap up to {MAX_CARDS} cards in a row, then review and save them all at once.
             </p>

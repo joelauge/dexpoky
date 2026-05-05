@@ -237,7 +237,10 @@ export default function Profile() {
       <Layout>
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 pb-20">
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-bold tracking-tight">My Profile</h1>
+            <div className="flex items-center gap-3">
+              <User className="h-7 w-7 text-primary" />
+              <h1 className="text-2xl font-bold tracking-tight">My Profile</h1>
+            </div>
             <div className="flex gap-2">
               {!editing ? (
                 <Button variant="outline" onClick={handleEdit}>

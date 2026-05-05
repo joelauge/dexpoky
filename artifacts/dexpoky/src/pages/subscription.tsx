@@ -64,9 +64,9 @@ export default function SubscriptionPage() {
     <Layout>
       <div className="max-w-2xl mx-auto px-4 py-8 pb-20">
         <div className="mb-8">
-          <div className="flex items-center gap-2 text-primary mb-1">
-            <Crown className="h-6 w-6" />
-            <h1 className="text-2xl font-extrabold tracking-tight">Subscription</h1>
+          <div className="flex items-center gap-3 mb-1">
+            <Crown className="h-7 w-7 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight">Subscription</h1>
           </div>
           <p className="text-sm text-muted-foreground">
             Manage your DexPoky plan and scan allowance.

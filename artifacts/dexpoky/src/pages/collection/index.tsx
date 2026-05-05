@@ -12,7 +12,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown } from "lucide-react";
+import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library } from "lucide-react";
 import { ShareModal } from "@/components/share-modal";
 import { Link } from "wouter";
 import { formatLabel } from "@/lib/constants";
@@ -118,7 +118,10 @@ export default function Collection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-2">My Collection</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <Library className="h-7 w-7 text-primary" />
+              <h1 className="text-2xl font-bold tracking-tight">My Collection</h1>
+            </div>
             <p className="text-muted-foreground">Manage and track all your Pokémon cards</p>
           </div>
           <div className="flex gap-2 shrink-0">

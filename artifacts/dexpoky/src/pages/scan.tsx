@@ -304,9 +304,9 @@ export default function ScanPage() {
         {/* Header */}
         <div className="mb-6 flex items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-primary mb-1">
-              <ScanLine className="h-6 w-6" />
-              <h1 className="text-2xl font-extrabold tracking-tight">Card Scanner</h1>
+            <div className="flex items-center gap-3 mb-1">
+              <ScanLine className="h-7 w-7 text-primary" />
+              <h1 className="text-2xl font-bold tracking-tight">Card Scanner</h1>
             </div>
             <p className="text-sm text-muted-foreground">
               Center the card in the frame, then tap to take a photo.

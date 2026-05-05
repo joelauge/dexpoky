@@ -229,9 +229,9 @@ export default function WishlistPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
-            <div className="flex items-center gap-2 text-primary mb-1">
-              <Heart className="h-6 w-6 fill-primary" />
-              <h1 className="text-3xl font-bold tracking-tight">Looking For</h1>
+            <div className="flex items-center gap-3 mb-1">
+              <Heart className="h-7 w-7 text-primary fill-primary" />
+              <h1 className="text-2xl font-bold tracking-tight">Looking For</h1>
             </div>
             <p className="text-sm text-muted-foreground">
               Cards you'd like to track down. Organised by category — the AI deck builder will weave these into deck ideas.

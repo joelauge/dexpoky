@@ -155,9 +155,10 @@ export default function Dashboard() {
         <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-b relative overflow-hidden">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMCwwLDAsMC4wNSkiLz48L3N2Zz4=')] opacity-50" />
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground mb-2">
-              Welcome back to DexPoky
-            </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <Activity className="h-7 w-7 text-primary" />
+              <h1 className="text-2xl font-bold tracking-tight">Welcome back to DexPoky</h1>
+            </div>
             <p className="text-lg text-muted-foreground max-w-2xl">
               Your collection command center. Track values, manage inventory, and trade with other collectors.
             </p>
@@ -277,7 +278,7 @@ export default function Dashboard() {
               {/* Recent Additions — sorted by createdAt DESC */}
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold tracking-tight">Recent Additions</h2>
+                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Recent Additions</h2>
                   <Link href="/collection">
                     <Button variant="ghost" size="sm" className="gap-1">
                       View All <ArrowRight className="h-4 w-4" />

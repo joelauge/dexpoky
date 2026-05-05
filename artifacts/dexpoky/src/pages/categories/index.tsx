@@ -71,7 +71,10 @@ export default function Categories() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-2">Categories</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <FolderTree className="h-7 w-7 text-primary" />
+              <h1 className="text-2xl font-bold tracking-tight">Categories</h1>
+            </div>
             <p className="text-muted-foreground">Organize your collection your way</p>
           </div>
           

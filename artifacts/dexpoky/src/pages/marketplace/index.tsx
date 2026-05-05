@@ -399,9 +399,9 @@ export default function Marketplace() {
       <Show when="signed-in">
         <div className="bg-primary/5 border-b">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <div className="flex items-center gap-4 text-primary mb-4">
-              <Store className="h-8 w-8" />
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Global Marketplace</h1>
+            <div className="flex items-center gap-3 mb-4">
+              <Store className="h-7 w-7 text-primary" />
+              <h1 className="text-2xl font-bold tracking-tight">Global Marketplace</h1>
             </div>
             <p className="text-lg text-muted-foreground max-w-2xl mb-8">
               Buy, sell, and discover rare cards from collectors around the world.
@@ -424,7 +424,7 @@ export default function Marketplace() {
         {/* ── Active Listings ── */}
         <div>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold tracking-tight">Active Listings</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Active Listings</h2>
             <div className="text-sm text-muted-foreground">{listings?.length || 0} items available</div>
           </div>
 
@@ -504,7 +504,7 @@ export default function Marketplace() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <Heart className="h-6 w-6 text-rose-500 fill-rose-100" />
-              <h2 className="text-2xl font-bold tracking-tight">Looking For</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Looking For</h2>
               <Badge className="bg-rose-100 text-rose-700 border-rose-200 text-xs">
                 {wantedListings?.length || 0}
               </Badge>
