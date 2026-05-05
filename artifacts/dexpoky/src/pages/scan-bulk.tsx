@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
+import { useCameraFacing } from "@/hooks/useCameraFacing";
 import { ScanPaywall } from "@/components/scan-paywall";
 import { captureCardCrop } from "@/lib/capture-crop";
 import { uploadScanImage } from "@/lib/upload-scan";
@@ -81,15 +82,6 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const MAX_CARDS = 25;
 const LAST_CAT_KEY = "dexpoky:lastCategoryId";
 const LAST_CONDITION_KEY = "dexpoky:lastCondition";
-const CAMERA_FACING_KEY = "dexpoky:cameraFacing";
-
-function readFacingMode(): "environment" | "user" {
-  try {
-    const v = localStorage.getItem(CAMERA_FACING_KEY);
-    if (v === "user" || v === "environment") return v;
-  } catch { /* ignore */ }
-  return "environment";
-}
 
 const CONDITIONS: { value: CreateCardBodyCondition; label: string }[] = [
   { value: CreateCardBodyCondition.mint,         label: "Mint" },
@@ -139,8 +131,7 @@ export default function ScanBulkPage() {
   const [savedCount, setSavedCount] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
 
-  const [facingMode, setFacingMode] = useState<"environment" | "user">(readFacingMode);
-  const facingModeRef = useRef<"environment" | "user">(facingMode);
+  const { facingMode, facingModeRef, setFacingMode } = useCameraFacing();
   const [hasSingleCamera, setHasSingleCamera] = useState(false);
 
   // Refs to prevent races during async ops:
@@ -192,24 +183,20 @@ export default function ScanBulkPage() {
   const flipCamera = useCallback(async () => {
     const prev = facingModeRef.current;
     const next = prev === "environment" ? "user" : "environment";
-    facingModeRef.current = next;
     setFacingMode(next);
-    try { localStorage.setItem(CAMERA_FACING_KEY, next); } catch { /* ignore */ }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     try {
       await startCamera(next);
     } catch {
-      facingModeRef.current = prev;
       setFacingMode(prev);
-      try { localStorage.setItem(CAMERA_FACING_KEY, prev); } catch { /* ignore */ }
       toast.error("This device only has one camera.");
       startCamera(prev).catch(() => {
         toast.error("Camera permission denied or unavailable.");
         setPhase("idle");
       });
     }
-  }, [startCamera]);
+  }, [startCamera, setFacingMode, facingModeRef]);
 
   // Crop to the on-screen card guide (85% of the 5:3 viewport height in bulk
   // mode). Sending only the card region keeps each detection fast.

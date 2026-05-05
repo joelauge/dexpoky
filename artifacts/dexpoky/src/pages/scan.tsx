@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBillingStatus, useRecordScan } from "@/hooks/useBilling";
+import { useCameraFacing } from "@/hooks/useCameraFacing";
 import { ScanPaywall } from "@/components/scan-paywall";
 import { captureCardCrop } from "@/lib/capture-crop";
 import { uploadScanImage } from "@/lib/upload-scan";
@@ -61,15 +62,6 @@ interface ConfirmStep {
 }
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-const CAMERA_FACING_KEY = "dexpoky:cameraFacing";
-
-function readFacingMode(): "environment" | "user" {
-  try {
-    const v = localStorage.getItem(CAMERA_FACING_KEY);
-    if (v === "user" || v === "environment") return v;
-  } catch { /* ignore */ }
-  return "environment";
-}
 
 const PSA_GRADES = [10, 9, 8, 7, 6, 5] as const;
 const PSA_LABELS: Record<number, string> = {
@@ -92,8 +84,7 @@ export default function ScanPage() {
   const scanUploadRef = useRef<Promise<string | null> | null>(null);
   const [, navigate] = useLocation();
 
-  const [facingMode, setFacingMode] = useState<"environment" | "user">(readFacingMode);
-  const facingModeRef = useRef<"environment" | "user">(facingMode);
+  const { facingMode, facingModeRef, setFacingMode } = useCameraFacing();
   const [hasSingleCamera, setHasSingleCamera] = useState(false);
 
   const [phase, setPhase]                     = useState<Phase>("idle");
@@ -267,16 +258,12 @@ export default function ScanPage() {
   const flipCamera = async () => {
     const prev = facingModeRef.current;
     const next = prev === "environment" ? "user" : "environment";
-    facingModeRef.current = next;
     setFacingMode(next);
-    try { localStorage.setItem(CAMERA_FACING_KEY, next); } catch { /* ignore */ }
     stopStream();
     try {
       await startCamera(next);
     } catch {
-      facingModeRef.current = prev;
       setFacingMode(prev);
-      try { localStorage.setItem(CAMERA_FACING_KEY, prev); } catch { /* ignore */ }
       toast.error("This device only has one camera.");
       startCamera(prev).catch(() => toast.error("Camera permission denied or unavailable."));
     }
