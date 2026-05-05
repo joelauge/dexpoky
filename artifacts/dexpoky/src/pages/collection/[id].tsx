@@ -120,6 +120,7 @@ export default function CardDetail() {
   const [selectedPrinting, setSelectedPrinting] = useState<TcgVariant | null>(null);
   const [printingPricing, setPrintingPricing] = useState<PrintingPricing | null>(null);
   const [printingPricingLoading, setPrintingPricingLoading] = useState(false);
+  const [confirmPrinting, setConfirmPrinting] = useState<TcgVariant | null>(null);
 
   useEffect(() => {
     const searchName = card?.pokemonName || card?.name;
@@ -158,6 +159,44 @@ export default function CardDetail() {
       setPrintingPricingLoading(false);
     }
   }, [selectedPrinting?.id, card?.rarity]);
+
+  const handlePrintingClick = useCallback((v: TcgVariant, isCurrent: boolean) => {
+    if (isCurrent) {
+      // Current printing: just toggle the pricing panel
+      selectPrinting(v);
+      return;
+    }
+    // Different printing: open confirmation dialog (and fetch pricing in parallel)
+    selectPrinting(v);
+    setConfirmPrinting(v);
+  }, [selectPrinting]);
+
+  const confirmUpdateCard = useCallback(() => {
+    if (!confirmPrinting || !card) return;
+    const newValue = printingPricing?.marketPrice ?? printingPricing?.lowPrice ?? null;
+    updateCard.mutate(
+      {
+        id: card.id,
+        data: {
+          imageUrl: confirmPrinting.imageUrl || undefined,
+          setName: confirmPrinting.setName || undefined,
+          cardNumber: confirmPrinting.cardNumber || undefined,
+          ...(newValue != null ? { estimatedValue: newValue } : {}),
+        },
+      },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: ["/api/cards", card.id] });
+          qc.invalidateQueries({ queryKey: ["/api/cards"] });
+          toast.success("Card updated to new printing!");
+          setConfirmPrinting(null);
+          setSelectedPrinting(null);
+          setPrintingPricing(null);
+        },
+        onError: () => toast.error("Failed to update card — please try again."),
+      },
+    );
+  }, [confirmPrinting, card, printingPricing, updateCard, qc]);
   // ──────────────────────────────────────────────────────────────────────────
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -700,7 +739,7 @@ export default function CardDetail() {
                       return (
                         <button
                           key={v.id}
-                          onClick={() => selectPrinting(v)}
+                          onClick={() => handlePrintingClick(v, isCurrent)}
                           title={`${v.setName} · ${v.cardNumber}`}
                           className={`group shrink-0 w-14 rounded-xl border-2 overflow-hidden flex flex-col transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                             isSelected
@@ -812,6 +851,110 @@ export default function CardDetail() {
           </div>
         </div>
       </div>
+      {/* ── Printing update confirmation dialog ── */}
+      <Dialog
+        open={!!confirmPrinting}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmPrinting(null);
+            setSelectedPrinting(null);
+            setPrintingPricing(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Update to this printing?</DialogTitle>
+            <DialogDescription>
+              Your card's image{printingPricing || printingPricingLoading ? " and estimated value" : ""} will be updated.
+            </DialogDescription>
+          </DialogHeader>
+
+          {confirmPrinting && (
+            <div className="space-y-4 py-1">
+              {/* Before → After */}
+              <div className="flex items-center gap-3">
+                {/* Current */}
+                <div className="flex-1 flex flex-col items-center gap-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Current</p>
+                  <div className="w-20 aspect-[3/4] rounded-xl overflow-hidden border bg-muted flex items-center justify-center">
+                    {card?.imageUrl
+                      ? <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover" />
+                      : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-2 max-w-[80px]">
+                    {card?.setName ?? "—"}
+                  </p>
+                </div>
+
+                {/* Arrow */}
+                <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+
+                {/* New */}
+                <div className="flex-1 flex flex-col items-center gap-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-primary">New</p>
+                  <div className="w-20 aspect-[3/4] rounded-xl overflow-hidden border-2 border-primary bg-muted flex items-center justify-center">
+                    {confirmPrinting.imageUrl
+                      ? <img src={confirmPrinting.imageUrl} alt={confirmPrinting.name} className="w-full h-full object-cover" />
+                      : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-2 max-w-[80px]">
+                    {confirmPrinting.setName}
+                    {confirmPrinting.cardNumber && <span className="font-mono"> #{confirmPrinting.cardNumber}</span>}
+                  </p>
+                </div>
+              </div>
+
+              {/* Price row */}
+              <div className="rounded-xl border bg-muted/40 px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Estimated value</p>
+                  <p className="text-sm font-semibold text-muted-foreground line-through">
+                    {formatCurrency(card?.estimatedValue)}
+                  </p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground mx-2 shrink-0" />
+                <div className="text-right">
+                  {printingPricingLoading ? (
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Fetching…
+                    </div>
+                  ) : (printingPricing?.marketPrice ?? printingPricing?.lowPrice) != null ? (
+                    <p className="text-lg font-black text-primary">
+                      {formatCurrency(printingPricing!.marketPrice ?? printingPricing!.lowPrice)}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No price data</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConfirmPrinting(null);
+                setSelectedPrinting(null);
+                setPrintingPricing(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmUpdateCard}
+              disabled={updateCard.isPending}
+              className="gap-1.5"
+            >
+              {updateCard.isPending
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating…</>
+                : <><CheckCircle2 className="h-3.5 w-3.5" /> Update card</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {card && (
         <ShareModal
           isOpen={isShareOpen}
