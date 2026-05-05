@@ -107,8 +107,8 @@ router.post("/wanted", requireAuth, async (req, res) => {
   try {
     const clerkUser = await clerkClient.users.getUser(userId);
     ownerDisplayName =
-      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() ||
       clerkUser.username ||
+      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() ||
       null;
     ownerImageUrl = clerkUser.imageUrl ?? null;
   } catch (err) {
