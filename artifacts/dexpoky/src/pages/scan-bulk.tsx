@@ -32,9 +32,11 @@ import { useCameraFacing } from "@/hooks/useCameraFacing";
 import { ScanPaywall } from "@/components/scan-paywall";
 import { captureCardCrop, captureBottomCrop } from "@/lib/capture-crop";
 import { uploadScanImage } from "@/lib/upload-scan";
+import { Input } from "@/components/ui/input";
 import {
   useCreateCard,
   useListCategories,
+  useCreateCategory,
   CreateCardBodyCondition,
   CreateCardBodyRarity,
   ApiError,
@@ -154,6 +156,22 @@ export default function ScanBulkPage() {
   const recordScan = useRecordScan();
   const createCard = useCreateCard();
   const { data: categories } = useListCategories();
+  const createCategory = useCreateCategory();
+  const [newCatEntryId, setNewCatEntryId] = useState<string | null>(null);
+  const [newCatName, setNewCatName] = useState("");
+
+  async function handleCreateCategory(entryId: string) {
+    const name = newCatName.trim();
+    if (!name) return;
+    try {
+      const created = await createCategory.mutateAsync({ data: { name } });
+      updateEntry(entryId, { categoryId: created.id });
+      setNewCatEntryId(null);
+      setNewCatName("");
+    } catch {
+      toast.error("Couldn't create category");
+    }
+  }
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] =
     useState<"trial_not_activated" | "trial_exhausted" | "monthly_limit_reached" | null>(null);
@@ -920,6 +938,46 @@ export default function ScanBulkPage() {
                               {cat.name}
                             </button>
                           ))}
+
+                          {/* Inline new-category creator */}
+                          {newCatEntryId === e.id ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                autoFocus
+                                value={newCatName}
+                                onChange={(ev) => setNewCatName(ev.target.value)}
+                                onKeyDown={(ev) => {
+                                  if (ev.key === "Enter") { ev.preventDefault(); void handleCreateCategory(e.id); }
+                                  if (ev.key === "Escape") { setNewCatEntryId(null); setNewCatName(""); }
+                                }}
+                                placeholder="Category name"
+                                className="h-7 w-28 rounded-full border border-primary/60 px-3 text-xs"
+                              />
+                              <button
+                                type="button"
+                                disabled={!newCatName.trim() || createCategory.isPending}
+                                onClick={() => void handleCreateCategory(e.id)}
+                                className="h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 transition-opacity"
+                              >
+                                {createCategory.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setNewCatEntryId(null); setNewCatName(""); }}
+                                className="h-7 w-7 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => { setNewCatEntryId(e.id); setNewCatName(""); }}
+                              className="text-xs px-3 py-1.5 rounded-full border border-dashed border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+                            >
+                              + New
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

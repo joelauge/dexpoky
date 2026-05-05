@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,6 +6,7 @@ import * as z from "zod";
 import {
   useCreateCard,
   useListCategories,
+  useCreateCategory,
   CreateCardBodyRarity,
   CreateCardBodyCondition,
   type CatalogCard,
@@ -114,6 +115,27 @@ export default function NewCard() {
   const [, setLocation] = useLocation();
   const createCard = useCreateCard();
   const { data: categories } = useListCategories();
+  const createCategory = useCreateCategory();
+  const [newCatOpen, setNewCatOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const newCatInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (newCatOpen) newCatInputRef.current?.focus();
+  }, [newCatOpen]);
+
+  async function handleCreateCategory(setValue: (id: number) => void) {
+    const name = newCatName.trim();
+    if (!name) return;
+    try {
+      const created = await createCategory.mutateAsync({ data: { name } });
+      setValue(created.id);
+      setNewCatOpen(false);
+      setNewCatName("");
+    } catch {
+      toast.error("Couldn't create category");
+    }
+  }
 
   // Detect scan mode from URL params
   const search = typeof window !== "undefined" ? window.location.search : "";
@@ -282,41 +304,79 @@ export default function NewCard() {
               </div>
 
               {/* Category picker */}
-              {categories && categories.length > 0 && (
-                <FormField
-                  control={form.control}
-                  name="categoryId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center gap-2 mb-2">
-                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                        <FormLabel className="text-sm font-semibold !mb-0">File in category</FormLabel>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {categories.map((cat) => {
-                          const active = field.value === cat.id;
-                          return (
-                            <button
-                              key={cat.id}
-                              type="button"
-                              onClick={() => field.onChange(active ? undefined : cat.id)}
-                              className={`px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
-                                active
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border bg-background hover:border-primary/50 hover:bg-muted/30"
-                              }`}
-                            >
-                              {active && <Check className="inline h-3 w-3 mr-1 -mt-0.5" />}
-                              {cat.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+              <FormField
+                control={form.control}
+                name="categoryId"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-2 mb-2">
+                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                      <FormLabel className="text-sm font-semibold !mb-0">File in category</FormLabel>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(categories ?? []).map((cat) => {
+                        const active = field.value === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => field.onChange(active ? undefined : cat.id)}
+                            className={`px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
+                              active
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border bg-background hover:border-primary/50 hover:bg-muted/30"
+                            }`}
+                          >
+                            {active && <Check className="inline h-3 w-3 mr-1 -mt-0.5" />}
+                            {cat.name}
+                          </button>
+                        );
+                      })}
+
+                      {/* Inline new-category creator */}
+                      {newCatOpen ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            ref={newCatInputRef}
+                            value={newCatName}
+                            onChange={(e) => setNewCatName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") { e.preventDefault(); void handleCreateCategory(field.onChange); }
+                              if (e.key === "Escape") { setNewCatOpen(false); setNewCatName(""); }
+                            }}
+                            placeholder="Category name"
+                            className="h-8 w-32 rounded-full border-2 border-primary/60 bg-background px-3 text-sm outline-none focus:border-primary"
+                          />
+                          <button
+                            type="button"
+                            disabled={!newCatName.trim() || createCategory.isPending}
+                            onClick={() => void handleCreateCategory(field.onChange)}
+                            className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 transition-opacity"
+                          >
+                            {createCategory.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setNewCatOpen(false); setNewCatName(""); }}
+                            className="h-8 w-8 rounded-full border-2 border-border flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setNewCatOpen(true)}
+                          className="px-3 py-1.5 rounded-full text-sm font-medium border-2 border-dashed border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-all"
+                        >
+                          + New
+                        </button>
+                      )}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <Button
                 type="submit"
