@@ -512,10 +512,14 @@ export default function ScanBulkPage() {
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+  const isCapturing = phase === "idle" || phase === "capturing";
   return (
     <Layout>
-      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4 pb-32">
-        <header className="flex items-center justify-between">
+      <div className={isCapturing
+        ? "flex flex-col px-4 h-[calc(100dvh-6.5rem)] md:block md:h-auto md:max-w-2xl md:mx-auto md:py-4 md:pb-20"
+        : "max-w-2xl mx-auto px-4 py-4 space-y-4 pb-32"
+      }>
+        <header className={`flex items-center justify-between ${isCapturing ? "shrink-0 py-3 md:py-0 md:mb-4" : "mb-2"}`}>
           <div>
             <div className="flex items-center gap-3">
               <ScanLine className="h-7 w-7 text-primary" />
@@ -531,11 +535,10 @@ export default function ScanBulkPage() {
         </header>
 
         {/* CAPTURE PHASE */}
-        {(phase === "idle" || phase === "capturing") && (
-          <div className="space-y-3">
+        {isCapturing && (
+          <div className="flex flex-col flex-1 min-h-0 gap-3 md:flex-none md:block md:space-y-3">
             <div
-              className="relative bg-black rounded-2xl overflow-hidden mx-auto"
-              style={{ aspectRatio: "5 / 3", maxWidth: "100%" }}
+              className="relative bg-black rounded-2xl overflow-hidden mx-auto w-full flex-1 min-h-[22vh] md:flex-none md:aspect-[5/3]"
             >
               <video
                 ref={videoRef}
@@ -571,7 +574,7 @@ export default function ScanBulkPage() {
 
             {/* Capture button */}
             {phase === "capturing" && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <Button
                   onClick={takePhoto}
                   size="lg"
