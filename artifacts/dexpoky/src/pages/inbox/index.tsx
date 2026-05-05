@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Layout } from "@/components/layout";
 import {
   useListThreads,
@@ -13,20 +13,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   MessageSquare, Send, ArrowLeft, User, Heart,
   Video, DollarSign, CheckCircle2, XCircle, RefreshCw,
-  Store, Shield, Gem, Calendar, ChevronDown, ChevronUp, Camera,
+  Store, Shield, Gem, Calendar, MapPin, X, Lock, CreditCard, Banknote,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAuthFetch } from "@/lib/use-auth-fetch";
 
-// ── Trade offer types ──────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────
 
 type OfferStatus = "pending" | "countered" | "accepted" | "declined" | "cancelled";
-type ExchangeMethod = "store" | "psa_vault" | "courtyard_nft";
+type EscrowMethod = "store" | "psa_vault" | "courtyard_nft" | "paypal_gs" | "escrow_com" | "cash_in_person";
+
+interface OfferHistoryEntry {
+  amount: number;
+  from: "buyer" | "seller";
+  sentAt: string;
+  note?: string;
+}
 
 interface TradeOffer {
   id: number;
@@ -36,318 +43,82 @@ interface TradeOffer {
   sellerVideo: string | null;
   askingPrice: number | null;
   offerAmount: number | null;
+  offerHistory: OfferHistoryEntry[];
   status: OfferStatus;
-  exchangeMethod: ExchangeMethod | null;
+  exchangeMethod: EscrowMethod | null;
   videoCallScheduledAt: string | null;
   videoCallNotes: string | null;
+  meetupLocation: string | null;
+  meetupProposedAt: string | null;
+  meetupNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
   role: "buyer" | "seller";
 }
 
-// ── DealCard ───────────────────────────────────────────────────────────────
+type ActiveAction = null | "offer" | "video" | "meetup";
 
-const EXCHANGE_OPTIONS: { id: ExchangeMethod; label: string; desc: string; Icon: React.ElementType; color: string }[] = [
-  { id: "store",        label: "Meet at Store",          desc: "Bring your cards to a local card shop",          Icon: Store,  color: "bg-blue-50 border-blue-200 text-blue-700" },
-  { id: "psa_vault",    label: "Exchange via PSA Vault",  desc: "Secure transfer through PSA's vault service",    Icon: Shield, color: "bg-purple-50 border-purple-200 text-purple-700" },
-  { id: "courtyard_nft",label: "Exchange via Courtyard",  desc: "Authenticated transfer through Courtyard NFT",   Icon: Gem,    color: "bg-rose-50 border-rose-200 text-rose-700" },
+type ThreadItem =
+  | { kind: "msg";    msg: DmMessage;                                           ts: number }
+  | { kind: "offer";  entry: OfferHistoryEntry; isInitial: boolean;             ts: number }
+  | { kind: "video";  scheduledAt: Date; notes: string | null;                  ts: number }
+  | { kind: "meetup"; location: string; proposedAt: Date; notes: string | null; ts: number }
+  | { kind: "status"; status: OfferStatus; finalAmount: number | null;          ts: number };
+
+// ── Escrow options ─────────────────────────────────────────────────────────
+
+const ESCROW_OPTIONS: {
+  id: EscrowMethod;
+  label: string;
+  desc: string;
+  Icon: React.ElementType;
+  color: string;
+}[] = [
+  {
+    id: "store",
+    label: "Meet at Card Shop",
+    desc: "In-person exchange — staff validates authenticity on the spot",
+    Icon: Store,
+    color: "bg-blue-50 border-blue-200 text-blue-700",
+  },
+  {
+    id: "escrow_com",
+    label: "Escrow.com",
+    desc: "Buyer deposits funds into escrow, card ships, funds release on receipt",
+    Icon: Lock,
+    color: "bg-violet-50 border-violet-200 text-violet-700",
+  },
+  {
+    id: "paypal_gs",
+    label: "PayPal Goods & Services",
+    desc: "Full PayPal purchase protection for the buyer",
+    Icon: CreditCard,
+    color: "bg-sky-50 border-sky-200 text-sky-700",
+  },
+  {
+    id: "cash_in_person",
+    label: "Cash in Person",
+    desc: "Meet up and exchange the card + cash face to face",
+    Icon: Banknote,
+    color: "bg-amber-50 border-amber-200 text-amber-700",
+  },
+  {
+    id: "psa_vault",
+    label: "PSA Vault Transfer",
+    desc: "Secure transfer through PSA's vault service (graded slabs)",
+    Icon: Shield,
+    color: "bg-purple-50 border-purple-200 text-purple-700",
+  },
+  {
+    id: "courtyard_nft",
+    label: "Courtyard NFT",
+    desc: "Tokenized physical card transfer through Courtyard",
+    Icon: Gem,
+    color: "bg-rose-50 border-rose-200 text-rose-700",
+  },
 ];
 
-function DealCard({ thread, currentUserId }: { thread: DmThreadSummary; currentUserId: string }) {
-  const [offer, setOffer] = useState<TradeOffer | null | undefined>(undefined);
-  const [expanded, setExpanded] = useState(true);
-  const [counterInput, setCounterInput] = useState("");
-  const [showCounter, setShowCounter] = useState(false);
-  const [videoDateInput, setVideoDateInput] = useState("");
-  const [showVideoForm, setShowVideoForm] = useState(false);
-  const [updating, setUpdating] = useState(false);
-
-  const loadOffer = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/threads/${thread.id}/offer`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setOffer(data);
-    } catch {
-      setOffer(null);
-    }
-  }, [thread.id]);
-
-  useEffect(() => {
-    loadOffer();
-    const interval = setInterval(loadOffer, 8000);
-    return () => clearInterval(interval);
-  }, [loadOffer]);
-
-  const doAction = async (body: object) => {
-    setUpdating(true);
-    try {
-      const res = await fetch(`/api/threads/${thread.id}/offer`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error("Failed");
-      const updated = await res.json();
-      setOffer(updated);
-      setShowCounter(false);
-      setShowVideoForm(false);
-      setCounterInput("");
-      setVideoDateInput("");
-    } catch {
-      toast.error("Action failed — please try again");
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  if (offer === undefined) return null;
-  if (offer === null) return null;
-
-  const isBuyer = offer.role === "buyer";
-  const displayPrice = offer.offerAmount ?? offer.askingPrice;
-
-  const statusConfig: Record<OfferStatus, { label: string; color: string }> = {
-    pending:   { label: "Offer pending",   color: "bg-amber-100 text-amber-700 border-amber-200" },
-    countered: { label: "Counter made",    color: "bg-blue-100 text-blue-700 border-blue-200" },
-    accepted:  { label: "Deal accepted!",  color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-    declined:  { label: "Deal declined",   color: "bg-red-100 text-red-700 border-red-200" },
-    cancelled: { label: "Cancelled",       color: "bg-muted text-muted-foreground border-border" },
-  };
-
-  const { label: statusLabel, color: statusColor } = statusConfig[offer.status];
-
-  return (
-    <div className="border-b bg-gradient-to-b from-card to-card/50">
-      {/* Header row */}
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-muted/30 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Deal</span>
-          <Badge className={cn("text-[10px] px-2 py-0.5 border", statusColor)}>{statusLabel}</Badge>
-          {offer.videoCallScheduledAt && (
-            <Badge variant="outline" className="text-[10px] px-2 py-0.5 border-blue-200 text-blue-600 bg-blue-50">
-              <Video className="h-2.5 w-2.5 mr-1" />
-              {format(new Date(offer.videoCallScheduledAt), "MMM d, h:mm a")}
-            </Badge>
-          )}
-        </div>
-        {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-      </button>
-
-      {expanded && (
-        <div className="px-4 pb-4 space-y-3">
-
-          {/* Seller photos & video */}
-          {((offer.sellerImages && offer.sellerImages.length > 0) || offer.sellerVideo) && (
-            <div className="flex gap-2 overflow-x-auto pb-1 items-start">
-              {offer.sellerImages?.map((path, i) => (
-                <img
-                  key={i}
-                  src={`/api/storage${path}`}
-                  alt=""
-                  className="w-16 rounded-lg border shrink-0 object-cover"
-                  style={{ height: 80 }}
-                />
-              ))}
-              {offer.sellerVideo && (
-                <video
-                  src={`/api/storage${offer.sellerVideo}`}
-                  controls
-                  className="w-28 rounded-lg border shrink-0 bg-black"
-                  style={{ height: 80 }}
-                />
-              )}
-            </div>
-          )}
-
-          {/* Price summary */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {offer.askingPrice != null && (
-              <div className="flex items-center gap-1 text-sm">
-                <span className="text-muted-foreground text-xs">Asking:</span>
-                <span className={cn("font-bold", offer.offerAmount != null && "line-through text-muted-foreground text-xs")}>
-                  ${offer.askingPrice.toFixed(2)}
-                </span>
-              </div>
-            )}
-            {offer.offerAmount != null && (
-              <div className="flex items-center gap-1 text-sm">
-                <span className="text-muted-foreground text-xs">{isBuyer ? "Your offer:" : "Buyer offer:"}</span>
-                <span className="font-bold text-primary">${offer.offerAmount.toFixed(2)}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Exchange method already chosen */}
-          {offer.exchangeMethod && (
-            <div className="flex items-center gap-2 text-sm bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span className="font-medium text-emerald-700">
-                {EXCHANGE_OPTIONS.find(o => o.id === offer.exchangeMethod)?.label ?? offer.exchangeMethod}
-              </span>
-            </div>
-          )}
-
-          {/* ── Actions by state ── */}
-
-          {/* Declined / cancelled — no actions */}
-          {(offer.status === "declined" || offer.status === "cancelled") && (
-            <p className="text-xs text-muted-foreground text-center py-1">
-              This deal is no longer active.
-            </p>
-          )}
-
-          {/* Pending — buyer actions */}
-          {offer.status === "pending" && isBuyer && (
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <Button size="sm" className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white" disabled={updating}
-                  onClick={() => doAction({ action: "accept" })}>
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                  Accept ${offer.askingPrice?.toFixed(2) ?? "—"}
-                </Button>
-                <Button size="sm" variant="outline" className="flex-1" disabled={updating}
-                  onClick={() => setShowCounter(v => !v)}>
-                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                  Counter
-                </Button>
-                <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" disabled={updating}
-                  onClick={() => doAction({ action: "decline" })}>
-                  <XCircle className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              {showCounter && (
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input type="number" step="0.01" min="0" value={counterInput}
-                      onChange={e => setCounterInput(e.target.value)}
-                      className="pl-7 h-9 text-sm" placeholder="Your offer" />
-                  </div>
-                  <Button size="sm" disabled={!counterInput || updating}
-                    onClick={() => doAction({ action: "counter", amount: parseFloat(counterInput) })}>
-                    Send counter
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Pending — seller view */}
-          {offer.status === "pending" && !isBuyer && (
-            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 text-center">
-              Waiting for buyer to respond to your ${offer.askingPrice?.toFixed(2) ?? "—"} asking price
-            </p>
-          )}
-
-          {/* Countered — seller actions */}
-          {offer.status === "countered" && !isBuyer && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Buyer countered at <span className="font-bold text-foreground">${offer.offerAmount?.toFixed(2)}</span></p>
-              <div className="flex gap-2">
-                <Button size="sm" className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white" disabled={updating}
-                  onClick={() => doAction({ action: "accept" })}>
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                  Accept ${offer.offerAmount?.toFixed(2)}
-                </Button>
-                <Button size="sm" variant="outline" className="flex-1" disabled={updating}
-                  onClick={() => setShowCounter(v => !v)}>
-                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                  Counter
-                </Button>
-                <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50" disabled={updating}
-                  onClick={() => doAction({ action: "decline" })}>
-                  <XCircle className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              {showCounter && (
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input type="number" step="0.01" min="0" value={counterInput}
-                      onChange={e => setCounterInput(e.target.value)}
-                      className="pl-7 h-9 text-sm" placeholder="Your counter" />
-                  </div>
-                  <Button size="sm" disabled={!counterInput || updating}
-                    onClick={() => doAction({ action: "counter", amount: parseFloat(counterInput) })}>
-                    Send counter
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Countered — buyer waiting */}
-          {offer.status === "countered" && isBuyer && (
-            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 text-center">
-              Counter sent — waiting for seller to respond
-            </p>
-          )}
-
-          {/* Accepted — choose exchange method */}
-          {offer.status === "accepted" && !offer.exchangeMethod && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">How will you exchange?</p>
-              {EXCHANGE_OPTIONS.map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  disabled={updating}
-                  onClick={() => doAction({ action: "set_exchange", method: opt.id })}
-                  className={cn(
-                    "w-full text-left flex items-start gap-3 p-3 rounded-xl border-2 transition-all",
-                    "hover:shadow-sm",
-                    opt.color,
-                  )}
-                >
-                  <opt.Icon className="h-4 w-4 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold">{opt.label}</p>
-                    <p className="text-[11px] opacity-80 mt-0.5">{opt.desc}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Schedule video — available for pending/countered */}
-          {(offer.status === "pending" || offer.status === "countered") && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowVideoForm(v => !v)}
-                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
-              >
-                <Video className="h-3.5 w-3.5" />
-                {offer.videoCallScheduledAt ? "Reschedule video call" : "Schedule a video call"}
-              </button>
-              {showVideoForm && (
-                <div className="flex gap-2 mt-2">
-                  <Input
-                    type="datetime-local"
-                    value={videoDateInput}
-                    onChange={e => setVideoDateInput(e.target.value)}
-                    className="flex-1 h-9 text-sm"
-                  />
-                  <Button size="sm" disabled={!videoDateInput || updating}
-                    onClick={() => doAction({ action: "schedule_video", scheduledAt: new Date(videoDateInput).toISOString() })}>
-                    <Calendar className="h-3.5 w-3.5 mr-1" />
-                    Set
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Thread list item ───────────────────────────────────────────────────────
+// ── ThreadListItem ─────────────────────────────────────────────────────────
 
 function ThreadListItem({
   thread,
@@ -359,7 +130,6 @@ function ThreadListItem({
   onClick: () => void;
 }) {
   const hasUnread = thread.unreadCount > 0;
-
   return (
     <button
       type="button"
@@ -373,7 +143,7 @@ function ThreadListItem({
         {thread.otherUserImageUrl ? (
           <img
             src={thread.otherUserImageUrl}
-            alt={thread.otherUserDisplayName ?? ""}
+            alt=""
             className="w-10 h-10 rounded-full object-cover"
           />
         ) : (
@@ -396,7 +166,7 @@ function ThreadListItem({
         <div className="flex items-center gap-1 mb-1">
           <Heart className="h-3 w-3 text-rose-400 fill-rose-200 shrink-0" />
           <span className="text-xs text-muted-foreground truncate">
-            {thread.wantedCardName ?? "Wanted card"}
+            {thread.wantedCardName ?? "Trade"}
           </span>
           <Badge
             variant="outline"
@@ -410,35 +180,66 @@ function ThreadListItem({
             {thread.role === "buyer" ? "Buyer" : "Seller"}
           </Badge>
         </div>
-        {thread.lastMessage && (
+        {thread.lastMessage ? (
           <p className={cn("text-xs truncate", hasUnread ? "text-foreground font-medium" : "text-muted-foreground")}>
             {thread.lastMessage.content}
           </p>
-        )}
-        {!thread.lastMessage && (
+        ) : (
           <p className="text-xs text-muted-foreground italic">No messages yet</p>
         )}
       </div>
-      {hasUnread && (
-        <span className="shrink-0 w-2 h-2 rounded-full bg-primary mt-2" />
-      )}
+      {hasUnread && <span className="shrink-0 w-2 h-2 rounded-full bg-primary mt-2" />}
     </button>
   );
 }
 
-// ── ChatPane ───────────────────────────────────────────────────────────────
+// ── TradeThread ─────────────────────────────────────────────────────────────
 
-function ChatPane({
+function TradeThread({
   thread,
   currentUserId,
 }: {
   thread: DmThreadSummary;
   currentUserId: string;
 }) {
-  const [text, setText] = useState("");
+  const authFetch = useAuthFetch();
   const qc = useQueryClient();
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { data: messages, isLoading } = useListThreadMessages(thread.id, {
+  const [inputText, setInputText] = useState("");
+  const [activeAction, setActiveAction] = useState<ActiveAction>(null);
+  const [counterAmount, setCounterAmount] = useState("");
+  const [counterNote, setCounterNote] = useState("");
+  const [videoDate, setVideoDate] = useState("");
+  const [videoNotes, setVideoNotes] = useState("");
+  const [meetupLocation, setMeetupLocation] = useState("");
+  const [meetupNotes, setMeetupNotes] = useState("");
+  const [offer, setOffer] = useState<TradeOffer | null | undefined>(undefined);
+  const [updating, setUpdating] = useState(false);
+
+  // ── Fetch offer ──────────────────────────────────────────────────────────
+
+  const fetchOffer = useCallback(async () => {
+    try {
+      const res = await authFetch(`/api/threads/${thread.id}/offer`);
+      if (!res.ok) { setOffer(null); return; }
+      const data = await res.json();
+      setOffer(data);
+    } catch {
+      setOffer(null);
+    }
+  }, [thread.id, authFetch]);
+
+  useEffect(() => {
+    setOffer(undefined);
+    fetchOffer();
+    const interval = setInterval(fetchOffer, 6000);
+    return () => clearInterval(interval);
+  }, [fetchOffer]);
+
+  // ── Messages ─────────────────────────────────────────────────────────────
+
+  const { data: messages, isLoading: msgsLoading } = useListThreadMessages(thread.id, {
     query: {
       queryKey: ["/api/threads", thread.id, "messages"],
       refetchInterval: 5000,
@@ -451,24 +252,11 @@ function ChatPane({
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: ["/api/threads", thread.id, "messages"] });
         qc.invalidateQueries({ queryKey: ["/api/threads"] });
-        setText("");
+        setInputText("");
       },
       onError: () => toast.error("Failed to send message"),
     },
   });
-
-  const handleSend = () => {
-    const content = text.trim();
-    if (!content) return;
-    sendMsg.mutate({ threadId: thread.id, data: { content } });
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
 
   useEffect(() => {
     if (messages && messages.length > 0 && thread.unreadCount > 0) {
@@ -476,103 +264,700 @@ function ChatPane({
     }
   }, [messages, thread.id, thread.unreadCount]);
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Chat header */}
-      <div className="border-b px-4 py-3 flex items-center gap-3 bg-card shrink-0">
-        <div>
-          {thread.otherUserImageUrl ? (
-            <img
-              src={thread.otherUserImageUrl}
-              alt={thread.otherUserDisplayName ?? ""}
-              className="w-9 h-9 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="h-4 w-4 text-primary" />
+  // ── Build unified event list ─────────────────────────────────────────────
+
+  const eventList = useMemo<ThreadItem[]>(() => {
+    const items: ThreadItem[] = [];
+
+    for (const msg of (messages as DmMessage[] | undefined) ?? []) {
+      items.push({ kind: "msg", msg, ts: new Date(msg.createdAt).getTime() });
+    }
+
+    if (offer) {
+      const history = offer.offerHistory ?? [];
+
+      if (history.length === 0 && offer.askingPrice != null) {
+        // Legacy offer with no stored history — synthesize from askingPrice
+        items.push({
+          kind: "offer",
+          entry: { amount: offer.askingPrice, from: "seller", sentAt: offer.createdAt },
+          ts: new Date(offer.createdAt).getTime(),
+          isInitial: true,
+        });
+      } else {
+        for (let i = 0; i < history.length; i++) {
+          items.push({
+            kind: "offer",
+            entry: history[i],
+            ts: new Date(history[i].sentAt).getTime(),
+            isInitial: i === 0,
+          });
+        }
+      }
+
+      if (offer.videoCallScheduledAt) {
+        items.push({
+          kind: "video",
+          scheduledAt: new Date(offer.videoCallScheduledAt),
+          notes: offer.videoCallNotes,
+          ts: new Date(offer.videoCallScheduledAt).getTime() - 500,
+        });
+      }
+
+      if (offer.meetupLocation && offer.meetupProposedAt) {
+        items.push({
+          kind: "meetup",
+          location: offer.meetupLocation,
+          proposedAt: new Date(offer.meetupProposedAt),
+          notes: offer.meetupNotes,
+          ts: new Date(offer.meetupProposedAt).getTime() - 500,
+        });
+      }
+
+      if (
+        offer.status === "accepted" ||
+        offer.status === "declined" ||
+        offer.status === "cancelled"
+      ) {
+        const last = (offer.offerHistory ?? [])[offer.offerHistory.length - 1];
+        items.push({
+          kind: "status",
+          status: offer.status,
+          finalAmount: last?.amount ?? offer.askingPrice ?? null,
+          ts: new Date(offer.updatedAt).getTime(),
+        });
+      }
+    }
+
+    return items.sort((a, b) => a.ts - b.ts);
+  }, [messages, offer]);
+
+  // Scroll to bottom when events change
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [eventList.length]);
+
+  // ── Derived state ─────────────────────────────────────────────────────────
+
+  const myRole = offer?.role ?? null;
+  const history = offer?.offerHistory ?? [];
+  const lastHistoryEntry = history[history.length - 1] ?? null;
+
+  const myTurn: boolean =
+    !offer ? false
+    : offer.status === "pending"   ? myRole === "buyer"
+    : offer.status === "countered" ? lastHistoryEntry?.from !== myRole
+    : false;
+
+  const isActive = offer?.status === "pending" || offer?.status === "countered";
+  const activeOfferAmount = lastHistoryEntry?.amount ?? offer?.askingPrice ?? null;
+
+  // ── Actions ──────────────────────────────────────────────────────────────
+
+  const doAction = async (body: Record<string, unknown>) => {
+    setUpdating(true);
+    try {
+      const res = await authFetch(`/api/threads/${thread.id}/offer`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(j.error ?? "Action failed");
+      }
+      const updated = await res.json();
+      setOffer(updated);
+      setActiveAction(null);
+      setCounterAmount(""); setCounterNote("");
+      setVideoDate(""); setVideoNotes("");
+      setMeetupLocation(""); setMeetupNotes("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Action failed");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const sendCounter = () => {
+    const amt = parseFloat(counterAmount);
+    if (!isNaN(amt) && amt > 0) {
+      doAction({ action: "counter", amount: amt, notes: counterNote || undefined });
+    }
+  };
+
+  const sendVideoCall = () => {
+    if (videoDate) {
+      doAction({
+        action: "schedule_video",
+        scheduledAt: new Date(videoDate).toISOString(),
+        notes: videoNotes || undefined,
+      });
+    }
+  };
+
+  const sendMeetup = () => {
+    if (meetupLocation.trim()) {
+      doAction({
+        action: "schedule_meetup",
+        location: meetupLocation.trim(),
+        notes: meetupNotes || undefined,
+      });
+    }
+  };
+
+  const handleSendMessage = () => {
+    const content = inputText.trim();
+    if (!content) return;
+    sendMsg.mutate({ threadId: thread.id, data: { content } });
+  };
+
+  const toggleAction = (a: ActiveAction) =>
+    setActiveAction(v => (v === a ? null : a));
+
+  // ── Render helpers ────────────────────────────────────────────────────────
+
+  const offerItems = eventList.filter(e => e.kind === "offer");
+
+  function renderItem(item: ThreadItem, idx: number) {
+    // ── Text message ─────────────────────────────────────────────────────
+    if (item.kind === "msg") {
+      const isMe = item.msg.senderClerkId === currentUserId;
+      return (
+        <div key={`msg-${item.msg.id}`} className={cn("flex", isMe ? "justify-end" : "justify-start")}>
+          <div
+            className={cn(
+              "max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed",
+              isMe
+                ? "bg-primary text-primary-foreground rounded-br-sm"
+                : "bg-muted text-foreground rounded-bl-sm",
+            )}
+          >
+            <p>{item.msg.content}</p>
+            <p className={cn("text-[10px] mt-1", isMe ? "text-primary-foreground/60 text-right" : "text-muted-foreground")}>
+              {formatDistanceToNow(new Date(item.msg.createdAt), { addSuffix: true })}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Offer bubble ──────────────────────────────────────────────────────
+    if (item.kind === "offer") {
+      const isMe = item.entry.from === myRole;
+      const isLatest = offerItems[offerItems.length - 1] === item;
+      const canAct = isLatest && myTurn && isActive;
+      const label = item.isInitial
+        ? item.entry.from === "seller" ? "Asking Price" : "Opening Offer"
+        : item.entry.from === "seller" ? "Seller Counter" : "Buyer Counter";
+
+      return (
+        <div key={`offer-${idx}`} className={cn("flex flex-col gap-1", isMe ? "items-end" : "items-start")}>
+          <div
+            className={cn(
+              "w-[min(280px,82%)] rounded-2xl border-2 overflow-hidden shadow-sm",
+              isMe
+                ? "rounded-br-sm border-primary/30 bg-primary/5"
+                : "rounded-bl-sm border-amber-300 bg-amber-50",
+            )}
+          >
+            {/* Label bar */}
+            <div
+              className={cn(
+                "px-4 py-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider",
+                isMe ? "bg-primary/10 text-primary" : "bg-amber-100 text-amber-700",
+              )}
+            >
+              <DollarSign className="h-3 w-3" />
+              {label}
             </div>
+            {/* Amount */}
+            <div className="px-4 pt-3 pb-2">
+              <div className={cn("text-3xl font-bold tabular-nums", isMe ? "text-primary" : "text-amber-800")}>
+                ${item.entry.amount.toFixed(2)}
+              </div>
+              {item.entry.note && (
+                <p className="text-xs text-muted-foreground mt-1 italic">{item.entry.note}</p>
+              )}
+              <p className="text-[10px] text-muted-foreground/70 mt-1.5">
+                {format(new Date(item.entry.sentAt), "MMM d, h:mm a")}
+              </p>
+            </div>
+            {/* Action buttons when it's your turn */}
+            {canAct && (
+              <div className="border-t px-3 py-2.5 flex gap-2 bg-white/60">
+                <Button
+                  size="sm"
+                  className="flex-1 h-8 bg-emerald-500 hover:bg-emerald-600 text-white text-xs"
+                  disabled={updating}
+                  onClick={() => doAction({ action: "accept" })}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                  Accept ${item.entry.amount.toFixed(2)}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  disabled={updating}
+                  onClick={() => toggleAction("offer")}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                  Counter
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                  disabled={updating}
+                  onClick={() => doAction({ action: "decline" })}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+          {/* Waiting label */}
+          {!canAct && isLatest && isActive && !isMe && (
+            <p className="text-[10px] text-muted-foreground px-2">Waiting for their response…</p>
+          )}
+          {!canAct && isLatest && isActive && isMe && (
+            <p className="text-[10px] text-muted-foreground px-2">Awaiting reply</p>
           )}
         </div>
-        <div className="min-w-0">
+      );
+    }
+
+    // ── Video call event ──────────────────────────────────────────────────
+    if (item.kind === "video") {
+      return (
+        <div key={`video-${idx}`} className="flex justify-center">
+          <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 text-blue-700 max-w-xs">
+            <Video className="h-4 w-4 shrink-0 text-blue-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold">Video call scheduled</p>
+              <p className="text-xs text-blue-600">
+                {format(item.scheduledAt, "EEEE, MMM d 'at' h:mm a")}
+              </p>
+              {item.notes && (
+                <p className="text-[11px] text-blue-500 mt-0.5">{item.notes}</p>
+              )}
+            </div>
+            {isActive && (
+              <button
+                type="button"
+                title="Cancel video call"
+                onClick={() => doAction({ action: "cancel_video" })}
+                className="shrink-0 text-blue-300 hover:text-blue-600 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Meetup event ──────────────────────────────────────────────────────
+    if (item.kind === "meetup") {
+      return (
+        <div key={`meetup-${idx}`} className="flex justify-center">
+          <div className="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-emerald-700 max-w-xs">
+            <MapPin className="h-4 w-4 shrink-0 text-emerald-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold">Meetup proposed</p>
+              <p className="text-xs text-emerald-600 truncate">{item.location}</p>
+              {item.notes && (
+                <p className="text-[11px] text-emerald-500 mt-0.5">{item.notes}</p>
+              )}
+            </div>
+            {isActive && (
+              <button
+                type="button"
+                title="Cancel meetup"
+                onClick={() => doAction({ action: "cancel_meetup" })}
+                className="shrink-0 text-emerald-300 hover:text-emerald-600 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Status terminal event ─────────────────────────────────────────────
+    if (item.kind === "status") {
+      const cfgMap: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
+        accepted:  { label: "Deal agreed!",   color: "bg-emerald-100 border-emerald-300 text-emerald-700", Icon: CheckCircle2 },
+        declined:  { label: "Offer declined", color: "bg-red-100 border-red-200 text-red-600",             Icon: XCircle      },
+        cancelled: { label: "Cancelled",      color: "bg-muted border-border text-muted-foreground",        Icon: XCircle      },
+      };
+      const cfg = cfgMap[item.status] ?? { label: item.status, color: "bg-muted border-border text-muted-foreground", Icon: CheckCircle2 };
+
+      return (
+        <div key={`status-${idx}`} className="flex justify-center py-1">
+          <div className={cn("flex items-center gap-2 border rounded-full px-4 py-1.5 text-sm font-semibold", cfg.color)}>
+            <cfg.Icon className="h-4 w-4 shrink-0" />
+            {cfg.label}
+            {item.status === "accepted" && item.finalAmount != null && (
+              <span className="font-bold ml-0.5">— ${item.finalAmount.toFixed(2)}</span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="flex flex-col h-full">
+
+      {/* ── Thread header ──────────────────────────────────────────────── */}
+      <div className="border-b px-4 py-3 flex items-center gap-3 bg-card shrink-0">
+        {thread.otherUserImageUrl ? (
+          <img src={thread.otherUserImageUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+        ) : (
+          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <User className="h-4 w-4 text-primary" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm">{thread.otherUserDisplayName ?? "Unknown user"}</p>
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             <Heart className="h-3 w-3 text-rose-400 fill-rose-100" />
-            {thread.wantedCardName ?? "Wanted card"}
+            {thread.wantedCardName ?? "Trade conversation"}
           </p>
         </div>
+        {offer && (
+          <Badge
+            className={cn(
+              "text-[10px] px-2 py-0.5 border shrink-0",
+              offer.status === "pending"   && "bg-amber-100 text-amber-700 border-amber-200",
+              offer.status === "countered" && "bg-blue-100 text-blue-700 border-blue-200",
+              offer.status === "accepted"  && "bg-emerald-100 text-emerald-700 border-emerald-200",
+              (offer.status === "declined" || offer.status === "cancelled") &&
+                "bg-muted text-muted-foreground border-border",
+            )}
+          >
+            {offer.status === "pending"   ? "Offer open"     :
+             offer.status === "countered" ? (myTurn ? "Your turn ↩" : "Awaiting reply") :
+             offer.status === "accepted"  ? "Agreed ✓"       :
+             offer.status === "declined"  ? "Declined"       : "Cancelled"}
+          </Badge>
+        )}
       </div>
 
-      {/* Trade deal card pinned below header */}
-      <DealCard thread={thread} currentUserId={currentUserId} />
-
-      {/* Messages */}
-      <ScrollArea className="flex-1 px-4 py-4">
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-3/4 rounded-2xl" />
+      {/* ── Seller media strip ─────────────────────────────────────────── */}
+      {offer &&
+        ((offer.sellerImages && offer.sellerImages.length > 0) || offer.sellerVideo) && (
+          <div className="border-b px-4 py-2 flex gap-2 overflow-x-auto bg-muted/20 shrink-0">
+            {offer.sellerImages?.map((path, i) => (
+              <img
+                key={i}
+                src={`/api/storage${path}`}
+                alt=""
+                className="w-14 rounded-lg border object-cover shrink-0"
+                style={{ height: 68 }}
+              />
             ))}
-          </div>
-        ) : messages && messages.length > 0 ? (
-          <div className="space-y-3">
-            {(messages as DmMessage[]).map((msg) => {
-              const isMe = msg.senderClerkId === currentUserId;
-              return (
-                <div key={msg.id} className={cn("flex", isMe ? "justify-end" : "justify-start")}>
-                  <div
-                    className={cn(
-                      "max-w-[75%] px-3.5 py-2 rounded-2xl text-sm",
-                      isMe
-                        ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "bg-muted text-foreground rounded-bl-sm",
-                    )}
-                  >
-                    <p>{msg.content}</p>
-                    <p
-                      className={cn(
-                        "text-[10px] mt-0.5",
-                        isMe ? "text-primary-foreground/70 text-right" : "text-muted-foreground",
-                      )}
-                    >
-                      {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full py-12 text-center">
-            <MessageSquare className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-muted-foreground text-sm">No messages yet</p>
+            {offer.sellerVideo && (
+              <video
+                src={`/api/storage${offer.sellerVideo}`}
+                controls
+                className="w-24 rounded-lg border shrink-0 bg-black"
+                style={{ height: 68 }}
+              />
+            )}
           </div>
         )}
-      </ScrollArea>
 
-      {/* Message input */}
-      <div className="border-t px-4 py-3 flex gap-2 shrink-0 bg-card">
-        <Input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type a message…"
-          className="flex-1"
-          disabled={sendMsg.isPending}
-        />
-        <Button
-          size="icon"
-          onClick={handleSend}
-          disabled={!text.trim() || sendMsg.isPending}
-          className="shrink-0"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
+      {/* ── Event stream ───────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-3">
+        {msgsLoading && offer === undefined ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-3/4 rounded-2xl" />
+            ))}
+          </div>
+        ) : eventList.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-40 text-center">
+            <MessageSquare className="h-10 w-10 text-muted-foreground/30 mb-3" />
+            <p className="text-sm text-muted-foreground">Start the conversation below</p>
+          </div>
+        ) : (
+          eventList.map((item, idx) => renderItem(item, idx))
+        )}
+
+        {/* ── Escrow picker (when accepted, method not yet chosen) ─────── */}
+        {offer?.status === "accepted" && !offer.exchangeMethod && (
+          <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-4 space-y-3 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-emerald-800">
+                  Deal agreed at ${activeOfferAmount?.toFixed(2) ?? "—"}
+                </p>
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  Choose how you'll securely exchange the card and payment.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              {ESCROW_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  disabled={updating}
+                  onClick={() => doAction({ action: "set_exchange", method: opt.id })}
+                  className={cn(
+                    "text-left flex items-start gap-3 p-3 rounded-xl border-2 transition-all hover:shadow-sm active:scale-[0.99]",
+                    opt.color,
+                  )}
+                >
+                  <opt.Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold">{opt.label}</p>
+                    <p className="text-[11px] opacity-80 mt-0.5">{opt.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Escrow confirmed pill ────────────────────────────────────── */}
+        {offer?.status === "accepted" && offer.exchangeMethod && (() => {
+          const opt = ESCROW_OPTIONS.find(o => o.id === offer.exchangeMethod);
+          if (!opt) return null;
+          return (
+            <div className="flex justify-center">
+              <div className="flex items-center gap-2 bg-emerald-100 border border-emerald-300 rounded-full px-4 py-1.5 text-sm text-emerald-700 font-semibold">
+                <opt.Icon className="h-4 w-4" />
+                {opt.label} confirmed
+              </div>
+            </div>
+          );
+        })()}
+
+        <div ref={bottomRef} />
+      </div>
+
+      {/* ── Expansion panels (counter / video / meetup) ─────────────────── */}
+
+      {activeAction === "offer" && (
+        <div className="border-t px-4 py-3 bg-muted/40 space-y-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              Counter Offer
+            </p>
+            <button type="button" onClick={() => setActiveAction(null)}>
+              <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={counterAmount}
+                onChange={e => setCounterAmount(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") sendCounter(); }}
+                className="pl-7 h-9 text-sm"
+                placeholder="Your price"
+                autoFocus
+              />
+            </div>
+            <Button
+              size="sm"
+              className="h-9"
+              disabled={!counterAmount || parseFloat(counterAmount) <= 0 || updating}
+              onClick={sendCounter}
+            >
+              Send Counter
+            </Button>
+          </div>
+          <Input
+            value={counterNote}
+            onChange={e => setCounterNote(e.target.value)}
+            placeholder="Add a note to your counter (optional)"
+            className="h-9 text-sm"
+          />
+        </div>
+      )}
+
+      {activeAction === "video" && (
+        <div className="border-t px-4 py-3 bg-blue-50/60 space-y-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
+              <Video className="h-3.5 w-3.5" />
+              Schedule Video Call
+            </p>
+            <button type="button" onClick={() => setActiveAction(null)}>
+              <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Video calls let both parties verify the card's condition and authenticity in real time.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              type="datetime-local"
+              value={videoDate}
+              onChange={e => setVideoDate(e.target.value)}
+              className="flex-1 h-9 text-sm"
+              autoFocus
+            />
+            <Button
+              size="sm"
+              className="h-9 bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={!videoDate || updating}
+              onClick={sendVideoCall}
+            >
+              <Calendar className="h-3.5 w-3.5 mr-1" />
+              Schedule
+            </Button>
+          </div>
+          <Input
+            value={videoNotes}
+            onChange={e => setVideoNotes(e.target.value)}
+            placeholder="Platform or notes (e.g. Zoom, FaceTime)"
+            className="h-9 text-sm"
+          />
+        </div>
+      )}
+
+      {activeAction === "meetup" && (
+        <div className="border-t px-4 py-3 bg-emerald-50/60 space-y-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5" />
+              Propose a Meetup
+            </p>
+            <button type="button" onClick={() => setActiveAction(null)}>
+              <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Suggest a local card shop where staff can validate the card while you exchange.
+          </p>
+          <Input
+            value={meetupLocation}
+            onChange={e => setMeetupLocation(e.target.value)}
+            placeholder="Store name & address (e.g. Card Kingdom, 123 Main St, Seattle)"
+            className="h-9 text-sm"
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <Input
+              value={meetupNotes}
+              onChange={e => setMeetupNotes(e.target.value)}
+              placeholder="Proposed date & time (optional)"
+              className="flex-1 h-9 text-sm"
+            />
+            <Button
+              size="sm"
+              className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
+              disabled={!meetupLocation.trim() || updating}
+              onClick={sendMeetup}
+            >
+              <MapPin className="h-3.5 w-3.5 mr-1" />
+              Propose
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bottom bar: message input + action chips ─────────────────────── */}
+      <div className="border-t shrink-0 bg-card">
+        {/* Text input row */}
+        <div className="px-4 pt-3 pb-2 flex gap-2">
+          <Input
+            value={inputText}
+            onChange={e => setInputText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
+            placeholder="Type a message…"
+            className="flex-1"
+            disabled={sendMsg.isPending}
+          />
+          <Button
+            size="icon"
+            onClick={handleSendMessage}
+            disabled={!inputText.trim() || sendMsg.isPending}
+            className="shrink-0"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Quick action chips — always visible */}
+        <div className="px-4 pb-3 flex gap-1.5 flex-wrap">
+          {offer && isActive && (
+            <button
+              type="button"
+              onClick={() => toggleAction("offer")}
+              className={cn(
+                "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
+                activeAction === "offer"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <DollarSign className="h-3 w-3" />
+              {myTurn ? "Counter Offer" : "Make Offer"}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => toggleAction("video")}
+            className={cn(
+              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
+              activeAction === "video"
+                ? "bg-blue-600 text-white border-blue-600"
+                : offer?.videoCallScheduledAt
+                  ? "border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100"
+                  : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            <Video className="h-3 w-3" />
+            {offer?.videoCallScheduledAt ? "Reschedule Call" : "Video Call"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => toggleAction("meetup")}
+            className={cn(
+              "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
+              activeAction === "meetup"
+                ? "bg-emerald-600 text-white border-emerald-600"
+                : offer?.meetupLocation
+                  ? "border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
+                  : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            <MapPin className="h-3 w-3" />
+            {offer?.meetupLocation ? "Update Meetup" : "Propose Meetup"}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── InboxPage ──────────────────────────────────────────────────────────────
+// ── InboxPage ───────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
   const { user } = useUser();
@@ -586,7 +971,7 @@ export default function InboxPage() {
     },
   });
 
-  const activeThread = threads?.find((t) => t.id === activeThreadId) ?? null;
+  const activeThread = threads?.find(t => t.id === activeThreadId) ?? null;
 
   const handleSelectThread = (threadId: number) => {
     setActiveThreadId(threadId);
@@ -599,28 +984,45 @@ export default function InboxPage() {
         <div className="flex items-center gap-3 mb-6">
           <MessageSquare className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold tracking-tight">Inbox</h1>
-          {threads && threads.filter((t) => t.unreadCount > 0).length > 0 && (
+          {threads && threads.filter(t => t.unreadCount > 0).length > 0 && (
             <Badge className="bg-primary text-primary-foreground">
-              {threads.filter((t) => t.unreadCount > 0).length} unread
+              {threads.filter(t => t.unreadCount > 0).length} unread
             </Badge>
           )}
         </div>
 
-        <div className="border rounded-xl bg-card overflow-hidden" style={{ height: "calc(100vh - 200px)", minHeight: 480 }}>
-          <div className="grid h-full" style={{ gridTemplateColumns: showChat && activeThread ? "320px 1fr" : "1fr" }}>
-            <div className={cn("border-r flex flex-col", showChat && activeThread ? "hidden sm:flex" : "flex")}>
-              <div className="px-4 py-3 border-b bg-muted/30">
-                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Conversations</p>
+        <div
+          className="border rounded-xl bg-card overflow-hidden"
+          style={{ height: "calc(100vh - 200px)", minHeight: 520 }}
+        >
+          <div
+            className="grid h-full"
+            style={{
+              gridTemplateColumns:
+                showChat && activeThread ? "300px 1fr" : "1fr",
+            }}
+          >
+            {/* Thread list */}
+            <div
+              className={cn(
+                "border-r flex flex-col",
+                showChat && activeThread ? "hidden sm:flex" : "flex",
+              )}
+            >
+              <div className="px-4 py-3 border-b bg-muted/30 shrink-0">
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Conversations
+                </p>
               </div>
-              <ScrollArea className="flex-1">
+              <div className="flex-1 overflow-y-auto">
                 {isLoading ? (
                   <div className="p-4 space-y-3">
-                    {[1, 2, 3].map((i) => (
+                    {[1, 2, 3].map(i => (
                       <Skeleton key={i} className="h-16 rounded-xl" />
                     ))}
                   </div>
                 ) : threads && threads.length > 0 ? (
-                  (threads as DmThreadSummary[]).map((thread) => (
+                  (threads as DmThreadSummary[]).map(thread => (
                     <ThreadListItem
                       key={thread.id}
                       thread={thread}
@@ -633,38 +1035,42 @@ export default function InboxPage() {
                     <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
                     <h3 className="font-semibold mb-1">No conversations yet</h3>
                     <p className="text-sm text-muted-foreground">
-                      When a seller contacts you about a wanted card (or you contact a buyer), the conversation appears here.
+                      When a seller contacts you about a wanted card (or you respond to a listing),
+                      the conversation appears here.
                     </p>
                   </div>
                 )}
-              </ScrollArea>
+              </div>
             </div>
 
+            {/* Thread panel */}
             {showChat && activeThread && user ? (
               <div className="flex flex-col h-full min-h-0">
-                <div className="sm:hidden border-b px-3 py-2">
+                {/* Mobile back button */}
+                <div className="sm:hidden border-b px-3 py-2 shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowChat(false)}
                     className="flex items-center gap-1.5"
                   >
-                    <ArrowLeft className="h-4 w-4" /> Back
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
                   </Button>
                 </div>
                 <div className="flex-1 min-h-0">
-                  <ChatPane thread={activeThread} currentUserId={user.id} />
+                  <TradeThread thread={activeThread} currentUserId={user.id} />
                 </div>
               </div>
-            ) : !showChat || !activeThread ? (
+            ) : (
               <div className="hidden sm:flex flex-col items-center justify-center text-center px-8">
                 <MessageSquare className="h-14 w-14 text-muted-foreground/20 mb-4" />
                 <h3 className="font-semibold mb-2">Select a conversation</h3>
                 <p className="text-sm text-muted-foreground">
-                  Choose a thread from the left to start chatting
+                  Choose a thread on the left to view the full trade
                 </p>
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       </div>

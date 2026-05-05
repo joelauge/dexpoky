@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db, dmThreadsTable, dmMessagesTable, wantedListingsTable, listingsTable, cardsTable, tradeOffersTable } from "@workspace/db";
+import type { OfferHistoryEntry } from "@workspace/db";
 import { eq, and, or, desc, ne } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
@@ -109,12 +110,16 @@ router.post("/wanted/:id/thread", requireAuth, async (req, res) => {
       .where(eq(tradeOffersTable.threadId, thread.id));
 
     if (!existingOffer) {
+      const initialHistory: OfferHistoryEntry[] = askingPrice != null
+        ? [{ amount: askingPrice, from: "seller", sentAt: new Date().toISOString() }]
+        : [];
       await db.insert(tradeOffersTable).values({
         threadId: thread.id,
         sellerClerkId,
         sellerImages: sellerImages ?? [],
         sellerVideo: sellerVideo ?? null,
         askingPrice: askingPrice != null ? String(askingPrice) : null,
+        offerHistory: initialHistory,
         status: "pending",
       });
     } else {
