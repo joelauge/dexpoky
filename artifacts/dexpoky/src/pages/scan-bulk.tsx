@@ -440,6 +440,28 @@ export default function ScanBulkPage() {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   }, []);
 
+  // Track which entries are currently re-fetching pricing after a variant switch
+  const [pricingFetchingIds, setPricingFetchingIds] = useState<Set<string>>(new Set());
+
+  const selectVariantAndRefreshPricing = useCallback(async (entryId: string, variantId: string, variantName: string, variantCardNumber: string) => {
+    // Instant selection feedback
+    updateEntry(entryId, { selectedVariantId: variantId });
+
+    setPricingFetchingIds((prev) => new Set(prev).add(entryId));
+    try {
+      const params = new URLSearchParams({ name: variantName });
+      if (variantCardNumber) params.set("cardNumber", variantCardNumber);
+      const res = await fetch(`${BASE}/api/cards/lookup?${params.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json() as { pricing?: PricingData | null };
+      if (data.pricing) {
+        updateEntry(entryId, { pricing: data.pricing });
+      }
+    } catch { /* silently ignore — old pricing stays */ } finally {
+      setPricingFetchingIds((prev) => { const s = new Set(prev); s.delete(entryId); return s; });
+    }
+  }, [updateEntry]);
+
   const reidentifyEntry = useCallback((id: string) => {
     if (haltedRef.current) {
       toast.warning("Scan limit reached — re-scan is unavailable.");
@@ -804,7 +826,11 @@ export default function ScanBulkPage() {
                               ? "Uncategorized"
                               : (categories?.find((c) => c.id === e.categoryId)?.name ?? "Category")}
                           </Badge>
-                          {e.pricing?.marketPrice != null && (
+                          {pricingFetchingIds.has(e.id) ? (
+                            <Badge variant="secondary" className="text-[10px] py-0 h-5 gap-1">
+                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                            </Badge>
+                          ) : e.pricing?.marketPrice != null && (
                             <Badge variant="secondary" className="text-[10px] py-0 h-5">
                               {fmt(e.pricing.marketPrice)}
                             </Badge>
@@ -866,7 +892,7 @@ export default function ScanBulkPage() {
                                     <button
                                       key={v.id}
                                       type="button"
-                                      onClick={() => updateEntry(e.id, { selectedVariantId: v.id })}
+                                      onClick={() => void selectVariantAndRefreshPricing(e.id, v.id, v.name, v.cardNumber)}
                                       className={`shrink-0 w-20 rounded-lg overflow-hidden border-2 transition-all ${
                                         selected ? "border-primary ring-2 ring-primary/30" : "border-transparent hover:border-border"
                                       }`}
