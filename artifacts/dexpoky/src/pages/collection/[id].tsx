@@ -574,7 +574,7 @@ export default function CardDetail() {
           </div>
 
           {/* ── RIGHT: Identity + Value + Chart + Printings ───────────── */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 overflow-hidden w-full">
             {/* Name + actions */}
             <div className="flex items-start justify-between gap-4 mb-1">
               <h1 className="text-4xl xl:text-5xl font-black tracking-tight leading-tight text-foreground">
@@ -639,7 +639,7 @@ export default function CardDetail() {
             </div>
 
             {/* Value panel */}
-            <div className="bg-card border rounded-2xl p-5 mb-4 shadow-sm">
+            <div className="bg-card border rounded-2xl p-5 mb-4 shadow-sm w-full">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Estimated Value</p>
               <p className="text-5xl xl:text-6xl font-black tracking-tighter text-foreground">
                 {formatCurrency(card.estimatedValue)}
@@ -661,7 +661,9 @@ export default function CardDetail() {
             </div>
 
             {/* Price history chart — directly below the date, no gap */}
-            <PriceHistoryChart cardId={id} />
+            <div className="w-full min-w-0 overflow-hidden">
+              <PriceHistoryChart cardId={id} />
+            </div>
 
             {/* Other Printings */}
             {(printingsLoading || printings.length > 0) && (

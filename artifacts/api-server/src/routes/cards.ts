@@ -7,6 +7,7 @@ import {
   pwGetCard,
   normalizeCatalogCard,
   buildPricingFromCatalog,
+  enrichCatalogCardImages,
 } from "../lib/pokewallet.js";
 import { eq, sql, ilike, and, type SQL } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
@@ -145,7 +146,9 @@ router.get("/cards/lookup", async (req, res) => {
 
   const pw = await pwSearch(name, 20);
   if (pw.ok && pw.data.results.length > 0) {
-    const variants = pw.data.results.map(normalizeCatalogCard).map((v) => ({
+    const normalized = pw.data.results.map(normalizeCatalogCard);
+    const enriched = await enrichCatalogCardImages(normalized);
+    const variants = enriched.map((v) => ({
       id: v.id,
       name: v.name,
       imageUrl: v.imageUrl,

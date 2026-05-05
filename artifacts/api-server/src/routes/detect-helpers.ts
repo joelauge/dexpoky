@@ -413,6 +413,22 @@ export interface TcgResult {
   rarity: null;
 }
 
+/**
+ * Build a TCGdex image URL from a card ID.
+ * Card IDs look like "xy1-1", "xyp-XY95", "sm3-045", "swsh1-1".
+ * Image URLs look like https://assets.tcgdex.net/en/{group}/{setId}/{localId}/high.png
+ * where {group} is the leading letters of the setId, with trailing "p" stripped for promos.
+ */
+function buildTcgdexImageUrl(cardId: string): string {
+  const dash = cardId.lastIndexOf("-");
+  if (dash < 0) return "";
+  const setId = cardId.slice(0, dash).toLowerCase();
+  const localId = cardId.slice(dash + 1);
+  const letters = setId.match(/^[a-z]+/)?.[0] ?? setId;
+  const group = letters.endsWith("p") && letters.length > 2 ? letters.slice(0, -1) : letters;
+  return `https://assets.tcgdex.net/en/${group}/${setId}/${localId}/high.png`;
+}
+
 async function buildResults(cards: CardBrief[]): Promise<TcgResult[]> {
   const filtered = cards.filter((c) => !c.id.startsWith("tk")).slice(0, 20);
   const setIds = [...new Set(filtered.map((c) => c.id.split("-")[0]).filter(Boolean))] as string[];
@@ -423,7 +439,7 @@ async function buildResults(cards: CardBrief[]): Promise<TcgResult[]> {
     return {
       id: card.id,
       name: card.name,
-      imageUrl: card.image ? `${card.image}/high.png` : "",
+      imageUrl: card.image ? `${card.image}/high.png` : buildTcgdexImageUrl(card.id),
       setName: setMap[setId] ?? setId,
       setId,
       cardNumber: card.localId ?? card.id.split("-")[1] ?? "",

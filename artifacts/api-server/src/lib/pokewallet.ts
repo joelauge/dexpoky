@@ -371,6 +371,21 @@ function normalizeLocalId(cardNumber: string): string {
   return trimmed.split("/")[0]!.trim();
 }
 
+/**
+ * Derive a TCGdex image URL from a card ID (e.g. "xy7-1", "xyp-XY95", "sm3-045").
+ * Image URLs follow: https://assets.tcgdex.net/en/{group}/{setId}/{localId}/high.png
+ * where {group} is the leading letter-prefix of setId, with trailing "p" stripped for promos.
+ */
+function buildTcgdexImageUrlFromId(cardId: string): string {
+  const dash = cardId.lastIndexOf("-");
+  if (dash < 0) return "";
+  const setId = cardId.slice(0, dash).toLowerCase();
+  const localId = cardId.slice(dash + 1);
+  const letters = setId.match(/^[a-z]+/)?.[0] ?? setId;
+  const group = letters.endsWith("p") && letters.length > 2 ? letters.slice(0, -1) : letters;
+  return `https://assets.tcgdex.net/en/${group}/${setId}/${localId}/high.png`;
+}
+
 async function lookupTcgdexImage(
   name: string,
   cardNumber: string,
@@ -396,10 +411,12 @@ async function lookupTcgdexImage(
     }
     const list = (await res.json()) as TcgdexCardSummary[];
     const match = Array.isArray(list)
-      ? list.find((c) => c.image && c.localId === localId) ?? list[0]
+      ? list.find((c) => c.localId === localId) ?? list[0]
       : null;
-    const base = match?.image ?? null;
-    const full = base ? `${base}/high.webp` : null;
+    // TCGdex list endpoints don't include the `image` field — derive URL from card ID instead
+    const full = match
+      ? (match.image ? `${match.image}/high.webp` : buildTcgdexImageUrlFromId(match.id))
+      : null;
     tcgdexImageCache.set(key, { expires: Date.now() + TCGDEX_TTL_MS, data: full });
     return full;
   } catch (err) {
