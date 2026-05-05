@@ -238,7 +238,7 @@ export default function ScanPage() {
     setConfirmSteps([]);
     setScanUrl(null);
     const ms = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: mode, width: { ideal: 1280 } },
+      video: { facingMode: mode, width: { ideal: 3840 }, height: { ideal: 2160 } },
     });
     streamRef.current = ms;
     const video = videoRef.current!;
