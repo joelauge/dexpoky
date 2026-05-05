@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useListCards } from "@workspace/api-client-react";
 import { Link, useLocation, useSearch } from "wouter";
@@ -87,6 +87,16 @@ export default function Sell() {
   );
   const selectedCard = allCards?.find(c => c.id === selectedCardId);
 
+  // Seed listing images with the original scan whenever the selected card changes
+  const seededCardIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!selectedCardId || selectedCardId === seededCardIdRef.current) return;
+    const card = allCards?.find(c => c.id === selectedCardId);
+    if (!card) return;
+    seededCardIdRef.current = selectedCardId;
+    setListingImages(card.originalScanUrl ? [card.originalScanUrl] : []);
+  }, [selectedCardId, allCards]);
+
   const createListing = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
       const res = await fetch("/api/marketplace", {
@@ -143,6 +153,7 @@ export default function Sell() {
     setAuctionEndTime(addHoursFromNow(72));
     setListingImages([]);
     setCreatedListing(null);
+    seededCardIdRef.current = null;
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearch, useLocation } from "wouter";
 import { useUser } from "@clerk/react";
 import {
@@ -362,6 +362,17 @@ export default function SharePage() {
   const [createdListingId, setCreatedListingId] = useState<number | null>(null);
   const [listingImagePaths, setListingImagePaths] = useState<string[]>([]);
   const [listingVideo, setListingVideo] = useState<string | null>(null);
+
+  // For single-card mode: pre-seed photos with the card's original scan
+  const seededSingleCardIdRef = useRef<number | null>(null);
+  const singleSelectedCardId = sellType === "single" ? (selectedCardIds[0] ?? null) : null;
+  useEffect(() => {
+    if (!singleSelectedCardId || singleSelectedCardId === seededSingleCardIdRef.current) return;
+    const card = allCards.find(c => c.id === singleSelectedCardId);
+    if (!card) return;
+    seededSingleCardIdRef.current = singleSelectedCardId;
+    setListingImagePaths(card.originalScanUrl ? [card.originalScanUrl] : []);
+  }, [singleSelectedCardId, allCards]);
 
   const [wantedCard, setWantedCard] = useState<CatalogCard | null>(null);
   const [wantedMaxPrice, setWantedMaxPrice] = useState("");
