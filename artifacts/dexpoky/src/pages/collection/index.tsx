@@ -16,6 +16,8 @@ import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library } from
 import { ShareModal } from "@/components/share-modal";
 import { Link } from "wouter";
 import { formatLabel } from "@/lib/constants";
+import { useCardSize } from "@/hooks/useCardSize";
+import { CardSizeSlider } from "@/components/card-size-slider";
 
 type SortKey =
   | "date_new"
@@ -66,6 +68,7 @@ export default function Collection() {
   const [condition, setCondition] = useState<string>("all");
   const [forSale, setForSale] = useState<string>("all");
   const [sort, setSort] = useState<SortKey>("date_new");
+  const [cardSize, setCardSize, gridClass] = useCardSize();
 
   const { data: categories } = useListCategories();
 
@@ -219,6 +222,7 @@ export default function Collection() {
               <span>Sort by</span>
             </div>
             <div className="flex items-center gap-3">
+              <CardSizeSlider value={cardSize} onChange={setCardSize} />
               <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
                 <SelectTrigger className="w-full sm:w-[220px] bg-background/50 border-border/50">
                   <SelectValue />
@@ -241,13 +245,13 @@ export default function Collection() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className={`grid ${gridClass} gap-4`}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
               <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
             ))}
           </div>
         ) : filteredCards && filteredCards.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className={`grid ${gridClass} gap-4`}>
             {filteredCards.map(card => (
               <CardItem key={card.id} card={card} href={`/collection/${card.id}`} />
             ))}

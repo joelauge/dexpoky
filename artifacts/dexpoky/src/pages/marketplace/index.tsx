@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useCardSize } from "@/hooks/useCardSize";
+import { CardSizeSlider } from "@/components/card-size-slider";
 import { Layout } from "@/components/layout";
 import {
   useListListings, ListListingsStatus,
@@ -360,6 +362,7 @@ function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserI
 
 export default function Marketplace() {
   const [search, setSearch] = useState("");
+  const [cardSize, setCardSize, gridClass] = useCardSize();
   const { user } = useUser();
 
   const { data: listings, isLoading } = useListListings({
@@ -425,17 +428,20 @@ export default function Marketplace() {
         <div>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Active Listings</h2>
-            <div className="text-sm text-muted-foreground">{listings?.length || 0} items available</div>
+            <div className="flex items-center gap-4">
+              <CardSizeSlider value={cardSize} onChange={setCardSize} />
+              <div className="text-sm text-muted-foreground">{listings?.length || 0} items available</div>
+            </div>
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className={`grid ${gridClass} gap-4`}>
               {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                 <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
               ))}
             </div>
           ) : listings && listings.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className={`grid ${gridClass} gap-4`}>
               {listings.map(listing => {
                 const ext = listing as typeof listing & AuctionListing;
                 const isAuction = ext.listingType === "auction";
@@ -524,13 +530,13 @@ export default function Marketplace() {
           </p>
 
           {wantedLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className={`grid ${gridClass} gap-4`}>
               {[1, 2, 3, 4, 5].map(i => (
                 <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
               ))}
             </div>
           ) : wantedListings && wantedListings.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className={`grid ${gridClass} gap-4`}>
               {wantedListings.map(item => (
                 <WantedCard key={item.id} item={item} currentUserId={user?.id} />
               ))}

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useCardSize } from "@/hooks/useCardSize";
+import { CardSizeSlider } from "@/components/card-size-slider";
 import { Layout } from "@/components/layout";
 import {
   useListWishlist,
@@ -99,6 +101,7 @@ export default function WishlistPage() {
   const [activeTab, setActiveTab] = useState<string>(TAB_ALL);
   const [gotItItem, setGotItItem] = useState<WishlistItem | null>(null);
   const [gotItCategoryId, setGotItCategoryId] = useState<number | null>(null);
+  const [cardSize, setCardSize, gridClass] = useCardSize();
 
   const wishedIds = new Set((items ?? []).map((i) => i.catalogCardId));
 
@@ -237,20 +240,23 @@ export default function WishlistPage() {
               Cards you'd like to track down. Organised by category — the AI deck builder will weave these into deck ideas.
             </p>
           </div>
-          <Button
-            size="lg"
-            className="gap-2 shrink-0"
-            onClick={() => {
-              const tabCatId =
-                activeTab === TAB_ALL || activeTab === TAB_NONE
-                  ? null
-                  : Number(activeTab);
-              openPickerForCategory(tabCatId);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Add card
-          </Button>
+          <div className="flex items-center gap-3 shrink-0">
+            <CardSizeSlider value={cardSize} onChange={setCardSize} />
+            <Button
+              size="lg"
+              className="gap-2"
+              onClick={() => {
+                const tabCatId =
+                  activeTab === TAB_ALL || activeTab === TAB_NONE
+                    ? null
+                    : Number(activeTab);
+                openPickerForCategory(tabCatId);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Add card
+            </Button>
+          </div>
         </div>
 
         {/* Category Tabs */}
@@ -303,7 +309,7 @@ export default function WishlistPage() {
 
         {/* Content */}
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className={`grid ${gridClass} gap-4`}>
             {[...Array(6)].map((_, i) => (
               <Skeleton key={i} className="aspect-[3/4]" />
             ))}
@@ -316,7 +322,7 @@ export default function WishlistPage() {
             onAdd={() => openPickerForCategory(activeTab !== TAB_ALL && activeTab !== TAB_NONE ? Number(activeTab) : null)}
           />
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className={`grid ${gridClass} gap-4`}>
             {visibleItems.map((item) => (
               <WishlistCard
                 key={item.id}
