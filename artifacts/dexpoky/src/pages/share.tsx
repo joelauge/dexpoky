@@ -356,6 +356,7 @@ export default function SharePage() {
   const [collectionExpanded, setCollectionExpanded] = useState(false);
   // For single mode: hide the full picker list when a card is already chosen (pre-selected or picked)
   const [showCardPicker, setShowCardPicker] = useState(!preCardId);
+  const [cardPickerSearch, setCardPickerSearch] = useState("");
   const [copied, setCopied] = useState(false);
   const [copiedListingId, setCopiedListingId] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState("");
@@ -735,40 +736,64 @@ export default function SharePage() {
                           )}
 
                           {/* Full picker list — shown when no card chosen yet, or "Change" was clicked */}
-                          {(!chosen || showCardPicker) && (
-                            <>
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Select card</p>
-                                {chosen && showCardPicker && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowCardPicker(false)}
-                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                                  >
-                                    ✕ Cancel
-                                  </button>
-                                )}
-                              </div>
-                              <div className="space-y-1 max-h-64 overflow-y-auto">
-                                {availableCards.map(card => (
-                                  <CardRow
-                                    key={card.id}
-                                    name={card.name}
-                                    setName={card.setName}
-                                    imageUrl={card.imageUrl}
-                                    value={card.estimatedValue}
-                                    condition={card.condition}
-                                    selectable
-                                    selected={selectedCardIds.includes(card.id)}
-                                    onToggle={() => {
-                                      setSelectedCardIds([card.id]);
-                                      setShowCardPicker(false);
-                                    }}
+                          {(!chosen || showCardPicker) && (() => {
+                            const q = cardPickerSearch.trim().toLowerCase();
+                            const filtered = q
+                              ? availableCards.filter(c =>
+                                  c.name.toLowerCase().includes(q) ||
+                                  (c.setName ?? "").toLowerCase().includes(q)
+                                )
+                              : availableCards;
+                            return (
+                              <>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Select card</p>
+                                  {chosen && showCardPicker && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setShowCardPicker(false); setCardPickerSearch(""); }}
+                                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                    >
+                                      ✕ Cancel
+                                    </button>
+                                  )}
+                                </div>
+                                {/* Search */}
+                                <div className="relative mb-2">
+                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search cards…"
+                                    value={cardPickerSearch}
+                                    onChange={e => setCardPickerSearch(e.target.value)}
+                                    className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                                   />
-                                ))}
-                              </div>
-                            </>
-                          )}
+                                </div>
+                                <div className="space-y-1 max-h-56 overflow-y-auto">
+                                  {filtered.length === 0
+                                    ? <p className="text-xs text-muted-foreground text-center py-4">No cards match "{cardPickerSearch}"</p>
+                                    : filtered.map(card => (
+                                        <CardRow
+                                          key={card.id}
+                                          name={card.name}
+                                          setName={card.setName}
+                                          imageUrl={card.imageUrl}
+                                          value={card.estimatedValue}
+                                          condition={card.condition}
+                                          selectable
+                                          selected={selectedCardIds.includes(card.id)}
+                                          onToggle={() => {
+                                            setSelectedCardIds([card.id]);
+                                            setShowCardPicker(false);
+                                            setCardPickerSearch("");
+                                          }}
+                                        />
+                                      ))
+                                  }
+                                </div>
+                              </>
+                            );
+                          })()}
                         </>
                       );
                     })()}
@@ -814,29 +839,54 @@ export default function SharePage() {
 
                     {availableCards.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">No available cards to share.</p>
-                    ) : (
-                      <div className="space-y-1 max-h-64 overflow-y-auto">
-                        {availableCards.map(card => (
-                          <CardRow
-                            key={card.id}
-                            name={card.name}
-                            setName={card.setName}
-                            imageUrl={card.imageUrl}
-                            value={card.estimatedValue}
-                            condition={card.condition}
-                            selectable
-                            selected={selectedCardIds.includes(card.id)}
-                            onToggle={() =>
-                              setSelectedCardIds(prev =>
-                                prev.includes(card.id)
-                                  ? prev.filter(id => id !== card.id)
-                                  : [...prev, card.id]
-                              )
+                    ) : (() => {
+                      const q = cardPickerSearch.trim().toLowerCase();
+                      const filtered = q
+                        ? availableCards.filter(c =>
+                            c.name.toLowerCase().includes(q) ||
+                            (c.setName ?? "").toLowerCase().includes(q)
+                          )
+                        : availableCards;
+                      return (
+                        <>
+                          {/* Search */}
+                          <div className="relative mb-2">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                            <input
+                              type="text"
+                              placeholder="Search cards…"
+                              value={cardPickerSearch}
+                              onChange={e => setCardPickerSearch(e.target.value)}
+                              className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                            />
+                          </div>
+                          <div className="space-y-1 max-h-56 overflow-y-auto">
+                            {filtered.length === 0
+                              ? <p className="text-xs text-muted-foreground text-center py-4">No cards match "{cardPickerSearch}"</p>
+                              : filtered.map(card => (
+                                  <CardRow
+                                    key={card.id}
+                                    name={card.name}
+                                    setName={card.setName}
+                                    imageUrl={card.imageUrl}
+                                    value={card.estimatedValue}
+                                    condition={card.condition}
+                                    selectable
+                                    selected={selectedCardIds.includes(card.id)}
+                                    onToggle={() =>
+                                      setSelectedCardIds(prev =>
+                                        prev.includes(card.id)
+                                          ? prev.filter(id => id !== card.id)
+                                          : [...prev, card.id]
+                                      )
+                                    }
+                                  />
+                                ))
                             }
-                          />
-                        ))}
-                      </div>
-                    )}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
 
