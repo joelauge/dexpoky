@@ -502,11 +502,11 @@ export default function Profile() {
             )}
 
             {/* History */}
-            {earnings && earnings.entries.length > 0 && (
+            {earnings && (earnings.entries?.length ?? 0) > 0 && (
               <div className="space-y-2">
                 <div className="font-medium text-sm">History</div>
                 <div className="divide-y rounded-xl border bg-muted/10 overflow-hidden">
-                  {earnings.entries.slice(0, 10).map(e => (
+                  {earnings.entries!.slice(0, 10).map(e => (
                     <div key={e.id} className="flex items-center justify-between px-3 py-2 text-sm">
                       <div className="min-w-0">
                         <div className="truncate">{e.note ?? e.kind}</div>
