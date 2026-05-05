@@ -148,7 +148,7 @@ export function Layout({ children }: LayoutProps) {
   const { isSignedIn } = useUser();
 
   const publicNavItems = [
-    { href: "/marketplace", label: "Marketplace", icon: Store },
+    { href: "/marketplace", label: "Find/Buy - Marketplace", icon: Store },
   ];
 
   const authNavItems = [
