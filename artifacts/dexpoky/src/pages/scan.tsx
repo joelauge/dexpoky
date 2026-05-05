@@ -300,9 +300,18 @@ export default function ScanPage() {
         onClose={() => setPaywallOpen(false)}
         reason={paywallReason}
       />
-      <div className="max-w-2xl mx-auto px-4 py-8 pb-20">
+      {/*
+        Two layout modes:
+        - Scanning (not done): flex-column that fills the viewport below the
+          sticky mobile header so the viewfinder is as tall as possible.
+        - Done: normal scrollable content, viewfinder shrinks to aspect ratio.
+      */}
+      <div className={done
+        ? "max-w-2xl mx-auto px-4 pt-6 pb-20"
+        : "flex flex-col px-4 h-[calc(100dvh-6.5rem)] md:block md:h-auto md:max-w-2xl md:mx-auto md:py-8 md:pb-20"
+      }>
         {/* Header */}
-        <div className="mb-6 flex items-start justify-between gap-3">
+        <div className={`flex items-start justify-between gap-3 shrink-0 ${done ? "mb-6" : "py-3 md:mb-6 md:py-0"}`}>
           <div>
             <div className="flex items-center gap-3 mb-1">
               <ScanLine className="h-7 w-7 text-primary" />
@@ -319,11 +328,13 @@ export default function ScanPage() {
           </Link>
         </div>
 
-        {/* ── Viewfinder (5:3) ── */}
-        <div
-          className="relative w-full rounded-2xl overflow-hidden bg-zinc-950 shadow-xl border border-border"
-          style={{ aspectRatio: "5 / 3" }}
-        >
+        {/* ── Viewfinder ── */}
+        {/* Mobile scanning: flex-1 fills all remaining height between header and buttons.
+            Mobile done: aspect-[5/3] compact thumbnail.
+            Desktop: always aspect-[5/3] via md: prefix. */}
+        <div className={`relative w-full rounded-2xl overflow-hidden bg-zinc-950 shadow-xl border border-border ${
+          done ? "aspect-[5/3]" : "flex-1 min-h-[22vh] md:flex-none md:aspect-[5/3]"
+        }`}>
           <video
             ref={videoRef}
             autoPlay playsInline muted
@@ -424,7 +435,7 @@ export default function ScanPage() {
         </div>
 
         {/* Controls */}
-        <div className="flex gap-2 mt-3">
+        <div className={`flex gap-2 ${done ? "mt-3" : "shrink-0 mt-2 py-2"}`}>
           {capturing && (
             <>
               <Button variant="outline" className="rounded-xl" onClick={stopCamera}>
