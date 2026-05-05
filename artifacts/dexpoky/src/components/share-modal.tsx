@@ -29,7 +29,8 @@ function getLongUrl(target: ShareTarget, clerkId?: string | null): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "https://dexpoky.com";
   const base = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
   const owner = clerkId ? `?owner=${clerkId}` : "";
-  if (target.type === "card") return `${origin}${base}/view/card/${target.id}${owner}`;
+  // Cards get routed through the OG endpoint so platforms see rich previews
+  if (target.type === "card") return `${origin}${base}/api/og/card/${target.id}`;
   if (target.type === "category") return `${origin}${base}/view/category/${target.id}${owner}`;
   return `${origin}${base}/view/collection${owner}`;
 }

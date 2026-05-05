@@ -171,6 +171,59 @@ router.get("/og/listing/:id", async (req, res) => {
   );
 });
 
+/* ── Card view ───────────────────────────────────────────────────────────── */
+router.get("/og/card/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const origin = getOrigin(req);
+
+  if (isNaN(id)) {
+    res.redirect(`/view/card/${req.params.id}`);
+    return;
+  }
+
+  const [card] = await db
+    .select({
+      id: cardsTable.id,
+      name: cardsTable.name,
+      imageUrl: cardsTable.imageUrl,
+      setName: cardsTable.setName,
+      cardNumber: cardsTable.cardNumber,
+      rarity: cardsTable.rarity,
+      condition: cardsTable.condition,
+    })
+    .from(cardsTable)
+    .where(eq(cardsTable.id, id))
+    .limit(1);
+
+  if (!card) {
+    res.redirect(`/view/card/${id}`);
+    return;
+  }
+
+  const cardName = card.name ?? "a Pokémon Card";
+  const domain = cleanDomain(origin);
+  const shareUrl = `${domain}/view/card/${id}`;
+
+  const descParts: string[] = [];
+  if (card.setName) descParts.push(card.setName);
+  if (card.cardNumber) descParts.push(`#${card.cardNumber}`);
+  if (card.rarity) descParts.push(card.rarity);
+  if (card.condition) descParts.push(card.condition);
+  descParts.push(shareUrl);
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(
+    buildHtml({
+      title: `${cardName} — My DexPoky Collection`,
+      description: descParts.join("  ·  "),
+      imageUrl: card.imageUrl ?? null,
+      cardAspect: true,
+      redirectUrl: `/view/card/${id}`,
+      origin,
+    }),
+  );
+});
+
 /* ── Generic short link ─────────────────────────────────────────────────── */
 router.get("/og/s/:code", async (req, res) => {
   const { code } = req.params;
@@ -190,6 +243,46 @@ router.get("/og/s/:code", async (req, res) => {
   const domain = cleanDomain(origin);
   const shareUrl = `${domain}/s/${code}`;
 
+  // Detect card links — match /api/og/card/:id or /view/card/:id
+  const cardMatch = link.targetUrl.match(/\/(?:api\/og\/card|view\/card)\/(\d+)/);
+  if (cardMatch) {
+    const cardId = Number(cardMatch[1]);
+    const [card] = await db
+      .select({
+        name: cardsTable.name,
+        imageUrl: cardsTable.imageUrl,
+        setName: cardsTable.setName,
+        cardNumber: cardsTable.cardNumber,
+        rarity: cardsTable.rarity,
+        condition: cardsTable.condition,
+      })
+      .from(cardsTable)
+      .where(eq(cardsTable.id, cardId))
+      .limit(1);
+
+    if (card) {
+      const descParts: string[] = [];
+      if (card.setName) descParts.push(card.setName);
+      if (card.cardNumber) descParts.push(`#${card.cardNumber}`);
+      if (card.rarity) descParts.push(card.rarity);
+      descParts.push(shareUrl);
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(
+        buildHtml({
+          title: `${card.name ?? "Pokémon Card"} — My DexPoky Collection`,
+          description: descParts.join("  ·  "),
+          imageUrl: card.imageUrl ?? null,
+          cardAspect: true,
+          redirectUrl: `/view/card/${cardId}`,
+          origin,
+        }),
+      );
+      return;
+    }
+  }
+
+  // Generic fallback (collections, categories, etc.)
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(
     buildHtml({
