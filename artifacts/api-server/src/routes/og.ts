@@ -37,9 +37,15 @@ function accentForCard(rarity: string | null | undefined, categoryColor: string 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
 function getOrigin(req: Request): string {
-  return req.headers["x-forwarded-host"]
-    ? `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"]}`
-    : `${req.protocol}://${req.get("host")}`;
+  if (req.headers["x-forwarded-host"]) {
+    return `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"]}`;
+  }
+  // Replit's proxy may not forward x-forwarded-host in dev; use the public domain.
+  const replitDomain = process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN;
+  if (replitDomain) {
+    return `https://${replitDomain.split(",")[0].trim()}`;
+  }
+  return `${req.protocol}://${req.get("host")}`;
 }
 
 function cleanDomain(origin: string): string {
@@ -48,7 +54,9 @@ function cleanDomain(origin: string): string {
 
 /** Build an /api/og/img URL with the card image + accent color encoded. */
 function borderedImageUrl(origin: string, rawUrl: string, color: string): string {
-  return `${origin}/api/og/img?url=${encodeURIComponent(rawUrl)}&color=${encodeURIComponent(color)}`;
+  // Relative paths (e.g. /api/storage/...) must be made absolute for external crawlers.
+  const absUrl = rawUrl.startsWith("/") ? `${origin}${rawUrl}` : rawUrl;
+  return `${origin}/api/og/img?url=${encodeURIComponent(absUrl)}&color=${encodeURIComponent(color)}`;
 }
 
 /* ── buildHtml ─────────────────────────────────────────────────────────────*/
@@ -308,10 +316,30 @@ router.get("/og/img", async (req, res) => {
 
   let parsedUrl: URL;
   try {
-    parsedUrl = await assertSafeImageUrl(url);
+    parsedUrl = new URL(url);
   } catch {
-    res.status(400).send("Invalid or disallowed URL");
+    res.status(400).send("Invalid URL");
     return;
+  }
+
+  // For same-origin image URLs (our own storage), rewrite to localhost to avoid
+  // DNS-based SSRF checks that would block internal Replit addresses.
+  const selfOrigin = getOrigin(req);
+  let selfHost = "";
+  try { selfHost = new URL(selfOrigin).hostname; } catch { /* ignore */ }
+
+  let fetchUrl: string;
+  if (parsedUrl.hostname === selfHost || parsedUrl.hostname === "localhost") {
+    const port = process.env.PORT ?? "8080";
+    fetchUrl = `http://localhost:${port}${parsedUrl.pathname}${parsedUrl.search}`;
+  } else {
+    try {
+      await assertSafeImageUrl(url);
+    } catch {
+      res.status(400).send("Invalid or disallowed URL");
+      return;
+    }
+    fetchUrl = url;
   }
 
   const accent = color && /^#[0-9A-Fa-f]{3,8}$/.test(color) ? color : DEFAULT_ACCENT;
@@ -321,7 +349,7 @@ router.get("/og/img", async (req, res) => {
   const outputSize = requestedSize && requestedSize > 0 && requestedSize <= 1200 ? requestedSize : null;
 
   try {
-    const resp = await fetch(parsedUrl.toString(), { signal: AbortSignal.timeout(8000) });
+    const resp = await fetch(fetchUrl, { signal: AbortSignal.timeout(8000) });
     if (!resp.ok) throw new Error(`Upstream ${resp.status}`);
 
     // Validate content-type is an image
