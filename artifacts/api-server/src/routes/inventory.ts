@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { cardsTable, categoriesTable, listingsTable, activityEventsTable, shortLinksTable, dmThreadsTable } from "@workspace/db";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, sql, desc, and, inArray } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 
 const router = Router();
@@ -132,6 +132,20 @@ router.get("/inventory/trading-stats", requireAuth, async (req, res) => {
   });
 });
 
+type LinkKind = "private" | "marketplace" | "looking_for" | "collection";
+
+function parseLinkMeta(targetUrl: string): { linkKind: LinkKind; cardId: number | null; listingId: number | null } {
+  try {
+    const path = new URL(targetUrl).pathname;
+    const cardMatch = path.match(/\/view\/card\/(\d+)/) ?? path.match(/\/api\/og\/card\/(\d+)/);
+    if (cardMatch) return { linkKind: "private", cardId: parseInt(cardMatch[1]), listingId: null };
+    const listingMatch = path.match(/\/view\/listing\/(\d+)/) ?? path.match(/\/api\/og\/listing\/(\d+)/);
+    if (listingMatch) return { linkKind: "marketplace", cardId: null, listingId: parseInt(listingMatch[1]) };
+    if (path.includes("/api/og/w/") || path.includes("/view/w/")) return { linkKind: "looking_for", cardId: null, listingId: null };
+  } catch { /* ignore */ }
+  return { linkKind: "collection", cardId: null, listingId: null };
+}
+
 router.get("/inventory/my-shares", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
 
@@ -155,14 +169,63 @@ router.get("/inventory/my-shares", requireAuth, async (req, res) => {
     .orderBy(desc(listingsTable.createdAt))
     .limit(30);
 
-  const shortLinks = await db
+  const rawLinks = await db
     .select()
     .from(shortLinksTable)
     .where(eq(shortLinksTable.clerkId, userId))
     .orderBy(desc(shortLinksTable.createdAt))
     .limit(30);
 
+  // Parse each link to extract card/listing IDs for batch enrichment
+  const parsed = rawLinks.map(link => ({ link, meta: parseLinkMeta(link.targetUrl) }));
+  const cardIds = [...new Set(parsed.flatMap(p => p.meta.cardId != null ? [p.meta.cardId] : []))];
+  const listingIds = [...new Set(parsed.flatMap(p => p.meta.listingId != null ? [p.meta.listingId] : []))];
+
+  const [cardRows, listingCardRows] = await Promise.all([
+    cardIds.length > 0
+      ? db.select({ id: cardsTable.id, name: cardsTable.name, imageUrl: cardsTable.imageUrl })
+          .from(cardsTable).where(inArray(cardsTable.id, cardIds))
+      : Promise.resolve([]),
+    listingIds.length > 0
+      ? db.select({ listingId: listingsTable.id, name: cardsTable.name, imageUrl: cardsTable.imageUrl })
+          .from(listingsTable)
+          .leftJoin(cardsTable, eq(cardsTable.id, listingsTable.cardId))
+          .where(inArray(listingsTable.id, listingIds))
+      : Promise.resolve([]),
+  ]);
+
+  const cardMap = new Map(cardRows.map(r => [r.id, r]));
+  const listingCardMap = new Map(listingCardRows.map(r => [r.listingId, r]));
+
+  const shortLinks = parsed.map(({ link, meta }) => {
+    let cardName: string | null = null;
+    let cardImageUrl: string | null = null;
+    if (meta.cardId != null) {
+      const c = cardMap.get(meta.cardId);
+      cardName = c?.name ?? null;
+      cardImageUrl = c?.imageUrl ?? null;
+    } else if (meta.listingId != null) {
+      const r = listingCardMap.get(meta.listingId);
+      cardName = r?.name ?? null;
+      cardImageUrl = r?.imageUrl ?? null;
+    }
+    return { ...link, linkKind: meta.linkKind, cardName, cardImageUrl };
+  });
+
   res.json({ listings, shortLinks });
+});
+
+router.delete("/inventory/short-links/:id", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [link] = await db.select().from(shortLinksTable).where(eq(shortLinksTable.id, id)).limit(1);
+  if (!link) { res.status(404).json({ error: "Not found" }); return; }
+  if (link.clerkId !== userId) { res.status(403).json({ error: "Not yours" }); return; }
+
+  await db.delete(shortLinksTable).where(eq(shortLinksTable.id, id));
+  res.status(204).send();
 });
 
 export default router;
