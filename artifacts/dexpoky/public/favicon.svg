@@ -1,3 +1,28 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <!-- Navy blue circular background -->
+  <rect width="180" height="180" rx="36" fill="#0D1B3E"/>
+
+  <!-- Poké Ball top (red) -->
+  <path d="M30 85 A60 60 0 0 1 150 85 Z" fill="#E62222"/>
+
+  <!-- Poké Ball bottom (white) -->
+  <path d="M30 85 A60 60 0 0 0 150 85 Z" fill="#FFFFFF"/>
+
+  <!-- Poké Ball horizontal stripe -->
+  <rect x="30" y="81" width="120" height="8" fill="#222222"/>
+
+  <!-- Poké Ball center button outer ring -->
+  <circle cx="90" cy="85" r="18" fill="#222222"/>
+
+  <!-- Poké Ball center button white fill -->
+  <circle cx="90" cy="85" r="12" fill="#FFFFFF"/>
+
+  <!-- Poké Ball center button shine -->
+  <circle cx="86" cy="81" r="4" fill="#FFFFFF" opacity="0.6"/>
+
+  <!-- "D" letter hint — yellow accent spark top-left -->
+  <polygon points="42,38 52,30 56,44 46,50" fill="#FFD700" opacity="0.9"/>
+
+  <!-- Lightning bolt top-right -->
+  <polygon points="128,28 140,28 132,50 144,50 118,72 126,50 114,50" fill="#FFD700" opacity="0.9"/>
 </svg>
