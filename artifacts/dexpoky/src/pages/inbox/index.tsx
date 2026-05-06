@@ -256,6 +256,10 @@ function TradeThread({
   const [selectedCards, setSelectedCards] = useState<OfferedCard[]>([]);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [cardSearch, setCardSearch] = useState("");
+  const [ratingScore, setRatingScore] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
   const { data: myCards } = useListCards(undefined, {
     query: {
@@ -401,6 +405,38 @@ function TradeThread({
       toast.error("Something went wrong");
     } finally {
       setShopPaying(false);
+    }
+  };
+
+  // ── Trade rating ──────────────────────────────────────────────────────────
+  const handleSubmitTradeRating = async () => {
+    if (!offer || ratingScore === 0) return;
+    setRatingSubmitting(true);
+    try {
+      const res = await authFetch("/api/ratings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tradeOfferId: offer.id,
+          score: ratingScore,
+          comment: ratingComment.trim() || undefined,
+        }),
+      });
+      if (res.status === 409) {
+        setRatingSubmitted(true);
+        return;
+      }
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        toast.error((json as { error?: string }).error ?? "Could not submit rating");
+        return;
+      }
+      setRatingSubmitted(true);
+      toast.success("Rating submitted — thank you!");
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setRatingSubmitting(false);
     }
   };
 
@@ -1266,6 +1302,77 @@ out center 25;`;
             </div>
           );
         })()}
+
+        {/* ── Rate your experience prompt ────────────────────────────────── */}
+        {offer?.status === "paid" && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <span className="text-base leading-none">⭐</span>
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-amber-900">Rate your experience</p>
+                <p className="text-xs text-amber-700">
+                  {ratingSubmitted
+                    ? "Your rating has been submitted."
+                    : `How was your trade with ${thread.otherUserDisplayName ?? "the other party"}?`}
+                </p>
+              </div>
+            </div>
+
+            {ratingSubmitted ? (
+              <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Thanks for your feedback!
+              </div>
+            ) : (
+              <>
+                {/* Star selector */}
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRatingScore(star)}
+                      className={cn(
+                        "text-2xl transition-transform hover:scale-110 focus:outline-none",
+                        ratingScore >= star ? "opacity-100" : "opacity-30",
+                      )}
+                    >
+                      ⭐
+                    </button>
+                  ))}
+                  {ratingScore > 0 && (
+                    <span className="ml-2 text-xs text-amber-700 font-medium">
+                      {["", "Poor", "Fair", "Good", "Great", "Excellent"][ratingScore]}
+                    </span>
+                  )}
+                </div>
+
+                {/* Optional comment */}
+                <Input
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  placeholder="Leave a comment (optional)"
+                  className="h-9 text-sm bg-white"
+                  maxLength={500}
+                />
+
+                <Button
+                  size="sm"
+                  className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-white text-xs"
+                  disabled={ratingScore === 0 || ratingSubmitting}
+                  onClick={handleSubmitTradeRating}
+                >
+                  {ratingSubmitting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  ) : null}
+                  {ratingSubmitting ? "Submitting…" : "Submit Rating"}
+                </Button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* ── Meet at Card Shop PIN panel ────────────────────────────────── */}
         {offer?.status === "accepted" && offer.exchangeMethod === "store" && offer.exchangeMethodConfirmedBySeller && (() => {

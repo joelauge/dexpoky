@@ -1,18 +1,22 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
-import { ratingsTable, listingsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { ratingsTable, listingsTable, tradeOffersTable, dmThreadsTable } from "@workspace/db";
+import { eq, and, isNull } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router = Router();
 
-const CreateRatingBody = z.object({
-  ratedClerkId: z.string(),
+const CreateListingRatingBody = z.object({
   listingId: z.number().int().positive(),
   score: z.number().int().min(1).max(5),
   comment: z.string().max(500).optional(),
-  type: z.enum(["buyer_to_seller", "seller_to_buyer"]),
+});
+
+const CreateTradeRatingBody = z.object({
+  tradeOfferId: z.number().int().positive(),
+  score: z.number().int().min(1).max(5),
+  comment: z.string().max(500).optional(),
 });
 
 router.get("/ratings/user/:clerkId", async (req, res) => {
@@ -27,17 +31,98 @@ router.get("/ratings/user/:clerkId", async (req, res) => {
 
 router.post("/ratings", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
-  const parsed = CreateRatingBody.safeParse(req.body);
+
+  const body = req.body as Record<string, unknown>;
+
+  // ── Trade offer rating path ─────────────────────────────────────────────
+  if ("tradeOfferId" in body) {
+    const parsed = CreateTradeRatingBody.safeParse(body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid body", details: parsed.error });
+      return;
+    }
+    const { tradeOfferId, score, comment } = parsed.data;
+
+    // Fetch offer + thread in one join to verify participation
+    const [row] = await db
+      .select({
+        offerStatus: tradeOffersTable.status,
+        threadBuyerClerkId: dmThreadsTable.buyerClerkId,
+        threadSellerClerkId: dmThreadsTable.sellerClerkId,
+      })
+      .from(tradeOffersTable)
+      .innerJoin(dmThreadsTable, eq(dmThreadsTable.id, tradeOffersTable.threadId))
+      .where(eq(tradeOffersTable.id, tradeOfferId));
+
+    if (!row) {
+      res.status(404).json({ error: "Trade offer not found" });
+      return;
+    }
+
+    if (row.offerStatus !== "paid") {
+      res.status(400).json({ error: "Can only rate after a completed transaction" });
+      return;
+    }
+
+    const { threadBuyerClerkId, threadSellerClerkId } = row;
+
+    // Derive type and ratedClerkId from participant role — no client trust
+    let ratingType: "buyer_to_seller" | "seller_to_buyer";
+    let ratedClerkId: string;
+
+    if (userId === threadBuyerClerkId) {
+      ratingType = "buyer_to_seller";
+      ratedClerkId = threadSellerClerkId;
+    } else if (userId === threadSellerClerkId) {
+      ratingType = "seller_to_buyer";
+      ratedClerkId = threadBuyerClerkId;
+    } else {
+      res.status(403).json({ error: "You are not a participant in this trade" });
+      return;
+    }
+
+    // One rating per rater per trade offer — type is server-derived so no type in check
+    const [existingRating] = await db
+      .select({ id: ratingsTable.id })
+      .from(ratingsTable)
+      .where(
+        and(
+          eq(ratingsTable.raterClerkId, userId),
+          eq(ratingsTable.tradeOfferId, tradeOfferId),
+          isNull(ratingsTable.listingId),
+        )
+      )
+      .limit(1);
+
+    if (existingRating) {
+      res.status(409).json({ error: "Already rated this transaction" });
+      return;
+    }
+
+    const [rating] = await db
+      .insert(ratingsTable)
+      .values({
+        raterClerkId: userId,
+        ratedClerkId,
+        listingId: null,
+        tradeOfferId,
+        score,
+        comment: comment ?? null,
+        type: ratingType,
+      })
+      .returning();
+
+    res.status(201).json(rating);
+    return;
+  }
+
+  // ── Listing rating path ─────────────────────────────────────────────────
+  const parsed = CreateListingRatingBody.safeParse(body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid body", details: parsed.error });
     return;
   }
-  const { ratedClerkId, listingId, score, comment, type } = parsed.data;
-
-  if (userId === ratedClerkId) {
-    res.status(400).json({ error: "Cannot rate yourself" });
-    return;
-  }
+  const { listingId, score, comment } = parsed.data;
 
   const [listing] = await db
     .select()
@@ -54,19 +139,49 @@ router.post("/ratings", requireAuth, async (req, res) => {
     return;
   }
 
-  const existingRating = await db
-    .select()
+  // Determine buyer via the dm_threads linked to this listing
+  const [thread] = await db
+    .select({ buyerClerkId: dmThreadsTable.buyerClerkId, sellerClerkId: dmThreadsTable.sellerClerkId })
+    .from(dmThreadsTable)
+    .where(eq(dmThreadsTable.listingId, listingId))
+    .limit(1);
+
+  const sellerClerkId = listing.sellerClerkId ?? thread?.sellerClerkId;
+  const buyerClerkId = thread?.buyerClerkId;
+
+  let ratingType: "buyer_to_seller" | "seller_to_buyer";
+  let ratedClerkId: string;
+
+  if (sellerClerkId && userId === sellerClerkId && buyerClerkId) {
+    ratingType = "seller_to_buyer";
+    ratedClerkId = buyerClerkId;
+  } else if (buyerClerkId && userId === buyerClerkId && sellerClerkId) {
+    ratingType = "buyer_to_seller";
+    ratedClerkId = sellerClerkId;
+  } else {
+    res.status(403).json({ error: "You are not a participant in this transaction" });
+    return;
+  }
+
+  if (userId === ratedClerkId) {
+    res.status(400).json({ error: "Cannot rate yourself" });
+    return;
+  }
+
+  // One rating per rater per listing — type is server-derived
+  const [existingRating] = await db
+    .select({ id: ratingsTable.id })
     .from(ratingsTable)
     .where(
       and(
         eq(ratingsTable.raterClerkId, userId),
         eq(ratingsTable.listingId, listingId),
-        eq(ratingsTable.type, type),
+        isNull(ratingsTable.tradeOfferId),
       )
     )
     .limit(1);
 
-  if (existingRating.length > 0) {
+  if (existingRating) {
     res.status(409).json({ error: "Already rated this transaction" });
     return;
   }
@@ -77,9 +192,10 @@ router.post("/ratings", requireAuth, async (req, res) => {
       raterClerkId: userId,
       ratedClerkId,
       listingId,
+      tradeOfferId: null,
       score,
       comment: comment ?? null,
-      type,
+      type: ratingType,
     })
     .returning();
 
