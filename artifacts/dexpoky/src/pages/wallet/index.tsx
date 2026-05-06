@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, useSearch } from "wouter";
 import { Layout } from "@/components/layout";
 import { useAuthFetch } from "@/lib/use-auth-fetch";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, ArrowLeft, Plus, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Wallet, ArrowLeft, Plus, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { WALLET_BALANCE_QUERY_KEY } from "@/hooks/use-payment-sse";
 
 interface WalletData {
   balanceCents: number;
@@ -41,8 +43,6 @@ export default function WalletPage() {
   const topupResult = params.get("topup");
   const topupAmount = params.get("amount");
 
-  const [data, setData] = useState<WalletData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [toppingUp, setToppingUp] = useState<number | null>(null);
 
   useEffect(() => {
@@ -53,12 +53,13 @@ export default function WalletPage() {
     }
   }, [topupResult, topupAmount]);
 
-  useEffect(() => {
-    authFetch("/api/wallet/balance")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [authFetch]);
+  const { data, isLoading: loading } = useQuery<WalletData | null>({
+    queryKey: WALLET_BALANCE_QUERY_KEY,
+    queryFn: () =>
+      authFetch("/api/wallet/balance")
+        .then(r => r.ok ? r.json() as Promise<WalletData> : null)
+        .catch(() => null),
+  });
 
   const handleTopup = async (amountCents: number) => {
     setToppingUp(amountCents);

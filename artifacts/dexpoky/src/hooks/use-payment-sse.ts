@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { useUser } from "@clerk/react";
+import { useQueryClient } from "@tanstack/react-query";
+
+export const WALLET_BALANCE_QUERY_KEY = ["/api/wallet/balance"] as const;
 
 function formatDollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -8,6 +11,7 @@ function formatDollars(cents: number): string {
 
 export function usePaymentSSE() {
   const { isSignedIn } = useUser();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -30,6 +34,7 @@ export function usePaymentSSE() {
             netCents: number;
           };
           if (data.type === "payment_received") {
+            void queryClient.invalidateQueries({ queryKey: WALLET_BALANCE_QUERY_KEY });
             toast.success(
               `Payment received — ${formatDollars(data.netCents)} added to your wallet`,
               {
@@ -63,5 +68,5 @@ export function usePaymentSSE() {
       if (retryTimer) clearTimeout(retryTimer);
       es?.close();
     };
-  }, [isSignedIn]);
+  }, [isSignedIn, queryClient]);
 }

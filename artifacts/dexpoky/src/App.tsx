@@ -39,6 +39,7 @@ import Wishlist from "@/pages/wishlist";
 import InboxPage from "@/pages/inbox/index";
 import WalletPage from "@/pages/wallet/index";
 import { UsernameGate } from "@/components/username-gate";
+import { usePaymentSSE } from "@/hooks/use-payment-sse";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -194,6 +195,11 @@ function ClerkAuthSync() {
   return null;
 }
 
+function PaymentSSEGlobal() {
+  usePaymentSSE();
+  return null;
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -235,6 +241,7 @@ function ClerkProviderWithRoutes() {
           <ScrollToTop />
           <ClerkAuthSync />
           <ClerkQueryClientCacheInvalidator />
+          <PaymentSSEGlobal />
           <UsernameGate>
           <Switch>
             <Route path="/" component={HomeRoute} />

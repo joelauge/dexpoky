@@ -25,7 +25,6 @@ import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuthFetch } from "@/lib/use-auth-fetch";
-import { usePaymentSSE } from "@/hooks/use-payment-sse";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1933,7 +1932,6 @@ out center 25;`;
 // ── InboxPage ───────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
-  usePaymentSSE();
   const { user } = useUser();
   const search = useSearch();
   const qcInbox = useQueryClient();
