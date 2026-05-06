@@ -54,7 +54,7 @@ Pokemon collectible card collection, inventory tracking, and trading marketplace
 - Pokemon name search via PokeAPI
 - Inventory tracking with estimated values
 - Category management
-- Marketplace for listing and trading cards (buy now + auction)
+- Marketplace for listing and trading cards (buy now + auction); seller inline edit panel on listing detail page — edit description, pricing, photos (up to 10), and video (MP4/WebM/MOV, up to 200 MB); auction pricing changes with active bids require confirmation modal
 - **Auction system**: proxy bidding, 5-min auto-extension, reserve prices, buy-it-now price on auctions
 - **User profiles**: username (required on signup — gate modal enforces it; editable once per 30 days), bio, seller details (gated to qualifying bidders), avatar via Clerk
 - **Ratings**: buyer-to-seller and seller-to-buyer ratings, only after completed transactions (status=sold)

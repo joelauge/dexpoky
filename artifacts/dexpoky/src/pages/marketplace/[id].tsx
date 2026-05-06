@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useGetListing } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
@@ -13,12 +13,13 @@ import { useAuthFetch } from "@/lib/use-auth-fetch";
 import { HoloCard } from "@/components/holo-card";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
-import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2, Camera, ChevronLeft, ChevronRight, X, ZoomIn, MessageCircle, Pencil, Lock, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2, Camera, ChevronLeft, ChevronRight, X, ZoomIn, MessageCircle, Pencil, Lock, AlertTriangle, Video, Upload, ImagePlus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { formatDistanceToNow, isPast, intervalToDuration } from "date-fns";
+import { ListingImageUpload } from "@/components/listing-image-upload";
 
 type AuctionListing = {
   listingType?: string;
@@ -31,6 +32,7 @@ type AuctionListing = {
   minBidIncrement?: number | null;
   buyNowPrice?: number | null;
   listingImages?: string[] | null;
+  listingVideo?: string | null;
   bidCount?: number;
 };
 
@@ -373,6 +375,12 @@ export default function ListingDetail() {
   const [editStartingBid, setEditStartingBid] = useState("");
   const [editReservePrice, setEditReservePrice] = useState("");
   const [editBuyNowPrice, setEditBuyNowPrice] = useState("");
+  const [editImages, setEditImages] = useState<string[]>([]);
+  const [editVideo, setEditVideo] = useState<string>("");
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [pendingEditBody, setPendingEditBody] = useState<Record<string, unknown> | null>(null);
@@ -383,7 +391,45 @@ export default function ListingDetail() {
     setEditStartingBid(extListing?.startingBid ? String(extListing.startingBid) : "");
     setEditReservePrice(extListing?.reservePrice ? String(extListing.reservePrice) : "");
     setEditBuyNowPrice(extListing?.buyNowPrice ? String(extListing.buyNowPrice) : "");
+    setEditImages(extListing?.listingImages ? [...extListing.listingImages] : []);
+    setEditVideo(extListing?.listingVideo ?? "");
+    setVideoError(null);
     setEditOpen(true);
+  };
+
+  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("video/")) { setVideoError("Please select a video file (MP4, WebM, MOV)."); return; }
+    if (file.size > 200 * 1024 * 1024) { setVideoError("Video must be smaller than 200 MB."); return; }
+    setVideoError(null);
+    setVideoUploading(true);
+    setVideoProgress(0);
+    try {
+      const metaRes = await fetch("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!metaRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await metaRes.json() as { uploadURL: string; objectPath: string };
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadURL);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) setVideoProgress(Math.round((ev.loaded / ev.total) * 100)); };
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed: ${xhr.status}`)));
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.send(file);
+      });
+      setEditVideo(`/api/storage${objectPath}`);
+    } catch (err) {
+      setVideoError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setVideoUploading(false);
+      setVideoProgress(0);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    }
   };
 
   const updateListing = useMutation({
@@ -447,6 +493,16 @@ export default function ListingDetail() {
     } else {
       const newPrice = editPrice !== "" ? parseFloat(editPrice) : null;
       if (newPrice !== null) body.price = newPrice;
+    }
+
+    const origImages = extListing?.listingImages ?? [];
+    if (JSON.stringify(editImages) !== JSON.stringify(origImages)) {
+      body.listingImages = editImages;
+    }
+
+    const origVideo = extListing?.listingVideo ?? "";
+    if (editVideo !== origVideo) {
+      body.listingVideo = editVideo || null;
     }
 
     const hasPricingChange = isAuction && (
@@ -1028,6 +1084,78 @@ export default function ListingDetail() {
                               </Tooltip>
                             </TooltipProvider>
                           </div>
+                        </div>
+
+                        {/* Seller Photos */}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <ImagePlus className="h-3.5 w-3.5" /> Seller Photos
+                          </Label>
+                          <p className="text-xs text-muted-foreground">Show buyers the actual card — front, back, any flaws or special finishes.</p>
+                          <ListingImageUpload value={editImages} onChange={setEditImages} />
+                        </div>
+
+                        {/* Video */}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Video className="h-3.5 w-3.5" /> Video <span className="font-normal normal-case text-muted-foreground">(optional)</span>
+                          </Label>
+                          <input
+                            ref={videoInputRef}
+                            type="file"
+                            accept="video/*"
+                            className="hidden"
+                            onChange={handleVideoFileChange}
+                            disabled={videoUploading}
+                          />
+                          {editVideo ? (
+                            <div className="space-y-2">
+                              <video
+                                src={mediaUrl(editVideo)}
+                                controls
+                                className="w-full max-h-52 rounded-xl border bg-black object-contain"
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => videoInputRef.current?.click()}
+                                  disabled={videoUploading}
+                                  className="text-xs"
+                                >
+                                  <Upload className="h-3 w-3 mr-1" /> Replace
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => { setEditVideo(""); setVideoError(null); }}
+                                  disabled={videoUploading}
+                                  className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                                >
+                                  <X className="h-3 w-3 mr-1" /> Remove
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => videoInputRef.current?.click()}
+                              disabled={videoUploading}
+                              className={cn(
+                                "w-full py-6 border-2 border-dashed rounded-xl flex flex-col items-center gap-1.5 transition-colors text-muted-foreground",
+                                videoUploading
+                                  ? "border-primary/40 bg-primary/5 cursor-not-allowed"
+                                  : "border-border hover:border-primary/50 hover:bg-muted/30 cursor-pointer"
+                              )}
+                            >
+                              {videoUploading
+                                ? <><Loader2 className="h-5 w-5 animate-spin text-primary" /><span className="text-xs font-medium">Uploading… {videoProgress}%</span></>
+                                : <><Video className="h-5 w-5" /><span className="text-sm font-medium">Add a video</span><span className="text-xs">MP4, WebM, MOV · max 200 MB</span></>}
+                            </button>
+                          )}
+                          {videoError && <p className="text-xs text-destructive">{videoError}</p>}
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-2 pt-1">

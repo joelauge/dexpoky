@@ -237,6 +237,12 @@ router.put("/marketplace/:id", requireAuth, async (req, res) => {
   });
   const auctionFields = AuctionEditFields.safeParse(req.body);
 
+  const MediaEditFields = z.object({
+    listingImages: z.array(z.string()).max(10).optional(),
+    listingVideo: z.string().nullable().optional(),
+  });
+  const mediaFields = MediaEditFields.safeParse(req.body);
+
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (bodyParsed.data.price !== undefined) updateData.price = String(bodyParsed.data.price);
   if (bodyParsed.data.status !== undefined) updateData.status = bodyParsed.data.status;
@@ -252,6 +258,10 @@ router.put("/marketplace/:id", requireAuth, async (req, res) => {
     if (auctionFields.data.buyNowPrice !== undefined) {
       updateData.buyNowPrice = auctionFields.data.buyNowPrice !== null ? String(auctionFields.data.buyNowPrice) : null;
     }
+  }
+  if (mediaFields.success) {
+    if (mediaFields.data.listingImages !== undefined) updateData.listingImages = mediaFields.data.listingImages;
+    if (mediaFields.data.listingVideo !== undefined) updateData.listingVideo = mediaFields.data.listingVideo;
   }
 
   const [updated] = await db
