@@ -146,6 +146,13 @@ router.get("/threads/:threadId/payment/confirm", async (req: Request, res: Respo
         .where(eq(usersTable.clerkId, payeeClerkId));
     });
 
+    void notifyPaymentConfirmed({
+      sellerClerkId: payeeClerkId,
+      buyerClerkId: clerk_id,
+      threadId,
+      amountCents,
+    });
+
     res.redirect(`/inbox?thread=${threadId}&pay=ok`);
   } catch {
     res.redirect(`/inbox?thread=${threadId}&pay=failed`);
@@ -208,6 +215,13 @@ router.post("/threads/:threadId/payment/wallet", requireAuth, async (req: Reques
     await tx.update(usersTable)
       .set({ walletBalanceCents: sql`${usersTable.walletBalanceCents} + ${netCents}` })
       .where(eq(usersTable.clerkId, payeeClerkId));
+  });
+
+  void notifyPaymentConfirmed({
+    sellerClerkId: payeeClerkId,
+    buyerClerkId: clerkId,
+    threadId,
+    amountCents,
   });
 
   res.json({ success: true, amountCents, feeCents, netCents });

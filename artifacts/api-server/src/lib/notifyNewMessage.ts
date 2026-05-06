@@ -92,7 +92,7 @@ export async function notifyPaymentConfirmed(params: {
     toClerkId: params.sellerClerkId,
     subject: `Payment confirmed — $${amountDollars} received on DexPoky`,
     bodyText: [
-      `Great news! ${buyerDisplayName} has just completed in-store payment of $${amountDollars} for your trade on DexPoky.`,
+      `Great news! ${buyerDisplayName} has just completed payment of $${amountDollars} for your trade on DexPoky.`,
       ``,
       `The funds (minus the 3% platform fee) have been added to your DexPoky wallet.`,
       ``,
