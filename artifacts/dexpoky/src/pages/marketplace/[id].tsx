@@ -391,7 +391,7 @@ export default function ListingDetail() {
     setEditStartingBid(extListing?.startingBid ? String(extListing.startingBid) : "");
     setEditReservePrice(extListing?.reservePrice ? String(extListing.reservePrice) : "");
     setEditBuyNowPrice(extListing?.buyNowPrice ? String(extListing.buyNowPrice) : "");
-    setEditImages(extListing?.listingImages ? [...extListing.listingImages] : []);
+    setEditImages(extListing?.listingImages ? extListing.listingImages.map(mediaUrl) : []);
     setEditVideo(extListing?.listingVideo ?? "");
     setVideoError(null);
     setEditOpen(true);
