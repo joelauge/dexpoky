@@ -32,6 +32,9 @@ import {
   Layers,
   SlidersHorizontal,
   GripVertical,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
 } from "lucide-react";
 import {
   Dialog,
@@ -96,30 +99,170 @@ function entryDisplay(entry: DeckCardEntry) {
   };
 }
 
+// ── CardLightbox ─────────────────────────────────────────────────────────────
+
+function CardLightbox({
+  cards,
+  index,
+  onClose,
+  onNavigate,
+}: {
+  cards: DeckCardEntry[];
+  index: number;
+  onClose: () => void;
+  onNavigate: (newIndex: number) => void;
+}) {
+  const entry = cards[index];
+  const display = entryDisplay(entry);
+  const total = cards.length;
+  const sourceBadge = SOURCE_BADGE[entry.source];
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") onNavigate((index + 1) % total);
+      if (e.key === "ArrowLeft") onNavigate((index - 1 + total) % total);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [index, total, onClose, onNavigate]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      onClick={onClose}
+      aria-modal="true"
+      role="dialog"
+    >
+      {/* Blurred backdrop */}
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-md transition-opacity animate-in fade-in duration-200" />
+
+      {/* Card panel */}
+      <div
+        className="relative z-10 flex flex-col items-center gap-5 px-4 animate-in fade-in zoom-in-90 duration-250 ease-out"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Nav row */}
+        <div className="flex items-center gap-4 w-full justify-between" style={{ maxWidth: 320 }}>
+          <button
+            onClick={() => onNavigate((index - 1 + total) % total)}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 border border-white/20 text-white transition-colors backdrop-blur-sm"
+            aria-label="Previous card"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <span className="text-white/70 text-sm font-medium tabular-nums select-none">
+            {index + 1} / {total}
+          </span>
+          <button
+            onClick={() => onNavigate((index + 1) % total)}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 border border-white/20 text-white transition-colors backdrop-blur-sm"
+            aria-label="Next card"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Card image */}
+        <div
+          className="relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10"
+          style={{ width: 280, aspectRatio: "3/4" }}
+        >
+          {display.imageUrl ? (
+            <img
+              key={entry.entryId}
+              src={display.imageUrl}
+              alt={display.name}
+              className="w-full h-full object-cover animate-in fade-in duration-150"
+            />
+          ) : (
+            <div className="w-full h-full bg-muted/20 flex items-center justify-center">
+              <img src="/logo.png" alt="" aria-hidden className="w-1/2 opacity-10 grayscale select-none pointer-events-none" />
+            </div>
+          )}
+          {entry.count > 1 && (
+            <div className="absolute top-3 left-3">
+              <span className="bg-primary text-primary-foreground text-sm font-bold px-2 py-0.5 rounded-full shadow">
+                ×{entry.count}
+              </span>
+            </div>
+          )}
+          {entry.source !== "owned" && sourceBadge && (
+            <div className="absolute top-3 right-3">
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border shadow ${sourceBadge.className}`}>
+                {sourceBadge.label}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Card info */}
+        <div className="text-center" style={{ maxWidth: 280 }}>
+          <p className="text-white font-bold text-lg leading-tight">{display.name}</p>
+          {(display.setName || display.cardNumber) && (
+            <p className="text-white/50 text-sm mt-0.5">
+              {display.setName ?? ""}
+              {display.cardNumber ? ` · #${display.cardNumber}` : ""}
+            </p>
+          )}
+          <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
+            {entry.role && (
+              <Badge variant="secondary" className="text-xs capitalize bg-white/10 text-white border-white/20">
+                {entry.role}
+              </Badge>
+            )}
+            {entry.notes && (
+              <p className="text-white/40 text-xs mt-1 max-w-xs leading-relaxed">{entry.notes}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Dismiss hint */}
+        <p className="text-white/30 text-xs select-none">
+          Tap outside or press Esc to close · ← → to navigate
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── CardFace ──────────────────────────────────────────────────────────────────
+
 function CardFace({
   entry,
   cardSize,
   isRemoving,
   onRemove,
+  onZoom,
   isDragging = false,
 }: {
   entry: DeckCardEntry;
   cardSize: number;
   isRemoving: boolean;
   onRemove: (id: number) => void;
+  onZoom?: () => void;
   isDragging?: boolean;
 }) {
   const display = entryDisplay(entry);
   const sourceBadge = SOURCE_BADGE[entry.source];
 
   return (
-    <div className={`rounded-xl border overflow-hidden bg-card transition-shadow ${isDragging ? "shadow-2xl opacity-90 ring-2 ring-primary" : "hover:shadow-md"}`}>
-      <div className="aspect-[3/4] bg-muted/30 relative">
+    <div
+      className={`rounded-xl border overflow-hidden bg-card transition-shadow cursor-pointer ${isDragging ? "shadow-2xl opacity-90 ring-2 ring-primary" : "hover:shadow-md"}`}
+      onClick={onZoom}
+    >
+      <div className="aspect-[3/4] bg-muted/30 relative group/img">
         {display.imageUrl ? (
           <img src={display.imageUrl} alt={display.name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[104px] opacity-[0.12] grayscale select-none pointer-events-none" />
+          </div>
+        )}
+        {/* Zoom hint overlay on hover */}
+        {onZoom && !isDragging && (
+          <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
+            <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover/img:opacity-80 transition-opacity drop-shadow" />
           </div>
         )}
         {entry.count > 1 && (
@@ -141,7 +284,7 @@ function CardFace({
         <button
           onClick={(e) => { e.stopPropagation(); onRemove(entry.entryId); }}
           disabled={isRemoving}
-          className="absolute top-1.5 right-1.5 bg-background/90 hover:bg-destructive hover:text-destructive-foreground rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm disabled:opacity-50 hidden sm:flex"
+          className="absolute top-1.5 right-1.5 bg-background/90 hover:bg-destructive hover:text-destructive-foreground rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm disabled:opacity-50 hidden sm:flex z-10"
           aria-label="Remove from deck"
         >
           <X className="h-3.5 w-3.5" />
@@ -178,11 +321,13 @@ function SortableCard({
   cardSize,
   isRemoving,
   onRemove,
+  onZoom,
 }: {
   entry: DeckCardEntry;
   cardSize: number;
   isRemoving: boolean;
   onRemove: (id: number) => void;
+  onZoom: () => void;
 }) {
   const {
     attributes,
@@ -206,6 +351,7 @@ function SortableCard({
       <button
         {...attributes}
         {...listeners}
+        onClick={(e) => e.stopPropagation()}
         className="absolute top-1.5 left-1.5 z-10 bg-background/80 rounded-full p-1 cursor-grab active:cursor-grabbing shadow-sm sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-none"
         aria-label="Drag to reorder"
         tabIndex={-1}
@@ -217,6 +363,7 @@ function SortableCard({
         cardSize={cardSize}
         isRemoving={isRemoving}
         onRemove={onRemove}
+        onZoom={isDragging ? undefined : onZoom}
         isDragging={isDragging}
       />
     </div>
@@ -249,6 +396,9 @@ export default function DeckDetail() {
   // Local card order for drag-and-drop (resets when server data changes)
   const [localCards, setLocalCards] = useState<DeckCardEntry[]>([]);
   const [activeEntry, setActiveEntry] = useState<DeckCardEntry | null>(null);
+  // Lightbox
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const handleLightboxNavigate = useCallback((newIndex: number) => setLightboxIndex(newIndex), []);
 
   // Sync local order whenever server data arrives
   useEffect(() => {
@@ -584,13 +734,14 @@ export default function DeckDetail() {
           >
             <SortableContext items={localCards.map((c) => c.entryId)} strategy={rectSortingStrategy}>
               <div className={`grid ${gridClass} gap-2`}>
-                {localCards.map((entry) => (
+                {localCards.map((entry, idx) => (
                   <SortableCard
                     key={entry.entryId}
                     entry={entry}
                     cardSize={cardSize}
                     isRemoving={removingId === entry.entryId}
                     onRemove={handleRemove}
+                    onZoom={() => setLightboxIndex(idx)}
                   />
                 ))}
               </div>
@@ -612,6 +763,16 @@ export default function DeckDetail() {
           </DndContext>
         )}
       </div>
+
+      {/* Card lightbox */}
+      {lightboxIndex !== null && (
+        <CardLightbox
+          cards={localCards}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={handleLightboxNavigate}
+        />
+      )}
     </Layout>
   );
 }
