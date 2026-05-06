@@ -18,6 +18,8 @@ const UpdateOfferBody = z.object({
     "decline",
     "counter",
     "set_exchange",
+    "confirm_exchange",
+    "reject_exchange",
     "schedule_meetup",
     "cancel_meetup",
   ]),
@@ -211,11 +213,45 @@ router.patch("/threads/:threadId/offer", requireAuth, async (req, res) => {
 
   } else if (action === "set_exchange") {
     if (!method) { res.status(400).json({ error: "method required" }); return; }
+    if (!isBuyer) {
+      res.status(403).json({ error: "Only the buyer can propose a payment method" });
+      return;
+    }
     if (existing.status !== "accepted") {
-      res.status(400).json({ error: "Must accept offer before choosing escrow method" });
+      res.status(400).json({ error: "Must accept offer before choosing a payment method" });
       return;
     }
     updates.exchangeMethod = method;
+    updates.exchangeMethodProposedBy = "buyer";
+    updates.exchangeMethodConfirmedBySeller = false;
+
+  } else if (action === "confirm_exchange") {
+    if (isBuyer) {
+      res.status(403).json({ error: "Only the seller can confirm the payment method" });
+      return;
+    }
+    if (!existing.exchangeMethod) {
+      res.status(400).json({ error: "No payment method has been proposed yet" });
+      return;
+    }
+    if (existing.exchangeMethodConfirmedBySeller) {
+      res.status(400).json({ error: "Payment method already confirmed" });
+      return;
+    }
+    updates.exchangeMethodConfirmedBySeller = true;
+
+  } else if (action === "reject_exchange") {
+    if (isBuyer) {
+      res.status(403).json({ error: "Only the seller can reject the payment method" });
+      return;
+    }
+    if (!existing.exchangeMethod) {
+      res.status(400).json({ error: "No payment method has been proposed" });
+      return;
+    }
+    updates.exchangeMethod = null;
+    updates.exchangeMethodProposedBy = null;
+    updates.exchangeMethodConfirmedBySeller = false;
   }
 
   const [updated] = await db

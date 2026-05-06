@@ -32,6 +32,8 @@ export const tradeOffersTable = pgTable("trade_offers", {
   offerHistory: json("offer_history").$type<OfferHistoryEntry[]>(),
   status: text("status").default("pending").notNull(),
   exchangeMethod: text("exchange_method"),
+  exchangeMethodProposedBy: text("exchange_method_proposed_by"),
+  exchangeMethodConfirmedBySeller: boolean("exchange_method_confirmed_by_seller").default(false).notNull(),
   videoCallScheduledAt: timestamp("video_call_scheduled_at", { withTimezone: true }),
   videoCallNotes: text("video_call_notes"),
   videoCallConfirmedByBuyer: boolean("video_call_confirmed_by_buyer").default(false).notNull(),

@@ -59,6 +59,8 @@ interface TradeOffer {
   offerHistory: OfferHistoryEntry[];
   status: OfferStatus;
   exchangeMethod: EscrowMethod | null;
+  exchangeMethodProposedBy: string | null;
+  exchangeMethodConfirmedBySeller: boolean;
   videoCallScheduledAt: string | null;
   videoCallNotes: string | null;
   videoCallConfirmedByBuyer: boolean;
@@ -71,14 +73,15 @@ interface TradeOffer {
   role: "buyer" | "seller";
 }
 
-type ActiveAction = null | "offer" | "video" | "meetup";
+type ActiveAction = null | "offer" | "video" | "meetup" | "payment";
 
 type ThreadItem =
-  | { kind: "msg";    msg: DmMessage;                                           ts: number }
-  | { kind: "offer";  entry: OfferHistoryEntry; isInitial: boolean;             ts: number }
-  | { kind: "video";  scheduledAt: Date; notes: string | null; confirmedByBuyer: boolean; confirmedBySeller: boolean; ts: number }
-  | { kind: "meetup"; location: string; proposedAt: Date; notes: string | null; ts: number }
-  | { kind: "status"; status: OfferStatus; finalAmount: number | null;          ts: number };
+  | { kind: "msg";              msg: DmMessage;                                                                ts: number }
+  | { kind: "offer";            entry: OfferHistoryEntry; isInitial: boolean;                                  ts: number }
+  | { kind: "video";            scheduledAt: Date; notes: string | null; confirmedByBuyer: boolean; confirmedBySeller: boolean; ts: number }
+  | { kind: "meetup";           location: string; proposedAt: Date; notes: string | null;                     ts: number }
+  | { kind: "status";           status: OfferStatus; finalAmount: number | null;                               ts: number }
+  | { kind: "payment_proposal"; method: EscrowMethod; confirmedBySeller: boolean;                              ts: number };
 
 // ── Escrow options ─────────────────────────────────────────────────────────
 
@@ -273,9 +276,9 @@ function TradeThread({
     return () => clearInterval(interval);
   }, [fetchOffer]);
 
-  // ── Wallet balance (fetch when dexpoky_pay is selected or deal is accepted) ──
+  // ── Wallet balance (fetch when dexpoky_pay confirmed for buyer) ──────────
   useEffect(() => {
-    if (offer?.status === "accepted" && offer.exchangeMethod === "dexpoky_pay" && offer.role === "buyer") {
+    if (offer?.status === "accepted" && offer.exchangeMethod === "dexpoky_pay" && offer.exchangeMethodConfirmedBySeller && offer.role === "buyer") {
       authFetch("/api/wallet/balance")
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d != null) setWalletBalance(d.balanceCents ?? 0); })
@@ -410,6 +413,15 @@ function TradeThread({
           status: offer.status,
           finalAmount: last?.amount ?? offer.askingPrice ?? null,
           ts: new Date(offer.updatedAt).getTime(),
+        });
+      }
+
+      if (offer.exchangeMethod) {
+        items.push({
+          kind: "payment_proposal",
+          method: offer.exchangeMethod as EscrowMethod,
+          confirmedBySeller: offer.exchangeMethodConfirmedBySeller ?? false,
+          ts: new Date(offer.updatedAt).getTime() + 200,
         });
       }
     }
@@ -838,6 +850,79 @@ out center 25;`;
       );
     }
 
+    // ── Payment proposal event ────────────────────────────────────────────
+    if (item.kind === "payment_proposal") {
+      const opt = ESCROW_OPTIONS.find(o => o.id === item.method);
+      if (!opt) return null;
+      const iAmBuyer = myRole === "buyer";
+      return (
+        <div key={`payment-proposal-${idx}`} className="flex justify-center">
+          <div className={cn(
+            "flex flex-col gap-2 rounded-xl border px-4 py-3 max-w-xs w-full",
+            item.confirmedBySeller
+              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+              : "bg-violet-50 border-violet-200 text-violet-700",
+          )}>
+            {/* Header row */}
+            <div className="flex items-start gap-2.5">
+              <opt.Icon className={cn("h-4 w-4 mt-0.5 shrink-0", item.confirmedBySeller ? "text-emerald-500" : "text-violet-500")} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold leading-tight">
+                  {item.confirmedBySeller
+                    ? `${opt.label} — agreed`
+                    : iAmBuyer
+                      ? `You proposed: ${opt.label}`
+                      : `Buyer proposed: ${opt.label}`}
+                </p>
+                <p className={cn("text-[11px] mt-0.5 leading-snug", item.confirmedBySeller ? "text-emerald-600" : "text-violet-500/80")}>
+                  {item.confirmedBySeller
+                    ? "Both parties agreed on this payment method."
+                    : iAmBuyer
+                      ? "Waiting for the seller to confirm."
+                      : "Please confirm or ask the buyer to choose a different method."}
+                </p>
+              </div>
+              {item.confirmedBySeller && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />}
+            </div>
+            {/* Seller action buttons — only when unconfirmed */}
+            {!item.confirmedBySeller && !iAmBuyer && (
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  className="flex-1 h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={updating}
+                  onClick={() => doAction({ action: "confirm_exchange" })}
+                >
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Confirm
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 h-7 text-[11px] border-violet-300 text-violet-700 hover:bg-violet-100"
+                  disabled={updating}
+                  onClick={() => doAction({ action: "reject_exchange" })}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Decline
+                </Button>
+              </div>
+            )}
+            {/* Buyer — change method when unconfirmed */}
+            {!item.confirmedBySeller && iAmBuyer && (
+              <button
+                type="button"
+                onClick={() => toggleAction("payment")}
+                className="text-[11px] font-medium text-violet-600 hover:underline self-start"
+              >
+                Change method →
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return null;
   }
 
@@ -922,47 +1007,31 @@ out center 25;`;
           eventList.map((item, idx) => renderItem(item, idx))
         )}
 
-        {/* ── Escrow picker (when accepted, method not yet chosen) ─────── */}
-        {offer?.status === "accepted" && !offer.exchangeMethod && (
-          <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-4 space-y-3 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div>
-                <p className="font-semibold text-sm text-emerald-800">
-                  Deal agreed at ${activeOfferAmount?.toFixed(2) ?? "—"}
-                </p>
-                <p className="text-xs text-emerald-600 mt-0.5">
-                  Choose how you'll securely exchange the card and payment.
-                </p>
-              </div>
+        {/* ── Buyer prompt to propose payment method ───────────────────── */}
+        {offer?.status === "accepted" && !offer.exchangeMethod && myRole === "buyer" && (
+          <div className="flex justify-center">
+            <div className="flex flex-col items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-3 max-w-xs w-full text-center">
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              <p className="text-xs font-semibold text-emerald-800">Deal agreed!</p>
+              <p className="text-[11px] text-emerald-600">
+                Use the <strong>Pay Now</strong> button below to propose a payment method to the seller.
+              </p>
             </div>
-            <div className="grid gap-2">
-              {ESCROW_OPTIONS.map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  disabled={updating}
-                  onClick={() => doAction({ action: "set_exchange", method: opt.id })}
-                  className={cn(
-                    "text-left flex items-start gap-3 p-3 rounded-xl border-2 transition-all hover:shadow-sm active:scale-[0.99]",
-                    opt.color,
-                  )}
-                >
-                  <opt.Icon className="h-4 w-4 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold">{opt.label}</p>
-                    <p className="text-[11px] opacity-80 mt-0.5">{opt.desc}</p>
-                  </div>
-                </button>
-              ))}
+          </div>
+        )}
+
+        {/* ── Seller waiting prompt (no method yet) ────────────────────── */}
+        {offer?.status === "accepted" && !offer.exchangeMethod && myRole === "seller" && (
+          <div className="flex justify-center">
+            <div className="flex items-center gap-2 bg-muted/40 border border-border rounded-xl px-4 py-2.5 max-w-xs w-full">
+              <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+              <p className="text-xs text-muted-foreground">Waiting for the buyer to propose a payment method…</p>
             </div>
           </div>
         )}
 
         {/* ── DexPoky Pay panel ────────────────────────────────────────── */}
-        {offer?.status === "accepted" && offer.exchangeMethod === "dexpoky_pay" && (() => {
+        {offer?.status === "accepted" && offer.exchangeMethod === "dexpoky_pay" && offer.exchangeMethodConfirmedBySeller && (() => {
           const agreedAmount = offer.offerAmount ?? offer.askingPrice ?? 0;
           const amountCents = Math.round(agreedAmount * 100);
           const isBuyer = offer.role === "buyer";
@@ -1058,8 +1127,8 @@ out center 25;`;
           </div>
         )}
 
-        {/* ── Escrow confirmed pill (non-dexpoky_pay methods) ──────────── */}
-        {(offer?.status === "accepted" || offer?.status === "paid") && offer.exchangeMethod && offer.exchangeMethod !== "dexpoky_pay" && (() => {
+        {/* ── Escrow confirmed pill (non-dexpoky_pay methods, both confirmed) ── */}
+        {(offer?.status === "accepted" || offer?.status === "paid") && offer.exchangeMethod && offer.exchangeMethod !== "dexpoky_pay" && offer.exchangeMethodConfirmedBySeller && (() => {
           const opt = ESCROW_OPTIONS.find(o => o.id === offer.exchangeMethod);
           if (!opt) return null;
           return (
@@ -1287,6 +1356,45 @@ out center 25;`;
         </div>
       )}
 
+      {activeAction === "payment" && (
+        <div className="border-t bg-violet-50/60 shrink-0" style={{ maxHeight: "min(480px, 55vh)", overflowY: "auto" }}>
+          <div className="px-4 pt-3 pb-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-violet-700 uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5" />
+                {offer?.exchangeMethod ? "Change Payment Method" : "Propose Payment Method"}
+              </p>
+              <button type="button" onClick={() => setActiveAction(null)}>
+                <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Choose how you and the seller will exchange the card and payment. The seller must confirm your choice before payment proceeds.
+            </p>
+            <div className="grid gap-1.5">
+              {ESCROW_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  disabled={updating}
+                  onClick={() => doAction({ action: "set_exchange", method: opt.id })}
+                  className={cn(
+                    "text-left flex items-start gap-3 p-3 rounded-xl border-2 transition-all hover:shadow-sm active:scale-[0.99]",
+                    opt.color,
+                  )}
+                >
+                  <opt.Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold">{opt.label}</p>
+                    <p className="text-[11px] opacity-80 mt-0.5">{opt.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeAction === "meetup" && (
         <div className="border-t px-4 py-3 bg-emerald-50/60 space-y-2 shrink-0">
           <div className="flex items-center justify-between">
@@ -1402,6 +1510,25 @@ out center 25;`;
             >
               <DollarSign className="h-3 w-3" />
               {myTurn ? "Counter Offer" : "Make Offer"}
+            </button>
+          )}
+
+          {/* Pay Now — buyer only, when accepted and method not yet confirmed */}
+          {offer?.status === "accepted" && myRole === "buyer" && !offer.exchangeMethodConfirmedBySeller && (
+            <button
+              type="button"
+              onClick={() => toggleAction("payment")}
+              className={cn(
+                "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
+                activeAction === "payment"
+                  ? "bg-violet-600 text-white border-violet-600"
+                  : offer.exchangeMethod
+                    ? "border-violet-300 text-violet-600 bg-violet-50 hover:bg-violet-100"
+                    : "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100",
+              )}
+            >
+              <CreditCard className="h-3 w-3" />
+              {offer.exchangeMethod ? "Change Method" : "Pay Now"}
             </button>
           )}
 
