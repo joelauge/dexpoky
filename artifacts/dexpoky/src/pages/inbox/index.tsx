@@ -1494,8 +1494,9 @@ export default function InboxPage() {
 
   return (
     <Layout>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center gap-3 mb-6">
+      <div className="sm:max-w-6xl sm:mx-auto sm:px-6 lg:px-8 sm:py-8">
+        {/* Heading — hidden on mobile when a chat is open to maximise space */}
+        <div className={cn("flex items-center gap-3 mb-6 px-4 sm:px-0 pt-6 sm:pt-0", showChat && activeThread ? "hidden sm:flex" : "flex")}>
           <MessageSquare className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold tracking-tight">Inbox</h1>
           {threads && threads.filter(t => t.unreadCount > 0).length > 0 && (
@@ -1506,8 +1507,8 @@ export default function InboxPage() {
         </div>
 
         <div
-          className="border rounded-xl bg-card overflow-hidden"
-          style={{ height: "calc(100vh - 200px)", minHeight: 520 }}
+          className="sm:border sm:rounded-xl bg-card overflow-hidden"
+          style={{ height: showChat && activeThread ? "calc(100dvh - 4rem - 4rem)" : "calc(100vh - 200px)", minHeight: 520 }}
         >
           <div
             className="grid h-full"
