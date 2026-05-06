@@ -16,6 +16,7 @@ import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/
 import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2, Camera, ChevronLeft, ChevronRight, X, ZoomIn, MessageCircle, Pencil, Lock, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { formatDistanceToNow, isPast, intervalToDuration } from "date-fns";
 
@@ -373,6 +374,8 @@ export default function ListingDetail() {
   const [editReservePrice, setEditReservePrice] = useState("");
   const [editBuyNowPrice, setEditBuyNowPrice] = useState("");
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [pendingEditBody, setPendingEditBody] = useState<Record<string, unknown> | null>(null);
 
   const handleOpenEdit = () => {
     setEditPrice(listing ? String(listing.price) : "");
@@ -425,6 +428,7 @@ export default function ListingDetail() {
 
   const handleSaveEdit = () => {
     const body: Record<string, unknown> = {};
+    const bidCount = extListing?.bidCount ?? 0;
     if (isAuction) {
       if (editStartingBid) body.startingBid = parseFloat(editStartingBid);
       if (editReservePrice) body.reservePrice = parseFloat(editReservePrice);
@@ -435,7 +439,26 @@ export default function ListingDetail() {
       if (editPrice) body.price = parseFloat(editPrice);
     }
     body.description = editDescription || null;
+
+    const hasPricingChange = isAuction && (
+      body.startingBid !== undefined ||
+      body.reservePrice !== undefined ||
+      body.buyNowPrice !== undefined
+    );
+    if (hasPricingChange && bidCount > 0) {
+      setPendingEditBody(body);
+      setShowPriceModal(true);
+      return;
+    }
     updateListing.mutate(body);
+  };
+
+  const handleConfirmedSave = () => {
+    if (pendingEditBody) {
+      updateListing.mutate(pendingEditBody);
+      setPendingEditBody(null);
+      setShowPriceModal(false);
+    }
   };
 
   const handleCounterOffer = async () => {
@@ -941,25 +964,18 @@ export default function ListingDetail() {
                         {isAuction && (
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="space-y-1.5">
-                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                Starting Bid ($)
-                                {pricingLocked && <Lock className="h-3 w-3 text-muted-foreground/60" />}
-                              </Label>
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Starting Bid ($)</Label>
                               <Input
                                 type="number"
                                 step="0.01"
                                 min="0.01"
                                 value={editStartingBid}
                                 onChange={e => setEditStartingBid(e.target.value)}
-                                disabled={pricingLocked}
-                                className={cn("text-sm", pricingLocked && "opacity-50 cursor-not-allowed")}
+                                className="text-sm"
                               />
                             </div>
                             <div className="space-y-1.5">
-                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                Reserve Price ($)
-                                {pricingLocked && <Lock className="h-3 w-3 text-muted-foreground/60" />}
-                              </Label>
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Reserve Price ($)</Label>
                               <Input
                                 type="number"
                                 step="0.01"
@@ -967,15 +983,11 @@ export default function ListingDetail() {
                                 placeholder="None"
                                 value={editReservePrice}
                                 onChange={e => setEditReservePrice(e.target.value)}
-                                disabled={pricingLocked}
-                                className={cn("text-sm", pricingLocked && "opacity-50 cursor-not-allowed")}
+                                className="text-sm"
                               />
                             </div>
                             <div className="space-y-1.5">
-                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                Buy-Now Price ($)
-                                {pricingLocked && <Lock className="h-3 w-3 text-muted-foreground/60" />}
-                              </Label>
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Buy-Now Price ($)</Label>
                               <Input
                                 type="number"
                                 step="0.01"
@@ -983,21 +995,29 @@ export default function ListingDetail() {
                                 placeholder="None"
                                 value={editBuyNowPrice}
                                 onChange={e => setEditBuyNowPrice(e.target.value)}
-                                disabled={pricingLocked}
-                                className={cn("text-sm", pricingLocked && "opacity-50 cursor-not-allowed")}
+                                className="text-sm"
                               />
                             </div>
                           </div>
                         )}
 
-                        {/* Condition — read-only */}
+                        {/* Condition — read-only with tooltip */}
                         <div className="space-y-1.5">
                           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Condition</p>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={cn("text-sm px-3 py-1", CONDITION_COLORS[card.condition] || "")}>
-                              {formatLabel(card.condition)}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">Condition can't be changed here — delete this listing and create a new one to relist at a different condition.</span>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className={cn("text-sm px-3 py-1 cursor-help", CONDITION_COLORS[card.condition] || "")}>
+                                    {formatLabel(card.condition)}
+                                    <Lock className="h-3 w-3 ml-1.5 opacity-50" />
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-56 text-xs">
+                                  Condition can't be changed after listing. Delete this listing and create a new one to relist at a different condition.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                         </div>
 
@@ -1026,6 +1046,41 @@ export default function ListingDetail() {
                   </div>
                 );
               })()}
+
+              {/* Auction price-change confirmation dialog */}
+              <Dialog open={showPriceModal} onOpenChange={open => { if (!open) { setShowPriceModal(false); setPendingEditBody(null); } }}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Change auction pricing?</DialogTitle>
+                    <DialogDescription>
+                      {(() => {
+                        const bc = extListing?.bidCount ?? 0;
+                        const oldStart = extListing?.startingBid;
+                        const newStart = pendingEditBody?.startingBid as number | undefined;
+                        return (
+                          <>
+                            <span className="font-medium text-foreground">{bc} bidder{bc !== 1 ? "s have" : " has"} already placed bid{bc !== 1 ? "s" : ""}</span> on this auction.{" "}
+                            {newStart !== undefined && oldStart !== undefined && (
+                              <>You're changing the starting bid from <strong>{formatCurrency(oldStart)}</strong> to <strong>{formatCurrency(newStart)}</strong>. </>
+                            )}
+                            Changing pricing mid-auction may surprise active bidders. Proceed?
+                          </>
+                        );
+                      })()}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={() => { setShowPriceModal(false); setPendingEditBody(null); }}>Cancel</Button>
+                    <Button
+                      onClick={handleConfirmedSave}
+                      disabled={updateListing.isPending}
+                    >
+                      {updateListing.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+                      {updateListing.isPending ? "Saving…" : "Yes, update pricing"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {/* Cancel listing confirmation dialog */}
               <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>

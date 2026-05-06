@@ -225,7 +225,7 @@ router.put("/marketplace/:id", requireAuth, async (req, res) => {
     res.status(403).json({ error: "You can only edit your own listings" });
     return;
   }
-  if (existingListing.status !== "active" && bodyParsed.data.status === undefined) {
+  if (existingListing.status !== "active") {
     res.status(409).json({ error: "Only active listings can be edited" });
     return;
   }
@@ -236,26 +236,6 @@ router.put("/marketplace/:id", requireAuth, async (req, res) => {
     buyNowPrice: z.number().nullish(),
   });
   const auctionFields = AuctionEditFields.safeParse(req.body);
-  const hasAuctionFieldChange =
-    auctionFields.success &&
-    (auctionFields.data.startingBid !== undefined ||
-      auctionFields.data.reservePrice !== undefined ||
-      auctionFields.data.buyNowPrice !== undefined);
-
-  if (existingListing.listingType === "auction" && hasAuctionFieldChange) {
-    const [bidRow] = await db
-      .select({ bidCount: sql<number>`count(*)::int` })
-      .from(auctionBidsTable)
-      .where(eq(auctionBidsTable.listingId, paramsParsed.data.id));
-    const bidCount = bidRow?.bidCount ?? 0;
-    if (bidCount > 0) {
-      res.status(409).json({
-        error: `Cannot change auction pricing while ${bidCount} bid${bidCount !== 1 ? "s" : ""} are active. Wait until the auction ends to relist.`,
-        bidCount,
-      });
-      return;
-    }
-  }
 
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (bodyParsed.data.price !== undefined) updateData.price = String(bodyParsed.data.price);
@@ -309,7 +289,12 @@ router.put("/marketplace/:id", requireAuth, async (req, res) => {
     });
   }
 
-  res.json(enriched);
+  const [putBidRow] = await db
+    .select({ bidCount: sql<number>`count(*)::int` })
+    .from(auctionBidsTable)
+    .where(eq(auctionBidsTable.listingId, updated.id));
+
+  res.json({ ...enriched, bidCount: putBidRow?.bidCount ?? 0 });
 });
 
 router.get("/cards/:cardId/listing", async (req, res) => {
