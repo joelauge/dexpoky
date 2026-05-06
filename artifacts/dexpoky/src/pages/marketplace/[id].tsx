@@ -13,7 +13,9 @@ import { useAuthFetch } from "@/lib/use-auth-fetch";
 import { HoloCard } from "@/components/holo-card";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/lib/constants";
-import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2, Camera, ChevronLeft, ChevronRight, X, ZoomIn, MessageCircle } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Info, Eye, Clock, Gavel, User, Star, Timer, Share2, Check, Copy, Loader2, Camera, ChevronLeft, ChevronRight, X, ZoomIn, MessageCircle, Pencil, Lock, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { formatDistanceToNow, isPast, intervalToDuration } from "date-fns";
 
@@ -28,6 +30,7 @@ type AuctionListing = {
   minBidIncrement?: number | null;
   buyNowPrice?: number | null;
   listingImages?: string[] | null;
+  bidCount?: number;
 };
 
 interface Bid {
@@ -362,6 +365,78 @@ export default function ListingDetail() {
   const [ratingScore, setRatingScore] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
   const [openingThread, setOpeningThread] = useState(false);
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editPrice, setEditPrice] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editStartingBid, setEditStartingBid] = useState("");
+  const [editReservePrice, setEditReservePrice] = useState("");
+  const [editBuyNowPrice, setEditBuyNowPrice] = useState("");
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const handleOpenEdit = () => {
+    setEditPrice(listing ? String(listing.price) : "");
+    setEditDescription(listing?.description ?? "");
+    setEditStartingBid(extListing?.startingBid ? String(extListing.startingBid) : "");
+    setEditReservePrice(extListing?.reservePrice ? String(extListing.reservePrice) : "");
+    setEditBuyNowPrice(extListing?.buyNowPrice ? String(extListing.buyNowPrice) : "");
+    setEditOpen(true);
+  };
+
+  const updateListing = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const res = await authFetch(`/api/marketplace/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json() as { error?: string; bidCount?: number };
+      if (!res.ok) throw new Error(data.error ?? "Failed to update listing");
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Listing updated!");
+      setEditOpen(false);
+      qc.invalidateQueries({ queryKey: ["/api/marketplace", id] });
+      refetch();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const cancelListing = useMutation({
+    mutationFn: async () => {
+      const res = await authFetch(`/api/marketplace/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed to cancel listing");
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Listing cancelled.");
+      setShowCancelConfirm(false);
+      qc.invalidateQueries({ queryKey: ["/api/marketplace", id] });
+      refetch();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const handleSaveEdit = () => {
+    const body: Record<string, unknown> = {};
+    if (isAuction) {
+      if (editStartingBid) body.startingBid = parseFloat(editStartingBid);
+      if (editReservePrice) body.reservePrice = parseFloat(editReservePrice);
+      else if (editReservePrice === "") body.reservePrice = null;
+      if (editBuyNowPrice) body.buyNowPrice = parseFloat(editBuyNowPrice);
+      else if (editBuyNowPrice === "") body.buyNowPrice = null;
+    } else {
+      if (editPrice) body.price = parseFloat(editPrice);
+    }
+    body.description = editDescription || null;
+    updateListing.mutate(body);
+  };
 
   const handleCounterOffer = async () => {
     if (!user) { setLocation("/sign-in"); return; }
@@ -799,6 +874,184 @@ export default function ListingDetail() {
                   </div>
                 </div>
               </div>
+
+              {/* Seller edit panel */}
+              {isMyListing && isActive && (() => {
+                const bidCount = extListing?.bidCount ?? 0;
+                const pricingLocked = isAuction && bidCount > 0;
+                return (
+                  <div className="mt-6 border rounded-2xl overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => { if (!editOpen) handleOpenEdit(); else setEditOpen(false); }}
+                      className="w-full flex items-center justify-between px-5 py-3.5 bg-secondary/60 hover:bg-secondary transition-colors text-sm font-semibold"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit this listing
+                      </span>
+                      <span className="flex items-center gap-3 text-xs text-muted-foreground font-normal">
+                        {isAuction && <span className="flex items-center gap-1"><Gavel className="h-3 w-3" />{bidCount} bid{bidCount !== 1 ? "s" : ""}</span>}
+                        <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{listing.viewCount} view{listing.viewCount !== 1 ? "s" : ""}</span>
+                        <span className={cn("transition-transform", editOpen ? "rotate-180" : "")}>▾</span>
+                      </span>
+                    </button>
+
+                    {editOpen && (
+                      <div className="p-5 space-y-5 border-t bg-background">
+                        {pricingLocked && (
+                          <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-800/30 text-sm">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="font-semibold text-amber-800 dark:text-amber-300">Pricing locked — {bidCount} active bid{bidCount !== 1 ? "s" : ""}</p>
+                              <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">Auction pricing can't change once bids are placed. To relist at a different price, wait for this auction to end.</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Description */}
+                        <div className="space-y-1.5">
+                          <Label htmlFor="edit-description" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</Label>
+                          <Textarea
+                            id="edit-description"
+                            rows={3}
+                            placeholder="Describe the card's condition, provenance, or anything buyers should know…"
+                            value={editDescription}
+                            onChange={e => setEditDescription(e.target.value)}
+                            className="resize-none text-sm"
+                          />
+                        </div>
+
+                        {/* Price fields */}
+                        {!isAuction && (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="edit-price" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Buy-Now Price ($)</Label>
+                            <Input
+                              id="edit-price"
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              value={editPrice}
+                              onChange={e => setEditPrice(e.target.value)}
+                              className="text-sm font-semibold"
+                            />
+                          </div>
+                        )}
+
+                        {isAuction && (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                Starting Bid ($)
+                                {pricingLocked && <Lock className="h-3 w-3 text-muted-foreground/60" />}
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                value={editStartingBid}
+                                onChange={e => setEditStartingBid(e.target.value)}
+                                disabled={pricingLocked}
+                                className={cn("text-sm", pricingLocked && "opacity-50 cursor-not-allowed")}
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                Reserve Price ($)
+                                {pricingLocked && <Lock className="h-3 w-3 text-muted-foreground/60" />}
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="None"
+                                value={editReservePrice}
+                                onChange={e => setEditReservePrice(e.target.value)}
+                                disabled={pricingLocked}
+                                className={cn("text-sm", pricingLocked && "opacity-50 cursor-not-allowed")}
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                Buy-Now Price ($)
+                                {pricingLocked && <Lock className="h-3 w-3 text-muted-foreground/60" />}
+                              </Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="None"
+                                value={editBuyNowPrice}
+                                onChange={e => setEditBuyNowPrice(e.target.value)}
+                                disabled={pricingLocked}
+                                className={cn("text-sm", pricingLocked && "opacity-50 cursor-not-allowed")}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Condition — read-only */}
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Condition</p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={cn("text-sm px-3 py-1", CONDITION_COLORS[card.condition] || "")}>
+                              {formatLabel(card.condition)}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">Condition can't be changed here — delete this listing and create a new one to relist at a different condition.</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                          <Button
+                            onClick={handleSaveEdit}
+                            disabled={updateListing.isPending}
+                            className="flex-1 font-semibold"
+                          >
+                            {updateListing.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                            {updateListing.isPending ? "Saving…" : "Save changes"}
+                          </Button>
+                          <Button variant="outline" onClick={() => setEditOpen(false)} className="flex-1">
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={() => setShowCancelConfirm(true)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            Remove listing
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Cancel listing confirmation dialog */}
+              <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Remove this listing?</DialogTitle>
+                    <DialogDescription>
+                      This will cancel your listing for <strong>{card.name}</strong>.{" "}
+                      {(extListing?.bidCount ?? 0) > 0
+                        ? `There ${extListing!.bidCount === 1 ? "is" : "are"} ${extListing!.bidCount} active bid${extListing!.bidCount === 1 ? "" : "s"} — those bidders will be notified that the auction ended early.`
+                        : "The card will be returned to your collection."}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>Keep listing</Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => cancelListing.mutate()}
+                      disabled={cancelListing.isPending}
+                    >
+                      {cancelListing.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
+                      {cancelListing.isPending ? "Removing…" : "Yes, remove it"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
 
               {/* Rating form */}
               {isSold && user && extListing?.sellerClerkId && extListing.sellerClerkId !== user.id && !alreadyRatedAsSeller && (

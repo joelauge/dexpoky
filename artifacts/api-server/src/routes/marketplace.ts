@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { listingsTable, cardsTable, categoriesTable, activityEventsTable, sellerPayoutsTable } from "@workspace/db";
+import { listingsTable, cardsTable, categoriesTable, activityEventsTable, sellerPayoutsTable, auctionBidsTable } from "@workspace/db";
 import { eq, sql, and, gte, lte, type SQL } from "drizzle-orm";
+import { z } from "zod";
 import { getAuth } from "@clerk/express";
 import {
   ListListingsQueryParams,
@@ -186,12 +187,20 @@ router.get("/marketplace/:id", async (req, res) => {
     return;
   }
 
+  const [bidRow] = await db
+    .select({ bidCount: sql<number>`count(*)::int` })
+    .from(auctionBidsTable)
+    .where(eq(auctionBidsTable.listingId, listing.id));
+
   await db
     .update(listingsTable)
     .set({ viewCount: listing.viewCount + 1 })
     .where(eq(listingsTable.id, listing.id));
 
-  res.json(await enrichListing({ ...listing, viewCount: listing.viewCount + 1 }));
+  res.json({
+    ...await enrichListing({ ...listing, viewCount: listing.viewCount + 1 }),
+    bidCount: bidRow?.bidCount ?? 0,
+  });
 });
 
 router.put("/marketplace/:id", requireAuth, async (req, res) => {
@@ -205,7 +214,7 @@ router.put("/marketplace/:id", requireAuth, async (req, res) => {
   const clerkId = (req as AuthRequest).userId;
 
   const [existingListing] = await db
-    .select({ sellerClerkId: listingsTable.sellerClerkId })
+    .select({ sellerClerkId: listingsTable.sellerClerkId, listingType: listingsTable.listingType, status: listingsTable.status })
     .from(listingsTable)
     .where(eq(listingsTable.id, paramsParsed.data.id));
   if (!existingListing) {
@@ -216,11 +225,54 @@ router.put("/marketplace/:id", requireAuth, async (req, res) => {
     res.status(403).json({ error: "You can only edit your own listings" });
     return;
   }
+  if (existingListing.status !== "active" && bodyParsed.data.status === undefined) {
+    res.status(409).json({ error: "Only active listings can be edited" });
+    return;
+  }
+
+  const AuctionEditFields = z.object({
+    startingBid: z.number().optional(),
+    reservePrice: z.number().nullish(),
+    buyNowPrice: z.number().nullish(),
+  });
+  const auctionFields = AuctionEditFields.safeParse(req.body);
+  const hasAuctionFieldChange =
+    auctionFields.success &&
+    (auctionFields.data.startingBid !== undefined ||
+      auctionFields.data.reservePrice !== undefined ||
+      auctionFields.data.buyNowPrice !== undefined);
+
+  if (existingListing.listingType === "auction" && hasAuctionFieldChange) {
+    const [bidRow] = await db
+      .select({ bidCount: sql<number>`count(*)::int` })
+      .from(auctionBidsTable)
+      .where(eq(auctionBidsTable.listingId, paramsParsed.data.id));
+    const bidCount = bidRow?.bidCount ?? 0;
+    if (bidCount > 0) {
+      res.status(409).json({
+        error: `Cannot change auction pricing while ${bidCount} bid${bidCount !== 1 ? "s" : ""} are active. Wait until the auction ends to relist.`,
+        bidCount,
+      });
+      return;
+    }
+  }
 
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
   if (bodyParsed.data.price !== undefined) updateData.price = String(bodyParsed.data.price);
   if (bodyParsed.data.status !== undefined) updateData.status = bodyParsed.data.status;
   if (bodyParsed.data.description !== undefined) updateData.description = bodyParsed.data.description;
+  if (existingListing.listingType === "auction" && auctionFields.success) {
+    if (auctionFields.data.startingBid !== undefined) {
+      updateData.startingBid = String(auctionFields.data.startingBid);
+      updateData.price = String(auctionFields.data.startingBid);
+    }
+    if (auctionFields.data.reservePrice !== undefined) {
+      updateData.reservePrice = auctionFields.data.reservePrice !== null ? String(auctionFields.data.reservePrice) : null;
+    }
+    if (auctionFields.data.buyNowPrice !== undefined) {
+      updateData.buyNowPrice = auctionFields.data.buyNowPrice !== null ? String(auctionFields.data.buyNowPrice) : null;
+    }
+  }
 
   const [updated] = await db
     .update(listingsTable)
