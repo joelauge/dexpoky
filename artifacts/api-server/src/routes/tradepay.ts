@@ -8,6 +8,7 @@ import { stripeService } from "../stripeService.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
 import { notifyPaymentConfirmed } from "../lib/notifyNewMessage.js";
+import { pushPaymentReceived } from "../lib/paymentEvents.js";
 
 const router = Router();
 
@@ -152,6 +153,7 @@ router.get("/threads/:threadId/payment/confirm", async (req: Request, res: Respo
       threadId,
       amountCents,
     });
+    pushPaymentReceived(payeeClerkId, { threadId, amountCents, netCents });
 
     res.redirect(`/inbox?thread=${threadId}&pay=ok`);
   } catch {
@@ -223,7 +225,7 @@ router.post("/threads/:threadId/payment/wallet", requireAuth, async (req: Reques
     threadId,
     amountCents,
   });
-
+  pushPaymentReceived(payeeClerkId, { threadId, amountCents, netCents });
   res.json({ success: true, amountCents, feeCents, netCents });
 });
 
@@ -419,6 +421,7 @@ router.get("/threads/:threadId/payment/store-meetup/confirm", async (req: Reques
       threadId,
       amountCents,
     });
+    pushPaymentReceived(payeeClerkId, { threadId, amountCents, netCents });
 
     res.redirect(`/inbox?thread=${threadId}&pay=ok`);
   } catch {

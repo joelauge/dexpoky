@@ -9,6 +9,7 @@ import { z } from "zod";
 import type { Request, Response } from "express";
 import type { OfferHistoryEntry, OfferedCard } from "@workspace/db";
 import { notifyPaymentConfirmed } from "../lib/notifyNewMessage.js";
+import { pushPaymentReceived } from "../lib/paymentEvents.js";
 
 const router = Router();
 
@@ -350,6 +351,7 @@ router.patch("/threads/:threadId/offer", requireAuth, async (req, res) => {
         threadId,
         amountCents,
       });
+      pushPaymentReceived(payeeClerkId, { threadId, amountCents, netCents });
       res.json(serializeOffer(paid, "buyer"));
       return;
     } else {
