@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useRef } from "react";
+import { ReactNode, useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk, Show } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ import {
   ChevronUp,
   Wallet,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -269,6 +270,137 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+function MobileProfileBar() {
+  const [open, setOpen] = useState(false);
+  const [location, setLocation] = useLocation();
+  const { user, isSignedIn } = useUser();
+  const { signOut } = useClerk();
+  const authFetch = useAuthFetch();
+  const barRef = useRef<HTMLDivElement>(null);
+
+  const { data: profile } = useQuery<{ username?: string }>({
+    queryKey: ["/api/users/me"],
+    queryFn: () => authFetch("/api/users/me").then(r => r.ok ? r.json() : null),
+    enabled: !!isSignedIn,
+  });
+
+  const { data: threads } = useListThreads({
+    query: { queryKey: ["/api/threads"], refetchInterval: 30000, enabled: !!isSignedIn },
+  });
+  const totalUnread = threads?.reduce((sum, t) => sum + (t.unreadCount ?? 0), 0) ?? 0;
+
+  const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    const onDown = (e: MouseEvent) => {
+      if (barRef.current && !barRef.current.contains(e.target as Node)) close();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [open, close]);
+
+  const navTo = (href: string) => { close(); setLocation(href); };
+
+  const displayName = profile?.username || user?.username || user?.firstName || "My Account";
+
+  if (!isSignedIn) {
+    return (
+      <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-card border-t px-4 py-3 flex gap-2 safe-area-pb">
+        <Link href="/sign-in" className="flex-1">
+          <div className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium cursor-pointer hover:bg-secondary transition-colors">
+            <LogIn className="h-4 w-4" /> Sign In
+          </div>
+        </Link>
+        <Link href="/sign-up" className="flex-1">
+          <div className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold cursor-pointer hover:bg-primary/90 transition-colors">
+            <Sparkles className="h-4 w-4" /> Join Free
+          </div>
+        </Link>
+      </div>
+    );
+  }
+
+  const menuItems = [
+    { href: "/profile",      icon: User,         label: "Profile" },
+    { href: "/inbox",        icon: MessageSquare, label: "Inbox",  badge: totalUnread },
+    { href: "/wallet",       icon: Wallet,        label: "Wallet" },
+    { href: "/subscription", icon: Sparkles,      label: "Subscription" },
+  ];
+
+  return (
+    <div ref={barRef} className="fixed bottom-0 left-0 right-0 z-40 md:hidden">
+      {/* Expanding menu panel */}
+      <div
+        className={cn(
+          "overflow-hidden transition-all duration-200 ease-out bg-card border-t border-x rounded-t-2xl shadow-2xl",
+          open ? "max-h-80 opacity-100" : "max-h-0 opacity-0 pointer-events-none",
+        )}
+      >
+        <div className="px-2 pt-3 pb-2 space-y-0.5">
+          {menuItems.map(({ href, icon: Icon, label, badge }) => (
+            <button
+              key={href}
+              onClick={() => navTo(href)}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                location === href
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-secondary",
+              )}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              <span className="flex-1 text-left">{label}</span>
+              {badge != null && badge > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {badge > 9 ? "9+" : badge}
+                </span>
+              )}
+            </button>
+          ))}
+          <div className="my-1 mx-4 border-t" />
+          <button
+            onClick={() => { close(); signOut(() => setLocation("/marketplace")); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <LogOut className="h-5 w-5 shrink-0" />
+            Sign Out
+          </button>
+        </div>
+      </div>
+
+      {/* Profile trigger bar */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full bg-card border-t px-4 py-3 flex items-center gap-3 active:bg-secondary transition-colors"
+      >
+        <div className="relative shrink-0">
+          {user?.imageUrl ? (
+            <img src={user.imageUrl} alt="" className="h-9 w-9 rounded-full object-cover border border-border" />
+          ) : (
+            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+              <User className="h-5 w-5 text-primary" />
+            </div>
+          )}
+          {totalUnread > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500 ring-2 ring-card" />
+          )}
+        </div>
+        <div className="flex-1 text-left min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
+          <p className="text-xs text-muted-foreground truncate">{user?.primaryEmailAddress?.emailAddress}</p>
+        </div>
+        <ChevronUp className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", open ? "" : "rotate-180")} />
+      </button>
+    </div>
+  );
+}
+
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -317,7 +449,7 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       {isSignedIn && (
-        <div className="space-y-1 mb-8">
+        <div className="space-y-1">
           <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Actions</h3>
           {quickActions.map((item) => (
             <Link key={item.href} href={item.href}>
@@ -329,55 +461,6 @@ export function Layout({ children }: LayoutProps) {
           ))}
         </div>
       )}
-
-      <div className="space-y-1">
-        <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Account</h3>
-        {isSignedIn ? (
-          <>
-            <Link href="/profile">
-              <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
-                location === "/profile" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}>
-                <User className="h-5 w-5" /><span>Profile</span>
-              </div>
-            </Link>
-            <Link href="/inbox">
-              <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
-                location === "/inbox" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}>
-                <MessageSquare className="h-5 w-5" /><span>Inbox</span>
-              </div>
-            </Link>
-            <Link href="/wallet">
-              <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
-                location === "/wallet" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}>
-                <Wallet className="h-5 w-5" /><span>Wallet</span>
-              </div>
-            </Link>
-            <Link href="/subscription">
-              <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
-                location === "/subscription" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}>
-                <Sparkles className="h-5 w-5" /><span>Subscription</span>
-              </div>
-            </Link>
-          </>
-        ) : (
-          <>
-            <Link href="/sign-up">
-              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer transition-colors font-semibold text-sm">
-                <Sparkles className="h-5 w-5" /><span>Join DexPoky — free</span>
-              </div>
-            </Link>
-            <Link href="/sign-in">
-              <div className="flex items-center gap-3 px-4 py-2.5 rounded-md text-muted-foreground hover:bg-secondary cursor-pointer transition-colors text-sm mt-1">
-                <LogIn className="h-5 w-5" /><span>Sign In</span>
-              </div>
-            </Link>
-          </>
-        )}
-      </div>
     </>
   );
 
@@ -496,15 +579,18 @@ export function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 min-w-0 max-w-[100vw]">
+        <main className="flex-1 min-w-0 max-w-[100vw] pb-16 md:pb-0">
           {children}
         </main>
+
+        {/* Mobile bottom profile bar */}
+        <MobileProfileBar />
 
         {/* Floating Scan FAB — only when signed in, hidden on /scan page */}
         {isSignedIn && location !== "/scan" && (
           <Link href="/scan">
             <button
-              className="fixed bottom-6 right-5 z-50 flex items-center gap-2 bg-primary text-primary-foreground shadow-xl rounded-full px-5 py-3.5 font-bold text-sm active:scale-95 transition-transform hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="fixed bottom-[4.5rem] right-5 md:bottom-6 z-50 flex items-center gap-2 bg-primary text-primary-foreground shadow-xl rounded-full px-5 py-3.5 font-bold text-sm active:scale-95 transition-transform hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               aria-label="Scan a card"
             >
               <Scan className="h-5 w-5" />
