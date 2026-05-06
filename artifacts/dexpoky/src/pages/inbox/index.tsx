@@ -19,7 +19,7 @@ import {
   MessageSquare, Send, ArrowLeft, User, Heart,
   Video, DollarSign, CheckCircle2, XCircle, RefreshCw,
   Store, Shield, Gem, Calendar, MapPin, X, Lock, CreditCard, Banknote,
-  Package, Navigation, Loader2, Search, Wallet, Clock,
+  Package, Navigation, Loader2, Search, Wallet, Clock, Receipt, ArrowRight,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
@@ -1185,15 +1185,73 @@ out center 25;`;
           );
         })()}
 
-        {/* ── Payment confirmed banner ──────────────────────────────────── */}
-        {offer?.status === "paid" && (
-          <div className="flex justify-center">
-            <div className="flex items-center gap-2 bg-emerald-100 border border-emerald-300 rounded-full px-4 py-1.5 text-sm text-emerald-700 font-semibold">
-              <CheckCircle2 className="h-4 w-4" />
-              Payment confirmed ✓
+        {/* ── Payment confirmed banner / seller receipt ─────────────────── */}
+        {offer?.status === "paid" && (() => {
+          const isSeller = offer.role !== "buyer";
+          const isStoreMeetup = offer.exchangeMethod === "store";
+
+          if (isSeller && isStoreMeetup) {
+            const agreedAmount = offer.offerAmount ?? offer.askingPrice ?? 0;
+            const feeCents = Math.round(agreedAmount * 100 * 0.03);
+            const netAmount = agreedAmount - feeCents / 100;
+            const paidAt = new Date(offer.updatedAt);
+
+            return (
+              <div className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-b from-emerald-50 to-white p-4 space-y-3 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                    <Receipt className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm text-emerald-800">Payment Received</p>
+                    <p className="text-xs text-emerald-600 mt-0.5">In-store meetup — funds credited to your wallet</p>
+                  </div>
+                  <div className="ml-auto shrink-0">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  </div>
+                </div>
+
+                <div className="bg-white border border-emerald-100 rounded-xl divide-y divide-emerald-50 text-sm">
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-muted-foreground">Sale amount</span>
+                    <span className="font-medium">${agreedAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-muted-foreground">Platform fee (3%)</span>
+                    <span className="text-red-500 font-medium">−${(feeCents / 100).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-50/60 rounded-b-xl">
+                    <span className="font-semibold text-emerald-800">Net credited</span>
+                    <span className="font-bold text-emerald-700 text-base">${netAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                  <span>{format(paidAt, "MMM d, yyyy 'at' h:mm a")}</span>
+                  <span className="text-emerald-600 font-medium">Meet at Card Shop</span>
+                </div>
+
+                <a
+                  href="/wallet"
+                  className="flex items-center justify-center gap-1.5 w-full h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors"
+                >
+                  <Wallet className="h-4 w-4" />
+                  View Wallet
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex justify-center">
+              <div className="flex items-center gap-2 bg-emerald-100 border border-emerald-300 rounded-full px-4 py-1.5 text-sm text-emerald-700 font-semibold">
+                <CheckCircle2 className="h-4 w-4" />
+                Payment confirmed ✓
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── Meet at Card Shop PIN panel ────────────────────────────────── */}
         {offer?.status === "accepted" && offer.exchangeMethod === "store" && offer.exchangeMethodConfirmedBySeller && (() => {
