@@ -8,8 +8,12 @@ import {
   useDeleteDeck,
   useListCards,
   useListWishlist,
+  useListListings,
+  useAddWishlistItem,
+  ListListingsStatus,
   type DeckCardEntry,
   type CatalogCard,
+  type Listing,
   customFetch,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +39,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ZoomIn,
+  Store,
+  Tag,
+  CheckCircle2,
 } from "lucide-react";
 import {
   Dialog,
@@ -97,6 +104,154 @@ function entryDisplay(entry: DeckCardEntry) {
     setName: entry.card?.setName ?? entry.snapshotSetName ?? null,
     cardNumber: entry.card?.cardNumber ?? entry.snapshotCardNumber ?? null,
   };
+}
+
+// ── MarketplaceSearchTab ──────────────────────────────────────────────────────
+
+function MarketplaceSearchTab({ onWishlistAdded }: { onWishlistAdded: () => void }) {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: listings, isLoading, isFetching } = useListListings(
+    { search: debouncedSearch, status: ListListingsStatus.active },
+    { query: { enabled: debouncedSearch.length >= 2 } },
+  );
+
+  const { data: wishlist } = useListWishlist();
+  const addWishlist = useAddWishlistItem();
+
+  const wishlistedCatalogIds = new Set(
+    (wishlist ?? []).map((w) => w.catalogCardId).filter(Boolean),
+  );
+
+  const handleAddToWishlist = (listing: Listing) => {
+    const cid = listing.card.catalogCardId;
+    if (!cid) {
+      toast.error("This card has no catalog link and can't be wishlisted");
+      return;
+    }
+    addWishlist.mutate(
+      { data: { catalogCardId: cid } },
+      {
+        onSuccess: () => {
+          setAddedIds((prev) => new Set([...prev, cid]));
+          toast.success(`${listing.card.name} added to wishlist`);
+          onWishlistAdded();
+        },
+        onError: () => toast.error("Failed to add to wishlist"),
+      },
+    );
+  };
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search active marketplace listings…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9 pr-9"
+          autoFocus
+        />
+        {isFetching && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        )}
+      </div>
+
+      <div className="overflow-y-auto flex-1 -mx-1 px-1">
+        {debouncedSearch.length < 2 ? (
+          <div className="flex flex-col items-center justify-center py-14 text-center text-muted-foreground gap-3">
+            <Store className="h-10 w-10 opacity-20" />
+            <p className="text-sm">Type at least 2 characters to search<br />active marketplace listings.</p>
+          </div>
+        ) : isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="aspect-[3/4] rounded-xl" />)}
+          </div>
+        ) : !listings || listings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-14 text-center text-muted-foreground gap-3">
+            <Store className="h-10 w-10 opacity-20" />
+            <p className="text-sm">No active listings found for <strong>"{debouncedSearch}"</strong>.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {listings.map((listing) => {
+              const cid = listing.card.catalogCardId;
+              const isWishlisted = cid ? (wishlistedCatalogIds.has(cid) || addedIds.has(cid)) : false;
+              const canWishlist = !!cid;
+
+              return (
+                <div
+                  key={listing.id}
+                  className="rounded-xl border bg-card overflow-hidden flex flex-col"
+                >
+                  {/* Card image */}
+                  <div className="aspect-[3/4] bg-muted/30 relative">
+                    {listing.card.imageUrl ? (
+                      <img
+                        src={listing.card.imageUrl}
+                        alt={listing.card.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[80px] opacity-[0.12] grayscale select-none pointer-events-none" />
+                      </div>
+                    )}
+                    {/* Price badge */}
+                    <div className="absolute bottom-2 right-2">
+                      <span className="flex items-center gap-0.5 bg-emerald-600 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                        <Tag className="h-2.5 w-2.5" />${(listing.price / 100).toFixed(2)}
+                      </span>
+                    </div>
+                    {/* Already wishlisted overlay */}
+                    {isWishlisted && (
+                      <div className="absolute inset-0 bg-emerald-900/30 flex items-center justify-center">
+                        <CheckCircle2 className="h-8 w-8 text-emerald-400 drop-shadow" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info + actions */}
+                  <div className="p-2 flex flex-col gap-1.5 flex-1">
+                    <p className="text-[11px] font-semibold truncate leading-tight">{listing.card.name}</p>
+                    {listing.card.setName && (
+                      <p className="text-[10px] text-muted-foreground truncate">{listing.card.setName}{listing.card.cardNumber ? ` · #${listing.card.cardNumber}` : ""}</p>
+                    )}
+
+                    <div className="flex gap-1 mt-auto">
+                      <Link href={`/marketplace/${listing.id}`} className="flex-1">
+                        <button className="w-full text-[10px] font-medium h-6 rounded-md border hover:bg-muted transition-colors px-1">
+                          View
+                        </button>
+                      </Link>
+                      <button
+                        onClick={() => handleAddToWishlist(listing)}
+                        disabled={isWishlisted || !canWishlist || addWishlist.isPending}
+                        title={!canWishlist ? "No catalog link — can't wishlist" : isWishlisted ? "Already in wishlist" : "Add to wishlist"}
+                        className="flex-1 flex items-center justify-center gap-1 text-[10px] font-medium h-6 rounded-md bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Heart className={`h-3 w-3 ${isWishlisted ? "fill-rose-500" : ""}`} />
+                        {isWishlisted ? "Wishlisted" : "Wishlist"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── CardLightbox ─────────────────────────────────────────────────────────────
@@ -657,7 +812,7 @@ export default function DeckDetail() {
                   <DialogTitle>Add a card</DialogTitle>
                 </DialogHeader>
                 <Tabs defaultValue="owned" className="flex flex-col flex-1 min-h-0">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="owned" className="gap-1.5">
                       <Layers className="h-3.5 w-3.5" /> Owned
                     </TabsTrigger>
@@ -666,6 +821,9 @@ export default function DeckDetail() {
                     </TabsTrigger>
                     <TabsTrigger value="wishlist" className="gap-1.5">
                       <Heart className="h-3.5 w-3.5" /> Wishlist
+                    </TabsTrigger>
+                    <TabsTrigger value="marketplace" className="gap-1.5">
+                      <Store className="h-3.5 w-3.5" /> Market
                     </TabsTrigger>
                   </TabsList>
 
@@ -714,6 +872,10 @@ export default function DeckDetail() {
                         </div>
                       )}
                     </div>
+                  </TabsContent>
+
+                  <TabsContent value="marketplace" className="mt-3 flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden">
+                    <MarketplaceSearchTab onWishlistAdded={invalidateDeck} />
                   </TabsContent>
                 </Tabs>
               </DialogContent>
