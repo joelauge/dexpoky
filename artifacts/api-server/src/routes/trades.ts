@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createHmac } from "crypto";
+import { createHmac, randomInt } from "crypto";
 import { db, dmThreadsTable, tradeOffersTable, cardsTable, usersTable, tradePaymentsTable } from "@workspace/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
@@ -424,7 +424,7 @@ router.post("/threads/:threadId/offer/store-pin", requireAuth, async (req, res) 
     res.status(400).json({ error: "Exchange method not yet confirmed by seller" }); return;
   }
 
-  const pin = String(Math.floor(100000 + Math.random() * 900000));
+  const pin = String(randomInt(100000, 1000000));
   const secret = process.env.SESSION_SECRET;
   if (!secret) { res.status(500).json({ error: "Server misconfiguration: SESSION_SECRET not set" }); return; }
   const hash = createHmac("sha256", secret).update(pin).digest("hex");
