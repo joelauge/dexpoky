@@ -265,7 +265,8 @@ router.post("/threads/:threadId/payment/store-meetup", requireAuth, async (req: 
     res.status(400).json({ error: "PIN has expired — ask the seller to generate a new one" }); return;
   }
 
-  const secret = process.env.SESSION_SECRET ?? "fallback-secret";
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) { res.status(500).json({ error: "Server misconfiguration: SESSION_SECRET not set" }); return; }
   const expectedHash = createHmac("sha256", secret).update(parsed.data.pin).digest("hex");
   if (expectedHash !== offer.storeMeetupPinHash) {
     res.status(400).json({ error: "Incorrect PIN — double-check with the seller" }); return;

@@ -1,9 +1,12 @@
 import { Router } from "express";
 import { createHmac } from "crypto";
-import { db, dmThreadsTable, tradeOffersTable, cardsTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { db, dmThreadsTable, tradeOffersTable, cardsTable, usersTable, tradePaymentsTable } from "@workspace/db";
+import { eq, inArray, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
+import { getUncachableStripeClient } from "../stripeClient.js";
+import { stripeService } from "../stripeService.js";
 import { z } from "zod";
+import type { Request, Response } from "express";
 import type { OfferHistoryEntry, OfferedCard } from "@workspace/db";
 
 const router = Router();
@@ -23,6 +26,7 @@ const UpdateOfferBody = z.object({
     "reject_exchange",
     "schedule_meetup",
     "cancel_meetup",
+    "confirm_store_meetup",
   ]),
   scheduledAt: z.string().optional(),
   notes: z.string().max(500).optional(),
@@ -30,7 +34,16 @@ const UpdateOfferBody = z.object({
   cards: z.array(OfferedCardRef).max(10).optional(),
   method: z.enum(["store", "psa_vault", "courtyard_nft", "paypal_gs", "escrow_com", "cash_in_person", "dexpoky_pay"]).optional(),
   location: z.string().max(300).optional(),
+  pin: z.string().length(6).optional(),
 });
+
+const PLATFORM_FEE_RATE = 0.03;
+
+function agreedAmountCents(offer: typeof tradeOffersTable.$inferSelect): number {
+  const raw = offer.offerAmount ?? offer.askingPrice;
+  if (!raw) return 0;
+  return Math.round(parseFloat(String(raw)) * 100);
+}
 
 async function getThread(threadId: number, userId: string) {
   const [thread] = await db
@@ -262,6 +275,115 @@ router.patch("/threads/:threadId/offer", requireAuth, async (req, res) => {
     updates.exchangeMethod = null;
     updates.exchangeMethodProposedBy = null;
     updates.exchangeMethodConfirmedBySeller = false;
+
+  } else if (action === "confirm_store_meetup") {
+    if (!isBuyer) {
+      res.status(403).json({ error: "Only the buyer can confirm in-person payment" }); return;
+    }
+    if (existing.status !== "accepted") {
+      res.status(400).json({ error: "Offer is not accepted yet" }); return;
+    }
+    if (existing.exchangeMethod !== "store") {
+      res.status(400).json({ error: "Exchange method is not Meet at Card Shop" }); return;
+    }
+    if (!existing.exchangeMethodConfirmedBySeller) {
+      res.status(400).json({ error: "Method not confirmed by seller yet" }); return;
+    }
+    if (!parsed.data.pin) {
+      res.status(400).json({ error: "PIN is required" }); return;
+    }
+    if (!existing.storeMeetupPinHash || !existing.storeMeetupPinExpiresAt) {
+      res.status(400).json({ error: "No PIN has been generated yet — ask the seller to generate one" }); return;
+    }
+    if (new Date() > existing.storeMeetupPinExpiresAt) {
+      res.status(400).json({ error: "PIN has expired — ask the seller to generate a new one" }); return;
+    }
+
+    const secret = process.env.SESSION_SECRET;
+    if (!secret) { res.status(500).json({ error: "Server misconfiguration: SESSION_SECRET not set" }); return; }
+    const expectedHash = createHmac("sha256", secret).update(parsed.data.pin).digest("hex");
+    if (expectedHash !== existing.storeMeetupPinHash) {
+      res.status(400).json({ error: "Incorrect PIN — double-check with the seller" }); return;
+    }
+
+    const amountCents = agreedAmountCents(existing);
+    if (amountCents < 50) { res.status(400).json({ error: "Amount too small (min $0.50)" }); return; }
+
+    const [buyer] = await db.select().from(usersTable).where(eq(usersTable.clerkId, userId));
+    if (!buyer) { res.status(404).json({ error: "Buyer account not found" }); return; }
+
+    const feeCents = Math.round(amountCents * PLATFORM_FEE_RATE);
+    const netCents = amountCents - feeCents;
+    const payeeClerkId = thread.sellerClerkId;
+
+    if ((buyer.walletBalanceCents ?? 0) >= amountCents) {
+      // Wallet payment — do it in a transaction and return paid offer
+      await db.transaction(async (tx) => {
+        await tx.update(usersTable)
+          .set({ walletBalanceCents: sql`${usersTable.walletBalanceCents} - ${amountCents}` })
+          .where(eq(usersTable.clerkId, userId));
+
+        await tx.insert(tradePaymentsTable).values({
+          tradeOfferId: existing.id,
+          payerClerkId: userId,
+          payeeClerkId,
+          amountCents,
+          feeCents,
+          status: "completed",
+          paymentMethod: "wallet",
+        });
+
+        await tx.update(tradeOffersTable)
+          .set({ status: "paid", storeMeetupPinHash: null, storeMeetupPinExpiresAt: null, updatedAt: new Date() })
+          .where(eq(tradeOffersTable.id, existing.id));
+
+        await tx.update(usersTable)
+          .set({ walletBalanceCents: sql`${usersTable.walletBalanceCents} + ${netCents}` })
+          .where(eq(usersTable.clerkId, payeeClerkId));
+      });
+
+      const [paid] = await db.select().from(tradeOffersTable).where(eq(tradeOffersTable.id, existing.id));
+      res.json(serializeOffer(paid, "buyer"));
+      return;
+    } else {
+      // Insufficient wallet — create Stripe session, clear PIN, return checkoutUrl
+      const [user] = await db.select().from(usersTable).where(eq(usersTable.clerkId, userId));
+      const email = user?.email ?? `${userId}@dexpoky.user`;
+      const customerId = await stripeService.getOrCreateCustomer(userId, email);
+      const stripe = await getUncachableStripeClient();
+      const origin = `${(req as Request).protocol}://${(req as Request).get("host")}`;
+
+      await db.update(tradeOffersTable)
+        .set({ storeMeetupPinHash: null, storeMeetupPinExpiresAt: null, updatedAt: new Date() })
+        .where(eq(tradeOffersTable.id, existing.id));
+
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ["card"],
+        line_items: [{
+          price_data: {
+            currency: "usd",
+            product_data: { name: `DexPoky In-Store Payment — Thread #${threadId}` },
+            unit_amount: amountCents,
+          },
+          quantity: 1,
+        }],
+        mode: "payment",
+        success_url: `${origin}/api/threads/${threadId}/payment/store-meetup/confirm?session_id={CHECKOUT_SESSION_ID}&clerk_id=${userId}`,
+        cancel_url: `${origin}/inbox?thread=${threadId}`,
+        metadata: {
+          clerkId: userId,
+          threadId: String(threadId),
+          tradeOfferId: String(existing.id),
+          amountCents: String(amountCents),
+          payeeClerkId,
+          type: "store_meetup_payment",
+        },
+      });
+
+      res.json({ checkoutUrl: session.url });
+      return;
+    }
   }
 
   const [updated] = await db
@@ -303,7 +425,8 @@ router.post("/threads/:threadId/offer/store-pin", requireAuth, async (req, res) 
   }
 
   const pin = String(Math.floor(100000 + Math.random() * 900000));
-  const secret = process.env.SESSION_SECRET ?? "fallback-secret";
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) { res.status(500).json({ error: "Server misconfiguration: SESSION_SECRET not set" }); return; }
   const hash = createHmac("sha256", secret).update(pin).digest("hex");
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 

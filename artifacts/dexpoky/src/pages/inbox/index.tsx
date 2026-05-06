@@ -365,10 +365,10 @@ function TradeThread({
     setShopPinError(null);
     setShopPaying(true);
     try {
-      const res = await authFetch(`/api/threads/${thread.id}/payment/store-meetup`, {
-        method: "POST",
+      const res = await authFetch(`/api/threads/${thread.id}/offer`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: shopPin }),
+        body: JSON.stringify({ action: "confirm_store_meetup", pin: shopPin }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -382,7 +382,7 @@ function TradeThread({
       }
       toast.success("Payment sent! Funds are on the way to the seller.");
       setShopPin("");
-      await fetchOffer();
+      setOffer(json);
     } catch {
       toast.error("Something went wrong");
     } finally {
