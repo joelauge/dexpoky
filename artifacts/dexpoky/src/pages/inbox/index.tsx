@@ -1511,11 +1511,12 @@ export default function InboxPage() {
           style={{ height: showChat && activeThread ? "calc(100dvh - 4rem - 4rem)" : "calc(100vh - 200px)", minHeight: 520 }}
         >
           <div
-            className="grid h-full"
-            style={{
-              gridTemplateColumns:
-                showChat && activeThread ? "300px 1fr" : "1fr",
-            }}
+            className={cn(
+              "grid h-full",
+              showChat && activeThread
+                ? "grid-cols-1 sm:grid-cols-[300px_1fr]"
+                : "grid-cols-1",
+            )}
           >
             {/* Thread list */}
             <div
