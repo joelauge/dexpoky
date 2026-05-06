@@ -68,6 +68,8 @@ interface TradeOffer {
   meetupLocation: string | null;
   meetupProposedAt: string | null;
   meetupNotes: string | null;
+  storeMeetupPinActive: boolean;
+  storeMeetupPinExpiresAt: string | null;
   createdAt: string;
   updatedAt: string;
   role: "buyer" | "seller";
@@ -244,6 +246,12 @@ function TradeThread({
   const [offer, setOffer] = useState<TradeOffer | null | undefined>(undefined);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [paying, setPaying] = useState(false);
+  const [shopPaying, setShopPaying] = useState(false);
+  const [shopPin, setShopPin] = useState("");
+  const [shopPinError, setShopPinError] = useState<string | null>(null);
+  const [generatedPin, setGeneratedPin] = useState<string | null>(null);
+  const [generatedPinExpiresAt, setGeneratedPinExpiresAt] = useState<Date | null>(null);
+  const [pinCountdown, setPinCountdown] = useState(0);
   const [updating, setUpdating] = useState(false);
   const [selectedCards, setSelectedCards] = useState<OfferedCard[]>([]);
   const [showCardPicker, setShowCardPicker] = useState(false);
@@ -276,15 +284,30 @@ function TradeThread({
     return () => clearInterval(interval);
   }, [fetchOffer]);
 
-  // ── Wallet balance (fetch when dexpoky_pay confirmed for buyer) ──────────
+  // ── Wallet balance (fetch when dexpoky_pay or store meetup confirmed for buyer) ───
   useEffect(() => {
-    if (offer?.status === "accepted" && offer.exchangeMethod === "dexpoky_pay" && offer.exchangeMethodConfirmedBySeller && offer.role === "buyer") {
+    const needsWallet =
+      offer?.status === "accepted" &&
+      offer.exchangeMethodConfirmedBySeller &&
+      offer.role === "buyer" &&
+      (offer.exchangeMethod === "dexpoky_pay" || offer.exchangeMethod === "store");
+    if (needsWallet) {
       authFetch("/api/wallet/balance")
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d != null) setWalletBalance(d.balanceCents ?? 0); })
         .catch(() => {});
     }
-  }, [offer?.status, offer?.exchangeMethod, offer?.role, authFetch]);
+  }, [offer?.status, offer?.exchangeMethod, offer?.role, offer?.exchangeMethodConfirmedBySeller, authFetch]);
+
+  // ── PIN countdown timer ───────────────────────────────────────────────────
+  useEffect(() => {
+    const expiresAt = generatedPinExpiresAt ?? (offer?.storeMeetupPinExpiresAt ? new Date(offer.storeMeetupPinExpiresAt) : null);
+    if (!expiresAt) { setPinCountdown(0); return; }
+    const tick = () => setPinCountdown(Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [generatedPinExpiresAt, offer?.storeMeetupPinExpiresAt]);
 
   // ── Payment ───────────────────────────────────────────────────────────────
   const handleCardPayment = async () => {
@@ -319,6 +342,51 @@ function TradeThread({
       toast.error("Something went wrong");
     } finally {
       setPaying(false);
+    }
+  };
+
+  // ── Store meetup PIN handlers ──────────────────────────────────────────────
+  const handleGeneratePin = async () => {
+    setShopPinError(null);
+    try {
+      const res = await authFetch(`/api/threads/${thread.id}/offer/store-pin`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) { toast.error(json.error ?? "Could not generate PIN"); return; }
+      setGeneratedPin(json.pin);
+      setGeneratedPinExpiresAt(new Date(json.expiresAt));
+      await fetchOffer();
+    } catch {
+      toast.error("Something went wrong");
+    }
+  };
+
+  const handleStoreMeetupPay = async () => {
+    if (shopPin.length !== 6) { setShopPinError("Enter the 6-digit PIN from the seller"); return; }
+    setShopPinError(null);
+    setShopPaying(true);
+    try {
+      const res = await authFetch(`/api/threads/${thread.id}/payment/store-meetup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: shopPin }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setShopPinError(json.error ?? "Payment failed");
+        setShopPaying(false);
+        return;
+      }
+      if (json.checkoutUrl) {
+        window.location.href = json.checkoutUrl;
+        return;
+      }
+      toast.success("Payment sent! Funds are on the way to the seller.");
+      setShopPin("");
+      await fetchOffer();
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setShopPaying(false);
     }
   };
 
@@ -1127,8 +1195,121 @@ out center 25;`;
           </div>
         )}
 
-        {/* ── Escrow confirmed pill (non-dexpoky_pay methods, both confirmed) ── */}
-        {(offer?.status === "accepted" || offer?.status === "paid") && offer.exchangeMethod && offer.exchangeMethod !== "dexpoky_pay" && offer.exchangeMethodConfirmedBySeller && (() => {
+        {/* ── Meet at Card Shop PIN panel ────────────────────────────────── */}
+        {offer?.status === "accepted" && offer.exchangeMethod === "store" && offer.exchangeMethodConfirmedBySeller && (() => {
+          const agreedAmount = offer.offerAmount ?? offer.askingPrice ?? 0;
+          const amountCents = Math.round(agreedAmount * 100);
+          const isBuyer = offer.role === "buyer";
+          const pinIsActive = offer.storeMeetupPinActive || (!!generatedPin && pinCountdown > 0);
+          const hasWallet = walletBalance !== null && walletBalance >= amountCents;
+
+          const formatCountdown = (secs: number) => {
+            const m = Math.floor(secs / 60);
+            const s = secs % 60;
+            return `${m}:${String(s).padStart(2, "0")}`;
+          };
+
+          return (
+            <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-b from-blue-50 to-white p-4 space-y-3 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                  <Store className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm text-blue-800">Meet at Card Shop — ${agreedAmount.toFixed(2)}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">
+                    {isBuyer
+                      ? "Enter the 6-digit PIN shown on the seller's screen to confirm you're both in the shop."
+                      : "Generate a one-time PIN and show it to the buyer to trigger payment."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Seller view */}
+              {!isBuyer && (
+                <div className="space-y-2">
+                  {generatedPin && pinCountdown > 0 ? (
+                    <div className="bg-white border-2 border-blue-300 rounded-xl p-3 text-center space-y-1">
+                      <p className="text-[11px] text-blue-500 font-medium uppercase tracking-wider">One-time PIN</p>
+                      <p className="text-4xl font-mono font-bold tracking-[0.25em] text-blue-800">{generatedPin}</p>
+                      <p className="text-xs text-blue-500">
+                        Expires in <span className={cn("font-semibold tabular-nums", pinCountdown < 60 ? "text-red-500" : "text-blue-700")}>{formatCountdown(pinCountdown)}</span>
+                      </p>
+                    </div>
+                  ) : pinIsActive && !generatedPin ? (
+                    <div className="bg-white border border-blue-200 rounded-xl p-3 text-center space-y-1">
+                      <p className="text-xs text-blue-600">A PIN is active</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Expires in <span className="font-semibold tabular-nums">{formatCountdown(pinCountdown)}</span>
+                      </p>
+                    </div>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                    onClick={handleGeneratePin}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    {generatedPin || pinIsActive ? "Regenerate PIN" : "Generate PIN"}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground text-center">PIN is valid for 10 minutes. Both devices must be present in the shop.</p>
+                </div>
+              )}
+
+              {/* Buyer view */}
+              {isBuyer && (
+                <div className="space-y-2">
+                  {!pinIsActive && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                      Waiting for the seller to generate a PIN…
+                    </div>
+                  )}
+                  {pinIsActive && (
+                    <p className="text-[11px] text-blue-600 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-blue-500" />
+                      PIN is active — expires in <span className={cn("ml-0.5 tabular-nums font-bold", pinCountdown < 60 ? "text-red-500" : "")}>{formatCountdown(pinCountdown)}</span>
+                    </p>
+                  )}
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    pattern="\d{6}"
+                    value={shopPin}
+                    onChange={e => { setShopPin(e.target.value.replace(/\D/g, "").slice(0, 6)); setShopPinError(null); }}
+                    placeholder="Enter 6-digit PIN"
+                    className={cn("h-10 text-center text-xl font-mono tracking-[0.3em]", shopPinError && "border-red-400 focus-visible:ring-red-400")}
+                    disabled={!pinIsActive}
+                  />
+                  {shopPinError && <p className="text-[11px] text-red-500 text-center">{shopPinError}</p>}
+
+                  {/* Wallet info row */}
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                    <span>Wallet balance: {walletBalance !== null ? `$${(walletBalance / 100).toFixed(2)}` : "—"}</span>
+                    {!hasWallet && walletBalance !== null && (
+                      <a href="/wallet" className="text-blue-600 font-semibold hover:underline">Top up →</a>
+                    )}
+                  </div>
+
+                  <Button
+                    size="sm"
+                    className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                    disabled={shopPaying || shopPin.length !== 6}
+                    onClick={handleStoreMeetupPay}
+                  >
+                    {shopPaying ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Store className="h-3.5 w-3.5 mr-1.5" />}
+                    {shopPaying ? "Processing…" : hasWallet ? `Pay $${agreedAmount.toFixed(2)} from Wallet` : `Pay $${agreedAmount.toFixed(2)} with Card`}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground text-center">3% platform fee included. Seller receives ${(agreedAmount * 0.97).toFixed(2)}.</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── Escrow confirmed pill (non-dexpoky_pay, non-store methods, both confirmed) ── */}
+        {(offer?.status === "accepted" || offer?.status === "paid") && offer.exchangeMethod && offer.exchangeMethod !== "dexpoky_pay" && offer.exchangeMethod !== "store" && offer.exchangeMethodConfirmedBySeller && (() => {
           const opt = ESCROW_OPTIONS.find(o => o.id === offer.exchangeMethod);
           if (!opt) return null;
           return (

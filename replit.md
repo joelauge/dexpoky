@@ -1,132 +1,78 @@
-# Workspace
+# DexPoky App
 
-## Overview
+DexPoky is a Pokemon collectible card collection, inventory tracking, and trading marketplace with an auction system.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+## Run & Operate
+
+- `pnpm run typecheck` — Full typecheck across all packages
+- `pnpm run build` — Typecheck + build all packages
+- `pnpm --filter @workspace/api-spec run codegen` — Regenerate API hooks and Zod schemas from OpenAPI spec
+- `pnpm --filter @workspace/db run push` — Push DB schema changes (dev only)
+- `pnpm --filter @workspace/api-server run dev` — Run API server locally
+- **Env Vars**: `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_PUBLISHABLE_KEY`
 
 ## Stack
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
+- **Monorepo**: pnpm workspaces
+- **Node.js**: 24
+- **TypeScript**: 5.9
+- **API Framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (imported as `zod` — NOT `zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
+- **Validation**: Zod, `drizzle-zod`
+- **API Codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
-- **Auth**: Clerk (whitelabel, `@clerk/express` server + `@clerk/react` client)
+- **Auth**: Clerk (`@clerk/express`, `@clerk/react`)
 
-## Key Commands
+## Where things live
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+- `artifacts/dexpoky` — React + Vite frontend (served at `/`)
+- `artifacts/api-server` — Express 5 backend (served at `/api`)
+- `artifacts/api-server/src/data/rulebook.json` — Pokémon TCG rulebook content
+- `lib/api-spec/openapi.yaml` — OpenAPI specification (source of truth for API contracts)
+- `lib/api-zod/src/index.ts` — Generated Zod schemas
+- `lib/api-types/src/index.ts` — Generated API types
+- `artifacts/api-server/src/db/schema.ts` — Drizzle DB schema (source of truth for DB schema)
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+## Architecture decisions
 
-## DexPoky App
+- Clerk whitelabel auth is used with separate client/server configurations, requiring specific Vite and CSS layer setups for theme compatibility.
+- In-app payments integrate with Stripe for top-ups and trade settlements, including a 3% platform fee.
+- "Meet at Card Shop" payment method uses a time-sensitive, hashed PIN for secure in-person transaction confirmation.
+- AI deck builder (powered by OpenAI's `gpt-5.4`) post-filters suggestions based on user-owned cards and includes Pokémon TCG official deck-building rules in its prompt.
+- Original card scans are uploaded to Replit Object Storage via presigned URLs, ensuring image persistence and efficient handling during card creation.
+- Certain new auction/user/rating fields in the DB are not yet reflected in the OpenAPI spec; frontend uses type-casting.
 
-Pokemon collectible card collection, inventory tracking, and trading marketplace with auction system.
+## Product
 
-### Artifacts
-- `artifacts/dexpoky` — React + Vite frontend, served at `/`
-- `artifacts/api-server` — Express 5 backend, served at `/api`
+- **User Authentication**: Sign-in/up via Clerk (Google, email/password).
+- **Card Management**: Collect, track, and categorize Pokémon cards with estimated values. Bulk scanning feature for multiple cards.
+- **Marketplace**: List cards for sale (buy now or auction) or find cards via "Looking For" listings.
+- **Trading**: P2P trading inbox with rich offer history, counter-offers, and various exchange methods (including in-app payments, in-person meetups, and external services).
+- **Auctions**: Proxy bidding, auto-extensions, reserve prices, and buy-it-now options.
+- **Decks**: AI-powered deck builder that suggests decks from owned cards, adhering to TCG rules.
+- **User Profiles**: Customizable profiles with username, bio, seller details, and avatar.
+- **Ratings**: Buyer-to-seller and seller-to-buyer ratings after completed transactions.
+- **Wallet**: In-app wallet with balance, top-up functionality via Stripe, and payment processing for trades.
+- **Rulebook**: Integrated Pokémon TCG rulebook with search functionality, accessible in-app and during deck building.
+- **Image Storage**: Secure storage and serving of card images and original scan data.
 
-### Auth (Clerk)
-- Whitelabel Clerk auth provisioned via `setupClerkWhitelabelAuth()`
-- `VITE_CLERK_PUBLISHABLE_KEY` and `CLERK_PUBLISHABLE_KEY` set as env vars
-- Server: `clerkMiddleware` + `clerkProxyMiddleware` in `app.ts` (proxy no-ops in dev)
-- Client: `ClerkProvider` wraps the app inside `WouterRouter`; uses `import.meta.env.VITE_CLERK_PUBLISHABLE_KEY` directly (do NOT use `publishableKeyFromHost` on client — it misidentifies Replit dev domains)
-- CSS layers: `@layer theme, base, clerk, components, utilities` must appear before `@import "tailwindcss"` in `index.css`
-- Vite: `tailwindcss({ optimize: false })` required for Clerk theme CSS compatibility
-- `requireAuth` middleware in `artifacts/api-server/src/middlewares/requireAuth.ts` for protected routes
-- `Show` component from `@clerk/react` used for conditional auth rendering
+## User preferences
 
-### Features
-- **P2P Trading Inbox** (`/inbox`): Full trade-negotiation thread view. Offer history displayed as chronological chat bubbles (left/right by sender). Each round of counter-offers persisted in `trade_offers.offerHistory[]`. Accept/Counter/Decline buttons appear inline on the latest offer bubble only when it's the viewer's turn. Video call and local meetup can be proposed at any point via quick-action chips in the bottom bar; events appear as centered info cards in the thread. **Bilateral payment method agreement**: upon deal acceptance, buyer taps "Pay Now" chip → selects from 7 options (Pay with DexPoky, Meet at Card Shop, Escrow.com, PayPal G&S, Cash in Person, PSA Vault, Courtyard NFT) → proposal appears as a centered event card in the thread → seller sees Confirm/Decline → once confirmed, DexPoky Pay panel or method-confirmed pill unlocks. DB columns: `exchangeMethodProposedBy`, `exchangeMethodConfirmedBySeller`. Backend actions: `set_exchange` (buyer only), `confirm_exchange` (seller only), `reject_exchange` (seller only). All offer API calls use `useAuthFetch` for proper Bearer-token auth. **Card offers**: either party can include cards from their collection in any counter-offer (in addition to or instead of cash). `OfferHistoryEntry` has `cards?: OfferedCard[]`; backend validates ownership via `cardsTable`, snapshots card metadata into the history JSON. Offer bubbles render a thumbnail strip of included cards. The offer panel has an inline card picker (searchable grid from `useListCards`), selected-card previews with remove-on-hover, and a dynamic "Send Offer — $X + N cards" button.
-- **In-App Payments & Wallet** (`/wallet`): Users have a wallet with a balance in cents (`users.wallet_balance_cents`). Top up via Stripe Checkout in fixed amounts ($10/$25/$50/$100). When a trade uses "Pay with DexPoky" exchange method, the buyer sees two pay options: instant wallet deduction or Stripe Checkout card payment. 3% platform fee; seller credited 97% net to their wallet. Trade offer transitions to status "paid" after payment. New `trade_payments` table tracks all transactions. Routes: `GET/POST /api/wallet/balance`, `POST /api/wallet/topup`, `GET /api/wallet/topup/confirm`, `POST /api/threads/:id/payment/checkout`, `GET /api/threads/:id/payment/confirm`, `POST /api/threads/:id/payment/wallet`.
-- **Looking For marketplace section**: Two-sided discovery feature. `POST /api/wanted` (auth required) lets users broadcast cards they want; `GET /api/wanted` is public. New `wanted_listings` table in DB. Share page (`/share`) has mode toggle — "Sell Cards" vs "Looking For" (catalog search → budget/notes → confirmation). Marketplace shows "Looking For" grid below Active Listings with owner avatar, max price badge, and contact dialog.
-- Card collection with camera scanning (getUserMedia API)
-- **Bulk scan** (`/scan/bulk`): capture up to 25 cards, parallel background detection, review screen, Save All. Entries with zero TCG variants are marked `no_card` (not `ready`) so saveAll cannot silently no-op them. saveAll catch logs full ApiError details (status/body/sentBody) and surfaces first error in toast.
-- Pokemon name search via PokeAPI
-- Inventory tracking with estimated values
-- Category management
-- Marketplace for listing and trading cards (buy now + auction); seller inline edit panel on listing detail page — edit description, pricing, photos (up to 10), and video (MP4/WebM/MOV, up to 200 MB); auction pricing changes with active bids require confirmation modal
-- **Auction system**: proxy bidding, 5-min auto-extension, reserve prices, buy-it-now price on auctions
-- **User profiles**: username (required on signup — gate modal enforces it; editable once per 30 days), bio, seller details (gated to qualifying bidders), avatar via Clerk
-- **Ratings**: buyer-to-seller and seller-to-buyer ratings, only after completed transactions (status=sold)
-- Dashboard with portfolio stats and Recharts bar chart
-- **Image upload**: `CardImageUpload` component on edit and new card forms; presigned-URL upload to GCS via Replit Object Storage; served at `/api/storage/objects/*`
-- **Original Scan storage**: scanned camera frames from `/scan` and `/scan/bulk` are uploaded to Object Storage (helper at `artifacts/dexpoky/src/lib/upload-scan.ts` — base64 dataURL → Blob → presigned PUT) and persisted to `cards.original_scan_url`. Single scan kicks off the upload in parallel with TCG identify and the "Add to Collection" button awaits the in-flight upload (max 4s) before navigating, with a small spinner. Bulk scan fires the upload per-capture, stores the resulting URL on the `BulkEntry`, and `saveAll` includes it in `createCard` body. Card detail page (`/collection/:id`) shows an "Original Scan" section under the left column (below Notes) with a 5:7 thumbnail and Dialog lightbox.
-- **Card Story**: optional acquisition story per card, stored at `cards.card_story` and exposed as `cardStory` in the API. Inline-editable on the Card Detail page (`/collection/:id`) — textarea (max 2000 chars) with a contextual Save/Cancel that only appears when the local draft differs from the saved value. Uses `useUpdateCard` and invalidates `["/api/cards", id]` + `["/api/cards"]` on success. Field is also wired through `CreateCardBody` and `UpdateCardBody`, so the existing `/collection/:id/edit` form will accept it if/when added there.
-- **Decks (AI deck builder)**: build decks from owned cards. Pages at `/decks`, `/decks/new`, `/decks/:id`. Server route `artifacts/api-server/src/routes/decks.ts` with full CRUD plus `POST /api/decks/suggest` that calls OpenAI (`gpt-5.4`, `response_format: json_object`) and post-filters AI-suggested `cardId`s to ones the user actually owns. `POST /api/decks` accepts either legacy `cardIds: number[]` or rich `cards: [{cardId, count, role, notes}]` (preferred — preserves AI counts/roles, count clamped 1–4). Tables: `decksTable` + `deckCardsTable` with unique `(deck_id, card_id)` index and cascade delete. Deck detail page must use the same query key for fetch + invalidations: `[\`/api/decks/${id}\`]`.
+_Populate as you build_
 
-### Database Tables
-- `categories` — Card categories with name, description, color
-- `cards` — Pokemon cards with rarity, condition, value, category
-- `listings` — Marketplace listings with price, status, listing_type (buy_now|auction), seller_clerk_id, auction fields (start_bid, reserve_price, current_bid, current_bidder_clerk_id, auction_end_time, min_bid_increment, buy_now_price)
-- `users` — User profiles (clerk_id, username, bio, avatar_url, seller_details, wallet_balance_cents, username_changed_at)
-- `trade_payments` — P2P trade payment records (trade_offer_id, payer_clerk_id, payee_clerk_id, amount_cents, fee_cents, status, payment_method [card|wallet], stripe_session_id)
-- `ratings` — Buyer/seller ratings (rater_clerk_id, rated_clerk_id, listing_id, score 1-5, comment, type)
-- `auction_bids` — All bids (listing_id, bidder_clerk_id, amount, max_amount for proxy bidding)
-- `seller_payouts` — Seller earnings ledger (kind: sale_credit | payout_request, amount_cents, status, listing_id, stripe_session_id, payout_method, payout_destination)
-- `users.payout_method` + `users.payout_destination` — saved payout destination (paypal | stripe | bank)
+## Gotchas
 
-### Object Storage
-- Bucket provisioned via `setupObjectStorage()`
-- Server templates: `artifacts/api-server/src/lib/objectStorage.ts`, `objectAcl.ts`, `routes/storage.ts`
-- Routes: `POST /api/storage/uploads/request-url` (get presigned URL), `GET /api/storage/objects/*` (serve uploads)
-- Client component: `artifacts/dexpoky/src/components/card-image-upload.tsx` — card-shaped uploader with XHR progress, preview, replace/remove
-- Upload flow: POST metadata → get presigned URL → PUT file directly to GCS → store objectPath in DB
+- `pnpm --filter @workspace/api-spec run codegen` may cause `typecheck:libs` to fail due to pre-existing errors in `lib/integrations-openai-ai-server`; this is non-blocking for `api-server` and `dexpoky`. Verify with `pnpm --filter @workspace/dexpoky exec tsc --noEmit`.
+- `lib/api-zod/src/index.ts` must *only* export from `./generated/api`.
+- When using Clerk on the client, do not use `publishableKeyFromHost` as it misidentifies Replit dev domains.
+- `tailwindcss({ optimize: false })` is required for Clerk theme CSS compatibility in Vite.
+- Ensure `@layer theme, base, clerk, components, utilities` appears before `@import "tailwindcss"` in `index.css`.
 
-### API Routes (all at `/api`)
-- `GET/POST /cards` — list and create cards
-- `GET/PUT/DELETE /cards/:id` — card CRUD
-- `GET/POST /categories` — list and create categories
-- `GET/PUT/DELETE /categories/:id` — category CRUD
-- `GET/POST /marketplace` — list and create marketplace listings (buy_now or auction)
-- `GET/PUT/DELETE /marketplace/:id` — listing CRUD
-- `GET/POST /marketplace/:id/bids` — auction bids (POST requires auth; handles proxy bidding + auto-extension)
-- `GET /users/me` — get own profile (auth required; auto-creates if first visit)
-- `PUT /users/me` — update own profile (auth required)
-- `GET /users/:clerkId` — public seller profile (seller_details hidden unless requester has bid)
-- `POST /marketplace/:id/checkout` — create Stripe Checkout session for Buy Now (auth)
-- `POST /marketplace/:id/confirm-purchase` — verify Stripe session, mark sold, credit seller 90% (auth)
-- `GET /users/me/earnings` — seller balance + ledger history (auth)
-- `PUT /users/me/payout-method` — set paypal/stripe/bank destination (auth)
-- `POST /users/me/payouts/request` — request a payout from available balance (auth)
-- `GET /ratings/user/:clerkId` — get all ratings for a user
-- `POST /ratings` — submit rating (auth required; listing must be status=sold)
-- `GET /inventory/stats` — portfolio summary stats
-- `GET /inventory/value-by-category` — value breakdown by category
-- `GET /inventory/recent-activity` — recently added cards
-- `GET /pokemon/search` — search Pokemon from PokeAPI
+## Pointers
 
-### Frontend Routes
-- `/` — Dashboard
-- `/collection` — Card collection list
-- `/collection/new` — Add new card
-- `/collection/:id` — Card detail
-- `/categories` — Categories
-- `/marketplace` — Marketplace listing grid (auction badges, live/ended state)
-- `/marketplace/:id` — Listing detail (auction UI with countdown, bid form, bid history, rating form)
-- `/sell` — Sell flow: card select → listing type (buy_now|auction) → details
-- `/scan` — Camera card scanner
-- `/sign-in/*` — Clerk sign-in (Google + email/password)
-- `/sign-up/*` — Clerk sign-up
-- `/profile` — Own profile (edit bio, seller details, view ratings)
-- `/seller/:clerkId` — Public seller profile (bio, ratings, contact if bid placed)
-- `/rules` — Public Pokémon TCG rulebook viewer with full-text search + accordion sections + glossary
-
-### Rulebook
-The official Pokémon TCG rulebook (Scarlet & Violet — Paradox Rift) is curated into `artifacts/api-server/src/data/rulebook.json` (50+ sections, 65+ glossary entries) and exposed via `GET /api/rules` and `GET /api/rules/search?q=...` (ranked title+paragraph+glossary search). The same `RulebookContent` component is rendered both on `/rules` and inside a Sheet drawer (`RulesSheet`) wired into the deck pages so deck-builders can reference the rules in context. The AI deck-suggestion prompt in `artifacts/api-server/src/routes/decks.ts` is enriched with the official deck-building rules (60 cards, max 4 same-name except Basic Energy, ≥1 Basic, energy/trainer ratio guidance).
-
-### Codegen Note
-After changes to `lib/api-spec/openapi.yaml`, run `pnpm --filter @workspace/api-spec run codegen`. The chained `typecheck:libs` step may fail due to pre-existing errors in `lib/integrations-openai-ai-server` — that is non-blocking for the api-server (which uses esbuild) and dexpoky (which uses vite + tsc --noEmit). Verify with `pnpm --filter @workspace/dexpoky exec tsc --noEmit`.
-
-`lib/api-zod/src/index.ts` should only export from `./generated/api` — orval's zod split mode produces a single `api.ts`, so any `./generated/api.schemas` re-export will fail to compile.
-
-New auction/user/rating fields were added to the DB without updating the OpenAPI spec. The frontend uses type-casting (`listing as AuctionListing`) for these extended fields. Future work: update spec and regenerate hooks.
+- **Clerk Documentation**: [https://clerk.com/docs](https://clerk.com/docs)
+- **Drizzle ORM Documentation**: [https://orm.drizzle.team/docs](https://orm.drizzle.team/docs)
+- **Zod Documentation**: [https://zod.dev/](https://zod.dev/)
+- **Orval Documentation**: [https://orval.dev/](https://orval.dev/)
+- **pnpm Workspaces**: See the `pnpm-workspace` skill documentation.
+- **Replit Object Storage**: [https://docs.replit.com/misc/object-storage](https://docs.replit.com/misc/object-storage)

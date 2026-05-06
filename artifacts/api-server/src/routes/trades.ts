@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHmac } from "crypto";
 import { db, dmThreadsTable, tradeOffersTable, cardsTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
@@ -42,11 +43,20 @@ async function getThread(threadId: number, userId: string) {
 }
 
 function serializeOffer(offer: typeof tradeOffersTable.$inferSelect, role: "buyer" | "seller") {
+  const now = new Date();
+  const pinActive =
+    !!offer.storeMeetupPinHash &&
+    !!offer.storeMeetupPinExpiresAt &&
+    offer.storeMeetupPinExpiresAt > now;
+
+  const { storeMeetupPinHash: _hash, ...rest } = offer;
   return {
-    ...offer,
+    ...rest,
     askingPrice: offer.askingPrice != null ? parseFloat(String(offer.askingPrice)) : null,
     offerAmount: offer.offerAmount != null ? parseFloat(String(offer.offerAmount)) : null,
     offerHistory: (offer.offerHistory as OfferHistoryEntry[] | null) ?? [],
+    storeMeetupPinActive: pinActive,
+    storeMeetupPinExpiresAt: pinActive ? offer.storeMeetupPinExpiresAt!.toISOString() : null,
     role,
   };
 }
@@ -262,6 +272,47 @@ router.patch("/threads/:threadId/offer", requireAuth, async (req, res) => {
 
   const role = isBuyer ? "buyer" : "seller";
   res.json(serializeOffer(updated, role));
+});
+
+router.post("/threads/:threadId/offer/store-pin", requireAuth, async (req, res) => {
+  const threadId = parseInt(String(req.params.threadId), 10);
+  if (isNaN(threadId)) { res.status(400).json({ error: "Invalid threadId" }); return; }
+
+  const userId = (req as AuthRequest).userId;
+  const thread = await getThread(threadId, userId);
+  if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
+
+  if (thread.buyerClerkId === userId) {
+    res.status(403).json({ error: "Only the seller can generate a PIN" }); return;
+  }
+
+  const [offer] = await db
+    .select()
+    .from(tradeOffersTable)
+    .where(eq(tradeOffersTable.threadId, threadId));
+
+  if (!offer) { res.status(404).json({ error: "No offer found" }); return; }
+  if (offer.status !== "accepted") {
+    res.status(400).json({ error: "Offer must be accepted before generating a PIN" }); return;
+  }
+  if (offer.exchangeMethod !== "store") {
+    res.status(400).json({ error: "Exchange method must be Meet at Card Shop" }); return;
+  }
+  if (!offer.exchangeMethodConfirmedBySeller) {
+    res.status(400).json({ error: "Exchange method not yet confirmed by seller" }); return;
+  }
+
+  const pin = String(Math.floor(100000 + Math.random() * 900000));
+  const secret = process.env.SESSION_SECRET ?? "fallback-secret";
+  const hash = createHmac("sha256", secret).update(pin).digest("hex");
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  await db
+    .update(tradeOffersTable)
+    .set({ storeMeetupPinHash: hash, storeMeetupPinExpiresAt: expiresAt, updatedAt: new Date() })
+    .where(eq(tradeOffersTable.id, offer.id));
+
+  res.json({ pin, expiresAt: expiresAt.toISOString() });
 });
 
 export default router;

@@ -41,6 +41,8 @@ export const tradeOffersTable = pgTable("trade_offers", {
   meetupLocation: text("meetup_location"),
   meetupProposedAt: timestamp("meetup_proposed_at", { withTimezone: true }),
   meetupNotes: text("meetup_notes"),
+  storeMeetupPinHash: text("store_meetup_pin_hash"),
+  storeMeetupPinExpiresAt: timestamp("store_meetup_pin_expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
