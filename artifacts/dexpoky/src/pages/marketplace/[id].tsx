@@ -1069,8 +1069,14 @@ export default function ListingDetail() {
                         return (
                           <>
                             <span className="font-medium text-foreground">{bc} bidder{bc !== 1 ? "s have" : " has"} already placed bid{bc !== 1 ? "s" : ""}</span> on this auction.{" "}
-                            {newStart !== undefined && oldStart !== undefined && (
-                              <>You're changing the starting bid from <strong>{formatCurrency(oldStart)}</strong> to <strong>{formatCurrency(newStart)}</strong>. </>
+                            {newStart !== undefined && oldStart !== undefined && newStart !== oldStart && (
+                              <>Starting bid: <strong>{formatCurrency(oldStart)}</strong> → <strong>{formatCurrency(newStart)}</strong>. </>
+                            )}
+                            {pendingEditBody?.reservePrice !== undefined && extListing?.reservePrice !== (pendingEditBody.reservePrice as number | null) && (
+                              <>Reserve: <strong>{extListing?.reservePrice ? formatCurrency(extListing.reservePrice) : "none"}</strong> → <strong>{pendingEditBody.reservePrice !== null ? formatCurrency(pendingEditBody.reservePrice as number) : "none"}</strong>. </>
+                            )}
+                            {pendingEditBody?.buyNowPrice !== undefined && extListing?.buyNowPrice !== (pendingEditBody.buyNowPrice as number | null) && (
+                              <>Buy-now: <strong>{extListing?.buyNowPrice ? formatCurrency(extListing.buyNowPrice) : "none"}</strong> → <strong>{pendingEditBody.buyNowPrice !== null ? formatCurrency(pendingEditBody.buyNowPrice as number) : "none"}</strong>. </>
                             )}
                             Changing pricing mid-auction may surprise active bidders. Proceed?
                           </>
