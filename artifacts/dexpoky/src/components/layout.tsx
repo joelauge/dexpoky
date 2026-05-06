@@ -332,45 +332,51 @@ export function Layout({ children }: LayoutProps) {
 
       <div className="space-y-1">
         <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Account</h3>
-        <Show
-          when="signed-in"
-          fallback={
-            <>
-              <Link href="/sign-up">
-                <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer transition-colors font-semibold text-sm">
-                  <Sparkles className="h-5 w-5" /><span>Join DexPoky — free</span>
-                </div>
-              </Link>
-              <Link href="/sign-in">
-                <div className="flex items-center gap-3 px-4 py-2.5 rounded-md text-muted-foreground hover:bg-secondary cursor-pointer transition-colors text-sm mt-1">
-                  <LogIn className="h-5 w-5" /><span>Sign In</span>
-                </div>
-              </Link>
-            </>
-          }
-        >
-          <Link href="/profile">
-            <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
-              location === "/profile" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}>
-              <User className="h-5 w-5" /><span>Profile</span>
-            </div>
-          </Link>
-          <Link href="/inbox">
-            <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
-              location === "/inbox" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}>
-              <MessageSquare className="h-5 w-5" /><span>Inbox</span>
-            </div>
-          </Link>
-          <Link href="/subscription">
-            <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
-              location === "/subscription" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-            }`}>
-              <Sparkles className="h-5 w-5" /><span>Subscription</span>
-            </div>
-          </Link>
-        </Show>
+        {isSignedIn ? (
+          <>
+            <Link href="/profile">
+              <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
+                location === "/profile" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}>
+                <User className="h-5 w-5" /><span>Profile</span>
+              </div>
+            </Link>
+            <Link href="/inbox">
+              <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
+                location === "/inbox" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}>
+                <MessageSquare className="h-5 w-5" /><span>Inbox</span>
+              </div>
+            </Link>
+            <Link href="/wallet">
+              <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
+                location === "/wallet" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}>
+                <Wallet className="h-5 w-5" /><span>Wallet</span>
+              </div>
+            </Link>
+            <Link href="/subscription">
+              <div className={`flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors cursor-pointer ${
+                location === "/subscription" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              }`}>
+                <Sparkles className="h-5 w-5" /><span>Subscription</span>
+              </div>
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link href="/sign-up">
+              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer transition-colors font-semibold text-sm">
+                <Sparkles className="h-5 w-5" /><span>Join DexPoky — free</span>
+              </div>
+            </Link>
+            <Link href="/sign-in">
+              <div className="flex items-center gap-3 px-4 py-2.5 rounded-md text-muted-foreground hover:bg-secondary cursor-pointer transition-colors text-sm mt-1">
+                <LogIn className="h-5 w-5" /><span>Sign In</span>
+              </div>
+            </Link>
+          </>
+        )}
       </div>
     </>
   );
