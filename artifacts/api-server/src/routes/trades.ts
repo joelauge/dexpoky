@@ -8,6 +8,7 @@ import { stripeService } from "../stripeService.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
 import type { OfferHistoryEntry, OfferedCard } from "@workspace/db";
+import { notifyPaymentConfirmed } from "../lib/notifyNewMessage.js";
 
 const router = Router();
 
@@ -343,6 +344,12 @@ router.patch("/threads/:threadId/offer", requireAuth, async (req, res) => {
       });
 
       const [paid] = await db.select().from(tradeOffersTable).where(eq(tradeOffersTable.id, existing.id));
+      void notifyPaymentConfirmed({
+        sellerClerkId: payeeClerkId,
+        buyerClerkId: userId,
+        threadId,
+        amountCents,
+      });
       res.json(serializeOffer(paid, "buyer"));
       return;
     } else {

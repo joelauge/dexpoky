@@ -7,6 +7,7 @@ import { getUncachableStripeClient } from "../stripeClient.js";
 import { stripeService } from "../stripeService.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
+import { notifyPaymentConfirmed } from "../lib/notifyNewMessage.js";
 
 const router = Router();
 
@@ -396,6 +397,13 @@ router.get("/threads/:threadId/payment/store-meetup/confirm", async (req: Reques
       await tx.update(usersTable)
         .set({ walletBalanceCents: sql`${usersTable.walletBalanceCents} + ${netCents}` })
         .where(eq(usersTable.clerkId, payeeClerkId));
+    });
+
+    void notifyPaymentConfirmed({
+      sellerClerkId: payeeClerkId,
+      buyerClerkId: clerk_id,
+      threadId,
+      amountCents,
     });
 
     res.redirect(`/inbox?thread=${threadId}&pay=ok`);

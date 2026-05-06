@@ -64,6 +64,45 @@ async function sendClerkEmail(params: {
   }
 }
 
+export async function notifyPaymentConfirmed(params: {
+  sellerClerkId: string;
+  buyerClerkId: string;
+  threadId: number;
+  amountCents: number;
+}): Promise<void> {
+  const baseUrl = getAppBaseUrl();
+  const inboxUrl = `${baseUrl}/inbox?thread=${params.threadId}`;
+
+  let buyerDisplayName = "The buyer";
+  try {
+    const buyer = await clerkClient.users.getUser(params.buyerClerkId);
+    buyerDisplayName =
+      buyer.username ??
+      (buyer.firstName && buyer.lastName
+        ? `${buyer.firstName} ${buyer.lastName}`
+        : buyer.firstName) ??
+      buyerDisplayName;
+  } catch (err) {
+    logger.warn({ err }, "Could not fetch buyer info for payment confirmed notification");
+  }
+
+  const amountDollars = (params.amountCents / 100).toFixed(2);
+
+  void sendClerkEmail({
+    toClerkId: params.sellerClerkId,
+    subject: `Payment confirmed — $${amountDollars} received on DexPoky`,
+    bodyText: [
+      `Great news! ${buyerDisplayName} has just completed in-store payment of $${amountDollars} for your trade on DexPoky.`,
+      ``,
+      `The funds (minus the 3% platform fee) have been added to your DexPoky wallet.`,
+      ``,
+      `View the thread: ${inboxUrl}`,
+      ``,
+      `— The DexPoky Team`,
+    ].join("\n"),
+  });
+}
+
 export async function notifyNewMessage(params: {
   toClerkId: string;
   fromClerkId: string;

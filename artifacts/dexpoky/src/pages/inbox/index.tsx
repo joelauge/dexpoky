@@ -277,12 +277,26 @@ function TradeThread({
     }
   }, [thread.id, authFetch]);
 
+  // Tighten poll to 2s while the store-meetup PIN panel is active so the seller
+  // sees "Payment confirmed ✓" within seconds rather than waiting up to 6s.
+  const offerPollMs =
+    offer?.status === "accepted" &&
+    offer?.exchangeMethod === "store" &&
+    offer?.exchangeMethodConfirmedBySeller
+      ? 2000
+      : 6000;
+
+  // Reset offer state when the thread changes
   useEffect(() => {
     setOffer(undefined);
+  }, [thread.id]);
+
+  // Poll for offer updates
+  useEffect(() => {
     fetchOffer();
-    const interval = setInterval(fetchOffer, 6000);
+    const interval = setInterval(fetchOffer, offerPollMs);
     return () => clearInterval(interval);
-  }, [fetchOffer]);
+  }, [fetchOffer, offerPollMs]);
 
   // ── Wallet balance (fetch when dexpoky_pay or store meetup confirmed for buyer) ───
   useEffect(() => {
