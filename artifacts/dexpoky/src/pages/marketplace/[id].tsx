@@ -429,16 +429,25 @@ export default function ListingDetail() {
   const handleSaveEdit = () => {
     const body: Record<string, unknown> = {};
     const bidCount = extListing?.bidCount ?? 0;
-    if (isAuction) {
-      if (editStartingBid) body.startingBid = parseFloat(editStartingBid);
-      if (editReservePrice) body.reservePrice = parseFloat(editReservePrice);
-      else if (editReservePrice === "") body.reservePrice = null;
-      if (editBuyNowPrice) body.buyNowPrice = parseFloat(editBuyNowPrice);
-      else if (editBuyNowPrice === "") body.buyNowPrice = null;
-    } else {
-      if (editPrice) body.price = parseFloat(editPrice);
-    }
+
     body.description = editDescription || null;
+
+    if (isAuction) {
+      const origStart = extListing?.startingBid ?? null;
+      const newStart = editStartingBid !== "" ? parseFloat(editStartingBid) : null;
+      if (newStart !== null && newStart !== origStart) body.startingBid = newStart;
+
+      const origReserve = extListing?.reservePrice ?? null;
+      const newReserve = editReservePrice !== "" ? parseFloat(editReservePrice) : null;
+      if (newReserve !== origReserve) body.reservePrice = newReserve;
+
+      const origBuyNow = extListing?.buyNowPrice ?? null;
+      const newBuyNow = editBuyNowPrice !== "" ? parseFloat(editBuyNowPrice) : null;
+      if (newBuyNow !== origBuyNow) body.buyNowPrice = newBuyNow;
+    } else {
+      const newPrice = editPrice !== "" ? parseFloat(editPrice) : null;
+      if (newPrice !== null) body.price = newPrice;
+    }
 
     const hasPricingChange = isAuction && (
       body.startingBid !== undefined ||
@@ -926,8 +935,8 @@ export default function ListingDetail() {
                           <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-800/30 text-sm">
                             <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
                             <div>
-                              <p className="font-semibold text-amber-800 dark:text-amber-300">Pricing locked — {bidCount} active bid{bidCount !== 1 ? "s" : ""}</p>
-                              <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">Auction pricing can't change once bids are placed. To relist at a different price, wait for this auction to end.</p>
+                              <p className="font-semibold text-amber-800 dark:text-amber-300">{bidCount} active bid{bidCount !== 1 ? "s" : ""} — pricing changes need confirmation</p>
+                              <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">You can still edit pricing, but we'll ask you to confirm before saving to protect active bidders. Description edits save freely.</p>
                             </div>
                           </div>
                         )}
