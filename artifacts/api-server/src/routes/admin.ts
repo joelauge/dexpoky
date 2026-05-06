@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
 import { sellerPayoutsTable, usersTable, cardsTable, categoriesTable, listingsTable } from "@workspace/db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { syncAllUsersFromClerk } from "../lib/userSync.js";
 import bootstrapDump from "../data/bootstrap-import.json" with { type: "json" };
@@ -139,11 +139,18 @@ router.post("/admin/payouts/:id/cancel", requireAuth, (req, res, next) => requir
     return;
   }
 
-  const [updated] = await db
-    .update(sellerPayoutsTable)
-    .set({ status: "cancelled" })
-    .where(eq(sellerPayoutsTable.id, id))
-    .returning();
+  const [updated] = await db.transaction(async (tx) => {
+    await tx
+      .update(usersTable)
+      .set({ walletBalanceCents: sql`${usersTable.walletBalanceCents} + ${entry.amountCents}` })
+      .where(eq(usersTable.clerkId, entry.sellerClerkId));
+
+    return tx
+      .update(sellerPayoutsTable)
+      .set({ status: "cancelled" })
+      .where(eq(sellerPayoutsTable.id, id))
+      .returning();
+  });
 
   res.json(updated);
 });

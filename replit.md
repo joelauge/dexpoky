@@ -41,6 +41,7 @@ DexPoky is a Pokemon collectible card collection, inventory tracking, and tradin
 - AI deck builder (powered by OpenAI's `gpt-5.4`) post-filters suggestions based on user-owned cards and includes Pokémon TCG official deck-building rules in its prompt.
 - Original card scans are uploaded to Replit Object Storage via presigned URLs, ensuring image persistence and efficient handling during card creation.
 - Certain new auction/user/rating fields in the DB are not yet reflected in the OpenAPI spec; frontend uses type-casting.
+- `walletBalanceCents` (on `usersTable`) is the single source of truth for a seller's spendable/withdrawable balance. Payout requests deduct from it atomically; admin cancellations re-credit it. The earnings endpoint derives available balance directly from this field and merges `tradePaymentsTable` credits with `sellerPayoutsTable` payout-request history.
 
 ## Product
 

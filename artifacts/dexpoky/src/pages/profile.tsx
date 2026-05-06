@@ -541,8 +541,8 @@ export default function Profile() {
                           {new Date(e.createdAt).toLocaleDateString()} · <span className="capitalize">{e.status}</span>
                         </div>
                       </div>
-                      <div className={`font-mono font-semibold ${e.kind === "sale_credit" ? "text-emerald-600" : "text-amber-600"}`}>
-                        {e.kind === "sale_credit" ? "+" : "−"}{fmtUsd(e.amountCents)}
+                      <div className={`font-mono font-semibold ${e.kind === "sale_credit" || e.kind === "trade_credit" ? "text-emerald-600" : "text-amber-600"}`}>
+                        {e.kind === "sale_credit" || e.kind === "trade_credit" ? "+" : "−"}{fmtUsd(e.amountCents)}
                       </div>
                     </div>
                   ))}
