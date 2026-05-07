@@ -33,6 +33,14 @@ import {
   Globe,
   ChevronDown,
   ChevronRight,
+  PackageOpen,
+  ArrowLeftRight,
+  Star,
+  Library,
+  Heart,
+  Wallet,
+  AlertCircle,
+  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -61,15 +69,16 @@ function useCopy() {
 
 function CodeBlock({ code, lang = "ts" }: { code: string; lang?: string }) {
   const { copy, copied } = useCopy();
+  const id = code.slice(0, 20);
   return (
-    <div className="relative group rounded-xl border bg-slate-950 overflow-hidden">
+    <div className="relative rounded-xl border bg-slate-950 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800">
         <span className="text-[11px] font-mono text-slate-400">{lang}</span>
         <button
-          onClick={() => copy(code, code.slice(0, 10))}
+          onClick={() => copy(code, id)}
           className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-white transition-colors"
         >
-          {copied === code.slice(0, 10) ? (
+          {copied === id ? (
             <><CheckCircle2 className="h-3.5 w-3.5 text-green-400" /><span className="text-green-400">Copied</span></>
           ) : (
             <><Copy className="h-3.5 w-3.5" />Copy</>
@@ -81,9 +90,33 @@ function CodeBlock({ code, lang = "ts" }: { code: string; lang?: string }) {
   );
 }
 
-function Section({ title, icon: Icon, children, defaultOpen = false }: {
+function Callout({ variant = "info", children }: {
+  variant?: "info" | "warning" | "tip";
+  children: React.ReactNode;
+}) {
+  const styles = {
+    info: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300",
+    warning: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300",
+    tip: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300",
+  };
+  const icons = {
+    info: AlertCircle,
+    warning: AlertCircle,
+    tip: CheckCircle2,
+  };
+  const Icon = icons[variant];
+  return (
+    <div className={cn("rounded-lg border p-3.5 flex gap-2.5", styles[variant])}>
+      <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+      <p className="text-xs leading-relaxed">{children}</p>
+    </div>
+  );
+}
+
+function Section({ title, icon: Icon, subtitle, children, defaultOpen = false }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
+  subtitle: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
 }) {
@@ -92,15 +125,24 @@ function Section({ title, icon: Icon, children, defaultOpen = false }: {
     <div className="border rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-3 px-5 py-4 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+        className="w-full flex items-start gap-3 px-5 py-4 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
       >
-        <Icon className="h-4 w-4 text-primary shrink-0" />
-        <span className="font-semibold text-sm flex-1">{title}</span>
-        {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+          <Icon className="h-3.5 w-3.5 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">{title}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{subtitle}</p>
+        </div>
+        {open ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-1.5" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1.5" />}
       </button>
-      {open && <div className="p-5 space-y-4 border-t">{children}</div>}
+      {open && <div className="p-5 space-y-5 border-t bg-background">{children}</div>}
     </div>
   );
+}
+
+function Narrative({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-muted-foreground leading-relaxed">{children}</p>;
 }
 
 export default function DeveloperPage() {
@@ -157,33 +199,42 @@ export default function DeveloperPage() {
 
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
+      <div className="max-w-3xl mx-auto px-4 py-8 space-y-10">
+
         {/* Header */}
-        <div className="space-y-1">
+        <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
               <Code2 className="h-5 w-5 text-primary" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">DexPoky API</h1>
-              <p className="text-sm text-muted-foreground">Manage API keys and explore the SDK</p>
+              <p className="text-sm text-muted-foreground">Build scripts, bots, and integrations on top of your collection</p>
             </div>
           </div>
+          <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+            The DexPoky SDK gives you programmatic access to everything in your account — your cards, listings, trades, decks, wallet, and more.
+            Use it to automate pricing updates, back up your collection, build a Discord bot, or pipe your data into a spreadsheet.
+            It works in Node.js, the browser, and React Native, with full TypeScript types throughout.
+          </p>
         </div>
 
         {/* API Keys */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div>
             <h2 className="font-semibold text-base flex items-center gap-2">
-              <KeyRound className="h-4 w-4 text-primary" /> API Keys
+              <KeyRound className="h-4 w-4 text-primary" /> Your API Keys
             </h2>
-            <span className="text-xs text-muted-foreground">{activeKeys.length}/5 active</span>
+            <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+              Each key authenticates you with the API. Give keys descriptive names so you remember where they're used —
+              for example <em>"Price checker script"</em> or <em>"Discord bot"</em>.
+              You can have up to 5 active keys and revoke any of them instantly if they're ever compromised.
+            </p>
           </div>
 
-          {/* Create */}
           <div className="flex gap-2">
             <Input
-              placeholder="Key name (e.g. My Script)"
+              placeholder='Key name — e.g. "My price bot"'
               value={newKeyName}
               onChange={e => setNewKeyName(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && activeKeys.length < 5) createKey.mutate(newKeyName); }}
@@ -200,7 +251,6 @@ export default function DeveloperPage() {
             </Button>
           </div>
 
-          {/* Active keys */}
           {isLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-16 w-full rounded-xl" />
@@ -209,7 +259,7 @@ export default function DeveloperPage() {
           ) : activeKeys.length === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center">
               <KeyRound className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No API keys yet. Create one to get started.</p>
+              <p className="text-sm text-muted-foreground">No API keys yet. Create one above to get started.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -219,7 +269,7 @@ export default function DeveloperPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm">{k.name}</span>
-                        <Badge variant="secondary" className="text-[10px] font-mono">Active</Badge>
+                        <Badge variant="secondary" className="text-[10px] font-mono bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">Active</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Created {format(new Date(k.createdAt), "MMM d, yyyy")}
@@ -236,23 +286,23 @@ export default function DeveloperPage() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Revoke "{k.name}"?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This immediately invalidates the key. Any scripts using it will stop working. This cannot be undone.
+                            This immediately invalidates the key. Any script or integration using it will stop working.
+                            This action cannot be undone — you'd need to create a new key and update your code.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogCancel>Keep key</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => revokeKey.mutate(k.id)}
                             className="bg-destructive hover:bg-destructive/90"
                           >
-                            Revoke key
+                            Yes, revoke it
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
                   </div>
 
-                  {/* Key display */}
                   <div className="flex items-center gap-2 rounded-lg bg-muted/50 border px-3 py-2">
                     <code className="flex-1 text-xs font-mono truncate text-foreground">
                       {k.key
@@ -264,6 +314,7 @@ export default function DeveloperPage() {
                       <button
                         onClick={() => setRevealedKeys(prev => ({ ...prev, [k.id]: !prev[k.id] }))}
                         className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        title={revealedKeys[k.id] ? "Hide key" : "Reveal key"}
                       >
                         {revealedKeys[k.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </button>
@@ -272,6 +323,7 @@ export default function DeveloperPage() {
                       <button
                         onClick={() => copy(k.key!, `key-${k.id}`)}
                         className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        title="Copy to clipboard"
                       >
                         {copied === `key-${k.id}` ? (
                           <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
@@ -282,9 +334,9 @@ export default function DeveloperPage() {
                     )}
                   </div>
                   {k.key && (
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                       <Shield className="h-3 w-3 shrink-0" />
-                      Copy this key now — it will not be shown again after you leave this page.
+                      Copy this key now — for security it won't be shown again after you navigate away.
                     </p>
                   )}
                 </div>
@@ -292,7 +344,6 @@ export default function DeveloperPage() {
             </div>
           )}
 
-          {/* Revoked keys (collapsed) */}
           {revokedKeys.length > 0 && (
             <details className="group">
               <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors list-none flex items-center gap-1">
@@ -317,231 +368,556 @@ export default function DeveloperPage() {
           )}
         </div>
 
-        {/* SDK Documentation */}
-        <div className="space-y-4">
-          <h2 className="font-semibold text-base flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-primary" /> SDK Documentation
-          </h2>
+        {/* SDK Docs */}
+        <div className="space-y-3">
+          <div>
+            <h2 className="font-semibold text-base flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" /> SDK Guide
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Click any section to expand it. Start with <strong>Quick Start</strong> if you're new.
+            </p>
+          </div>
 
-          <Section title="Quick Start" icon={Zap} defaultOpen>
-            <p className="text-sm text-muted-foreground">Install the SDK and make your first call in under a minute.</p>
-            <CodeBlock lang="bash" code={`# The SDK ships as part of the DexPoky monorepo\n# Available at @workspace/api-sdk`} />
+          {/* Quick Start */}
+          <Section
+            title="Quick Start"
+            icon={Zap}
+            subtitle="Get from zero to your first API call in under two minutes"
+            defaultOpen
+          >
+            <Narrative>
+              The SDK is a single import. Point it at your DexPoky instance, hand it your API key,
+              and every resource in your account is immediately available as a typed method call.
+              There are no webhooks to configure and no OAuth dance to complete — your key is all you need.
+            </Narrative>
             <CodeBlock code={`import { DexPokyClient } from "@workspace/api-sdk";
 
 const client = new DexPokyClient({
-  baseUrl: "https://your-app.replit.app",  // omit in browser
-  getToken: () => "YOUR_API_KEY",          // dpx_… key from above
+  baseUrl: "https://your-app.replit.app", // omit this when running in the browser
+  getToken: () => process.env.DEXPOKY_API_KEY,
 });
 
-// Fetch marketplace listings
+// That's it. Start exploring your data.
 const listings = await client.marketplace.list({ search: "charizard" });
+console.log(\`Found \${listings.length} Charizard listings\`);
 
-// Get a card
 const card = await client.cards.get(42);
-
-// List your decks
-const decks = await client.decks.list();`} />
+console.log(\`\${card.name} is worth ~$\${card.estimatedValue}\`);`} />
+            <Callout variant="tip">
+              Running inside the DexPoky web app itself? You can omit <code>baseUrl</code> and <code>getToken</code> entirely —
+              the browser's existing session cookie handles authentication automatically.
+            </Callout>
           </Section>
 
-          <Section title="Authentication" icon={Shield}>
-            <p className="text-sm text-muted-foreground">Pass your API key as a bearer token. All authenticated endpoints require it.</p>
-            <CodeBlock lang="http" code={`Authorization: Bearer dpx_your_key_here`} />
+          {/* Authentication */}
+          <Section
+            title="Authentication"
+            icon={Shield}
+            subtitle="How your API key is sent and how to keep it safe"
+          >
+            <Narrative>
+              Every request your code makes to DexPoky carries your API key as a standard bearer token in the
+              HTTP <code>Authorization</code> header. The SDK handles this automatically once you pass your key to
+              the constructor — you never need to think about headers yourself.
+            </Narrative>
+            <Narrative>
+              The most important rule: your API key is a secret. Anyone who has it can read and modify your
+              account data just like you can. Never paste it directly into your code or commit it to a git
+              repository. Instead, put it in an environment variable and load it at runtime.
+            </Narrative>
+            <CodeBlock lang="env" code={`# .env  (add this file to .gitignore!)
+DEXPOKY_API_KEY=dpx_your_key_here
+DEXPOKY_BASE_URL=https://your-app.replit.app`} />
             <CodeBlock code={`const client = new DexPokyClient({
-  baseUrl: "https://your-app.replit.app",
+  baseUrl: process.env.DEXPOKY_BASE_URL,
   getToken: () => process.env.DEXPOKY_API_KEY ?? null,
 });`} />
-            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3">
-              <p className="text-xs text-amber-800 dark:text-amber-300">
-                <strong>Keep your key secret.</strong> Never commit it to version control or expose it in client-side code.
-                Use environment variables instead.
-              </p>
-            </div>
+            <Callout variant="warning">
+              If a key is ever exposed — accidentally logged, committed to git, or shared — revoke it immediately
+              from this page and create a fresh one. Revocation takes effect instantly.
+            </Callout>
           </Section>
 
-          <Section title="Cards" icon={Terminal}>
-            <p className="text-sm text-muted-foreground">Manage your Pokémon card collection.</p>
-            <CodeBlock code={`// List your collection (with optional filters)
+          {/* Cards */}
+          <Section
+            title="Cards — Your Collection"
+            icon={Layers}
+            subtitle="Read, add, edit, and remove cards from your collection programmatically"
+          >
+            <Narrative>
+              Cards are the heart of DexPoky. The <code>client.cards</code> namespace gives you complete control
+              over your collection: list everything you own, apply filters to find specific cards,
+              add new cards as you pull them from packs, update details like condition or estimated value,
+              and remove cards you've sold or traded away.
+            </Narrative>
+            <Narrative>
+              The list endpoint accepts several filters you can combine freely. For example, you could
+              pull every holo rare you currently have for sale, or search for any card with "Pikachu"
+              in its name across your entire collection.
+            </Narrative>
+            <CodeBlock code={`// Browse your whole collection
 const all = await client.cards.list();
-const holoRares = await client.cards.list({ rarity: "holo_rare" });
-const forSale = await client.cards.list({ forSale: true, search: "pikachu" });
 
-// Get a single card
-const card = await client.cards.get(42);
+// Filter to just holos currently listed for sale
+const holosForSale = await client.cards.list({
+  rarity: "holo_rare",
+  forSale: true,
+});
 
-// Add a card
+// Full-text search
+const pikachus = await client.cards.list({ search: "pikachu" });
+
+// Add a card you just pulled
 const newCard = await client.cards.create({
   name: "Charizard VMAX",
   pokemonName: "Charizard",
   setName: "Champion's Path",
+  cardNumber: "074/073",
   rarity: "ultra_rare",
   condition: "near_mint",
   forSale: false,
   estimatedValue: 250,
 });
 
-// Update a card
-await client.cards.update(42, { forSale: true, listingPrice: 220 });
-
-// Delete a card
-await client.cards.delete(42);`} />
-          </Section>
-
-          <Section title="Marketplace" icon={Globe}>
-            <p className="text-sm text-muted-foreground">Browse and manage marketplace listings.</p>
-            <CodeBlock code={`// Browse active listings
-const listings = await client.marketplace.list({ search: "charizard" });
-const cheap = await client.marketplace.list({ maxPrice: 50 });
-
-// Get a single listing
-const listing = await client.marketplace.get(10);
-
-// Create a listing
-const newListing = await client.marketplace.create({
-  cardId: 42,
-  price: 220,
-  description: "Near mint, pulled from Champion's Path booster",
+// Update it when condition changes or you decide to sell
+await client.cards.update(newCard.id, {
+  forSale: true,
+  listingPrice: 220,
+  notes: "Light crease on back-bottom corner",
 });
 
-// Update a listing
-await client.marketplace.update(10, { price: 200 });
-
-// Cancel a listing
-await client.marketplace.update(10, { status: "cancelled" });`} />
+// Remove a card from your collection
+await client.cards.delete(newCard.id);`} />
+            <Callout variant="tip">
+              Pair the list endpoint with the catalog search (below) to automatically fill in
+              <code>estimatedValue</code> from live market prices when you add a new card.
+            </Callout>
           </Section>
 
-          <Section title="Decks" icon={BookOpen}>
-            <p className="text-sm text-muted-foreground">Build and manage TCG decks. Use the AI suggest endpoint to build a deck from your collection.</p>
-            <CodeBlock code={`// List your decks
-const decks = await client.decks.list();
+          {/* Marketplace */}
+          <Section
+            title="Marketplace — Listings"
+            icon={PackageOpen}
+            subtitle="Browse all listings, create your own, and manage their status"
+          >
+            <Narrative>
+              The marketplace is where DexPoky users buy and sell cards. Through the SDK you can browse
+              every active listing — great for building a price alert, a Discord feed of new listings,
+              or a bulk pricing tool. You can also create and manage your own listings without touching
+              the web UI.
+            </Narrative>
+            <Narrative>
+              Listings have a lifecycle: they start as <strong>active</strong>, move to <strong>sold</strong>
+              when a buyer pays, or <strong>cancelled</strong> if you pull them. You can update any of these fields
+              after creation.
+            </Narrative>
+            <CodeBlock code={`// Browse what's available — great for price monitoring
+const listings = await client.marketplace.list();
+const cheapCards = await client.marketplace.list({ maxPrice: 25 });
+const charizards = await client.marketplace.list({ search: "charizard" });
 
-// Create a deck
+// Get every detail about one listing
+const listing = await client.marketplace.get(10);
+console.log(\`\${listing.card.name} — \$\${listing.price} — \${listing.viewCount} views\`);
+
+// Create a listing for a card in your collection
+const myListing = await client.marketplace.create({
+  cardId: 42,
+  price: 220,
+  description: "Pulled from Champion's Path, stored in a sleeve since day one.",
+});
+
+// Drop the price
+await client.marketplace.update(myListing.id, { price: 199 });
+
+// Cancel if you change your mind
+await client.marketplace.update(myListing.id, { status: "cancelled" });`} />
+          </Section>
+
+          {/* Decks */}
+          <Section
+            title="Decks — Building & AI Suggestions"
+            icon={Library}
+            subtitle="Manage your TCG decks and let AI suggest builds from cards you own"
+          >
+            <Narrative>
+              The decks namespace covers everything from creating a new deck shell to adding individual
+              cards and tweaking counts. Each card in a deck carries a <code>role</code> (attacker, supporter,
+              energy…) and a <code>count</code>, so you have the full structure of a proper TCG deck.
+            </Narrative>
+            <Narrative>
+              The most powerful endpoint here is <code>client.decks.suggest()</code>. Give it a game style
+              and optional notes, and the AI will design a complete 60-card deck using cards you actually own,
+              pulling from your wishlist when your collection has gaps. Each suggested card comes back with
+              a <code>reason</code> explaining why it was chosen — perfect for learning or just settling on
+              a build quickly.
+            </Narrative>
+            <CodeBlock code={`// See all your decks at a glance
+const decks = await client.decks.list();
+decks.forEach(d => console.log(\`\${d.name} — \${d.totalCount} cards\`));
+
+// Create a new deck shell
 const deck = await client.decks.create({
   name: "Charizard Aggro",
   gameStyle: "aggro",
-  strategy: "Fast energy ramp into Charizard V",
+  strategy: "Fast energy ramp, swing hard with Charizard V by turn 3",
 });
 
-// Get a deck with all its cards
+// Retrieve a deck with its full card list
 const full = await client.decks.get(deck.id);
+full.cards.forEach(c => console.log(\`\${c.snapshotName} x\${c.count} (\${c.role})\`));
 
 // Add a card to the deck
-await client.decks.addCard(deck.id, { cardId: 42, count: 2, role: "attacker" });
+await client.decks.addCard(deck.id, {
+  cardId: 42,
+  count: 3,
+  role: "attacker",
+  notes: "Primary win condition",
+});
 
-// AI deck suggestion from your collection
+// Remove a card
+await client.decks.removeCard(deck.id, cardId);
+
+// Ask the AI to build a deck from your collection
 const suggestion = await client.decks.suggest({
   gameStyle: "control",
-  notes: "Focus on water types",
+  notes: "Prefer water types, focus on chip damage and disruption",
 });
-console.log(suggestion.cards); // SuggestedDeckCard[]`} />
+
+suggestion.cards.forEach(card => {
+  console.log(\`\${card.name} x\${card.count} [\${card.source}] — \${card.reason}\`);
+  // source is "owned", "wishlist", "catalog", or "shopping"
+});`} />
+            <Callout variant="info">
+              The <code>source</code> field on each suggested card tells you whether you already own it,
+              it's on your wishlist, or you'd need to go acquire it. Use this to quickly spot the gaps
+              before committing to a build.
+            </Callout>
           </Section>
 
-          <Section title="Trades & Wallet" icon={Zap}>
-            <p className="text-sm text-muted-foreground">Check wallet balance and manage trade offers.</p>
-            <CodeBlock code={`// Wallet balance
+          {/* Trades & Wallet */}
+          <Section
+            title="Trades & Wallet"
+            icon={ArrowLeftRight}
+            subtitle="Check balances, monitor trade negotiations, and process payments"
+          >
+            <Narrative>
+              DexPoky's P2P trading system lives inside message threads. When two users agree to trade,
+              they negotiate an offer inside a thread — countering, accepting, and eventually settling on
+              a price and exchange method. The SDK surfaces all of this so you can monitor or automate
+              parts of your trading workflow.
+            </Narrative>
+            <Narrative>
+              Your wallet balance is tracked in cents to avoid floating-point issues. Use
+              <code>client.wallet.getBalance()</code> to check your current balance before initiating
+              a payment, and <code>client.wallet.topUp()</code> to create a Stripe checkout session
+              when you need to add funds.
+            </Narrative>
+            <CodeBlock code={`// Check wallet balance
 const { balanceCents } = await client.wallet.getBalance();
-console.log(\`Balance: $\${(balanceCents / 100).toFixed(2)}\`);
+console.log(\`You have $\${(balanceCents / 100).toFixed(2)} available\`);
 
-// List your trade offer threads
+// Start a top-up via Stripe (returns a URL to redirect the user to)
+const { url } = await client.wallet.topUp({
+  amountCents: 5000, // $50.00
+  successUrl: "https://your-app.replit.app/wallet?topup=ok",
+});
+
+// List all trade threads you're part of
 const threads = await client.messages.listThreads();
+threads.forEach(t => {
+  console.log(\`[\${t.role}] \${t.wantedCardName} with \${t.otherUserDisplayName}\`);
+  if (t.unreadCount > 0) console.log(\`  → \${t.unreadCount} unread messages\`);
+});
 
-// Get a trade offer in a thread
+// Inspect the offer in a specific thread
 const offer = await client.trades.getOffer(threadId);
+console.log(\`Status: \${offer.status}, offer: $\${(offer.offerAmount ?? 0) / 100}\`);
 
-// Counter or accept
+// Counter an offer as the seller
 await client.trades.updateOffer(threadId, {
   action: "counter",
   amount: 18000, // $180.00 in cents
-});`} />
+  note: "Final price — includes shipping in a hard case",
+});
+
+// Accept an offer
+await client.trades.updateOffer(threadId, { action: "accept" });`} />
           </Section>
 
-          <Section title="Ratings" icon={Shield}>
-            <p className="text-sm text-muted-foreground">Read seller feedback and reply to ratings.</p>
-            <CodeBlock code={`// Get ratings for a seller
-const { ratings, ratingAverage } = await client.ratings.listForUser(
-  "user_clerk_id_here",
-  { role: "seller", period: "12m" }
+          {/* Ratings */}
+          <Section
+            title="Ratings & Feedback"
+            icon={Star}
+            subtitle="Read seller reputation scores and reply to feedback left on your account"
+          >
+            <Narrative>
+              Every completed transaction on DexPoky can be rated. Buyers rate sellers — and sellers rate buyers —
+              on a 1–3 scale (positive, neutral, negative), with optional sub-scores for condition accuracy,
+              communication, shipping speed, and value for money.
+            </Narrative>
+            <Narrative>
+              As a seller you can read all your own feedback and post a single public reply to each rating.
+              Replies are visible on your public profile alongside the original comment, giving you a
+              chance to address concerns or thank a buyer directly. You can also look up the ratings
+              of any user before deciding whether to trade with them.
+            </Narrative>
+            <CodeBlock code={`// Read ratings for any user — useful before accepting a trade
+const { ratings, ratingAverage, positivePercent, sellerLevel } =
+  await client.ratings.listForUser("user_clerk_id", {
+    role: "seller",
+    period: "12m", // last 12 months
+  });
+
+console.log(\`\${sellerLevel} seller — \${positivePercent}% positive\`);
+
+ratings.forEach(r => {
+  console.log(\`Score: \${r.score} — "\${r.comment ?? "no comment"}"\`);
+  if (r.replyText) console.log(\`  Seller replied: "\${r.replyText}"\`);
+});
+
+// Reply to a rating someone left for you
+await client.ratings.reply(
+  ratingId,
+  "Thanks so much! Card was shipped same-day in a penny sleeve and toploader."
 );
 
-// Reply to a rating you received
-await client.ratings.reply(ratingId, "Thanks for the smooth trade!");`} />
+// Look up the rating tied to a specific trade offer
+const rating = await client.ratings.getForOffer(offerId);`} />
+            <Callout variant="tip">
+              You can only reply once per rating, and only to ratings left <em>for you</em>. Replies show up
+              publicly on your profile — keep them professional and constructive.
+            </Callout>
           </Section>
 
-          <Section title="Catalog & Wishlist" icon={BookOpen}>
-            <p className="text-sm text-muted-foreground">Search the Pokémon TCG catalog and manage your wishlist.</p>
-            <CodeBlock code={`// Search the card catalog
-const results = await client.catalog.search({ q: "Charizard", limit: 10 });
+          {/* Catalog & Wishlist */}
+          <Section
+            title="Catalog & Wishlist"
+            icon={Heart}
+            subtitle="Search the global Pokémon TCG catalog and manage your want list"
+          >
+            <Narrative>
+              The catalog is DexPoky's reference database of every Pokémon TCG card ever printed,
+              with live market pricing pulled from TCGplayer and Cardmarket. You can use it to
+              look up any card by name, get its market price, and link your own collection cards to
+              the canonical catalog entry for accurate valuations.
+            </Narrative>
+            <Narrative>
+              The wishlist is your personal "looking for" list — cards you want to own but don't yet.
+              Wishlist items feed directly into the AI deck builder, which treats them as available
+              to you when suggesting builds. They also appear on your public "Wanted" listings if you
+              choose to make them public.
+            </Narrative>
+            <CodeBlock code={`// Search the full Pokémon TCG catalog
+const { results, source } = await client.catalog.search({
+  q: "Charizard VMAX",
+  limit: 10,
+});
+console.log(\`Found \${results.length} results via \${source}\`);
 
-// Get full pricing for a catalog card
-const detail = await client.catalog.getCard("swsh35-74");
-console.log(detail.pricing.marketPrice);
+// Get full pricing detail for a specific catalog card
+const { card, pricing } = await client.catalog.getCard("swsh35-74");
+console.log(\`Market price: $\${pricing.marketPrice ?? "unknown"}\`);
+console.log(\`Trend: $\${pricing.trendPrice ?? "no data"}\`);
 
-// Add to wishlist
-await client.wishlist.add({
+// Add a card to your wishlist
+const item = await client.wishlist.add({
   catalogCardId: "swsh35-74",
   priority: "high",
-  notes: "Looking for NM copy",
+  notes: "Need NM or better for my main deck",
+  categoryId: 3, // optional — link to one of your custom categories
 });
 
 // List your wishlist
-const wishlist = await client.wishlist.list();`} />
+const wishlist = await client.wishlist.list();
+
+// Update priority as your needs change
+await client.wishlist.update(item.id, { priority: "normal" });
+
+// Remove when you've acquired the card
+await client.wishlist.remove(item.id);`} />
           </Section>
 
-          <Section title="Error Handling" icon={Terminal}>
-            <p className="text-sm text-muted-foreground">All methods throw an <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">ApiError</code> on non-2xx responses.</p>
+          {/* Wanted Listings & Messaging */}
+          <Section
+            title="Wanted Listings & Messaging"
+            icon={Globe}
+            subtitle="Post public 'Looking For' requests and communicate with other collectors"
+          >
+            <Narrative>
+              Wanted listings are public posts that say "I'm looking for this card at this price."
+              Any other DexPoky user who owns that card can click through and start a DM thread with you.
+              You can browse all active wanted listings posted by the community, post your own, and
+              close them once you've found what you were looking for.
+            </Narrative>
+            <Narrative>
+              Once a thread is started, you can exchange messages, negotiate a trade offer, and settle
+              the deal — all through the same API. The messaging namespace gives you full access to
+              thread lists, message history, and the ability to send new messages programmatically.
+            </Narrative>
+            <CodeBlock code={`// Browse what the community is looking for
+const wanted = await client.wanted.list({ search: "Charizard" });
+
+// Post your own wanted listing
+const post = await client.wanted.create({
+  catalogCardId: "swsh35-74",
+  name: "Charizard VMAX",
+  pokemonName: "Charizard",
+  maxPrice: 22000, // $220.00 in cents
+  notes: "Needs to be NM or better. Will pay shipping.",
+  isPublic: true,
+});
+
+// Your own wanted listings (any status)
+const mine = await client.wanted.listMine();
+
+// Close a listing when you've found the card
+await client.wanted.update(post.id, { status: "closed" });
+
+// --- Messaging ---
+
+// List all your active DM threads
+const threads = await client.messages.listThreads();
+
+// Read a conversation
+const msgs = await client.messages.listMessages(threadId);
+msgs.forEach(m => console.log(\`[\${m.senderClerkId}] \${m.content}\`));
+
+// Send a message
+await client.messages.send(threadId, {
+  content: "Still interested! Can you do $200 shipped?",
+});
+
+// Mark a thread as read
+await client.messages.markRead(threadId);`} />
+          </Section>
+
+          {/* Error Handling */}
+          <Section
+            title="Error Handling"
+            icon={Terminal}
+            subtitle="How the SDK signals problems and what to do about them"
+          >
+            <Narrative>
+              Every SDK method returns a Promise. When the server responds with a non-2xx status — a 404 for
+              a missing resource, a 403 if you're not allowed to do something, a 400 for bad input,
+              or a 500 for a server error — the Promise rejects with an <code>ApiError</code> instance.
+            </Narrative>
+            <Narrative>
+              <code>ApiError</code> carries everything you need to handle the failure gracefully:
+              the HTTP status code, a human-readable message, and the parsed response body from the server.
+              Wrapping calls in a try/catch and checking for <code>ApiError</code> is the idiomatic pattern.
+            </Narrative>
             <CodeBlock code={`import { DexPokyClient, ApiError } from "@workspace/api-sdk";
 
 const client = new DexPokyClient({ /* … */ });
 
-try {
-  const card = await client.cards.get(99999);
-} catch (err) {
-  if (err instanceof ApiError) {
-    console.error(err.status);     // e.g. 404
-    console.error(err.message);    // "HTTP 404 Not Found"
-    console.error(err.data);       // parsed response body
+async function safeGetCard(id: number) {
+  try {
+    return await client.cards.get(id);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      if (err.status === 404) {
+        console.log("Card not found — it may have been deleted.");
+        return null;
+      }
+      if (err.status === 401) {
+        console.log("Check your API key — it may have been revoked.");
+        return null;
+      }
+      // Log everything else for debugging
+      console.error(\`API error \${err.status}: \${err.message}\`);
+      console.error("Server said:", err.data);
+    }
+    // Re-throw anything unexpected (network error, etc.)
+    throw err;
   }
 }`} />
+            <Callout variant="info">
+              The <code>err.data</code> field contains the parsed JSON body from the server — usually an
+              object like <code>{`{ error: "Card not found" }`}</code>. This is useful for surfacing
+              server-side validation messages directly to your users.
+            </Callout>
           </Section>
 
-          <Section title="TypeScript Types" icon={Code2}>
-            <p className="text-sm text-muted-foreground">
-              All types are exported from <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">@workspace/api-sdk</code>.
-            </p>
+          {/* TypeScript */}
+          <Section
+            title="TypeScript Types"
+            icon={Code2}
+            subtitle="Every request and response has a full type — use them for autocomplete and safety"
+          >
+            <Narrative>
+              The SDK is written in TypeScript and ships with complete type definitions. Every method is
+              typed end-to-end: the parameters you pass in are validated at compile time, and the return
+              type tells your editor exactly what shape of data to expect — including nullable fields and
+              union types for things like enums.
+            </Narrative>
+            <Narrative>
+              All types are re-exported from the top-level <code>@workspace/api-sdk</code> import so you
+              don't need to hunt for them. Import any type you need alongside the client.
+            </Narrative>
             <CodeBlock code={`import type {
-  Card,
-  CreateCardBody,
-  Listing,
-  DeckSummary,
-  DeckWithCards,
-  SuggestDeckResponse,
-  WantedListing,
-  WishlistItem,
-  CatalogCardDetail,
-  TradeOffer,
-  WalletBalance,
-  UserProfile,
-  RatingEntry,
-  ApiError,
-} from "@workspace/api-sdk";`} />
-            <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3">
-              <p className="text-xs text-blue-800 dark:text-blue-300">
-                The SDK is fully tree-shakeable. Import only what you need and your bundler will strip the rest.
-              </p>
-            </div>
+  // Collection
+  Card, CreateCardBody, UpdateCardBody, CardRarity, CardCondition,
+
+  // Marketplace
+  Listing, CreateListingBody, ListingStatus,
+
+  // Decks
+  DeckSummary, DeckWithCards, DeckCardEntry, SuggestDeckResponse,
+
+  // Catalog & Wishlist
+  CatalogCard, CatalogCardDetail, WishlistItem,
+
+  // Wanted & Messaging
+  WantedListing, DmThread, DmThreadSummary, DmMessage,
+
+  // Trades & Wallet
+  TradeOffer, ExchangeMethod, WalletBalance,
+
+  // Users & Ratings
+  UserProfile, RatingEntry, EarningsResponse,
+
+  // Errors
+  ApiError, ErrorEnvelope,
+} from "@workspace/api-sdk";
+
+// Use them for typed helper functions, state, or component props
+function formatCard(card: Card): string {
+  return \`\${card.name} (\${card.rarity}, \${card.condition})\`;
+}
+
+// Or typed local state in React
+const [offer, setOffer] = useState<TradeOffer | null>(null);`} />
+            <Callout variant="tip">
+              The SDK is fully tree-shakeable. If you only import <code>client.cards</code> in your code,
+              your bundler will strip out all the other namespaces. You pay only for what you use.
+            </Callout>
           </Section>
+
         </div>
 
-        {/* Base URL reference */}
-        <div className="rounded-xl border bg-muted/20 p-5 space-y-2">
+        {/* Footer: Base URL reference */}
+        <div className="rounded-xl border bg-muted/20 p-5 space-y-3">
           <h3 className="font-semibold text-sm flex items-center gap-2">
-            <Globe className="h-4 w-4 text-primary" /> Base URL
+            <Globe className="h-4 w-4 text-primary" /> Connecting to your instance
           </h3>
-          <p className="text-sm text-muted-foreground">
-            All API routes are served under <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">/api</code>.
-            When calling from outside the browser (Node.js, scripts, CI), set <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">baseUrl</code> to your deployed app domain.
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            All API routes live under the <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">/api</code> path on your DexPoky domain.
+            When calling from outside the browser — Node.js scripts, CI pipelines, mobile apps —
+            you need to tell the SDK where to find your instance using <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">baseUrl</code>.
+            The easiest way is to keep both values in environment variables so you can switch between
+            development and production without changing any code.
           </p>
-          <CodeBlock lang="env" code={`DEXPOKY_BASE_URL=https://your-app.replit.app\nDEXPOKY_API_KEY=dpx_your_key_here`} />
+          <CodeBlock lang="env" code={`DEXPOKY_BASE_URL=https://your-app.replit.app
+DEXPOKY_API_KEY=dpx_your_key_here`} />
+          <CodeBlock code={`const client = new DexPokyClient({
+  baseUrl: process.env.DEXPOKY_BASE_URL,
+  getToken: () => process.env.DEXPOKY_API_KEY ?? null,
+});`} />
         </div>
+
       </div>
     </Layout>
   );
