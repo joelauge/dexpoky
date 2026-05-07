@@ -22,6 +22,8 @@ export * from "./resources/ratings";
 export * from "./resources/wallet";
 export * from "./resources/trades";
 export * from "./resources/billing";
+export * from "./resources/outreach";
+export * from "./resources/links";
 
 export type {
   Card,

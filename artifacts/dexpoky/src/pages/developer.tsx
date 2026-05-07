@@ -38,9 +38,10 @@ import {
   Star,
   Library,
   Heart,
-  Wallet,
   AlertCircle,
   Layers,
+  Mail,
+  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -791,6 +792,136 @@ await client.messages.send(threadId, {
 
 // Mark a thread as read
 await client.messages.markRead(threadId);`} />
+          </Section>
+
+          {/* Outreach & Invitations */}
+          <Section
+            title="Outreach & Invitations"
+            icon={Mail}
+            subtitle="Send personalized card-format emails and SMS to people who aren't on DexPoky yet"
+          >
+            <Narrative>
+              This is where the SDK gets agentic. <code>client.outreach.invite()</code> lets your script
+              send a beautifully styled invitation — formatted like a real Pokémon card — to any email address
+              or phone number you supply. The recipient doesn't need to have a DexPoky account yet; this is
+              designed specifically for reaching out to game store owners, collectors in other communities,
+              or anyone you want to introduce to the platform.
+            </Narrative>
+            <Narrative>
+              The email renders as a Pokémon card: a header with the DexPoky logo, a card-art image slot
+              (populated by any listing you feature), a stats block showing live platform numbers, your
+              personal message as the "flavor text," and a gold CTA button. SMS delivers a compact version
+              of the same message — your text plus the link — to their phone.
+              A rate limit of <strong>30 invites per API key per 24 hours</strong> keeps things respectful
+              and prevents accidental spam.
+            </Narrative>
+            <CodeBlock code={`import { DexPokyClient, ApiError } from "@workspace/api-sdk";
+
+const client = new DexPokyClient({
+  baseUrl: process.env.DEXPOKY_BASE_URL,
+  getToken: () => process.env.DEXPOKY_API_KEY,
+});
+
+// --- Email invite ---
+const result = await client.outreach.invite({
+  to: {
+    email: "owner@pokemoncards.shop",
+    name: "Sarah",
+  },
+  subject: "Your cards could be on DexPoky today",
+  message:
+    "Hi Sarah! I noticed your store on Instagram. DexPoky is a " +
+    "Pokémon card marketplace with built-in auctions, P2P trading, " +
+    "and an AI deck builder. Listing is free — join 200+ collectors.",
+  ctaUrl: "https://your-app.replit.app/marketplace",
+});
+console.log(\`Sent via \${result.channels.join(", ")} at \${result.sentAt}\`);
+
+// --- SMS invite ---
+await client.outreach.invite({
+  to: { phone: "+14155550123", name: "Ash" },
+  message:
+    "Hey! DexPoky is a free Pokémon card marketplace with auctions " +
+    "and an AI deck builder. Come check it out!",
+  ctaUrl: "https://your-app.replit.app",
+});
+
+// --- Combined: email + SMS at the same time ---
+await client.outreach.invite({
+  to: {
+    email: "info@tcgstore.com",
+    phone: "+14155550456",
+    name: "TCG Store",
+  },
+  message: "We'd love to feature your inventory on DexPoky.",
+  featuredListingId: 42, // card image appears in the email art slot
+});
+
+// Check your outreach history
+const history = await client.outreach.listInvites();
+history.forEach(inv => {
+  console.log(\`[\${inv.channel}] → \${inv.to.email ?? inv.to.phone} (\${inv.status})\`);
+});`} />
+            <Callout variant="info">
+              When you supply a <code>featuredListingId</code>, the first image from that listing fills
+              the card art slot in the email — great for showcasing a specific card you think the
+              recipient would love.
+            </Callout>
+            <Callout variant="warning">
+              SMS delivery requires <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, and
+              <code>TWILIO_PHONE_NUMBER</code> to be set in your environment secrets. Email works out of
+              the box via the platform's built-in mail system. If only one channel is configured, the
+              other is silently skipped and a <code>warnings</code> array is returned in the response.
+            </Callout>
+          </Section>
+
+          {/* Link Builder */}
+          <Section
+            title="Link Builder"
+            icon={Link2}
+            subtitle="Generate clean short URLs for any shareable page — listings, cards, collections, and more"
+          >
+            <Narrative>
+              Every shareable page in DexPoky has a canonical URL, but constructing them manually from an
+              agent script is error-prone and means your code breaks if paths ever change.
+              <code>client.links</code> takes care of this for you: pass an ID or code, get back both
+              the full canonical URL and a compact short URL (<code>/s/xxxxxxx</code>) that you can drop
+              directly into a message, SMS, or email.
+            </Narrative>
+            <Narrative>
+              Short URLs are permanent and tracked — any view through a short link increments the listing's
+              view counter, giving you a natural signal for how much engagement your outreach generated.
+              Use them as the <code>ctaUrl</code> in an outreach invite to point recipients directly at
+              the card you're promoting.
+            </Narrative>
+            <CodeBlock code={`// Marketplace listing page
+const listingLink = await client.links.listing(42);
+console.log(listingLink.url);      // https://your-app.replit.app/view/listing/42
+console.log(listingLink.shortUrl); // https://your-app.replit.app/s/aB3dEf7
+
+// Single card in a collection
+const cardLink = await client.links.card(99);
+
+// Group share (bundle of multiple cards)
+const bundleLink = await client.links.groupShare("abc123");
+
+// "Looking For" / Wanted listing
+const wantedLink = await client.links.wanted("ff00aa11");
+
+// A user's full public collection
+const myCollection = await client.links.collection();                         // your own
+const theirCollection = await client.links.collection("user_clerk_id_here"); // someone else's
+
+// Combine with outreach — send a link to your best listing
+const { shortUrl } = await client.links.listing(42);
+await client.outreach.invite({
+  to: { email: "buyer@example.com", name: "Alex" },
+  message:
+    "Hey Alex! I have a near-mint Charizard VMAX you might love — " +
+    "just relisted it at a new price.",
+  ctaUrl: shortUrl,
+  featuredListingId: 42,
+});`} />
           </Section>
 
           {/* Error Handling */}

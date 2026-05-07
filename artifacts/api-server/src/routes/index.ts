@@ -27,6 +27,8 @@ import groupSharesRouter from "./group-shares";
 import ogRouter from "./og";
 import sseRouter from "./sse";
 import developerRouter from "./developer";
+import outreachRouter from "./outreach";
+import linksRouter from "./links";
 
 const router: IRouter = Router();
 
@@ -58,5 +60,7 @@ router.use(groupSharesRouter);
 router.use(ogRouter);
 router.use(sseRouter);
 router.use(developerRouter);
+router.use(outreachRouter);
+router.use(linksRouter);
 
 export default router;
