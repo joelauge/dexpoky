@@ -26,15 +26,10 @@ async function uniqueShortCode(): Promise<string> {
 }
 
 function serializeWanted(row: typeof wantedListingsTable.$inferSelect) {
-  // Clerk usernames cannot contain spaces; if the stored display name has a
-  // space it was captured from firstName+lastName (old behaviour) — hide it.
-  const ownerDisplayName =
-    row.ownerDisplayName && !row.ownerDisplayName.includes(" ")
-      ? row.ownerDisplayName
-      : null;
+  // ownerDisplayName is guaranteed to be a username (no spaces) by the DB
+  // check constraint on wanted_listings. No runtime filtering is needed here.
   return {
     ...row,
-    ownerDisplayName,
     maxPrice: row.maxPrice != null ? parseFloat(String(row.maxPrice)) : null,
     expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
   };
