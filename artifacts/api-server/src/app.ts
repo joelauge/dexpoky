@@ -11,6 +11,7 @@ import {
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
+import { clerkWebhookHandler } from "./routes/clerk-webhook.js";
 
 const app: Express = express();
 
@@ -30,7 +31,13 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-// ⚡ Stripe webhook MUST be registered BEFORE express.json() so body stays as Buffer
+// ⚡ Webhooks MUST be registered BEFORE express.json() so body stays as Buffer
+app.post(
+  "/api/webhooks/clerk",
+  express.raw({ type: "application/json" }),
+  clerkWebhookHandler,
+);
+
 app.post(
   "/api/stripe/webhook",
   express.raw({ type: "application/json" }),

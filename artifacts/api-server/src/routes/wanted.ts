@@ -26,8 +26,15 @@ async function uniqueShortCode(): Promise<string> {
 }
 
 function serializeWanted(row: typeof wantedListingsTable.$inferSelect) {
+  // Clerk usernames cannot contain spaces; if the stored display name has a
+  // space it was captured from firstName+lastName (old behaviour) — hide it.
+  const ownerDisplayName =
+    row.ownerDisplayName && !row.ownerDisplayName.includes(" ")
+      ? row.ownerDisplayName
+      : null;
   return {
     ...row,
+    ownerDisplayName,
     maxPrice: row.maxPrice != null ? parseFloat(String(row.maxPrice)) : null,
     expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
   };
@@ -106,10 +113,7 @@ router.post("/wanted", requireAuth, async (req, res) => {
   let ownerImageUrl: string | null = null;
   try {
     const clerkUser = await clerkClient.users.getUser(userId);
-    ownerDisplayName =
-      clerkUser.username ||
-      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim() ||
-      null;
+    ownerDisplayName = clerkUser.username || null;
     ownerImageUrl = clerkUser.imageUrl ?? null;
   } catch (err) {
     logger.warn({ err, userId }, "Failed to fetch Clerk user for wanted listing");

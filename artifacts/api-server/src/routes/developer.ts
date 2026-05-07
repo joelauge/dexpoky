@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { createHash, randomBytes } from "crypto";
-import { eq, and, isNull } from "drizzle-orm";
-import { db, apiKeysTable } from "@workspace/db";
+import { eq, and, isNull, inArray, sql } from "drizzle-orm";
+import { db, apiKeysTable, inviteSendsTable } from "@workspace/db";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
@@ -104,6 +104,42 @@ router.delete("/developer/keys/:id", requireAuth, async (req: Request, res: Resp
     lastUsedAt: updated.lastUsedAt,
     revokedAt: updated.revokedAt,
   });
+});
+
+// GET /api/developer/invites — invite history for the current user (all their API keys)
+router.get("/developer/invites", requireAuth, async (req: Request, res: Response) => {
+  const clerkId = (req as AuthRequest).userId;
+
+  const userKeys = await db
+    .select({ id: apiKeysTable.id })
+    .from(apiKeysTable)
+    .where(eq(apiKeysTable.clerkId, clerkId));
+
+  if (userKeys.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const keyIds = userKeys.map(k => k.id);
+  const invites = await db
+    .select()
+    .from(inviteSendsTable)
+    .where(inArray(inviteSendsTable.apiKeyId, keyIds))
+    .orderBy(sql`${inviteSendsTable.sentAt} DESC`)
+    .limit(100);
+
+  res.json(
+    invites.map(i => ({
+      id: i.id,
+      to: { email: i.toEmail, phone: i.toPhone, name: i.toName },
+      subject: i.subject,
+      channel: i.channel,
+      status: i.status,
+      sentAt: i.sentAt,
+      ctaUrl: i.ctaUrl,
+      convertedAt: i.convertedAt,
+    }))
+  );
 });
 
 export default router;

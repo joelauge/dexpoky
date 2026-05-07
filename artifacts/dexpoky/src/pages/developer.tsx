@@ -42,6 +42,8 @@ import {
   Layers,
   Mail,
   Link2,
+  UserCheck,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -55,6 +57,17 @@ interface ApiKeyEntry {
   lastUsedAt: string | null;
   revokedAt: string | null;
   key?: string;
+}
+
+interface InviteEntry {
+  id: number;
+  to: { email: string | null; phone: string | null; name: string };
+  subject: string;
+  channel: string;
+  status: string;
+  sentAt: string;
+  ctaUrl: string | null;
+  convertedAt: string | null;
 }
 
 function useCopy() {
@@ -197,6 +210,14 @@ export default function DeveloperPage() {
 
   const activeKeys = keys.filter(k => !k.revokedAt);
   const revokedKeys = keys.filter(k => k.revokedAt);
+
+  const { data: invites = [], isLoading: invitesLoading } = useQuery<InviteEntry[]>({
+    queryKey: ["/api/developer/invites"],
+    queryFn: () => authFetch("/api/developer/invites").then(r => r.json()),
+    refetchInterval: 30_000,
+  });
+
+  const convertedCount = invites.filter(i => i.convertedAt).length;
 
   return (
     <Layout>
@@ -368,6 +389,58 @@ export default function DeveloperPage() {
             </details>
           )}
         </div>
+
+        {/* Invite History */}
+        {invites.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-base flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-primary" /> Invite History
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {convertedCount > 0
+                    ? `${convertedCount} of ${invites.length} recipient${invites.length !== 1 ? "s" : ""} joined DexPoky`
+                    : `${invites.length} invite${invites.length !== 1 ? "s" : ""} sent — sign-ups appear here automatically`}
+                </p>
+              </div>
+            </div>
+            <div className="rounded-xl border overflow-hidden divide-y">
+              {invitesLoading ? (
+                <div className="p-4 space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : (
+                invites.map(inv => (
+                  <div key={inv.id} className="flex items-center gap-3 px-4 py-3 bg-card">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {inv.to.email ?? inv.to.phone ?? inv.to.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                        <Clock className="h-3 w-3 shrink-0" />
+                        {format(new Date(inv.sentAt), "MMM d, yyyy")}
+                        <span className="text-muted-foreground/50">·</span>
+                        <span className="uppercase tracking-wide">{inv.channel}</span>
+                      </p>
+                    </div>
+                    {inv.convertedAt ? (
+                      <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700 text-[10px] font-semibold shrink-0 flex items-center gap-1">
+                        <UserCheck className="h-3 w-3" />
+                        Joined
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground shrink-0">
+                        Pending
+                      </Badge>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* SDK Docs */}
         <div className="space-y-3">
@@ -822,7 +895,9 @@ const client = new DexPokyClient({
   getToken: () => process.env.DEXPOKY_API_KEY,
 });
 
-// --- Email invite ---
+// --- Email invite with auto-tracking ---
+// Omit ctaUrl and the platform generates a ?ref=dpx_<id> link.
+// When the recipient clicks it and signs up, convertedAt is set automatically.
 const result = await client.outreach.invite({
   to: {
     email: "owner@pokemoncards.shop",
@@ -833,17 +908,18 @@ const result = await client.outreach.invite({
     "Hi Sarah! I noticed your store on Instagram. DexPoky is a " +
     "Pokémon card marketplace with built-in auctions, P2P trading, " +
     "and an AI deck builder. Listing is free — join 200+ collectors.",
-  ctaUrl: "https://your-app.replit.app/marketplace",
+  // ctaUrl intentionally omitted — tracking URL is created automatically
 });
 console.log(\`Sent via \${result.channels.join(", ")} at \${result.sentAt}\`);
+console.log(\`Tracking URL: \${result.ctaUrl}\`); // e.g. https://your-app.replit.app?ref=dpx_42
 
-// --- SMS invite ---
+// --- Supply your own destination (tracking disabled) ---
 await client.outreach.invite({
   to: { phone: "+14155550123", name: "Ash" },
   message:
     "Hey! DexPoky is a free Pokémon card marketplace with auctions " +
     "and an AI deck builder. Come check it out!",
-  ctaUrl: "https://your-app.replit.app",
+  ctaUrl: "https://your-app.replit.app/marketplace", // custom URL, no ref tracking
 });
 
 // --- Combined: email + SMS at the same time ---
@@ -857,10 +933,20 @@ await client.outreach.invite({
   featuredListingId: 42, // card image appears in the email art slot
 });
 
-// Check your outreach history
+// --- Check conversion results ---
 const history = await client.outreach.listInvites();
-history.forEach(inv => {
-  console.log(\`[\${inv.channel}] → \${inv.to.email ?? inv.to.phone} (\${inv.status})\`);
+
+const converted = history.filter(inv => inv.convertedAt);
+const pending   = history.filter(inv => !inv.convertedAt);
+
+console.log(\`\${converted.length} / \${history.length} recipients joined\`);
+
+converted.forEach(inv => {
+  const joinedAt = new Date(inv.convertedAt!).toLocaleDateString();
+  console.log(\`✓ \${inv.to.email ?? inv.to.phone} joined on \${joinedAt}\`);
+});
+pending.forEach(inv => {
+  console.log(\`○ \${inv.to.email ?? inv.to.phone} — still pending\`);
 });`} />
             <Callout variant="info">
               When you supply a <code>featuredListingId</code>, the first image from that listing fills

@@ -16,6 +16,8 @@ export const inviteSendsTable = pgTable("invite_sends", {
   channel: text("channel").notNull().default("email"),
   status: text("status").notNull().default("sent"),
   sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+  convertedAt: timestamp("converted_at", { withTimezone: true }),
+  convertedClerkId: text("converted_clerk_id"),
 });
 
 export type InviteSend = typeof inviteSendsTable.$inferSelect;

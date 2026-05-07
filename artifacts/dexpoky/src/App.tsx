@@ -197,6 +197,48 @@ function ClerkAuthSync() {
   return null;
 }
 
+// Capture ?ref=dpx_xxx on landing and record the conversion once the user
+// signs in for the first time in this browser session.
+function InviteRefSync() {
+  const { isLoaded, isSignedIn } = useUser();
+  const { getToken } = useAuth();
+  const reportedRef = useRef<string | null>(null);
+
+  // Capture ref from URL on first render and persist in sessionStorage.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref && /^dpx_\d+$/.test(ref)) {
+      sessionStorage.setItem("dpx_invite_ref", ref);
+    }
+  }, []);
+
+  // When the user signs in, send the ref to the backend once.
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    const ref = sessionStorage.getItem("dpx_invite_ref");
+    if (!ref || reportedRef.current === ref) return;
+    reportedRef.current = ref;
+    sessionStorage.removeItem("dpx_invite_ref");
+
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        await fetch("/api/outreach/convert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ ref }),
+        });
+      } catch {
+        // non-fatal — attribution is best-effort
+      }
+    })();
+  }, [isLoaded, isSignedIn, getToken]);
+
+  return null;
+}
+
 function PaymentSSEGlobal() {
   usePaymentSSE();
   return null;
@@ -242,6 +284,7 @@ function ClerkProviderWithRoutes() {
         <TooltipProvider>
           <ScrollToTop />
           <ClerkAuthSync />
+          <InviteRefSync />
           <ClerkQueryClientCacheInvalidator />
           <PaymentSSEGlobal />
           <UsernameGate>

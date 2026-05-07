@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db, inviteSendsTable, listingsTable, usersTable, cardsTable } from "@workspace/db";
-import { eq, and, gte, count, avg, sql } from "drizzle-orm";
+import { eq, and, gte, count, avg, sql, isNull } from "drizzle-orm";
 import { requireApiKey, type ApiKeyRequest } from "../middlewares/requireApiKey.js";
+import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { sendInviteEmail } from "../lib/outreach-email.js";
 import { sendInviteSms } from "../lib/outreach-sms.js";
 import { clerkClient } from "@clerk/express";
+import { logger } from "../lib/logger.js";
 import type { Request, Response } from "express";
 
 const router = Router();
@@ -108,6 +110,29 @@ router.post("/outreach/invite", requireApiKey, async (req: Request, res: Respons
     ? `https://${process.env.REPLIT_DOMAINS.split(",")[0].trim()}`
     : "https://dexpoky.replit.app";
 
+  // Insert the invite row first so we have an ID to derive the tracking URL.
+  // We send with status "pending" and update it after delivery attempts.
+  const channelLabel = [to.email && "email", to.phone && "sms"].filter(Boolean).join("+");
+  const [inserted] = await db
+    .insert(inviteSendsTable)
+    .values({
+      fromClerkId: apiReq.apiKeyClerkId,
+      apiKeyId: apiReq.apiKeyId,
+      toEmail: to.email ?? null,
+      toPhone: to.phone ?? null,
+      toName: to.name,
+      subject: finalSubject,
+      message,
+      featuredListingId: featuredListingId ?? null,
+      ctaUrl: ctaUrl ?? null,
+      channel: channelLabel,
+      status: "pending",
+    })
+    .returning();
+
+  // Build the final CTA URL — auto-decorate with ref when no custom URL given.
+  const finalCtaUrl = ctaUrl ?? `${base}?ref=dpx_${inserted.id}`;
+
   const channels: string[] = [];
   const errors: string[] = [];
 
@@ -118,7 +143,7 @@ router.post("/outreach/invite", requireApiKey, async (req: Request, res: Respons
         toName: to.name,
         subject: finalSubject,
         message,
-        ctaUrl: ctaUrl ?? base,
+        ctaUrl: finalCtaUrl,
         cardImageUrl,
         stats,
         fromDisplayName,
@@ -134,7 +159,7 @@ router.post("/outreach/invite", requireApiKey, async (req: Request, res: Respons
       await sendInviteSms({
         toPhone: to.phone,
         message: `${fromDisplayName} invites you to DexPoky — ${message}`,
-        ctaUrl: ctaUrl ?? base,
+        ctaUrl: finalCtaUrl,
       });
       channels.push("sms");
     } catch (err) {
@@ -142,33 +167,23 @@ router.post("/outreach/invite", requireApiKey, async (req: Request, res: Respons
     }
   }
 
+  // Update the row with actual delivery outcome and the resolved CTA URL.
+  const finalStatus = channels.length === 0 ? "failed" : errors.length > 0 ? "partial" : "sent";
+  await db
+    .update(inviteSendsTable)
+    .set({ ctaUrl: finalCtaUrl, channel: channels.join("+") || channelLabel, status: finalStatus })
+    .where(eq(inviteSendsTable.id, inserted.id));
+
   if (channels.length === 0) {
     res.status(502).json({ error: `All delivery channels failed: ${errors.join("; ")}` });
     return;
   }
 
-  const channelLabel = channels.join("+");
-  const [inserted] = await db
-    .insert(inviteSendsTable)
-    .values({
-      fromClerkId: apiReq.apiKeyClerkId,
-      apiKeyId: apiReq.apiKeyId,
-      toEmail: to.email ?? null,
-      toPhone: to.phone ?? null,
-      toName: to.name,
-      subject: finalSubject,
-      message,
-      featuredListingId: featuredListingId ?? null,
-      ctaUrl: ctaUrl ?? null,
-      channel: channelLabel,
-      status: errors.length > 0 ? "partial" : "sent",
-    })
-    .returning();
-
   res.status(201).json({
     id: inserted.id,
     sentAt: inserted.sentAt,
     channels,
+    ctaUrl: finalCtaUrl,
     ...(errors.length > 0 ? { warnings: errors } : {}),
   });
 });
@@ -190,8 +205,82 @@ router.get("/outreach/invites", requireApiKey, async (req: Request, res: Respons
       channel: i.channel,
       status: i.status,
       sentAt: i.sentAt,
+      ctaUrl: i.ctaUrl,
+      convertedAt: i.convertedAt,
     }))
   );
+});
+
+// POST /api/outreach/convert — called by the frontend after a user signs in
+// when a ?ref=dpx_{id} param was present on the landing URL.
+// Validates that the signed-in user's email or phone matches the invite target
+// before recording the conversion, preventing cross-user forgery.
+router.post("/outreach/convert", requireAuth, async (req: Request, res: Response) => {
+  const clerkId = (req as AuthRequest).userId;
+  const ref = typeof req.body.ref === "string" ? req.body.ref.trim() : "";
+  const match = ref.match(/^dpx_(\d+)$/);
+  if (!match) {
+    res.status(400).json({ error: "Invalid ref format" });
+    return;
+  }
+
+  const inviteId = parseInt(match[1], 10);
+  const [invite] = await db
+    .select({
+      id: inviteSendsTable.id,
+      toEmail: inviteSendsTable.toEmail,
+      toPhone: inviteSendsTable.toPhone,
+      convertedAt: inviteSendsTable.convertedAt,
+    })
+    .from(inviteSendsTable)
+    .where(eq(inviteSendsTable.id, inviteId))
+    .limit(1);
+
+  if (!invite) {
+    res.status(404).json({ error: "Invite not found" });
+    return;
+  }
+
+  if (invite.convertedAt) {
+    res.json({ alreadyConverted: true });
+    return;
+  }
+
+  // Verify the signed-in user matches the invite recipient.
+  // If the invite has a specific email or phone, at least one must match.
+  const hasTarget = invite.toEmail || invite.toPhone;
+  if (hasTarget) {
+    let matchesRecipient = false;
+    try {
+      const clerkUser = await clerkClient.users.getUser(clerkId);
+      const userEmails = clerkUser.emailAddresses.map(e => e.emailAddress.toLowerCase());
+      const userPhones = clerkUser.phoneNumbers.map(p => p.phoneNumber);
+
+      if (invite.toEmail && userEmails.includes(invite.toEmail.toLowerCase())) {
+        matchesRecipient = true;
+      }
+      if (invite.toPhone && userPhones.some(p => p.includes(invite.toPhone!) || invite.toPhone!.includes(p))) {
+        matchesRecipient = true;
+      }
+    } catch (err) {
+      logger.error({ err, clerkId, inviteId }, "Failed to fetch Clerk user for invite conversion check");
+      res.status(500).json({ error: "Could not verify recipient identity" });
+      return;
+    }
+
+    if (!matchesRecipient) {
+      res.status(403).json({ error: "Signed-in account does not match the invite recipient" });
+      return;
+    }
+  }
+
+  await db
+    .update(inviteSendsTable)
+    .set({ convertedAt: new Date(), convertedClerkId: clerkId })
+    .where(and(eq(inviteSendsTable.id, inviteId), isNull(inviteSendsTable.convertedAt)));
+
+  logger.info({ inviteId, clerkId }, "Invite conversion recorded");
+  res.json({ converted: true });
 });
 
 export default router;
