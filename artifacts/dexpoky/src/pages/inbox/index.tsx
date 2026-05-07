@@ -327,12 +327,16 @@ function TradeThread({
       offer.exchangeMethodConfirmedBySeller &&
       offer.role === "buyer" &&
       (offer.exchangeMethod === "dexpoky_pay" || offer.exchangeMethod === "store");
-    if (needsWallet) {
+    if (!needsWallet) return;
+    const fetchBalance = () => {
       authFetch("/api/wallet/balance")
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d != null) setWalletBalance(d.balanceCents ?? 0); })
         .catch(() => {});
-    }
+    };
+    fetchBalance();
+    window.addEventListener("wallet:refresh", fetchBalance);
+    return () => window.removeEventListener("wallet:refresh", fetchBalance);
   }, [offer?.status, offer?.exchangeMethod, offer?.role, offer?.exchangeMethodConfirmedBySeller, authFetch]);
 
   // ── PIN countdown timer ───────────────────────────────────────────────────

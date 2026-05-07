@@ -35,6 +35,7 @@ export function usePaymentSSE() {
           };
           if (data.type === "payment_received") {
             void queryClient.invalidateQueries({ queryKey: WALLET_BALANCE_QUERY_KEY });
+            window.dispatchEvent(new Event("wallet:refresh"));
             toast.success(
               `Payment received — ${formatDollars(data.netCents)} added to your wallet`,
               {

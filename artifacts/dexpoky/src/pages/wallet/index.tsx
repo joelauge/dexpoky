@@ -48,6 +48,7 @@ export default function WalletPage() {
   useEffect(() => {
     if (topupResult === "ok" && topupAmount) {
       toast.success(`Wallet topped up by ${formatCents(parseInt(topupAmount, 10))}!`);
+      window.dispatchEvent(new Event("wallet:refresh"));
     } else if (topupResult === "failed") {
       toast.error("Top-up was cancelled or failed.");
     }
