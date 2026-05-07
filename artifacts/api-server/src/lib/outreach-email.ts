@@ -144,9 +144,12 @@ function buildCardHtml(params: CardEmailParams): string {
     <!-- Legal footer -->
     <table width="380" cellpadding="0" cellspacing="0" style="max-width:380px;width:100%;margin-top:16px;">
       <tr><td style="text-align:center;padding:0 16px;">
-        <p style="font-size:11px;color:#555577;margin:0;line-height:1.6;">
-          You received this invitation from a DexPoky member.<br />
+        <p style="font-size:11px;color:#555577;margin:0;line-height:1.8;">
+          You received this one-time invitation from a DexPoky member.<br />
+          DexPoky does not share your address with third parties.<br />
           <a href="${base}" style="color:#8888aa;">Visit DexPoky</a>
+          &nbsp;&bull;&nbsp;
+          <a href="${base}/unsubscribe?email=${encodeURIComponent(params.toEmail)}" style="color:#8888aa;">Unsubscribe</a>
         </p>
       </td></tr>
     </table>

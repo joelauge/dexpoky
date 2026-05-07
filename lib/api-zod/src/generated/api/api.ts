@@ -8,6 +8,80 @@
 import * as zod from "zod";
 
 /**
+ * @summary Send a Pokémon-card-styled invite email and/or SMS to a non-DexPoky user
+ */
+export const sendInviteBodyToPhoneMin = 7;
+export const sendInviteBodyToPhoneMax = 20;
+
+export const sendInviteBodyToNameDefault = `Trainer`;
+export const sendInviteBodyToNameMax = 120;
+
+export const sendInviteBodyMessageMax = 400;
+
+export const sendInviteBodySubjectMax = 200;
+
+export const SendInviteBody = zod.object({
+  to: zod.object({
+    email: zod.string().email().optional(),
+    phone: zod
+      .string()
+      .min(sendInviteBodyToPhoneMin)
+      .max(sendInviteBodyToPhoneMax)
+      .optional(),
+    name: zod
+      .string()
+      .min(1)
+      .max(sendInviteBodyToNameMax)
+      .default(sendInviteBodyToNameDefault),
+  }),
+  message: zod.string().min(1).max(sendInviteBodyMessageMax),
+  subject: zod.string().min(1).max(sendInviteBodySubjectMax).optional(),
+  featuredListingId: zod.number().optional(),
+  ctaUrl: zod.string().url().optional(),
+});
+
+/**
+ * @summary List the last 100 invites sent by the current API key
+ */
+export const ListInvitesResponseItem = zod.object({
+  id: zod.number(),
+  to: zod.object({
+    email: zod.string().nullish(),
+    phone: zod.string().nullish(),
+    name: zod.string(),
+  }),
+  subject: zod.string(),
+  channel: zod.string(),
+  status: zod.string(),
+  sentAt: zod.coerce.date(),
+});
+export const ListInvitesResponse = zod.array(ListInvitesResponseItem);
+
+/**
+ * @summary Build a canonical URL and short URL for any shareable DexPoky page
+ */
+export const BuildLinkBody = zod.object({
+  type: zod.enum(["listing", "card", "groupShare", "wanted", "collection"]),
+  id: zod
+    .number()
+    .optional()
+    .describe("Required for type=listing or type=card"),
+  code: zod
+    .string()
+    .optional()
+    .describe("Required for type=groupShare or type=wanted"),
+  ownerClerkId: zod
+    .string()
+    .optional()
+    .describe("Optional for type=collection; defaults to the API key owner"),
+});
+
+export const BuildLinkResponse = zod.object({
+  url: zod.string().url(),
+  shortUrl: zod.string().url(),
+});
+
+/**
  * @summary Request a presigned URL for file upload
  */
 

@@ -788,6 +788,84 @@ export interface UpdateWantedBody {
   status: UpdateWantedBodyStatus;
 }
 
+export interface InviteRecipient {
+  email?: string;
+  /**
+   * @minLength 7
+   * @maxLength 20
+   */
+  phone?: string;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name?: string;
+}
+
+export interface SendInviteBody {
+  to: InviteRecipient;
+  /**
+   * @minLength 1
+   * @maxLength 400
+   */
+  message: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  subject?: string;
+  featuredListingId?: number;
+  ctaUrl?: string;
+}
+
+export interface InviteResult {
+  id: number;
+  sentAt: string;
+  channels: string[];
+  warnings?: string[];
+}
+
+export type InviteHistoryEntryTo = {
+  email?: string | null;
+  phone?: string | null;
+  name: string;
+};
+
+export interface InviteHistoryEntry {
+  id: number;
+  to: InviteHistoryEntryTo;
+  subject: string;
+  channel: string;
+  status: string;
+  sentAt: string;
+}
+
+export type BuildLinkBodyType =
+  (typeof BuildLinkBodyType)[keyof typeof BuildLinkBodyType];
+
+export const BuildLinkBodyType = {
+  listing: "listing",
+  card: "card",
+  groupShare: "groupShare",
+  wanted: "wanted",
+  collection: "collection",
+} as const;
+
+export interface BuildLinkBody {
+  type: BuildLinkBodyType;
+  /** Required for type=listing or type=card */
+  id?: number;
+  /** Required for type=groupShare or type=wanted */
+  code?: string;
+  /** Optional for type=collection; defaults to the API key owner */
+  ownerClerkId?: string;
+}
+
+export interface BuiltLink {
+  url: string;
+  shortUrl: string;
+}
+
 export type ListCardsParams = {
   categoryId?: number;
   forSale?: boolean;

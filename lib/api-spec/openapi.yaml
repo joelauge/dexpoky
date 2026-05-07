@@ -34,8 +34,79 @@ tags:
     description: In-app direct messaging between buyers and sellers
   - name: wanted
     description: Public "Looking For" requests from buyers
+  - name: outreach
+    description: Agentic outreach — send Pokémon-card-styled invite emails and SMS to non-DexPoky users
+  - name: links
+    description: Build canonical and short URLs for shareable DexPoky pages
 
 paths:
+  /outreach/invite:
+    post:
+      tags: [outreach]
+      operationId: sendInvite
+      summary: Send a Pokémon-card-styled invite email and/or SMS to a non-DexPoky user
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendInviteBody'
+      responses:
+        '201':
+          description: Invite sent successfully on at least one channel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteResult'
+        '400':
+          description: Invalid request body.
+        '429':
+          description: Rate limit exceeded (30 invites per 24 hours per API key).
+        '502':
+          description: All delivery channels failed.
+
+  /outreach/invites:
+    get:
+      tags: [outreach]
+      operationId: listInvites
+      summary: List the last 100 invites sent by the current API key
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: Invite history list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InviteHistoryEntry'
+
+  /links/build:
+    post:
+      tags: [links]
+      operationId: buildLink
+      summary: Build a canonical URL and short URL for any shareable DexPoky page
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildLinkBody'
+      responses:
+        '200':
+          description: Canonical and short URL for the requested page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuiltLink'
+        '400':
+          description: Invalid request body.
+
   /storage/uploads/request-url:
     post:
       tags: [storage]
@@ -2288,3 +2359,127 @@ components:
           enum: [active, closed]
       required:
         - status
+
+    InviteRecipient:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          minLength: 7
+          maxLength: 20
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          default: Trainer
+
+    SendInviteBody:
+      type: object
+      properties:
+        to:
+          $ref: '#/components/schemas/InviteRecipient'
+        message:
+          type: string
+          minLength: 1
+          maxLength: 400
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 200
+        featuredListingId:
+          type: integer
+        ctaUrl:
+          type: string
+          format: uri
+      required:
+        - to
+        - message
+
+    InviteResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        sentAt:
+          type: string
+          format: date-time
+        channels:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - sentAt
+        - channels
+
+    InviteHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        to:
+          type: object
+          properties:
+            email:
+              type: string
+              nullable: true
+            phone:
+              type: string
+              nullable: true
+            name:
+              type: string
+          required: [name]
+        subject:
+          type: string
+        channel:
+          type: string
+        status:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - to
+        - subject
+        - channel
+        - status
+        - sentAt
+
+    BuildLinkBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [listing, card, groupShare, wanted, collection]
+        id:
+          type: integer
+          description: Required for type=listing or type=card
+        code:
+          type: string
+          description: Required for type=groupShare or type=wanted
+        ownerClerkId:
+          type: string
+          description: Optional for type=collection; defaults to the API key owner
+      required:
+        - type
+
+    BuiltLink:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        shortUrl:
+          type: string
+          format: uri
+      required:
+        - url
+        - shortUrl

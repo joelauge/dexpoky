@@ -71,11 +71,11 @@ router.post("/links/build", requireApiKey, async (req: Request, res: Response) =
     case "wanted":
       canonicalPath = `/w/${data.code}`;
       break;
-    case "collection":
-      canonicalPath = data.ownerClerkId
-        ? `/view/collection?owner=${encodeURIComponent(data.ownerClerkId)}`
-        : "/view/collection";
+    case "collection": {
+      const owner = data.ownerClerkId ?? (req as unknown as { apiKeyClerkId: string }).apiKeyClerkId;
+      canonicalPath = `/view/collection?owner=${encodeURIComponent(owner)}`;
       break;
+    }
   }
 
   const url = `${base}${canonicalPath}`;

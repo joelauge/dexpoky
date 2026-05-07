@@ -19,6 +19,8 @@ import type {
 import type {
   AddDeckCardBody,
   AddWishlistBody,
+  BuildLinkBody,
+  BuiltLink,
   Card,
   CatalogCardDetail,
   CatalogSearchResponse,
@@ -39,6 +41,8 @@ import type {
   GetRecentActivityParams,
   HealthStatus,
   InventoryStats,
+  InviteHistoryEntry,
+  InviteResult,
   ListCardsParams,
   ListListingsParams,
   ListWantedListingsParams,
@@ -49,6 +53,7 @@ import type {
   SearchCatalogParams,
   SearchPokemonParams,
   SearchRulebookParams,
+  SendInviteBody,
   SendMessageBody,
   StartThreadBody,
   SuggestDeckBody,
@@ -73,6 +78,253 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Send a Pokémon-card-styled invite email and/or SMS to a non-DexPoky user
+ */
+export const getSendInviteUrl = () => {
+  return `/api/outreach/invite`;
+};
+
+export const sendInvite = async (
+  sendInviteBody: SendInviteBody,
+  options?: RequestInit,
+): Promise<InviteResult> => {
+  return customFetch<InviteResult>(getSendInviteUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sendInviteBody),
+  });
+};
+
+export const getSendInviteMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendInvite>>,
+    TError,
+    { data: BodyType<SendInviteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendInvite>>,
+  TError,
+  { data: BodyType<SendInviteBody> },
+  TContext
+> => {
+  const mutationKey = ["sendInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendInvite>>,
+    { data: BodyType<SendInviteBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendInvite(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendInvite>>
+>;
+export type SendInviteMutationBody = BodyType<SendInviteBody>;
+export type SendInviteMutationError = ErrorType<void>;
+
+/**
+ * @summary Send a Pokémon-card-styled invite email and/or SMS to a non-DexPoky user
+ */
+export const useSendInvite = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendInvite>>,
+    TError,
+    { data: BodyType<SendInviteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendInvite>>,
+  TError,
+  { data: BodyType<SendInviteBody> },
+  TContext
+> => {
+  return useMutation(getSendInviteMutationOptions(options));
+};
+
+/**
+ * @summary List the last 100 invites sent by the current API key
+ */
+export const getListInvitesUrl = () => {
+  return `/api/outreach/invites`;
+};
+
+export const listInvites = async (
+  options?: RequestInit,
+): Promise<InviteHistoryEntry[]> => {
+  return customFetch<InviteHistoryEntry[]>(getListInvitesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListInvitesQueryKey = () => {
+  return [`/api/outreach/invites`] as const;
+};
+
+export const getListInvitesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInvites>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listInvites>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListInvitesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listInvites>>> = ({
+    signal,
+  }) => listInvites({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInvites>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInvitesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInvites>>
+>;
+export type ListInvitesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the last 100 invites sent by the current API key
+ */
+
+export function useListInvites<
+  TData = Awaited<ReturnType<typeof listInvites>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listInvites>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInvitesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Build a canonical URL and short URL for any shareable DexPoky page
+ */
+export const getBuildLinkUrl = () => {
+  return `/api/links/build`;
+};
+
+export const buildLink = async (
+  buildLinkBody: BuildLinkBody,
+  options?: RequestInit,
+): Promise<BuiltLink> => {
+  return customFetch<BuiltLink>(getBuildLinkUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(buildLinkBody),
+  });
+};
+
+export const getBuildLinkMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof buildLink>>,
+    TError,
+    { data: BodyType<BuildLinkBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof buildLink>>,
+  TError,
+  { data: BodyType<BuildLinkBody> },
+  TContext
+> => {
+  const mutationKey = ["buildLink"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof buildLink>>,
+    { data: BodyType<BuildLinkBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return buildLink(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BuildLinkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof buildLink>>
+>;
+export type BuildLinkMutationBody = BodyType<BuildLinkBody>;
+export type BuildLinkMutationError = ErrorType<void>;
+
+/**
+ * @summary Build a canonical URL and short URL for any shareable DexPoky page
+ */
+export const useBuildLink = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof buildLink>>,
+    TError,
+    { data: BodyType<BuildLinkBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof buildLink>>,
+  TError,
+  { data: BodyType<BuildLinkBody> },
+  TContext
+> => {
+  return useMutation(getBuildLinkMutationOptions(options));
+};
 
 /**
  * @summary Request a presigned URL for file upload
