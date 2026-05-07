@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
-import { useRoute, useLocation, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useRoute, useLocation } from "wouter";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useUser } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Star, User, ChevronLeft, ChevronRight } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Star, User, ChevronLeft, ChevronRight, MessageSquare, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useAuthFetch } from "@/lib/use-auth-fetch";
+import { toast } from "sonner";
 
 const LEVEL_STYLES: Record<string, string> = {
   "New": "bg-slate-100 text-slate-600 border-slate-200",
@@ -41,6 +45,8 @@ interface RatingEntry {
   subCommunication: number | null;
   subShipping: number | null;
   subValue: number | null;
+  replyText: string | null;
+  repliedAt: string | null;
   raterUsername: string | null;
   raterAvatarUrl: string | null;
 }
@@ -87,10 +93,17 @@ export default function FeedbackPage() {
   const [, params] = useRoute("/feedback/:clerkId");
   const clerkId = params?.clerkId ?? "";
   const [, setLocation] = useLocation();
+  const { user } = useUser();
+  const isOwner = !!user && user.id === clerkId;
+  const authFetch = useAuthFetch();
+  const qc = useQueryClient();
 
   const [role, setRole] = useState<Role>("all");
   const [period, setPeriod] = useState<Period>("all");
   const [page, setPage] = useState(1);
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [replySubmitting, setReplySubmitting] = useState(false);
 
   useEffect(() => setPage(1), [role, period]);
 
@@ -103,13 +116,45 @@ export default function FeedbackPage() {
   const { data: ratingsData, isLoading: ratingsLoading } = useQuery<RatingsResponse>({
     queryKey: ["/api/ratings/user", clerkId, role, period, page],
     queryFn: () => {
-      const params = new URLSearchParams({ page: String(page) });
-      if (role !== "all") params.set("role", role);
-      if (period !== "all") params.set("period", period);
-      return fetch(`/api/ratings/user/${clerkId}?${params}`).then(r => r.json());
+      const qs = new URLSearchParams({ page: String(page) });
+      if (role !== "all") qs.set("role", role);
+      if (period !== "all") qs.set("period", period);
+      return fetch(`/api/ratings/user/${clerkId}?${qs}`).then(r => r.json());
     },
     enabled: !!clerkId,
   });
+
+  const handleSubmitReply = async (ratingId: number) => {
+    const text = replyText.trim();
+    if (!text) return;
+    setReplySubmitting(true);
+    try {
+      const res = await authFetch(`/api/ratings/${ratingId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ replyText: text }),
+      });
+      if (res.status === 409) {
+        toast.error("A reply already exists for this rating.");
+        setReplyingTo(null);
+        setReplyText("");
+        return;
+      }
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        toast.error((json as { error?: string }).error ?? "Could not submit reply");
+        return;
+      }
+      toast.success("Reply submitted!");
+      setReplyingTo(null);
+      setReplyText("");
+      qc.invalidateQueries({ queryKey: ["/api/ratings/user", clerkId] });
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setReplySubmitting(false);
+    }
+  };
 
   if (profileLoading) {
     return (
@@ -256,6 +301,7 @@ export default function FeedbackPage() {
               const txLabel = rating.tradeOfferId ? "Trade" : "Marketplace";
               const scoreColor = rating.score >= 4 ? "text-emerald-600" : rating.score === 3 ? "text-amber-600" : "text-red-600";
               const hasSubScores = rating.subCondition || rating.subCommunication || rating.subShipping || rating.subValue;
+              const isReplying = replyingTo === rating.id;
               return (
                 <div key={rating.id} className="bg-card border rounded-2xl p-5">
                   <div className="flex items-start justify-between gap-3 mb-2">
@@ -303,6 +349,73 @@ export default function FeedbackPage() {
                       <SubScoreMini label="Communication" score={rating.subCommunication} />
                       <SubScoreMini label="Shipping" score={rating.subShipping} />
                       <SubScoreMini label="Value" score={rating.subValue} />
+                    </div>
+                  )}
+
+                  {/* Reply block — visible to all if reply exists */}
+                  {rating.replyText && (
+                    <div className="mt-3 pt-3 border-t">
+                      <div className="bg-muted/40 border-l-4 border-primary/30 rounded-r-xl pl-3 pr-3 py-2.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                          {displayName}'s response
+                          {rating.repliedAt && (
+                            <span className="font-normal ml-1.5">· {formatDistanceToNow(new Date(rating.repliedAt))} ago</span>
+                          )}
+                        </p>
+                        <p className="text-sm text-foreground leading-relaxed">{rating.replyText}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reply button / inline form — only for page owner, only if no reply yet */}
+                  {isOwner && !rating.replyText && (
+                    <div className="mt-3 pt-3 border-t">
+                      {isReplying ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={replyText}
+                            onChange={e => setReplyText(e.target.value)}
+                            placeholder="Write your public reply… (max 500 characters)"
+                            maxLength={500}
+                            rows={3}
+                            className="text-sm resize-none"
+                            autoFocus
+                          />
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-muted-foreground">{replyText.length}/500</span>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => { setReplyingTo(null); setReplyText(""); }}
+                                disabled={replySubmitting}
+                                className="h-8 text-xs"
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleSubmitReply(rating.id)}
+                                disabled={!replyText.trim() || replySubmitting}
+                                className="h-8 text-xs"
+                              >
+                                {replySubmitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                                {replySubmitting ? "Submitting…" : "Submit Reply"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setReplyingTo(rating.id); setReplyText(""); }}
+                          className="h-7 text-xs gap-1.5"
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          Reply
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

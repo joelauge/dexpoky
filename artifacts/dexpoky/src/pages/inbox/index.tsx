@@ -10,7 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import type { DmThreadSummary, DmMessage } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -261,6 +261,18 @@ function TradeThread({
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [ratingSubScores, setRatingSubScores] = useState({ condition: 0, communication: 0, shipping: 0, value: 0 });
+
+  const { data: offerRating } = useQuery<{ replyText: string | null; repliedAt: string | null } | null>({
+    queryKey: ["/api/ratings/offer", offer?.id],
+    queryFn: async () => {
+      const res = await authFetch(`/api/ratings/offer/${offer!.id}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: offer?.status === "paid",
+    staleTime: 30 * 1000,
+    refetchInterval: offer?.status === "paid" ? 30 * 1000 : false,
+  });
 
   const { data: myCards } = useListCards(undefined, {
     query: {
@@ -1359,9 +1371,22 @@ out center 25;`;
               </div>
 
               {ratingSubmitted ? (
-                <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  Thanks for your feedback!
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    Thanks for your feedback!
+                  </div>
+                  {offerRating?.replyText && (
+                    <div className="bg-muted/40 border-l-4 border-primary/30 rounded-r-xl pl-3 pr-3 py-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                        {thread.otherUserDisplayName ?? "Seller"}'s response
+                        {offerRating.repliedAt && (
+                          <span className="font-normal ml-1.5">· {formatDistanceToNow(new Date(offerRating.repliedAt))} ago</span>
+                        )}
+                      </p>
+                      <p className="text-sm text-foreground leading-relaxed">{offerRating.replyText}</p>
+                    </div>
+                  )}
                 </div>
               ) : deadlinePassed ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 border rounded-xl px-3 py-2">

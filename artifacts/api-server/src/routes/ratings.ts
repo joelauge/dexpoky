@@ -5,6 +5,10 @@ import { ratingsTable, listingsTable, tradeOffersTable, dmThreadsTable, usersTab
 import { eq, and, isNull, gte, desc, inArray } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
+const ReplyBody = z.object({
+  replyText: z.string().min(1).max(500),
+});
+
 const router = Router();
 
 const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
@@ -308,6 +312,53 @@ router.post("/ratings", requireAuth, async (req, res) => {
     .returning();
 
   res.status(201).json(rating);
+});
+
+router.get("/ratings/offer/:offerId", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
+  const offerId = parseInt(String(req.params.offerId));
+  if (isNaN(offerId)) { res.status(400).json({ error: "Invalid offer id" }); return; }
+
+  const [rating] = await db
+    .select()
+    .from(ratingsTable)
+    .where(
+      and(
+        eq(ratingsTable.tradeOfferId, offerId),
+        eq(ratingsTable.raterClerkId, userId),
+      )
+    )
+    .limit(1);
+
+  if (!rating) { res.status(404).json({ error: "No rating found" }); return; }
+  res.json(rating);
+});
+
+router.post("/ratings/:id/reply", requireAuth, async (req, res) => {
+  const userId = (req as AuthRequest).userId;
+  const ratingId = parseInt(String(req.params.id));
+  if (isNaN(ratingId)) { res.status(400).json({ error: "Invalid rating id" }); return; }
+
+  const parsed = ReplyBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error }); return; }
+
+  const [rating] = await db
+    .select()
+    .from(ratingsTable)
+    .where(eq(ratingsTable.id, ratingId))
+    .limit(1);
+
+  if (!rating) { res.status(404).json({ error: "Rating not found" }); return; }
+  if (rating.ratedClerkId !== userId) { res.status(403).json({ error: "Only the rated party can reply" }); return; }
+  if (rating.replyText !== null) { res.status(409).json({ error: "A reply already exists" }); return; }
+
+  const [updated] = await db
+    .update(ratingsTable)
+    .set({ replyText: parsed.data.replyText, repliedAt: new Date() })
+    .where(eq(ratingsTable.id, ratingId))
+    .returning();
+
+  res.json(updated);
 });
 
 export default router;

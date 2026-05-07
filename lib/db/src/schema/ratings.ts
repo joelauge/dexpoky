@@ -18,6 +18,8 @@ export const ratingsTable = pgTable("ratings", {
   subShipping: integer("sub_shipping"),
   subValue: integer("sub_value"),
   transactionCompletedAt: timestamp("transaction_completed_at"),
+  replyText: text("reply_text"),
+  repliedAt: timestamp("replied_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
