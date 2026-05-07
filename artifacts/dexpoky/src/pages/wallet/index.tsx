@@ -54,13 +54,19 @@ export default function WalletPage() {
     }
   }, [topupResult, topupAmount]);
 
-  const { data, isLoading: loading } = useQuery<WalletData | null>({
+  const { data, isLoading: loading, refetch } = useQuery<WalletData | null>({
     queryKey: WALLET_BALANCE_QUERY_KEY,
     queryFn: () =>
       authFetch("/api/wallet/balance")
         .then(r => r.ok ? r.json() as Promise<WalletData> : null)
         .catch(() => null),
   });
+
+  useEffect(() => {
+    const handleRefresh = () => { void refetch(); };
+    window.addEventListener("wallet:refresh", handleRefresh);
+    return () => window.removeEventListener("wallet:refresh", handleRefresh);
+  }, [refetch]);
 
   const handleTopup = async (amountCents: number) => {
     setToppingUp(amountCents);
