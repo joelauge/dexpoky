@@ -26,6 +26,7 @@ import tradepayRouter from "./tradepay";
 import groupSharesRouter from "./group-shares";
 import ogRouter from "./og";
 import sseRouter from "./sse";
+import developerRouter from "./developer";
 
 const router: IRouter = Router();
 
@@ -56,5 +57,6 @@ router.use(tradepayRouter);
 router.use(groupSharesRouter);
 router.use(ogRouter);
 router.use(sseRouter);
+router.use(developerRouter);
 
 export default router;

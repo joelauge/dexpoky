@@ -24,6 +24,7 @@ import {
   MessageSquare,
   ChevronUp,
   Wallet,
+  Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -196,6 +197,11 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
                 <Sparkles className="h-4 w-4" /> Subscription
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/developer" className="flex items-center gap-2 cursor-pointer">
+                <Code2 className="h-4 w-4" /> DexPoky API
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => signOut(() => setLocation("/marketplace"))}
@@ -254,6 +260,11 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
             <DropdownMenuItem asChild>
               <Link href="/subscription" className="flex items-center gap-2 cursor-pointer">
                 <Sparkles className="h-4 w-4" /> Subscription
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/developer" className="flex items-center gap-2 cursor-pointer">
+                <Code2 className="h-4 w-4" /> DexPoky API
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -331,6 +342,7 @@ function MobileProfileBar() {
     { href: "/inbox",        icon: MessageSquare, label: "Inbox",  badge: totalUnread },
     { href: "/wallet",       icon: Wallet,        label: "Wallet" },
     { href: "/subscription", icon: Sparkles,      label: "Subscription" },
+    { href: "/developer",    icon: Code2,         label: "DexPoky API" },
   ];
 
   return (
