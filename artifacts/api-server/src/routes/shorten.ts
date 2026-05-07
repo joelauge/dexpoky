@@ -1,17 +1,9 @@
 import { Router } from "express";
 import { db, shortLinksTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { createShortLink } from "../lib/shorten.js";
 
 const router = Router();
-
-function generateCode(length = 7): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
-}
 
 router.post("/s", async (req, res) => {
   const { targetUrl, clerkId } = req.body as { targetUrl?: string; clerkId?: string };
@@ -20,17 +12,7 @@ router.post("/s", async (req, res) => {
     return;
   }
 
-  let code = generateCode();
-  let attempts = 0;
-  while (attempts < 5) {
-    try {
-      await db.insert(shortLinksTable).values({ code, targetUrl, clerkId: clerkId ?? null });
-      break;
-    } catch {
-      code = generateCode();
-      attempts++;
-    }
-  }
+  const code = await createShortLink(targetUrl, clerkId ?? null);
 
   const origin = req.headers["x-forwarded-host"]
     ? `${req.headers["x-forwarded-proto"] ?? "https"}://${req.headers["x-forwarded-host"]}`

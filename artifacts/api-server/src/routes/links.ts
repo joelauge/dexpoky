@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, shortLinksTable } from "@workspace/db";
 import { requireApiKey } from "../middlewares/requireApiKey.js";
+import { createShortLink } from "../lib/shorten.js";
 import type { Request, Response } from "express";
 
 const router = Router();
@@ -15,28 +15,6 @@ function getAppBaseUrl(req: Request): string {
   const domains = process.env.REPLIT_DOMAINS;
   if (domains) return `https://${domains.split(",")[0].trim()}`;
   return `${req.protocol}://${req.get("host") ?? "localhost"}`;
-}
-
-function generateCode(length = 7): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
-}
-
-async function shorten(targetUrl: string, clerkId: string): Promise<string> {
-  let code = generateCode();
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      await db.insert(shortLinksTable).values({ code, targetUrl, clerkId });
-      return code;
-    } catch {
-      code = generateCode();
-    }
-  }
-  throw new Error("Could not generate a unique short code");
 }
 
 const BuildLinkBody = z.discriminatedUnion("type", [
@@ -56,6 +34,7 @@ router.post("/links/build", requireApiKey, async (req: Request, res: Response) =
 
   const base = getAppBaseUrl(req);
   const data = parsed.data;
+  const { apiKeyClerkId } = req as unknown as { apiKeyClerkId: string };
 
   let canonicalPath: string;
   switch (data.type) {
@@ -72,7 +51,7 @@ router.post("/links/build", requireApiKey, async (req: Request, res: Response) =
       canonicalPath = `/w/${data.code}`;
       break;
     case "collection": {
-      const owner = data.ownerClerkId ?? (req as unknown as { apiKeyClerkId: string }).apiKeyClerkId;
+      const owner = data.ownerClerkId ?? apiKeyClerkId;
       canonicalPath = `/view/collection?owner=${encodeURIComponent(owner)}`;
       break;
     }
@@ -81,8 +60,7 @@ router.post("/links/build", requireApiKey, async (req: Request, res: Response) =
   const url = `${base}${canonicalPath}`;
 
   try {
-    const { apiKeyClerkId } = req as unknown as { apiKeyClerkId: string };
-    const code = await shorten(url, apiKeyClerkId);
+    const code = await createShortLink(url, apiKeyClerkId);
     const shortUrl = `${base}/s/${code}`;
     res.json({ url, shortUrl });
   } catch {

@@ -82,9 +82,9 @@ export interface CardEmailParams {
 function buildCardHtml(params: CardEmailParams): string {
   const base = getAppBaseUrl();
   const cta = params.ctaUrl ?? base;
-  const art = params.cardImageUrl
-    ? `<img src="${params.cardImageUrl}" alt="Featured card" style="width:100%;height:200px;object-fit:cover;display:block;" />`
-    : `<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 40%,#0f3460 100%);height:200px;"><span style="font-size:64px;">&#x1F0CF;</span></td></tr></table>`;
+  const heroUrl = `${base}/opengraph.jpg`;
+  const artSrc = params.cardImageUrl ?? heroUrl;
+  const art = `<img src="${artSrc}" alt="DexPoky — Pokémon card marketplace" style="width:100%;height:200px;object-fit:cover;display:block;" />`;
 
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
