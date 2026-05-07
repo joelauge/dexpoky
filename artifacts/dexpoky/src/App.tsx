@@ -32,6 +32,7 @@ import PublicListingView from "@/pages/view/listing/[id]";
 import GroupShareView from "@/pages/view/group/[code]";
 import ShortLinkRedirect from "@/pages/s/[code]";
 import WantedPublicPage from "@/pages/w/[code]";
+import FeedbackPage from "@/pages/feedback/[clerkId]";
 import SubscriptionPage from "@/pages/subscription";
 import AdminPayouts from "@/pages/admin/payouts";
 import RulesPage from "@/pages/rules";
@@ -269,6 +270,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/subscription" component={() => <ProtectedRoute component={SubscriptionPage} />} />
             <Route path="/admin/payouts" component={() => <ProtectedRoute component={AdminPayouts} />} />
             <Route path="/seller/:clerkId" component={SellerProfile} />
+            <Route path="/feedback/:clerkId" component={FeedbackPage} />
             <Route path="/view/card/:id" component={PublicCardView} />
             <Route path="/view/category/:id" component={PublicCategoryView} />
             <Route path="/view/collection" component={PublicCollectionView} />

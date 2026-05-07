@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import { formatDistanceToNow, isPast, intervalToDuration } from "date-fns";
 import { ListingImageUpload } from "@/components/listing-image-upload";
+import { SellerBadge } from "@/components/seller-badge";
 
 type AuctionListing = {
   listingType?: string;
@@ -371,6 +372,16 @@ export default function ListingDetail() {
     queryKey: ["/api/ratings/mine", id],
     queryFn: () => fetch(`/api/ratings/user/${user!.id}`).then(r => r.json()),
     enabled: !!user && extListing?.status === "sold",
+  });
+
+  const { data: sellerProfile } = useQuery<{
+    sellerLevel: string;
+    positivePercent: number | null;
+    ratingCount: number;
+  }>({
+    queryKey: ["/api/users/seller", extListing?.sellerClerkId],
+    queryFn: () => fetch(`/api/users/${extListing!.sellerClerkId}`).then(r => r.json()),
+    enabled: !!extListing?.sellerClerkId,
   });
 
   const [bidAmount, setBidAmount] = useState("");
@@ -777,6 +788,14 @@ export default function ListingDetail() {
                         <User className="w-3 h-3 mr-1" /> View Seller
                       </Badge>
                     </Link>
+                  )}
+                  {extListing?.sellerClerkId && sellerProfile && (
+                    <SellerBadge
+                      level={sellerProfile.sellerLevel}
+                      positivePercent={sellerProfile.positivePercent}
+                      clerkId={extListing.sellerClerkId}
+                      ratingCount={sellerProfile.ratingCount}
+                    />
                   )}
                 </div>
                 <h1 className="text-3xl font-black tracking-tight text-foreground mb-1">{card.name}</h1>

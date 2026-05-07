@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, User, Star } from "lucide-react";
+import { ArrowLeft, User, Star, ExternalLink } from "lucide-react";
+import { SellerBadge } from "@/components/seller-badge";
+import { Link } from "wouter";
 
 interface PublicUser {
   clerkId: string;
@@ -13,6 +15,8 @@ interface PublicUser {
   sellerDetails: string | null;
   ratingCount: number;
   ratingAverage: number | null;
+  positivePercent: number | null;
+  sellerLevel: string;
 }
 
 interface Rating {
@@ -138,11 +142,19 @@ export default function SellerProfile() {
           )}
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-foreground mb-1">{displayName}</h1>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <SellerBadge
+                level={profile.sellerLevel}
+                positivePercent={profile.positivePercent}
+                clerkId={profile.clerkId}
+                ratingCount={profile.ratingCount}
+              />
+            </div>
             {profile.ratingCount > 0 && (
               <div className="flex items-center gap-2 mb-2">
                 <StarDisplay score={Math.round(profile.ratingAverage ?? 0)} />
                 <span className="text-sm text-muted-foreground">
-                  {profile.ratingAverage?.toFixed(1)} out of 5 ({profile.ratingCount} review{profile.ratingCount !== 1 ? "s" : ""})
+                  {profile.ratingAverage?.toFixed(1)} ({profile.ratingCount} review{profile.ratingCount !== 1 ? "s" : ""})
                 </span>
               </div>
             )}
@@ -186,7 +198,16 @@ export default function SellerProfile() {
 
         {/* Reviews */}
         <div className="bg-card border rounded-2xl p-6">
-          <h3 className="font-semibold mb-4">Reviews ({ratings?.length ?? 0})</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Reviews ({ratings?.length ?? 0})</h3>
+            {(ratings?.length ?? 0) > 0 && (
+              <Link href={`/feedback/${clerkId}`}>
+                <span className="text-xs text-primary hover:underline flex items-center gap-1">
+                  See all feedback <ExternalLink className="h-3 w-3" />
+                </span>
+              </Link>
+            )}
+          </div>
           {ratings && ratings.length > 0 ? (
             <div className="space-y-3">
               {ratings.map(rating => (

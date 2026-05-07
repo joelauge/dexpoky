@@ -42,6 +42,15 @@ async function getOrCreateUser(clerkId: string) {
   return user;
 }
 
+function computeSellerLevel(positiveCount: number): string {
+  if (positiveCount >= 500) return "Top Rated";
+  if (positiveCount >= 200) return "Platinum";
+  if (positiveCount >= 50) return "Gold";
+  if (positiveCount >= 10) return "Silver";
+  if (positiveCount >= 1) return "Bronze";
+  return "New";
+}
+
 async function getRatingSummary(clerkId: string) {
   const ratings = await db
     .select()
@@ -49,7 +58,12 @@ async function getRatingSummary(clerkId: string) {
     .where(eq(ratingsTable.ratedClerkId, clerkId));
   const count = ratings.length;
   const avg = count > 0 ? ratings.reduce((s, r) => s + r.score, 0) / count : null;
-  return { ratingCount: count, ratingAverage: avg };
+  const positiveCount = ratings.filter(r => r.score >= 4).length;
+  const neutralCount = ratings.filter(r => r.score === 3).length;
+  const negativeCount = ratings.filter(r => r.score <= 2).length;
+  const positivePercent = count > 0 ? Math.round((positiveCount / count) * 1000) / 10 : null;
+  const sellerLevel = computeSellerLevel(positiveCount);
+  return { ratingCount: count, ratingAverage: avg, positiveCount, neutralCount, negativeCount, positivePercent, sellerLevel };
 }
 
 router.get("/users/me", requireAuth, async (req, res) => {

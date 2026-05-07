@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
-import { ratingsTable, listingsTable, tradeOffersTable, dmThreadsTable } from "@workspace/db";
-import { eq, and, isNull } from "drizzle-orm";
+import { ratingsTable, listingsTable, tradeOffersTable, dmThreadsTable, usersTable } from "@workspace/db";
+import { eq, and, isNull, gte, desc, inArray } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router = Router();
@@ -28,35 +28,90 @@ const CreateTradeRatingBody = z.object({
   comment: z.string().max(500).optional(),
 }).merge(SubScores);
 
+function computeSellerLevel(positiveCount: number): string {
+  if (positiveCount >= 500) return "Top Rated";
+  if (positiveCount >= 200) return "Platinum";
+  if (positiveCount >= 50) return "Gold";
+  if (positiveCount >= 10) return "Silver";
+  if (positiveCount >= 1) return "Bronze";
+  return "New";
+}
+
 router.get("/ratings/user/:clerkId", async (req, res) => {
   const { clerkId } = req.params;
-  const ratings = await db
+  const { role, period, page } = req.query;
+
+  const conditions = [eq(ratingsTable.ratedClerkId, clerkId)];
+
+  if (role === "seller") conditions.push(eq(ratingsTable.type, "buyer_to_seller"));
+  else if (role === "buyer") conditions.push(eq(ratingsTable.type, "seller_to_buyer"));
+
+  if (period && period !== "all") {
+    const months = period === "1m" ? 1 : period === "6m" ? 6 : 12;
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+    conditions.push(gte(ratingsTable.createdAt, cutoff));
+  }
+
+  const allRatings = await db
     .select()
     .from(ratingsTable)
-    .where(eq(ratingsTable.ratedClerkId, clerkId))
-    .orderBy(ratingsTable.createdAt);
+    .where(and(...conditions))
+    .orderBy(desc(ratingsTable.createdAt));
 
-  const count = ratings.length;
-  const avgScore = count > 0
-    ? ratings.reduce((sum, r) => sum + r.score, 0) / count
-    : null;
+  const total = allRatings.length;
+  const avgScore = total > 0 ? allRatings.reduce((s, r) => s + r.score, 0) / total : null;
 
-  const subAvg = (field: keyof typeof ratings[number]) => {
-    const vals = ratings
-      .map(r => r[field] as number | null)
-      .filter((v): v is number => v !== null);
+  const subAvg = (field: "subCondition" | "subCommunication" | "subShipping" | "subValue") => {
+    const vals = allRatings.map(r => r[field]).filter((v): v is number => v !== null);
     return vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
   };
 
-  res.json({
-    ratings,
-    ratingCount: count,
+  const positiveCount = allRatings.filter(r => r.score >= 4).length;
+  const neutralCount = allRatings.filter(r => r.score === 3).length;
+  const negativeCount = allRatings.filter(r => r.score <= 2).length;
+  const positivePercent = total > 0 ? Math.round((positiveCount / total) * 1000) / 10 : null;
+  const sellerLevel = computeSellerLevel(positiveCount);
+
+  const summary = {
+    ratingCount: total,
     ratingAverage: avgScore,
     subConditionAvg: subAvg("subCondition"),
     subCommunicationAvg: subAvg("subCommunication"),
     subShippingAvg: subAvg("subShipping"),
     subValueAvg: subAvg("subValue"),
-  });
+    positiveCount,
+    neutralCount,
+    negativeCount,
+    positivePercent,
+    sellerLevel,
+  };
+
+  if (page !== undefined) {
+    const pageNum = Math.max(1, parseInt(String(page)) || 1);
+    const pageSize = 10;
+    const paginated = allRatings.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+
+    const raterIds = [...new Set(paginated.map(r => r.raterClerkId))];
+    const raterUsers = raterIds.length > 0
+      ? await db
+          .select({ clerkId: usersTable.clerkId, username: usersTable.username, avatarUrl: usersTable.avatarUrl })
+          .from(usersTable)
+          .where(inArray(usersTable.clerkId, raterIds))
+      : [];
+    const raterMap = Object.fromEntries(raterUsers.map(u => [u.clerkId, u]));
+
+    const enriched = paginated.map(r => ({
+      ...r,
+      raterUsername: raterMap[r.raterClerkId]?.username ?? null,
+      raterAvatarUrl: raterMap[r.raterClerkId]?.avatarUrl ?? null,
+    }));
+
+    res.json({ ...summary, ratings: enriched, total, page: pageNum, pageSize });
+    return;
+  }
+
+  res.json({ ...summary, ratings: allRatings });
 });
 
 router.post("/ratings", requireAuth, async (req, res) => {
