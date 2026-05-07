@@ -199,7 +199,7 @@ export default function DeveloperPage() {
 
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-10">
+      <div className="w-full px-6 py-8 space-y-10">
 
         {/* Header */}
         <div className="space-y-3">
