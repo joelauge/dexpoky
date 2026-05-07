@@ -262,10 +262,11 @@ function TradeThread({
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [ratingSubScores, setRatingSubScores] = useState({ condition: 0, communication: 0, shipping: 0, value: 0 });
 
-  const { data: offerRating } = useQuery<{ replyText: string | null; repliedAt: string | null } | null>({
+  const { data: offerRating, isLoading: offerRatingLoading } = useQuery<{ replyText: string | null; repliedAt: string | null } | null>({
     queryKey: ["/api/ratings/offer", offer?.id],
     queryFn: async () => {
       const res = await authFetch(`/api/ratings/offer/${offer!.id}`);
+      if (res.status === 404) return null;
       if (!res.ok) return null;
       return res.json();
     },
@@ -273,6 +274,10 @@ function TradeThread({
     staleTime: 30 * 1000,
     refetchInterval: offer?.status === "paid" ? 30 * 1000 : false,
   });
+
+  // True if the user has already rated this offer — derived from server data so it
+  // persists across navigation/reload, not just the ephemeral in-session ratingSubmitted flag.
+  const hasRatedThisOffer = ratingSubmitted || (offerRating !== undefined && offerRating !== null);
 
   const { data: myCards } = useListCards(undefined, {
     query: {
@@ -1370,7 +1375,7 @@ out center 25;`;
                 </div>
               </div>
 
-              {ratingSubmitted ? (
+              {hasRatedThisOffer ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
@@ -1388,6 +1393,8 @@ out center 25;`;
                     </div>
                   )}
                 </div>
+              ) : offerRatingLoading ? (
+                <div className="h-10 rounded-xl bg-muted/40 animate-pulse" />
               ) : deadlinePassed ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 border rounded-xl px-3 py-2">
                   <Clock className="h-4 w-4 shrink-0" />
