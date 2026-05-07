@@ -5,7 +5,6 @@ import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Star, User, ChevronLeft, ChevronRight } from "lucide-react";
-import { SellerBadge } from "@/components/seller-badge";
 import { formatDistanceToNow } from "date-fns";
 
 const LEVEL_STYLES: Record<string, string> = {
@@ -164,16 +163,28 @@ export default function FeedbackPage() {
             )}
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-bold text-foreground mb-1">{displayName}'s Feedback</h1>
-              <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${levelStyle}`}>
                   {profile.sellerLevel}
                 </span>
                 {profile.positivePercent !== null && profile.ratingCount > 0 && (
                   <span className="text-sm text-muted-foreground">
-                    {profile.positivePercent.toFixed(1)}% positive feedback
+                    {profile.positivePercent.toFixed(1)}% positive
                   </span>
                 )}
               </div>
+              {profile.ratingCount > 0 && profile.ratingAverage !== null && (
+                <div className="flex items-center gap-2 mb-2">
+                  <StarDisplay score={Math.round(profile.ratingAverage)} />
+                  <span className="text-sm font-semibold">{profile.ratingAverage.toFixed(1)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    ({profile.ratingCount} rating{profile.ratingCount !== 1 ? "s" : ""})
+                  </span>
+                </div>
+              )}
+              {profile.ratingCount === 0 && (
+                <p className="text-sm text-muted-foreground mb-2">No ratings yet.</p>
+              )}
               {profile.ratingCount > 0 ? (
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">

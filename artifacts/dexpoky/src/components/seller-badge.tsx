@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 
 const LEVEL_STYLES: Record<string, string> = {
   "New": "bg-slate-100 text-slate-600 border-slate-200",
@@ -18,19 +18,22 @@ interface SellerBadgeProps {
 
 export function SellerBadge({ level, positivePercent, clerkId, ratingCount }: SellerBadgeProps) {
   const style = LEVEL_STYLES[level] ?? LEVEL_STYLES["New"];
+  const [, setLocation] = useLocation();
+
   return (
-    <Link
-      href={`/feedback/${clerkId}`}
-      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setLocation(`/feedback/${clerkId}`);
+      }}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold cursor-pointer hover:opacity-75 transition-opacity ${style}`}
     >
-      <span
-        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold cursor-pointer hover:opacity-75 transition-opacity ${style}`}
-      >
-        <span>{level}</span>
-        {positivePercent !== null && ratingCount > 0 && (
-          <span className="opacity-75">· {positivePercent.toFixed(1)}% positive</span>
-        )}
-      </span>
-    </Link>
+      <span>{level}</span>
+      {positivePercent !== null && ratingCount > 0 && (
+        <span className="opacity-75">· {positivePercent.toFixed(1)}% positive</span>
+      )}
+    </button>
   );
 }

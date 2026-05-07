@@ -26,16 +26,35 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ContactSellerDialog } from "@/components/contact-seller-dialog";
 import { WelcomeModal } from "@/components/welcome-modal";
+import { SellerBadge } from "@/components/seller-badge";
 
 type AuctionListing = {
   listingType?: string;
   currentBid?: number | null;
   auctionEndTime?: string | null;
+  sellerClerkId?: string | null;
 };
+
+function SellerBadgeLoader({ clerkId }: { clerkId: string }) {
+  const { data } = useQuery<{ sellerLevel: string; positivePercent: number | null; ratingCount: number }>({
+    queryKey: ["/api/users/seller", clerkId],
+    queryFn: () => fetch(`/api/users/${clerkId}`).then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+  if (!data) return null;
+  return (
+    <SellerBadge
+      level={data.sellerLevel}
+      positivePercent={data.positivePercent}
+      clerkId={clerkId}
+      ratingCount={data.ratingCount}
+    />
+  );
+}
 
 function WantedCard({ item, currentUserId }: { item: WantedListing; currentUserId?: string }) {
   const [open, setOpen] = useState(false);
@@ -452,7 +471,12 @@ export default function Marketplace() {
                       </div>
                       <div className="p-4 flex flex-col flex-1">
                         <h3 className="font-bold text-foreground line-clamp-1">{listing.card.name}</h3>
-                        <p className="text-sm text-muted-foreground mb-3">{listing.card.pokemonName}</p>
+                        <p className="text-sm text-muted-foreground mb-1">{listing.card.pokemonName}</p>
+                        {ext.sellerClerkId && (
+                          <div className="mb-2">
+                            <SellerBadgeLoader clerkId={ext.sellerClerkId} />
+                          </div>
+                        )}
                         <div className="mt-auto flex items-end justify-between">
                           <div>
                             {isAuction && (

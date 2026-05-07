@@ -63,7 +63,10 @@ async function getRatingSummary(clerkId: string) {
   const negativeCount = ratings.filter(r => r.score <= 2).length;
   const positivePercent = count > 0 ? Math.round((positiveCount / count) * 1000) / 10 : null;
   const sellerLevel = computeSellerLevel(positiveCount);
-  return { ratingCount: count, ratingAverage: avg, positiveCount, neutralCount, negativeCount, positivePercent, sellerLevel };
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+  const recentRatingCount = ratings.filter(r => r.createdAt >= twelveMonthsAgo).length;
+  return { ratingCount: count, ratingAverage: avg, positiveCount, neutralCount, negativeCount, positivePercent, sellerLevel, recentRatingCount };
 }
 
 router.get("/users/me", requireAuth, async (req, res) => {
