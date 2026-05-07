@@ -13,6 +13,11 @@ export const ratingsTable = pgTable("ratings", {
   score: integer("score").notNull(),
   comment: text("comment"),
   type: text("type").notNull(),
+  subCondition: integer("sub_condition"),
+  subCommunication: integer("sub_communication"),
+  subShipping: integer("sub_shipping"),
+  subValue: integer("sub_value"),
+  transactionCompletedAt: timestamp("transaction_completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -367,6 +367,7 @@ export default function ListingDetail() {
   const [showProxyBid, setShowProxyBid] = useState(false);
   const [ratingScore, setRatingScore] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
+  const [ratingSubScores, setRatingSubScores] = useState({ condition: 0, communication: 0, shipping: 0, value: 0 });
   const [openingThread, setOpeningThread] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
@@ -1252,33 +1253,99 @@ export default function ListingDetail() {
               </Dialog>
 
               {/* Rating form */}
-              {isSold && user && extListing?.sellerClerkId && extListing.sellerClerkId !== user.id && !alreadyRatedAsSeller && (
-                <div className="mt-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
-                  <h3 className="font-semibold mb-3 flex items-center gap-2">
-                    <Star className="h-4 w-4 text-amber-500" /> Rate this seller
-                  </h3>
-                  <StarPicker value={ratingScore} onChange={setRatingScore} />
-                  <Textarea
-                    className="mt-3 text-sm"
-                    placeholder="Optional comment..."
-                    value={ratingComment}
-                    onChange={e => setRatingComment(e.target.value)}
-                  />
-                  <Button
-                    className="mt-3"
-                    disabled={ratingScore === 0 || submitRating.isPending}
-                    onClick={() => submitRating.mutate({
-                      ratedClerkId: extListing.sellerClerkId!,
-                      listingId: id,
-                      score: ratingScore,
-                      comment: ratingComment || undefined,
-                      type: "buyer_to_seller",
-                    })}
-                  >
-                    Submit Rating
-                  </Button>
-                </div>
-              )}
+              {isSold && user && extListing?.sellerClerkId && extListing.sellerClerkId !== user.id && !alreadyRatedAsSeller && (() => {
+                const soldAt = (listing as unknown as { updatedAt?: string }).updatedAt;
+                const deadlinePassed = soldAt
+                  ? Date.now() - new Date(soldAt).getTime() > 60 * 24 * 60 * 60 * 1000
+                  : false;
+
+                const SubScorePicker = ({
+                  label,
+                  value,
+                  onChange,
+                }: {
+                  label: string;
+                  value: number;
+                  onChange: (v: number) => void;
+                }) => (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-amber-800 min-w-0 shrink-0 w-40">{label}</span>
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => onChange(value === s ? 0 : s)}
+                          className="focus:outline-none"
+                        >
+                          <Star className={`h-4 w-4 transition-colors ${s <= value ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30 hover:text-amber-300"}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+
+                return (
+                  <div className="mt-6 bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Star className="h-4 w-4 text-amber-500" /> Rate this seller
+                    </h3>
+                    {deadlinePassed ? (
+                      <p className="text-sm text-muted-foreground bg-muted/40 border rounded-xl px-3 py-2 flex items-center gap-2">
+                        <Timer className="h-4 w-4 shrink-0" />
+                        Feedback period closed — ratings must be submitted within 60 days.
+                      </p>
+                    ) : (
+                      <>
+                        <StarPicker value={ratingScore} onChange={setRatingScore} />
+                        <div className="bg-white/70 rounded-xl border border-amber-100 p-3 space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700/80">Detailed ratings (optional)</p>
+                          <SubScorePicker
+                            label="Card condition accuracy"
+                            value={ratingSubScores.condition}
+                            onChange={v => setRatingSubScores(s => ({ ...s, condition: v }))}
+                          />
+                          <SubScorePicker
+                            label="Communication"
+                            value={ratingSubScores.communication}
+                            onChange={v => setRatingSubScores(s => ({ ...s, communication: v }))}
+                          />
+                          <SubScorePicker
+                            label="Shipping & packaging"
+                            value={ratingSubScores.shipping}
+                            onChange={v => setRatingSubScores(s => ({ ...s, shipping: v }))}
+                          />
+                          <SubScorePicker
+                            label="Value for money"
+                            value={ratingSubScores.value}
+                            onChange={v => setRatingSubScores(s => ({ ...s, value: v }))}
+                          />
+                        </div>
+                        <Textarea
+                          className="text-sm"
+                          placeholder="Optional comment..."
+                          value={ratingComment}
+                          onChange={e => setRatingComment(e.target.value)}
+                        />
+                        <Button
+                          disabled={ratingScore === 0 || submitRating.isPending}
+                          onClick={() => submitRating.mutate({
+                            listingId: id,
+                            score: ratingScore,
+                            comment: ratingComment || undefined,
+                            subCondition: ratingSubScores.condition || undefined,
+                            subCommunication: ratingSubScores.communication || undefined,
+                            subShipping: ratingSubScores.shipping || undefined,
+                            subValue: ratingSubScores.value || undefined,
+                          })}
+                        >
+                          Submit Rating
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

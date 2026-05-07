@@ -7,17 +7,26 @@ import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router = Router();
 
+const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
+
+const SubScores = z.object({
+  subCondition: z.number().int().min(1).max(5).optional(),
+  subCommunication: z.number().int().min(1).max(5).optional(),
+  subShipping: z.number().int().min(1).max(5).optional(),
+  subValue: z.number().int().min(1).max(5).optional(),
+});
+
 const CreateListingRatingBody = z.object({
   listingId: z.number().int().positive(),
   score: z.number().int().min(1).max(5),
   comment: z.string().max(500).optional(),
-});
+}).merge(SubScores);
 
 const CreateTradeRatingBody = z.object({
   tradeOfferId: z.number().int().positive(),
   score: z.number().int().min(1).max(5),
   comment: z.string().max(500).optional(),
-});
+}).merge(SubScores);
 
 router.get("/ratings/user/:clerkId", async (req, res) => {
   const { clerkId } = req.params;
@@ -26,7 +35,28 @@ router.get("/ratings/user/:clerkId", async (req, res) => {
     .from(ratingsTable)
     .where(eq(ratingsTable.ratedClerkId, clerkId))
     .orderBy(ratingsTable.createdAt);
-  res.json(ratings);
+
+  const count = ratings.length;
+  const avgScore = count > 0
+    ? ratings.reduce((sum, r) => sum + r.score, 0) / count
+    : null;
+
+  const subAvg = (field: keyof typeof ratings[number]) => {
+    const vals = ratings
+      .map(r => r[field] as number | null)
+      .filter((v): v is number => v !== null);
+    return vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+  };
+
+  res.json({
+    ratings,
+    ratingCount: count,
+    ratingAverage: avgScore,
+    subConditionAvg: subAvg("subCondition"),
+    subCommunicationAvg: subAvg("subCommunication"),
+    subShippingAvg: subAvg("subShipping"),
+    subValueAvg: subAvg("subValue"),
+  });
 });
 
 router.post("/ratings", requireAuth, async (req, res) => {
@@ -41,7 +71,7 @@ router.post("/ratings", requireAuth, async (req, res) => {
       res.status(400).json({ error: "Invalid body", details: parsed.error });
       return;
     }
-    const { tradeOfferId, score, comment } = parsed.data;
+    const { tradeOfferId, score, comment, subCondition, subCommunication, subShipping, subValue } = parsed.data;
 
     // Fetch offer + thread in one join to verify participation
     const [row] = await db
@@ -49,6 +79,7 @@ router.post("/ratings", requireAuth, async (req, res) => {
         offerStatus: tradeOffersTable.status,
         threadBuyerClerkId: dmThreadsTable.buyerClerkId,
         threadSellerClerkId: dmThreadsTable.sellerClerkId,
+        updatedAt: tradeOffersTable.updatedAt,
       })
       .from(tradeOffersTable)
       .innerJoin(dmThreadsTable, eq(dmThreadsTable.id, tradeOffersTable.threadId))
@@ -61,6 +92,12 @@ router.post("/ratings", requireAuth, async (req, res) => {
 
     if (row.offerStatus !== "paid") {
       res.status(400).json({ error: "Can only rate after a completed transaction" });
+      return;
+    }
+
+    // Enforce 60-day feedback window
+    if (row.updatedAt && Date.now() - row.updatedAt.getTime() > SIXTY_DAYS_MS) {
+      res.status(400).json({ error: "Feedback period closed — ratings must be submitted within 60 days of the transaction." });
       return;
     }
 
@@ -109,6 +146,11 @@ router.post("/ratings", requireAuth, async (req, res) => {
         score,
         comment: comment ?? null,
         type: ratingType,
+        subCondition: subCondition ?? null,
+        subCommunication: subCommunication ?? null,
+        subShipping: subShipping ?? null,
+        subValue: subValue ?? null,
+        transactionCompletedAt: row.updatedAt,
       })
       .returning();
 
@@ -122,7 +164,7 @@ router.post("/ratings", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Invalid body", details: parsed.error });
     return;
   }
-  const { listingId, score, comment } = parsed.data;
+  const { listingId, score, comment, subCondition, subCommunication, subShipping, subValue } = parsed.data;
 
   const [listing] = await db
     .select()
@@ -136,6 +178,12 @@ router.post("/ratings", requireAuth, async (req, res) => {
 
   if (listing.status !== "sold") {
     res.status(400).json({ error: "Can only rate after a completed transaction" });
+    return;
+  }
+
+  // Enforce 60-day feedback window
+  if (listing.updatedAt && Date.now() - listing.updatedAt.getTime() > SIXTY_DAYS_MS) {
+    res.status(400).json({ error: "Feedback period closed — ratings must be submitted within 60 days of the transaction." });
     return;
   }
 
@@ -196,6 +244,11 @@ router.post("/ratings", requireAuth, async (req, res) => {
       score,
       comment: comment ?? null,
       type: ratingType,
+      subCondition: subCondition ?? null,
+      subCommunication: subCommunication ?? null,
+      subShipping: subShipping ?? null,
+      subValue: subValue ?? null,
+      transactionCompletedAt: listing.updatedAt,
     })
     .returning();
 

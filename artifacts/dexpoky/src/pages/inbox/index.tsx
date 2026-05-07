@@ -19,7 +19,7 @@ import {
   MessageSquare, Send, ArrowLeft, User, Heart,
   Video, DollarSign, CheckCircle2, XCircle, RefreshCw,
   Store, Shield, Gem, Calendar, MapPin, X, Lock, CreditCard, Banknote,
-  Package, Navigation, Loader2, Search, Wallet, Clock, Receipt, ArrowRight,
+  Package, Navigation, Loader2, Search, Wallet, Clock, Receipt, ArrowRight, Star,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
@@ -260,6 +260,7 @@ function TradeThread({
   const [ratingComment, setRatingComment] = useState("");
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [ratingSubScores, setRatingSubScores] = useState({ condition: 0, communication: 0, shipping: 0, value: 0 });
 
   const { data: myCards } = useListCards(undefined, {
     query: {
@@ -420,6 +421,10 @@ function TradeThread({
           tradeOfferId: offer.id,
           score: ratingScore,
           comment: ratingComment.trim() || undefined,
+          subCondition: ratingSubScores.condition || undefined,
+          subCommunication: ratingSubScores.communication || undefined,
+          subShipping: ratingSubScores.shipping || undefined,
+          subValue: ratingSubScores.value || undefined,
         }),
       });
       if (res.status === 409) {
@@ -1304,75 +1309,139 @@ out center 25;`;
         })()}
 
         {/* ── Rate your experience prompt ────────────────────────────────── */}
-        {offer?.status === "paid" && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                <span className="text-base leading-none">⭐</span>
-              </div>
-              <div>
-                <p className="font-semibold text-sm text-amber-900">Rate your experience</p>
-                <p className="text-xs text-amber-700">
-                  {ratingSubmitted
-                    ? "Your rating has been submitted."
-                    : `How was your trade with ${thread.otherUserDisplayName ?? "the other party"}?`}
-                </p>
+        {offer?.status === "paid" && (() => {
+          const deadlinePassed = offer.updatedAt
+            ? Date.now() - new Date(offer.updatedAt).getTime() > 60 * 24 * 60 * 60 * 1000
+            : false;
+
+          const SubScorePicker = ({
+            label,
+            value,
+            onChange,
+          }: {
+            label: string;
+            value: number;
+            onChange: (v: number) => void;
+          }) => (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-amber-800 min-w-0 shrink-0 w-36">{label}</span>
+              <div className="flex gap-0.5">
+                {[1, 2, 3, 4, 5].map(s => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => onChange(value === s ? 0 : s)}
+                    className="focus:outline-none"
+                  >
+                    <Star className={`h-4 w-4 transition-colors ${s <= value ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30 hover:text-amber-300"}`} />
+                  </button>
+                ))}
               </div>
             </div>
+          );
 
-            {ratingSubmitted ? (
-              <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                Thanks for your feedback!
-              </div>
-            ) : (
-              <>
-                {/* Star selector */}
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setRatingScore(star)}
-                      className={cn(
-                        "text-2xl transition-transform hover:scale-110 focus:outline-none",
-                        ratingScore >= star ? "opacity-100" : "opacity-30",
-                      )}
-                    >
-                      ⭐
-                    </button>
-                  ))}
-                  {ratingScore > 0 && (
-                    <span className="ml-2 text-xs text-amber-700 font-medium">
-                      {["", "Poor", "Fair", "Good", "Great", "Excellent"][ratingScore]}
-                    </span>
-                  )}
+          return (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                  <span className="text-base leading-none">⭐</span>
                 </div>
+                <div>
+                  <p className="font-semibold text-sm text-amber-900">Rate your experience</p>
+                  <p className="text-xs text-amber-700">
+                    {ratingSubmitted
+                      ? "Your rating has been submitted."
+                      : deadlinePassed
+                      ? "Feedback period closed (60 days have passed)."
+                      : `How was your trade with ${thread.otherUserDisplayName ?? "the other party"}?`}
+                  </p>
+                </div>
+              </div>
 
-                {/* Optional comment */}
-                <Input
-                  value={ratingComment}
-                  onChange={(e) => setRatingComment(e.target.value)}
-                  placeholder="Leave a comment (optional)"
-                  className="h-9 text-sm bg-white"
-                  maxLength={500}
-                />
+              {ratingSubmitted ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  Thanks for your feedback!
+                </div>
+              ) : deadlinePassed ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 border rounded-xl px-3 py-2">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  The 60-day feedback window has closed for this transaction.
+                </div>
+              ) : (
+                <>
+                  {/* Overall star selector */}
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingScore(star)}
+                        className={cn(
+                          "text-2xl transition-transform hover:scale-110 focus:outline-none",
+                          ratingScore >= star ? "opacity-100" : "opacity-30",
+                        )}
+                      >
+                        ⭐
+                      </button>
+                    ))}
+                    {ratingScore > 0 && (
+                      <span className="ml-2 text-xs text-amber-700 font-medium">
+                        {["", "Poor", "Fair", "Good", "Great", "Excellent"][ratingScore]}
+                      </span>
+                    )}
+                  </div>
 
-                <Button
-                  size="sm"
-                  className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-white text-xs"
-                  disabled={ratingScore === 0 || ratingSubmitting}
-                  onClick={handleSubmitTradeRating}
-                >
-                  {ratingSubmitting ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                  ) : null}
-                  {ratingSubmitting ? "Submitting…" : "Submit Rating"}
-                </Button>
-              </>
-            )}
-          </div>
-        )}
+                  {/* Detailed sub-scores */}
+                  <div className="bg-white/70 rounded-xl border border-amber-100 p-3 space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700/80 mb-1">Detailed ratings (optional)</p>
+                    <SubScorePicker
+                      label="Card condition accuracy"
+                      value={ratingSubScores.condition}
+                      onChange={v => setRatingSubScores(s => ({ ...s, condition: v }))}
+                    />
+                    <SubScorePicker
+                      label="Communication"
+                      value={ratingSubScores.communication}
+                      onChange={v => setRatingSubScores(s => ({ ...s, communication: v }))}
+                    />
+                    <SubScorePicker
+                      label="Shipping & packaging"
+                      value={ratingSubScores.shipping}
+                      onChange={v => setRatingSubScores(s => ({ ...s, shipping: v }))}
+                    />
+                    <SubScorePicker
+                      label="Value for money"
+                      value={ratingSubScores.value}
+                      onChange={v => setRatingSubScores(s => ({ ...s, value: v }))}
+                    />
+                  </div>
+
+                  {/* Optional comment */}
+                  <Input
+                    value={ratingComment}
+                    onChange={(e) => setRatingComment(e.target.value)}
+                    placeholder="Leave a comment (optional)"
+                    className="h-9 text-sm bg-white"
+                    maxLength={500}
+                  />
+
+                  <Button
+                    size="sm"
+                    className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-white text-xs"
+                    disabled={ratingScore === 0 || ratingSubmitting}
+                    onClick={handleSubmitTradeRating}
+                  >
+                    {ratingSubmitting ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                    ) : null}
+                    {ratingSubmitting ? "Submitting…" : "Submit Rating"}
+                  </Button>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Meet at Card Shop PIN panel ────────────────────────────────── */}
         {offer?.status === "accepted" && offer.exchangeMethod === "store" && offer.exchangeMethodConfirmedBySeller && (() => {

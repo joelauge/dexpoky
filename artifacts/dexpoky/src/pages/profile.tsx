@@ -108,11 +108,22 @@ export default function Profile() {
     enabled: !!user,
   });
 
-  const { data: ratings } = useQuery<Rating[]>({
+  interface RatingsResponse {
+    ratings: Rating[];
+    ratingCount: number;
+    ratingAverage: number | null;
+    subConditionAvg: number | null;
+    subCommunicationAvg: number | null;
+    subShippingAvg: number | null;
+    subValueAvg: number | null;
+  }
+
+  const { data: ratingsData } = useQuery<RatingsResponse>({
     queryKey: ["/api/ratings/me", user?.id],
     queryFn: () => fetch(`/api/ratings/user/${user!.id}`).then(r => r.json()),
     enabled: !!user?.id,
   });
+  const ratings = ratingsData?.ratings;
 
   const { data: adminCheck } = useQuery<{ isAdmin: boolean }>({
     queryKey: ["/api/admin/me"],

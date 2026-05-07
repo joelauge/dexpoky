@@ -21,6 +21,20 @@ interface Rating {
   comment: string | null;
   type: string;
   createdAt: string;
+  subCondition: number | null;
+  subCommunication: number | null;
+  subShipping: number | null;
+  subValue: number | null;
+}
+
+interface RatingsResponse {
+  ratings: Rating[];
+  ratingCount: number;
+  ratingAverage: number | null;
+  subConditionAvg: number | null;
+  subCommunicationAvg: number | null;
+  subShippingAvg: number | null;
+  subValueAvg: number | null;
 }
 
 function StarDisplay({ score }: { score: number }) {
@@ -36,6 +50,27 @@ function StarDisplay({ score }: { score: number }) {
   );
 }
 
+function SubScoreRow({ label, avg }: { label: string; avg: number | null }) {
+  if (avg === null) return null;
+  const rounded = Math.round(avg * 10) / 10;
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs text-muted-foreground min-w-0">{label}</span>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex gap-0.5">
+          {[1, 2, 3, 4, 5].map(s => (
+            <Star
+              key={s}
+              className={`h-3 w-3 ${s <= Math.round(avg) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/25"}`}
+            />
+          ))}
+        </div>
+        <span className="text-xs font-medium text-amber-700 tabular-nums w-6 text-right">{rounded.toFixed(1)}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function SellerProfile() {
   const [, params] = useRoute("/seller/:clerkId");
   const clerkId = params?.clerkId ?? "";
@@ -47,11 +82,12 @@ export default function SellerProfile() {
     enabled: !!clerkId,
   });
 
-  const { data: ratings } = useQuery<Rating[]>({
+  const { data: ratingsData } = useQuery<RatingsResponse>({
     queryKey: ["/api/ratings/user", clerkId],
     queryFn: () => fetch(`/api/ratings/user/${clerkId}`).then(r => r.json()),
     enabled: !!clerkId,
   });
+  const ratings = ratingsData?.ratings;
 
   if (isLoading) {
     return (
@@ -129,6 +165,22 @@ export default function SellerProfile() {
           <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 mb-6">
             <h3 className="font-semibold mb-2 text-primary">Seller Contact Details</h3>
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{profile.sellerDetails}</p>
+          </div>
+        )}
+
+        {/* Detailed ratings breakdown */}
+        {ratingsData && (ratingsData.subConditionAvg !== null || ratingsData.subCommunicationAvg !== null || ratingsData.subShippingAvg !== null || ratingsData.subValueAvg !== null) && (
+          <div className="bg-card border rounded-2xl p-6 mb-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Star className="h-4 w-4 text-amber-500 fill-amber-400" />
+              Detailed Ratings
+            </h3>
+            <div className="space-y-2.5">
+              <SubScoreRow label="Card condition accuracy" avg={ratingsData.subConditionAvg} />
+              <SubScoreRow label="Communication" avg={ratingsData.subCommunicationAvg} />
+              <SubScoreRow label="Shipping & packaging" avg={ratingsData.subShippingAvg} />
+              <SubScoreRow label="Value for money" avg={ratingsData.subValueAvg} />
+            </div>
           </div>
         )}
 
