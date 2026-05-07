@@ -34,6 +34,7 @@ type AuctionListing = {
   listingImages?: string[] | null;
   listingVideo?: string | null;
   bidCount?: number;
+  updatedAt?: string | null;
 };
 
 interface Bid {
@@ -48,6 +49,16 @@ interface Rating {
   score: number;
   comment: string | null;
   type: string;
+}
+
+interface RatingsResponse {
+  ratings: Rating[];
+  ratingCount: number;
+  ratingAverage: number | null;
+  subConditionAvg: number | null;
+  subCommunicationAvg: number | null;
+  subShippingAvg: number | null;
+  subValueAvg: number | null;
 }
 
 function mediaUrl(path: string): string {
@@ -356,7 +367,7 @@ export default function ListingDetail() {
     refetchInterval: isAuction && !auctionEnded ? 8000 : false,
   });
 
-  const { data: myRatings } = useQuery<Rating[]>({
+  const { data: myRatingsData } = useQuery<RatingsResponse>({
     queryKey: ["/api/ratings/mine", id],
     queryFn: () => fetch(`/api/ratings/user/${user!.id}`).then(r => r.json()),
     enabled: !!user && extListing?.status === "sold",
@@ -696,7 +707,7 @@ export default function ListingDetail() {
   const minIncrement = extListing?.minBidIncrement ?? 1;
   const minBid = currentBid ? currentBid + minIncrement : (startingBid ?? 0);
   const reserveMet = !extListing?.reservePrice || (currentBid && currentBid >= extListing.reservePrice);
-  const alreadyRatedAsSeller = myRatings?.some(r => r.type === "buyer_to_seller");
+  const alreadyRatedAsSeller = myRatingsData?.ratings?.some(r => r.type === "buyer_to_seller");
   const endingSoon = isAuction && extListing?.auctionEndTime && !auctionEnded &&
     intervalToDuration({ start: new Date(), end: new Date(extListing.auctionEndTime) }).days === 0 &&
     (intervalToDuration({ start: new Date(), end: new Date(extListing.auctionEndTime) }).hours ?? 0) === 0 &&
@@ -1254,7 +1265,7 @@ export default function ListingDetail() {
 
               {/* Rating form */}
               {isSold && user && extListing?.sellerClerkId && extListing.sellerClerkId !== user.id && !alreadyRatedAsSeller && (() => {
-                const soldAt = (listing as unknown as { updatedAt?: string }).updatedAt;
+                const soldAt = extListing?.updatedAt;
                 const deadlinePassed = soldAt
                   ? Date.now() - new Date(soldAt).getTime() > 60 * 24 * 60 * 60 * 1000
                   : false;
