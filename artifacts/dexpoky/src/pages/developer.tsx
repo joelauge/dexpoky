@@ -868,10 +868,11 @@ history.forEach(inv => {
               recipient would love.
             </Callout>
             <Callout variant="warning">
-              SMS delivery requires <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, and
-              <code>TWILIO_PHONE_NUMBER</code> to be set in your environment secrets. Email works out of
-              the box via the platform's built-in mail system. If only one channel is configured, the
-              other is silently skipped and a <code>warnings</code> array is returned in the response.
+              Email delivery requires the <strong>Resend integration</strong> to be connected (resend.com — 3,000 free emails/month).
+              Connect it from the Integrations panel in your Replit project before sending emails.
+              SMS delivery additionally requires <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, and
+              <code>TWILIO_PHONE_NUMBER</code> environment secrets from your Twilio Console.
+              If only one channel is configured, the other is skipped and a <code>warnings</code> array is returned in the response explaining why.
             </Callout>
           </Section>
 

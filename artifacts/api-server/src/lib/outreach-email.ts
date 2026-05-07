@@ -1,6 +1,22 @@
-// Resend integration — uses Replit connectors proxy for credentials
+// Resend integration — uses Replit connectors proxy for credentials.
+// NOTE: Clerk's /v1/emails API requires email_address_id (Clerk user ID) and cannot
+// send to arbitrary external addresses. Resend is the correct delivery path for
+// outreach to non-DexPoky users, which is the explicit purpose of this feature.
 import { Resend } from "resend";
 import { logger } from "./logger.js";
+
+interface ResendConnectorSettings {
+  api_key: string;
+  from_email?: string;
+}
+
+interface ResendConnectorItem {
+  settings: ResendConnectorSettings;
+}
+
+interface ResendConnectorResponse {
+  items?: ResendConnectorItem[];
+}
 
 function getAppBaseUrl(): string {
   const domains = process.env.REPLIT_DOMAINS;
@@ -21,11 +37,11 @@ async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: stri
 
   if (!hostname || !xReplitToken) {
     throw new Error(
-      "Resend is not connected. Add the Resend integration from the Integrations panel to enable outreach emails."
+      "Email outreach requires the Resend integration. Connect it from the Integrations panel (resend.com — 3 000 free emails/month)."
     );
   }
 
-  const data = await fetch(
+  const response = await fetch(
     `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=resend`,
     {
       headers: {
@@ -33,20 +49,23 @@ async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: stri
         "X-Replit-Token": xReplitToken,
       },
     }
-  )
-    .then((r) => r.json())
-    .then((d: any) => d.items?.[0]);
+  );
 
-  if (!data?.settings?.api_key) {
-    throw new Error("Resend not connected — complete the Resend OAuth flow in the Integrations panel.");
+  const data = (await response.json()) as ResendConnectorResponse;
+  const item = data.items?.[0];
+
+  if (!item?.settings?.api_key) {
+    throw new Error(
+      "Resend not connected — complete the Resend OAuth flow in the Integrations panel to enable outreach emails."
+    );
   }
 
   const fromEmail: string =
-    data.settings.from_email ??
+    item.settings.from_email ??
     process.env.RESEND_FROM_EMAIL ??
     "DexPoky <invite@dexpoky.app>";
 
-  return { apiKey: data.settings.api_key, fromEmail };
+  return { apiKey: item.settings.api_key, fromEmail };
 }
 
 export interface CardEmailParams {
@@ -141,7 +160,7 @@ function buildCardHtml(params: CardEmailParams): string {
         <p style="font-size:9px;color:#5a2d00;margin:0;text-align:center;">Illus. ${esc(params.fromDisplayName).slice(0, 40)} &bull; DexPoky TCG</p>
       </td></tr>
     </table>
-    <!-- Legal footer -->
+    <!-- Legal footer with unsubscribe -->
     <table width="380" cellpadding="0" cellspacing="0" style="max-width:380px;width:100%;margin-top:16px;">
       <tr><td style="text-align:center;padding:0 16px;">
         <p style="font-size:11px;color:#555577;margin:0;line-height:1.8;">
@@ -160,7 +179,7 @@ function buildCardHtml(params: CardEmailParams): string {
 }
 
 export async function sendInviteEmail(params: CardEmailParams): Promise<void> {
-  // WARNING: Never cache the client — tokens expire
+  // WARNING: Never cache the client — Resend connector tokens expire.
   const { apiKey, fromEmail } = await getResendCredentials();
   const resend = new Resend(apiKey);
 
