@@ -651,7 +651,7 @@ function RunRow({ run }: { run: AgentRun }) {
         <span className="text-slate-600">{run.note}</span>
         {run.tempoTxHash && (
           <a
-            href={`https://explorer.testnet.tempo.xyz/tx/${run.tempoTxHash}`}
+            href={`https://explore.testnet.tempo.xyz/tx/${run.tempoTxHash}`}
             target="_blank"
             rel="noopener noreferrer"
             className="ml-1.5 text-violet-600 hover:underline inline-flex items-center gap-0.5"

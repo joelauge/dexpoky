@@ -12,7 +12,7 @@ export const tempoTestnet = defineChain({
     default: { http: ["https://rpc.testnet.tempo.xyz"] },
   },
   blockExplorers: {
-    default: { name: "Tempo Explorer", url: "https://explorer.testnet.tempo.xyz" },
+    default: { name: "Tempo Explorer", url: "https://explore.testnet.tempo.xyz" },
   },
   testnet: true,
 });
@@ -122,5 +122,5 @@ export async function sendPathUsd(
   return hash as string;
 }
 
-export const TEMPO_FAUCET_URL = "https://faucet.testnet.tempo.xyz";
-export const TEMPO_EXPLORER_URL = "https://explorer.testnet.tempo.xyz";
+export const TEMPO_FAUCET_URL = "https://docs.tempo.xyz/quickstart/faucet";
+export const TEMPO_EXPLORER_URL = "https://explore.testnet.tempo.xyz";
