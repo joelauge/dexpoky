@@ -79,12 +79,7 @@ router.post("/outreach/invite", requireApiKey, async (req: Request, res: Respons
   let fromDisplayName = "A DexPoky member";
   try {
     const sender = await clerkClient.users.getUser(apiReq.apiKeyClerkId);
-    fromDisplayName =
-      sender.username ??
-      (sender.firstName && sender.lastName
-        ? `${sender.firstName} ${sender.lastName}`
-        : sender.firstName) ??
-      fromDisplayName;
+    fromDisplayName = sender.username ?? fromDisplayName;
   } catch {
     // non-fatal
   }

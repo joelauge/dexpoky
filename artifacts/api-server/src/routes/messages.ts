@@ -24,10 +24,7 @@ const SendMessageBody = z.object({
 async function getDisplayInfo(clerkId: string): Promise<{ displayName: string | null; imageUrl: string | null }> {
   try {
     const user = await clerkClient.users.getUser(clerkId);
-    const displayName =
-      user.username ||
-      [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
-      null;
+    const displayName = user.username || null;
     return { displayName, imageUrl: user.imageUrl ?? null };
   } catch (err) {
     logger.warn({ err, clerkId }, "Failed to fetch Clerk user for messaging");
