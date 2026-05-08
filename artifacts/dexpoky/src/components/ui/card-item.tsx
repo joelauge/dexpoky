@@ -4,6 +4,8 @@ import { Card as CardType } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatLabel, RARITY_COLORS, CONDITION_COLORS } from "@/lib/constants";
 
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
 interface CardItemProps {
   card: CardType;
   href?: string;
@@ -11,6 +13,10 @@ interface CardItemProps {
 }
 
 export function CardItem({ card, href, showPrice = false }: CardItemProps) {
+  const isNew =
+    card.agentAcquiredAt != null &&
+    Date.now() - new Date(card.agentAcquiredAt).getTime() < THREE_DAYS_MS;
+
   const content = (
     <motion.div
       whileHover={{ y: -5, scale: 1.02 }}
@@ -27,6 +33,13 @@ export function CardItem({ card, href, showPrice = false }: CardItemProps) {
         ) : (
           <div className="flex flex-col items-center justify-center h-full">
             <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[144px] opacity-[0.12] grayscale select-none pointer-events-none" />
+          </div>
+        )}
+        {isNew && (
+          <div className="absolute top-2 left-2">
+            <Badge className="bg-emerald-500 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider shadow-sm border-0">
+              New
+            </Badge>
           </div>
         )}
         {card.forSale && (

@@ -739,6 +739,61 @@ out center 25;`;
     // ── Text message ─────────────────────────────────────────────────────
     if (item.kind === "msg") {
       const isMe = item.msg.senderClerkId === currentUserId;
+
+      // Detect rich agent-purchase notification
+      type AgentPurchasePayload = {
+        type: "agent_purchase";
+        cardId: number;
+        cardImageUrl: string | null;
+        cardName: string;
+        agentName: string;
+        pricePathUsd: string;
+        txHash: string | null;
+        collectionUrl: string;
+        text: string;
+      };
+      let agentPurchase: AgentPurchasePayload | null = null;
+      if (item.msg.content.startsWith('{"type":"agent_purchase"')) {
+        try { agentPurchase = JSON.parse(item.msg.content) as AgentPurchasePayload; } catch { /* ignore */ }
+      }
+
+      if (agentPurchase) {
+        return (
+          <div key={`msg-${item.msg.id}`} className="flex justify-start">
+            <div className="max-w-[80%] rounded-2xl rounded-bl-sm border bg-card shadow-sm overflow-hidden">
+              {agentPurchase.cardImageUrl && (
+                <div className="bg-muted/50 flex justify-center p-3 border-b">
+                  <img
+                    src={agentPurchase.cardImageUrl}
+                    alt={agentPurchase.cardName}
+                    className="h-36 w-auto object-contain rounded"
+                  />
+                </div>
+              )}
+              <div className="px-4 py-3">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary mb-1">
+                  <Package className="h-3.5 w-3.5 shrink-0" />
+                  Card Acquired by DexAgent
+                </div>
+                <p className="font-bold text-sm mb-0.5">{agentPurchase.cardName}</p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {agentPurchase.pricePathUsd} pathUSD · via &ldquo;{agentPurchase.agentName}&rdquo;
+                </p>
+                <a
+                  href={agentPurchase.collectionUrl}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  View in Collection <ArrowRight className="h-3 w-3" />
+                </a>
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  {formatDistanceToNow(new Date(item.msg.createdAt), { addSuffix: true })}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div key={`msg-${item.msg.id}`} className={cn("flex", isMe ? "justify-end" : "justify-start")}>
           <div

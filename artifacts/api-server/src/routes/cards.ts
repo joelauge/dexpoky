@@ -43,6 +43,7 @@ const cardSelect = {
   notes: cardsTable.notes,
   cardStory: cardsTable.cardStory,
   ownerClerkId: cardsTable.ownerClerkId,
+  agentAcquiredAt: cardsTable.agentAcquiredAt,
   createdAt: cardsTable.createdAt,
   updatedAt: cardsTable.updatedAt,
 };

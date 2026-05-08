@@ -52,6 +52,7 @@ export const cardsTable = pgTable("cards", {
   listingPrice: numeric("listing_price", { precision: 10, scale: 2 }),
   notes: text("notes"),
   cardStory: text("card_story"),
+  agentAcquiredAt: timestamp("agent_acquired_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

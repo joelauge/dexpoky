@@ -162,6 +162,7 @@ export const ListCardsResponseItem = zod.object({
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
   cardStory: zod.string().nullish(),
+  agentAcquiredAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -247,6 +248,7 @@ export const GetCardResponse = zod.object({
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
   cardStory: zod.string().nullish(),
+  agentAcquiredAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -332,6 +334,7 @@ export const UpdateCardResponse = zod.object({
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
   cardStory: zod.string().nullish(),
+  agentAcquiredAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -461,6 +464,7 @@ export const ListListingsResponseItem = zod.object({
     listingPrice: zod.number().nullish(),
     notes: zod.string().nullish(),
     cardStory: zod.string().nullish(),
+    agentAcquiredAt: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -535,6 +539,7 @@ export const GetListingResponse = zod.object({
     listingPrice: zod.number().nullish(),
     notes: zod.string().nullish(),
     cardStory: zod.string().nullish(),
+    agentAcquiredAt: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -601,6 +606,7 @@ export const UpdateListingResponse = zod.object({
     listingPrice: zod.number().nullish(),
     notes: zod.string().nullish(),
     cardStory: zod.string().nullish(),
+    agentAcquiredAt: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -694,6 +700,7 @@ export const GetRecentActivityResponseItem = zod.object({
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
   cardStory: zod.string().nullish(),
+  agentAcquiredAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -847,6 +854,7 @@ export const GetDeckResponse = zod.object({
           listingPrice: zod.number().nullish(),
           notes: zod.string().nullish(),
           cardStory: zod.string().nullish(),
+          agentAcquiredAt: zod.coerce.date().nullish(),
           createdAt: zod.coerce.date(),
           updatedAt: zod.coerce.date(),
         })

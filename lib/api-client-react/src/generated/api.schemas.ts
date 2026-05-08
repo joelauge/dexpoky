@@ -52,6 +52,7 @@ export interface Card {
   listingPrice?: number | null;
   notes?: string | null;
   cardStory?: string | null;
+  agentAcquiredAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

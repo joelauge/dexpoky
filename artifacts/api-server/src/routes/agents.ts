@@ -411,12 +411,6 @@ async function runBuyerAgentOnce(
     status = "success";
     note = `Bought "${card.name}" for ${priceFloat.toFixed(6)} pathUSD on Tempo Testnet`;
 
-    // Complete the purchase: mark listing sold + transfer card to buyer
-    await Promise.all([
-      db.update(listingsTable).set({ status: "sold" }).where(eq(listingsTable.id, listing.id)),
-      db.update(cardsTable).set({ ownerClerkId: clerkId }).where(eq(cardsTable.id, card.id)),
-    ]);
-
     await db.update(dexAgentsTable).set({
       spentPathUsd: sql`${dexAgentsTable.spentPathUsd}::numeric + ${priceFloat}`,
       lastRunAt: new Date(),
@@ -429,6 +423,16 @@ async function runBuyerAgentOnce(
     note = `Testnet tx failed (${msg.slice(0, 80)}) — recording as simulated`;
     await db.update(dexAgentsTable).set({ lastRunAt: new Date(), runsCount: sql`${dexAgentsTable.runsCount} + 1` }).where(eq(dexAgentsTable.id, agent.id));
   }
+
+  // Always complete the purchase for both success and simulated:
+  // mark listing sold, transfer card ownership, and stamp acquisition timestamp
+  const acquiredAt = new Date();
+  await Promise.all([
+    db.update(listingsTable).set({ status: "sold" }).where(eq(listingsTable.id, listing.id)),
+    db.update(cardsTable)
+      .set({ ownerClerkId: clerkId, agentAcquiredAt: acquiredAt })
+      .where(eq(cardsTable.id, card.id)),
+  ]);
 
   await db.insert(agentRunsTable).values({
     agentId: agent.id, clerkId,
@@ -445,6 +449,8 @@ async function runBuyerAgentOnce(
     sellerClerkId: listing.sellerClerkId ?? clerkId,
     agentName: agent.name,
     cardName: card.name,
+    cardId: card.id,
+    cardImageUrl: card.imageUrl ?? undefined,
     pricePathUsd: priceFloat.toFixed(6),
     listingId: listing.id,
     txHash,

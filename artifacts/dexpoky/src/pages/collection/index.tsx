@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useListCards, useListCategories, CardRarity, CardCondition } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CardItem } from "@/components/ui/card-item";
@@ -12,12 +12,13 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library } from "lucide-react";
+import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library, ExternalLink } from "lucide-react";
 import { ShareModal } from "@/components/share-modal";
 import { Link } from "wouter";
 import { formatLabel } from "@/lib/constants";
 import { useCardSize } from "@/hooks/useCardSize";
 import { CardSizeSlider } from "@/components/card-size-slider";
+import { motion, AnimatePresence } from "framer-motion";
 
 type SortKey =
   | "date_new"
@@ -60,6 +61,42 @@ const CONDITION_ORDER: Record<string, number> = {
   poor: 0,
 };
 
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+const CELEBRATED_KEY = "dexpoky:celebrated_acquisitions";
+
+const CONFETTI_COLORS = [
+  "#6366f1", "#f59e0b", "#10b981", "#ef4444", "#3b82f6",
+  "#ec4899", "#8b5cf6", "#14b8a6", "#f97316", "#eab308",
+];
+
+interface ConfettiPiece {
+  id: number;
+  x: number;
+  color: string;
+  delay: number;
+  duration: number;
+  rotate: number;
+  size: number;
+}
+
+function generateConfetti(count = 28): ConfettiPiece[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    x: Math.random() * 100,
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    delay: Math.random() * 0.6,
+    duration: 1.8 + Math.random() * 1,
+    rotate: (Math.random() > 0.5 ? 1 : -1) * (180 + Math.random() * 360),
+    size: 6 + Math.random() * 6,
+  }));
+}
+
+interface CelebrationCard {
+  id: number;
+  name: string;
+  imageUrl: string | null | undefined;
+}
+
 export default function Collection() {
   const [search, setSearch] = useState("");
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -69,6 +106,8 @@ export default function Collection() {
   const [forSale, setForSale] = useState<string>("all");
   const [sort, setSort] = useState<SortKey>("date_new");
   const [cardSize, setCardSize, gridClass] = useCardSize();
+  const [celebrationCard, setCelebrationCard] = useState<CelebrationCard | null>(null);
+  const confetti = useMemo(() => generateConfetti(), []);
 
   const { data: categories } = useListCategories();
 
@@ -78,6 +117,37 @@ export default function Collection() {
     rarity: rarity !== "all" ? rarity : undefined,
     forSale: forSale === "all" ? undefined : forSale === "yes",
   });
+
+  // Show celebration modal for newly agent-acquired cards not yet celebrated
+  useEffect(() => {
+    if (!cards || cards.length === 0) return;
+
+    const celebrated: number[] = (() => {
+      try { return JSON.parse(localStorage.getItem(CELEBRATED_KEY) ?? "[]") as number[]; }
+      catch { return []; }
+    })();
+
+    const newCard = cards.find(
+      (c) =>
+        c.agentAcquiredAt != null &&
+        Date.now() - new Date(c.agentAcquiredAt).getTime() < THREE_DAYS_MS &&
+        !celebrated.includes(c.id),
+    );
+
+    if (newCard) {
+      setCelebrationCard({ id: newCard.id, name: newCard.name, imageUrl: newCard.imageUrl });
+    }
+  }, [cards]);
+
+  function dismissCelebration() {
+    if (!celebrationCard) return;
+    const celebrated: number[] = (() => {
+      try { return JSON.parse(localStorage.getItem(CELEBRATED_KEY) ?? "[]") as number[]; }
+      catch { return []; }
+    })();
+    localStorage.setItem(CELEBRATED_KEY, JSON.stringify([...celebrated, celebrationCard.id]));
+    setCelebrationCard(null);
+  }
 
   const filteredCards = cards
     ?.filter((card) => {
@@ -273,11 +343,80 @@ export default function Collection() {
           </div>
         )}
       </div>
+
       <ShareModal
         isOpen={isShareOpen}
         onClose={() => setIsShareOpen(false)}
         target={{ type: "collection", cardCount: filteredCards?.length }}
       />
+
+      {/* ── Celebration modal ─────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {celebrationCard && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={dismissCelebration}
+          >
+            <motion.div
+              className="relative bg-card rounded-2xl shadow-2xl p-7 max-w-xs w-full mx-4 text-center overflow-hidden"
+              initial={{ scale: 0.75, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 18, stiffness: 280 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Confetti particles */}
+              <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+                {confetti.map((p) => (
+                  <motion.div
+                    key={p.id}
+                    className="absolute top-0 rounded-sm"
+                    style={{ left: `${p.x}%`, width: p.size, height: p.size * 1.5, backgroundColor: p.color }}
+                    initial={{ y: -16, opacity: 1, rotate: 0 }}
+                    animate={{ y: 380, opacity: [1, 1, 0.3, 0], rotate: p.rotate }}
+                    transition={{ delay: p.delay, duration: p.duration, ease: "easeIn" }}
+                  />
+                ))}
+              </div>
+
+              {/* Content */}
+              <div className="relative z-10">
+                <div className="text-5xl mb-2 select-none">🎉</div>
+                <h2 className="text-xl font-extrabold tracking-tight mb-1">Congrats! You got it!</h2>
+                <p className="text-sm text-muted-foreground mb-4">Added to your collection by DexAgent</p>
+
+                {celebrationCard.imageUrl ? (
+                  <img
+                    src={celebrationCard.imageUrl}
+                    alt={celebrationCard.name}
+                    className="mx-auto h-44 w-auto object-contain rounded-lg shadow-lg mb-4"
+                  />
+                ) : (
+                  <div className="mx-auto h-44 w-32 bg-muted rounded-lg mb-4 flex items-center justify-center text-muted-foreground text-xs">
+                    No image
+                  </div>
+                )}
+
+                <p className="font-bold text-base mb-5 leading-snug">{celebrationCard.name}</p>
+
+                <div className="flex flex-col gap-2">
+                  <Link href={`/collection/${celebrationCard.id}`} onClick={dismissCelebration}>
+                    <Button variant="outline" className="w-full gap-1.5">
+                      <ExternalLink className="h-3.5 w-3.5" /> View Card
+                    </Button>
+                  </Link>
+                  <Button onClick={dismissCelebration} className="w-full">
+                    Awesome! 🙌
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }

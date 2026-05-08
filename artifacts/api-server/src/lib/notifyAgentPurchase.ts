@@ -79,11 +79,13 @@ export async function notifyAgentPurchase(params: {
   sellerClerkId: string;
   agentName: string;
   cardName: string;
+  cardId: number;
+  cardImageUrl?: string;
   pricePathUsd: string;
   listingId: number;
   txHash?: string;
 }): Promise<void> {
-  const { buyerClerkId, sellerClerkId, agentName, cardName, pricePathUsd, listingId, txHash } = params;
+  const { buyerClerkId, sellerClerkId, agentName, cardName, cardId, cardImageUrl, pricePathUsd, listingId, txHash } = params;
   const baseUrl = getAppBaseUrl();
   const explorerBase = "https://explore.testnet.tempo.xyz";
 
@@ -96,14 +98,26 @@ export async function notifyAgentPurchase(params: {
       ? `\nTx: ${explorerBase}/tx/${txHash}`
       : "";
 
-    // Buyer notification (sent as buyer so it appears in their inbox)
+    // Buyer notification: rich JSON card so the inbox can render image + link
+    const buyerPayload = JSON.stringify({
+      type: "agent_purchase",
+      cardId,
+      cardImageUrl: cardImageUrl ?? null,
+      cardName,
+      agentName,
+      pricePathUsd,
+      txHash: txHash ?? null,
+      collectionUrl: `/collection/${cardId}`,
+      text: `🤖 Your DexAgent "${agentName}" automatically purchased ${cardName} for ${pricePathUsd} pathUSD on Tempo Testnet.${txLine}\n\nThe card has been added to your collection.`,
+    });
+
     await db.insert(dmMessagesTable).values({
       threadId,
       senderClerkId: buyerClerkId,
-      content: `🤖 Your DexAgent "${agentName}" automatically purchased **${cardName}** for ${pricePathUsd} pathUSD on Tempo Testnet.${txLine}\n\nThe card has been added to your collection.`,
+      content: buyerPayload,
     });
 
-    // Seller notification (sent as seller so seller sees it too)
+    // Seller notification: plain text
     await db.insert(dmMessagesTable).values({
       threadId,
       senderClerkId: sellerClerkId,
@@ -131,6 +145,7 @@ export async function notifyAgentPurchase(params: {
       ``,
       `The card has been added to your collection.`,
       ``,
+      `View the card: ${baseUrl}/collection/${cardId}`,
       `View your inbox: ${baseUrl}/inbox`,
       `Manage your agents: ${baseUrl}/agents`,
       ``,
