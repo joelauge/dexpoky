@@ -609,6 +609,17 @@ export default function Profile() {
             </div>
           )}
         </div>
+
+        {/* Footer links */}
+        <div className="flex items-center justify-center gap-3 pt-2 pb-1 text-xs text-muted-foreground/70">
+          <a href="/support" className="hover:text-muted-foreground transition-colors">Support</a>
+          <span>·</span>
+          <a href="/terms-of-service" className="hover:text-muted-foreground transition-colors">Terms</a>
+          <span>·</span>
+          <a href="/privacy-policy" className="hover:text-muted-foreground transition-colors">Privacy</a>
+          <span>·</span>
+          <a href="mailto:support@dexpoky.com" className="hover:text-muted-foreground transition-colors">support@dexpoky.com</a>
+        </div>
       </Layout>
     </Show>
   );

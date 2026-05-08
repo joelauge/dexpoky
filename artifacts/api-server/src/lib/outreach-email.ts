@@ -197,3 +197,69 @@ export async function sendInviteEmail(params: CardEmailParams): Promise<void> {
 
   logger.info({ toEmail: params.toEmail }, "Outreach invite email sent via Resend");
 }
+
+export interface SupportEmailParams {
+  fromName: string;
+  fromEmail: string;
+  subject: string;
+  category: string;
+  message: string;
+}
+
+export async function sendSupportEmail(params: SupportEmailParams): Promise<void> {
+  const { apiKey, fromEmail } = await getResendCredentials();
+  const resend = new Resend(apiKey);
+
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><title>Support Request</title></head>
+<body style="margin:0;padding:32px 16px;background:#f8fafc;font-family:Arial,sans-serif;">
+  <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">
+    <tr><td style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:20px 28px;">
+      <span style="font-size:20px;font-weight:800;color:#ffffff;">&#x2B21; DexPoky Support</span>
+    </td></tr>
+    <tr><td style="padding:28px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr><td style="padding-bottom:12px;border-bottom:1px solid #e2e8f0;">
+          <p style="margin:0 0 4px;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">From</p>
+          <p style="margin:0;font-size:15px;font-weight:600;color:#0f172a;">${esc(params.fromName)} &lt;${esc(params.fromEmail)}&gt;</p>
+        </td></tr>
+        <tr><td style="padding:12px 0;border-bottom:1px solid #e2e8f0;">
+          <p style="margin:0 0 4px;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Category</p>
+          <p style="margin:0;font-size:15px;font-weight:600;color:#0f172a;">${esc(params.category)}</p>
+        </td></tr>
+        <tr><td style="padding:12px 0;border-bottom:1px solid #e2e8f0;">
+          <p style="margin:0 0 4px;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Subject</p>
+          <p style="margin:0;font-size:15px;font-weight:600;color:#0f172a;">${esc(params.subject)}</p>
+        </td></tr>
+        <tr><td style="padding-top:16px;">
+          <p style="margin:0 0 8px;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Message</p>
+          <p style="margin:0;font-size:15px;color:#1e293b;line-height:1.7;white-space:pre-wrap;">${esc(params.message)}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+    <tr><td style="background:#f8fafc;padding:14px 28px;border-top:1px solid #e2e8f0;">
+      <p style="margin:0;font-size:12px;color:#94a3b8;">Reply directly to this email to respond to the user.</p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const { error } = await resend.emails.send({
+    from: fromEmail,
+    to: ["support@dexpoky.com"],
+    replyTo: params.fromEmail,
+    subject: `[Support] ${params.subject}`,
+    html,
+  });
+
+  if (error) {
+    logger.warn({ error, fromEmail: params.fromEmail }, "Resend returned error for support email");
+    throw new Error(`Email delivery failed: ${error.message}`);
+  }
+
+  logger.info({ fromEmail: params.fromEmail }, "Support email sent via Resend");
+}

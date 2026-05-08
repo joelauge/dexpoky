@@ -41,6 +41,9 @@ import InboxPage from "@/pages/inbox/index";
 import WalletPage from "@/pages/wallet/index";
 import DeveloperPage from "@/pages/developer";
 import DexAgentsPage from "@/pages/dex-agents";
+import SupportPage from "@/pages/support";
+import TermsOfServicePage from "@/pages/terms-of-service";
+import PrivacyPolicyPage from "@/pages/privacy-policy";
 import { UsernameGate } from "@/components/username-gate";
 import { usePaymentSSE } from "@/hooks/use-payment-sse";
 
@@ -325,6 +328,9 @@ function ClerkProviderWithRoutes() {
             <Route path="/view/group/:code" component={GroupShareView} />
             <Route path="/s/:code" component={ShortLinkRedirect} />
             <Route path="/w/:code" component={WantedPublicPage} />
+            <Route path="/support" component={SupportPage} />
+            <Route path="/terms-of-service" component={TermsOfServicePage} />
+            <Route path="/privacy-policy" component={PrivacyPolicyPage} />
             <Route component={NotFound} />
           </Switch>
           </UsernameGate>
