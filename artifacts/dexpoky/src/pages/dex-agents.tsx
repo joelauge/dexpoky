@@ -137,9 +137,11 @@ export default function DexAgentsPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"buyer" | "seller">("buyer");
 
-  const { data: wallet, isLoading: walletLoading } = useQuery<TempoWalletInfo>({
+  const { data: wallet, isLoading: walletLoading, isFetching: walletFetching } = useQuery<TempoWalletInfo>({
     queryKey: ["tempo-wallet"],
     queryFn: () => authFetch("/api/agents/wallet").then((r) => r.json()),
+    refetchInterval: 8000,        // poll on-chain balance every 8 s
+    refetchOnWindowFocus: true,   // immediate refresh when switching back from faucet tab
   });
 
   const { data: agents = [], isLoading: agentsLoading } = useQuery<DexAgent[]>({
@@ -191,6 +193,7 @@ export default function DexAgentsPage() {
         <WalletPanel
           wallet={wallet}
           loading={walletLoading}
+          fetching={walletFetching}
           onCopy={copyAddress}
           copied={copiedAddr}
         />
@@ -302,11 +305,13 @@ function TabBtn({
 function WalletPanel({
   wallet,
   loading,
+  fetching,
   onCopy,
   copied,
 }: {
   wallet?: TempoWalletInfo;
   loading: boolean;
+  fetching: boolean;
   onCopy: () => void;
   copied: boolean;
 }) {
@@ -318,6 +323,12 @@ function WalletPanel({
         <Badge variant="secondary" className="text-xs bg-violet-100 text-violet-700 border-0">
           pathUSD
         </Badge>
+        <div className="ml-auto flex items-center gap-1.5 text-[10px] text-violet-500">
+          <span className={fetching && !loading ? "animate-pulse" : ""}>
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${fetching && !loading ? "bg-violet-400 animate-pulse" : "bg-violet-300"}`} />
+          </span>
+          <span className="hidden sm:inline">Live</span>
+        </div>
       </div>
 
       {loading ? (
