@@ -127,6 +127,7 @@ export function GradingVerification({ cardId }: { cardId: number }) {
 
 function SubmitCertPanel({ cardId, onSubmitted }: { cardId: number; onSubmitted: () => void }) {
   const authFetch = useAuthFetch();
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [company, setCompany] = useState<"psa" | "bgs" | "cgc">("psa");
   const [certNumber, setCertNumber] = useState("");
@@ -144,18 +145,23 @@ function SubmitCertPanel({ cardId, onSubmitted }: { cardId: number; onSubmitted:
         return json;
       }),
     onSuccess: (data) => {
+      if (data.cert?.status === "rejected") {
+        setError(data.error ?? "Cert not found or invalid");
+        // Still push the rejected cert into the cache so the block updates without a reload
+        if (data.cert) qc.setQueryData(["grading-cert", cardId], data.cert);
+        return;
+      }
       if (data.verified) {
         toast.success(`PSA cert verified — Grade ${data.cert.grade}!`);
-      } else if (data.cert?.status === "rejected") {
-        setError(data.error ?? "Cert not found");
-        return;
       } else {
         toast.info("Cert submitted for manual review");
       }
       setOpen(false);
       setCertNumber("");
       setError(null);
-      onSubmitted();
+      // Write the cert directly into the cache for instant UI update (no extra refetch needed)
+      if (data.cert) qc.setQueryData(["grading-cert", cardId], data.cert);
+      else onSubmitted();
     },
     onError: (e: Error) => setError(e.message),
   });
