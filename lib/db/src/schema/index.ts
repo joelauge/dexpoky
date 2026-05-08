@@ -23,3 +23,4 @@ export * from "./tempo_wallets";
 export * from "./dex_agents";
 export * from "./card_grading_certs";
 export * from "./agent_approval_requests";
+export * from "./agent_external_finds";

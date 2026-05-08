@@ -59,6 +59,28 @@ export async function sendAgentApprovalSms(params: ApprovalSmsParams): Promise<v
   await sendSms(toPhone, msg);
 }
 
+interface ExternalFindSmsParams {
+  toPhone: string;
+  agentName: string;
+  cardName: string;
+  site: string;
+  priceUsd: string;
+  listingTitle: string;
+  listingUrl: string;
+}
+
+export async function sendAgentExternalFindSms(params: ExternalFindSmsParams): Promise<void> {
+  const { toPhone, agentName, cardName, site, priceUsd, listingTitle, listingUrl } = params;
+  const msg =
+    `DexPoky DexAgent "${agentName}" found ${cardName} on ${site}!\n\n` +
+    `"${listingTitle.slice(0, 80)}"\n` +
+    `$${priceUsd}\n\n` +
+    `${listingUrl}\n\n` +
+    `Reply YES to save to your DexPoky inbox, or NO to dismiss.\n` +
+    `(Expires in 24 hours)`;
+  await sendSms(toPhone, msg);
+}
+
 export async function sendAgentAutoBuySms(params: AutoBuySmsParams): Promise<void> {
   const { toPhone, agentName, cardName, pricePathUsd } = params;
   const msg =

@@ -61,6 +61,7 @@ import {
   Pencil,
   CreditCard,
   Loader2,
+  ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -136,6 +137,20 @@ interface InventoryCard {
   certNumber: string | null;
 }
 
+interface ExternalFind {
+  id: number;
+  agentId: number;
+  clerkId: string;
+  cardName: string;
+  site: string;
+  listingTitle: string | null;
+  listingUrl: string;
+  priceUsd: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DexAgentsPage() {
@@ -176,6 +191,12 @@ export default function DexAgentsPage() {
     qc.invalidateQueries({ queryKey: ["dex-agents"] });
     qc.invalidateQueries({ queryKey: ["agent-runs"] });
   };
+
+  const { data: externalFinds = [] } = useQuery<ExternalFind[]>({
+    queryKey: ["agent-external-finds"],
+    queryFn: () => authFetch("/api/agents/external-finds?status=saved").then((r) => r.json()),
+    refetchInterval: 30000,
+  });
 
   const buyerAgents = agents.filter((a) => a.agentRole === "buyer");
   const sellerAgents = agents.filter((a) => a.agentRole === "seller");
@@ -265,9 +286,80 @@ export default function DexAgentsPage() {
           </div>
         )}
 
+        <ExternalFindsPanel finds={externalFinds} />
+
         <ActivityFeed agents={agents} />
       </div>
     </Layout>
+  );
+}
+
+// ── External Finds Panel ──────────────────────────────────────────────────────
+
+function ExternalFindsPanel({ finds }: { finds: ExternalFind[] }) {
+  const [open, setOpen] = useState(true);
+
+  if (finds.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-orange-200 bg-orange-50 overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-orange-100 transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <ShoppingBag className="h-4 w-4 text-orange-600" />
+          <span className="text-sm font-semibold text-orange-900">eBay Finds</span>
+          <span className="text-xs bg-orange-200 text-orange-800 font-bold px-2 py-0.5 rounded-full">
+            {finds.length}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-orange-600">Cards your agents spotted on eBay</span>
+          {open ? (
+            <ChevronDown className="h-4 w-4 text-orange-500" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-orange-500" />
+          )}
+        </div>
+      </button>
+
+      {open && (
+        <div className="divide-y divide-orange-100 border-t border-orange-100">
+          {finds.map((find) => (
+            <div key={find.id} className="px-4 py-3 flex items-start gap-3 bg-white hover:bg-orange-50/40 transition-colors">
+              <div className="h-8 w-8 rounded-lg bg-orange-100 flex items-center justify-center shrink-0 mt-0.5">
+                <ShoppingBag className="h-4 w-4 text-orange-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-slate-800">{find.cardName}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded">
+                    {find.site}
+                  </span>
+                  <span className="text-sm font-bold text-emerald-700">${parseFloat(find.priceUsd).toFixed(2)}</span>
+                </div>
+                {find.listingTitle && (
+                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{find.listingTitle}</p>
+                )}
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Saved {format(new Date(find.createdAt), "MMM d, h:mm a")}
+                </p>
+              </div>
+              <a
+                href={find.listingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-100 hover:bg-orange-200 border border-orange-200 px-2.5 py-1.5 rounded-lg shrink-0 transition-colors"
+              >
+                View on {find.site}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

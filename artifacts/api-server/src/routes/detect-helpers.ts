@@ -592,3 +592,96 @@ export async function searchTcgdex(
     return { variants: [], pricing: emptyPricing };
   }
 }
+
+// ── eBay active listing search (for DexAgent external find alerts) ─────────────
+
+export interface EbayActiveListing {
+  title: string;
+  priceUsd: number;
+  url: string;
+}
+
+const EBAY_ACTIVE_TTL_MS = 15 * 60 * 1000; // 15 min
+const ebayActiveCache = new Map<string, { expires: number; data: EbayActiveListing[] }>();
+
+/**
+ * Scrape eBay's Buy-It-Now active listings for a card name + optional set name,
+ * up to maxPriceUsd. Returns up to 5 results sorted by price ascending.
+ * Filters out graded slabs (PSA/BGS/CGC). Cached 15 minutes per query.
+ */
+export async function fetchEbayActiveListings(
+  name: string,
+  setName?: string,
+  maxPriceUsd?: number,
+): Promise<EbayActiveListing[]> {
+  const query = buildEbayQuery(name, setName);
+  const cacheKey = `active:${query.toLowerCase()}:${maxPriceUsd ?? "any"}`;
+  const cached = ebayActiveCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.data;
+
+  const params = new URLSearchParams({
+    _nkw: query,
+    _sacat: "0",
+    LH_BIN: "1",       // Buy It Now only
+    _sop: "15",        // Price + shipping: lowest first
+    _ipg: "25",
+  });
+  if (maxPriceUsd != null) {
+    params.set("_udhi", maxPriceUsd.toFixed(2));
+  }
+
+  const searchUrl = `https://www.ebay.com/sch/i.html?${params.toString()}`;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(searchUrl, {
+      headers: {
+        "User-Agent": EBAY_UA,
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      ebayActiveCache.set(cacheKey, { expires: Date.now() + 5 * 60 * 1000, data: [] });
+      return [];
+    }
+
+    const html = await res.text();
+    const results: EbayActiveListing[] = [];
+    const itemBlocks = html.split(/class="s-item\b/).slice(1);
+
+    for (const block of itemBlocks) {
+      const titleMatch = block.match(/class="s-item__title[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|h3)>/i);
+      const title = (titleMatch?.[1] ?? "").replace(/<[^>]+>/g, "").trim();
+      if (!title || /shop on ebay/i.test(title)) continue;
+      if (/\b(psa|bgs|cgc|sgc|ace)\s*\d/i.test(title)) continue;
+
+      const priceMatch = block.match(/class="s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      if (!priceMatch) continue;
+      const priceText = priceMatch[1].replace(/<[^>]+>/g, "");
+      const numMatch = priceText.match(/\$\s*([0-9]+(?:[.,][0-9]{1,2})?)/);
+      if (!numMatch) continue;
+      const priceUsd = parseFloat(numMatch[1].replace(",", ""));
+      if (!isFinite(priceUsd) || priceUsd <= 0) continue;
+      if (maxPriceUsd != null && priceUsd > maxPriceUsd) continue;
+
+      // Extract item URL and strip tracking params
+      const urlMatch = block.match(/href="(https:\/\/www\.ebay\.com\/itm\/[^"?]+)(?:[^"]*)?"/i);
+      if (!urlMatch) continue;
+      const url = urlMatch[1];
+
+      results.push({ title, priceUsd, url });
+      if (results.length >= 5) break;
+    }
+
+    ebayActiveCache.set(cacheKey, { expires: Date.now() + EBAY_ACTIVE_TTL_MS, data: results });
+    return results;
+  } catch {
+    ebayActiveCache.set(cacheKey, { expires: Date.now() + 5 * 60 * 1000, data: [] });
+    return [];
+  }
+}

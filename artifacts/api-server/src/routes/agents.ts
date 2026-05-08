@@ -7,6 +7,7 @@ import {
   dexAgentsTable,
   agentRunsTable,
   agentApprovalRequestsTable,
+  agentExternalFindsTable,
   listingsTable,
   cardsTable,
 } from "@workspace/db";
@@ -22,7 +23,8 @@ import {
   TEMPO_EXPLORER_URL,
 } from "../lib/tempoWallet.js";
 import { notifyAgentPurchase } from "../lib/notifyAgentPurchase.js";
-import { sendAgentApprovalSms, sendAgentAutoBuySms } from "../lib/agent-sms.js";
+import { sendAgentApprovalSms, sendAgentAutoBuySms, sendAgentExternalFindSms } from "../lib/agent-sms.js";
+import { fetchEbayActiveListings } from "./detect-helpers.js";
 import { getOnrampCredentials } from "../stripeClient.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
@@ -525,6 +527,59 @@ async function runBuyerAgentOnce(
     .limit(1);
 
   if (listings.length === 0) {
+    // ── eBay active listing fallback ────────────────────────────────────────
+    const ebayFinds = await fetchEbayActiveListings(agent.pokemonName, agent.targetSetName ?? undefined, affordableMax);
+    const topFind = ebayFinds[0] ?? null;
+
+    if (topFind) {
+      // Deduplicate: skip if we already alerted for this exact URL in the last 24h
+      const [existing] = await db
+        .select({ id: agentExternalFindsTable.id })
+        .from(agentExternalFindsTable)
+        .where(and(
+          eq(agentExternalFindsTable.agentId, agent.id),
+          eq(agentExternalFindsTable.listingUrl, topFind.url),
+          sql`${agentExternalFindsTable.createdAt} > NOW() - INTERVAL '24 hours'`,
+        ));
+
+      if (!existing) {
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await db.insert(agentExternalFindsTable).values({
+          agentId: agent.id,
+          clerkId,
+          cardName: agent.pokemonName,
+          site: "eBay",
+          listingTitle: topFind.title,
+          listingUrl: topFind.url,
+          priceUsd: topFind.priceUsd.toFixed(2),
+          status: "pending",
+          expiresAt,
+        });
+
+        const [user] = await db
+          .select({ phone: usersTable.phone })
+          .from(usersTable)
+          .where(eq(usersTable.clerkId, clerkId));
+
+        if (user?.phone) {
+          void sendAgentExternalFindSms({
+            toPhone: user.phone,
+            agentName: agent.name,
+            cardName: agent.pokemonName,
+            site: "eBay",
+            priceUsd: topFind.priceUsd.toFixed(2),
+            listingTitle: topFind.title,
+            listingUrl: topFind.url,
+          });
+        }
+
+        const note = `No DexPoky match — found on eBay for $${topFind.priceUsd.toFixed(2)} (SMS alert sent)`;
+        await db.insert(agentRunsTable).values({ status: "ebay_alert", note, agentId: agent.id, clerkId });
+        await db.update(dexAgentsTable).set({ lastRunAt: new Date(), runsCount: sql`${dexAgentsTable.runsCount} + 1` }).where(eq(dexAgentsTable.id, agent.id));
+        return { matched: false, note };
+      }
+    }
+
     const note = `No buy-now listings for "${agent.pokemonName}" under ${affordableMax.toFixed(2)} pathUSD`;
     await db.insert(agentRunsTable).values({ status: "no_match", note, agentId: agent.id, clerkId });
     await db.update(dexAgentsTable).set({ lastRunAt: new Date(), runsCount: sql`${dexAgentsTable.runsCount} + 1` }).where(eq(dexAgentsTable.id, agent.id));
@@ -614,6 +669,25 @@ async function runBuyerAgentOnce(
   return { matched: true, listingId: listing.id, cardName: card.name, pricePathUsd: priceFloat.toFixed(6), note };
 }
 
+// ── External Finds (eBay alerts saved by user) ────────────────────────────────
+
+router.get("/agents/external-finds", requireAuth, async (req: Request, res: Response) => {
+  const clerkId = (req as AuthRequest).userId;
+  const status = String(req.query.status ?? "saved");
+  const finds = await db
+    .select()
+    .from(agentExternalFindsTable)
+    .where(and(
+      eq(agentExternalFindsTable.clerkId, clerkId),
+      status === "all"
+        ? sql`true`
+        : eq(agentExternalFindsTable.status, status),
+    ))
+    .orderBy(desc(agentExternalFindsTable.createdAt))
+    .limit(50);
+  res.json(finds);
+});
+
 // ── Twilio SMS webhook (YES/NO approval replies) ───────────────────────────────
 
 router.post("/agents/sms-webhook", async (req: Request, res: Response) => {
@@ -649,7 +723,36 @@ router.post("/agents/sms-webhook", async (req: Request, res: Response) => {
     .limit(1);
 
   if (!approval) {
-    twiml("No pending purchase requests found. Your agent is still watching.");
+    // No pending purchase approval — check for a pending external find alert
+    const [extFind] = await db
+      .select()
+      .from(agentExternalFindsTable)
+      .where(and(
+        eq(agentExternalFindsTable.clerkId, user.clerkId),
+        eq(agentExternalFindsTable.status, "pending"),
+        sql`${agentExternalFindsTable.expiresAt} > NOW()`,
+      ))
+      .orderBy(desc(agentExternalFindsTable.createdAt))
+      .limit(1);
+
+    if (!extFind) {
+      twiml("No pending requests found. Your agent is still watching.");
+      return;
+    }
+
+    if (bodyText.startsWith("YES") || bodyText === "Y") {
+      await db.update(agentExternalFindsTable)
+        .set({ status: "saved" })
+        .where(eq(agentExternalFindsTable.id, extFind.id));
+      twiml(`Saved! "${extFind.cardName}" from ${extFind.site} ($${extFind.priceUsd}) is now in your DexPoky Finds inbox. Listing: ${extFind.listingUrl}`);
+    } else if (bodyText.startsWith("NO") || bodyText === "N") {
+      await db.update(agentExternalFindsTable)
+        .set({ status: "dismissed" })
+        .where(eq(agentExternalFindsTable.id, extFind.id));
+      twiml(`Dismissed. Your DexAgent will keep watching for ${extFind.cardName}.`);
+    } else {
+      twiml(`Reply YES to save the ${extFind.cardName} listing from ${extFind.site} ($${extFind.priceUsd}) to your inbox, or NO to dismiss.`);
+    }
     return;
   }
 
