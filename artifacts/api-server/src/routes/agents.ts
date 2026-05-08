@@ -64,6 +64,7 @@ const createBuyerAgentSchema = z.object({
   agentRole: z.literal("buyer"),
   name: z.string().min(1).max(100),
   pokemonName: z.string().min(1).max(100),
+  targetSetName: z.string().max(150).optional(),
   triggerType: z.enum(["buy_now", "bid"]).default("buy_now"),
   maxPricePathUsd: z.coerce.number().positive().max(10000),
   budgetPathUsd: z.coerce.number().positive().max(100000),
@@ -102,7 +103,7 @@ router.post("/agents", requireAuth, async (req: Request, res: Response) => {
   }
 
   if (parsed.data.agentRole === "buyer") {
-    const { name, pokemonName, triggerType, maxPricePathUsd, budgetPathUsd, requireHoloOnly, requireCondition } = parsed.data;
+    const { name, pokemonName, targetSetName, triggerType, maxPricePathUsd, budgetPathUsd, requireHoloOnly, requireCondition } = parsed.data;
     const [agent] = await db
       .insert(dexAgentsTable)
       .values({
@@ -110,6 +111,7 @@ router.post("/agents", requireAuth, async (req: Request, res: Response) => {
         agentRole: "buyer",
         name,
         pokemonName,
+        targetSetName: targetSetName ?? null,
         triggerType,
         maxPricePathUsd: maxPricePathUsd.toString(),
         budgetPathUsd: budgetPathUsd.toString(),
@@ -335,6 +337,11 @@ async function runBuyerAgentOnce(
   const maxPrice = parseFloat(agent.maxPricePathUsd);
   const affordableMax = Math.min(maxPrice, remaining);
 
+  const nameFilter = sql`lower(${cardsTable.name}) like lower(${"%" + agent.pokemonName + "%"})`;
+  const setFilter = agent.targetSetName
+    ? sql`lower(coalesce(${cardsTable.setName}, '')) like lower(${"%" + agent.targetSetName + "%"})`
+    : sql`true`;
+
   const listings = await db
     .select({ listing: listingsTable, card: cardsTable })
     .from(listingsTable)
@@ -342,7 +349,8 @@ async function runBuyerAgentOnce(
     .where(and(
       eq(listingsTable.status, "active"),
       eq(listingsTable.listingType, "buy_now"),
-      sql`lower(${cardsTable.name}) like lower(${"%" + agent.pokemonName + "%"})`,
+      nameFilter,
+      setFilter,
       sql`${listingsTable.price}::numeric <= ${affordableMax}`,
       sql`${listingsTable.sellerClerkId} != ${clerkId}`,
     ))

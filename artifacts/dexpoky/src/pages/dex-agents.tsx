@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,10 @@ import {
   Tag,
   ShieldCheck,
   ShieldQuestion,
+  Search,
+  X,
+  Store,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -494,6 +498,11 @@ function AgentCard({
             {agent.agentRole === "buyer" ? (
               <p className="text-sm text-slate-500 mt-0.5">
                 Watching for <span className="font-medium text-slate-700">{agent.pokemonName}</span>
+                {(agent as typeof agent & { targetSetName?: string }).targetSetName && (
+                  <span className="ml-1 text-[10px] bg-violet-100 text-violet-600 border border-violet-200 font-bold px-1.5 py-0.5 rounded">
+                    SET · {(agent as typeof agent & { targetSetName?: string }).targetSetName!.toUpperCase()}
+                  </span>
+                )}
                 {" · "}max{" "}
                 <span className="font-medium text-slate-700">
                   {parseFloat(agent.maxPricePathUsd).toFixed(2)} pathUSD
@@ -716,9 +725,234 @@ function ActivityFeed({ runs, agents }: { runs: AgentRun[]; agents: DexAgent[] }
 
 // ── Create Buyer Agent Dialog ─────────────────────────────────────────────────
 
+// ── Card Search Combobox ──────────────────────────────────────────────────────
+
+interface TcgCard { id: string; name: string; image?: string; }
+interface MktListing { id: number; name: string | null; imageUrl: string | null; setName: string | null; price: string; }
+
+interface CardResult {
+  source: "marketplace" | "tcgdex";
+  key: string;
+  name: string;
+  setName?: string;
+  imageUrl?: string;
+  price?: string;
+  listingId?: number;
+}
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+function CardSearchCombobox({
+  value,
+  setName: selectedSetName,
+  onChange,
+}: {
+  value: string;
+  setName: string;
+  onChange: (name: string, setName: string) => void;
+}) {
+  const authFetch = useAuthFetch();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<CardResult[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debouncedQuery = useDebounce(query, 350);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Search both sources in parallel
+  useEffect(() => {
+    const q = debouncedQuery.trim();
+    if (q.length < 2) { setResults([]); return; }
+    setLoading(true);
+
+    const mktFetch = authFetch(`/api/marketplace?search=${encodeURIComponent(q)}&limit=6`)
+      .then((r) => r.json() as Promise<MktListing[]>)
+      .catch(() => [] as MktListing[]);
+
+    const tcgFetch = fetch(`https://api.tcgdex.net/v2/en/cards?name=${encodeURIComponent(q)}&pageSize=30`)
+      .then((r) => r.json() as Promise<TcgCard[]>)
+      .catch(() => [] as TcgCard[]);
+
+    Promise.all([mktFetch, tcgFetch]).then(([mkt, tcg]) => {
+      const mktResults: CardResult[] = (Array.isArray(mkt) ? mkt : []).map((l) => ({
+        source: "marketplace" as const,
+        key: `mkt-${l.id}`,
+        name: l.name ?? "",
+        setName: l.setName ?? undefined,
+        imageUrl: l.imageUrl ?? undefined,
+        price: l.price,
+        listingId: l.id,
+      }));
+
+      // Deduplicate TCGdex by name+set (keep first occurrence per unique name)
+      const seen = new Set<string>();
+      const tcgResults: CardResult[] = (Array.isArray(tcg) ? tcg : [])
+        .filter((c) => {
+          if (!c.name) return false;
+          if (seen.has(c.name)) return false;
+          seen.add(c.name);
+          return true;
+        })
+        .slice(0, 20)
+        .map((c) => {
+          const setId = c.id.split("-")[0];
+          return {
+            source: "tcgdex" as const,
+            key: `tcg-${c.id}`,
+            name: c.name,
+            imageUrl: c.image ? `${c.image}/high.webp` : undefined,
+            setName: setId,
+          };
+        });
+
+      setResults([...mktResults, ...tcgResults]);
+      setLoading(false);
+    });
+  }, [debouncedQuery]);
+
+  const isSelected = value.length > 0;
+
+  if (isSelected) {
+    return (
+      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-violet-50 border border-violet-200">
+        {results.find((r) => r.name === value)?.imageUrl ? (
+          <img
+            src={results.find((r) => r.name === value)!.imageUrl}
+            alt={value}
+            className="h-10 w-7 object-contain rounded shrink-0"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        ) : (
+          <div className="h-10 w-7 rounded bg-violet-100 flex items-center justify-center shrink-0">
+            <Database className="h-3 w-3 text-violet-400" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-violet-800">{value}</p>
+          {selectedSetName && (
+            <p className="text-xs text-violet-500">{selectedSetName}</p>
+          )}
+        </div>
+        <button
+          onClick={() => { onChange("", ""); setQuery(""); }}
+          className="p-1 rounded-lg hover:bg-violet-100 text-violet-400 hover:text-violet-600 transition-colors shrink-0"
+          title="Clear selection"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-slate-200 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400"
+          placeholder="Search by card name… e.g. Charizard EX, Pikachu VMAX"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => { if (query.length >= 2) setOpen(true); }}
+        />
+        {loading && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <RefreshCw className="h-3.5 w-3.5 text-violet-400 animate-spin" />
+          </div>
+        )}
+      </div>
+
+      {open && query.length >= 2 && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl max-h-80 overflow-y-auto">
+          {results.length === 0 && !loading && (
+            <p className="text-xs text-slate-400 text-center py-6">No results — try a different name</p>
+          )}
+
+          {/* Marketplace section */}
+          {results.filter((r) => r.source === "marketplace").length > 0 && (
+            <>
+              <div className="sticky top-0 bg-white/95 backdrop-blur-sm flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-100">
+                <Store className="h-3 w-3 text-emerald-500" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">On DexPoky now</span>
+              </div>
+              {results.filter((r) => r.source === "marketplace").map((card) => (
+                <button
+                  key={card.key}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-50 text-left transition-colors group"
+                  onClick={() => { onChange(card.name, card.setName ?? ""); setOpen(false); setQuery(""); }}
+                >
+                  {card.imageUrl ? (
+                    <img src={card.imageUrl} alt={card.name} className="h-10 w-7 object-contain rounded shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  ) : (
+                    <div className="h-10 w-7 rounded bg-slate-100 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{card.name}</p>
+                    {card.setName && <p className="text-xs text-slate-400 truncate">{card.setName}</p>}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-xs font-semibold text-emerald-600">${card.price}</span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-200">BUY NOW</span>
+                  </div>
+                </button>
+              ))}
+            </>
+          )}
+
+          {/* TCGdex section */}
+          {results.filter((r) => r.source === "tcgdex").length > 0 && (
+            <>
+              <div className="sticky top-0 bg-white/95 backdrop-blur-sm flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-100">
+                <Database className="h-3 w-3 text-violet-500" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-600">All Pokémon TCG cards</span>
+              </div>
+              {results.filter((r) => r.source === "tcgdex").map((card) => (
+                <button
+                  key={card.key}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-50 text-left transition-colors"
+                  onClick={() => { onChange(card.name, card.setName ?? ""); setOpen(false); setQuery(""); }}
+                >
+                  {card.imageUrl ? (
+                    <img src={card.imageUrl} alt={card.name} className="h-10 w-7 object-contain rounded shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  ) : (
+                    <div className="h-10 w-7 rounded bg-slate-100 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{card.name}</p>
+                    {card.setName && <p className="text-xs text-slate-400 truncate">Set · {card.setName.toUpperCase()}</p>}
+                  </div>
+                  <span className="text-[9px] bg-violet-50 text-violet-600 font-bold px-1.5 py-0.5 rounded border border-violet-200 shrink-0">WATCH</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface BuyerForm {
   name: string;
   pokemonName: string;
+  targetSetName: string;
   triggerType: "buy_now" | "bid";
   maxPricePathUsd: number;
   budgetPathUsd: number;
@@ -731,6 +965,7 @@ function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
   const [form, setForm] = useState<BuyerForm>({
     name: "",
     pokemonName: "",
+    targetSetName: "",
     triggerType: "buy_now",
     maxPricePathUsd: 5,
     budgetPathUsd: 50,
@@ -742,12 +977,21 @@ function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
       authFetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentRole: "buyer", ...form }),
+        body: JSON.stringify({
+          agentRole: "buyer",
+          name: form.name,
+          pokemonName: form.pokemonName,
+          targetSetName: form.targetSetName || undefined,
+          triggerType: form.triggerType,
+          maxPricePathUsd: form.maxPricePathUsd,
+          budgetPathUsd: form.budgetPathUsd,
+          requireHoloOnly: form.requireHoloOnly,
+        }),
       }),
     onSuccess: () => {
       toast.success("Buyer agent created!");
       setOpen(false);
-      setForm({ name: "", pokemonName: "", triggerType: "buy_now", maxPricePathUsd: 5, budgetPathUsd: 50, requireHoloOnly: false });
+      setForm({ name: "", pokemonName: "", targetSetName: "", triggerType: "buy_now", maxPricePathUsd: 5, budgetPathUsd: 50, requireHoloOnly: false });
       onCreated();
     },
     onError: () => toast.error("Failed to create agent"),
@@ -763,7 +1007,7 @@ function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
           New Buyer
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-violet-600" />
@@ -783,12 +1027,26 @@ function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
 
           <div className="space-y-1.5">
             <Label className="text-sm font-medium">Watch for Pokémon</Label>
-            <Input
-              placeholder="e.g. Charizard, Pikachu, Mewtwo"
+            <CardSearchCombobox
               value={form.pokemonName}
-              onChange={(e) => setForm((f) => ({ ...f, pokemonName: e.target.value }))}
+              setName={form.targetSetName}
+              onChange={(name, setName) => setForm((f) => ({ ...f, pokemonName: name, targetSetName: setName }))}
             />
-            <p className="text-xs text-slate-400">Matches any card containing this name</p>
+            {!form.pokemonName && (
+              <p className="text-xs text-slate-400">
+                Search across the DexPoky marketplace and the full Pokémon TCG database — select a specific card to be precise.
+              </p>
+            )}
+            {form.pokemonName && form.targetSetName && (
+              <p className="text-xs text-slate-500">
+                Agent will only buy <strong>{form.pokemonName}</strong> from set <strong>{form.targetSetName.toUpperCase()}</strong>.
+              </p>
+            )}
+            {form.pokemonName && !form.targetSetName && (
+              <p className="text-xs text-slate-500">
+                Agent will buy any <strong>{form.pokemonName}</strong> card regardless of set.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

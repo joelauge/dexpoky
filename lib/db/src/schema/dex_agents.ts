@@ -20,6 +20,7 @@ export const dexAgentsTable = pgTable("dex_agents", {
 
   // ── Buyer-only fields ──────────────────────────────────────────────────────
   pokemonName: text("pokemon_name").notNull().default(""),
+  targetSetName: text("target_set_name"),
   triggerType: text("trigger_type").notNull().default("buy_now"),
   maxPricePathUsd: numeric("max_price_path_usd", { precision: 10, scale: 6 }).notNull().default("0"),
   budgetPathUsd: numeric("budget_path_usd", { precision: 10, scale: 6 }).notNull().default("0"),
