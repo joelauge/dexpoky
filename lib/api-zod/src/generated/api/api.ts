@@ -8,6 +8,22 @@
 import * as zod from "zod";
 
 /**
+ * @summary Create a Stripe Crypto Onramp session to fund the user's Tempo wallet with fiat
+ */
+export const CreateTempoOnrampSessionResponse = zod.object({
+  clientSecret: zod
+    .string()
+    .describe(
+      "Stripe onramp session client_secret — pass to StripeOnramp() on the frontend.",
+    ),
+  publishableKey: zod
+    .string()
+    .describe(
+      "Stripe publishable key for initialising Stripe.js on the frontend.",
+    ),
+});
+
+/**
  * @summary Send a Pokémon-card-styled invite email and/or SMS to a non-DexPoky user
  */
 export const sendInviteBodyToPhoneMin = 7;

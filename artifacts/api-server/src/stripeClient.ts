@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { StripeSync } from "stripe-replit-sync";
 
-async function getCredentials(): Promise<{ secretKey: string; webhookSecret?: string }> {
+async function getCredentials(): Promise<{ secretKey: string; publishableKey?: string; webhookSecret?: string }> {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? "repl " + process.env.REPL_IDENTITY
@@ -43,8 +43,17 @@ async function getCredentials(): Promise<{ secretKey: string; webhookSecret?: st
 
   return {
     secretKey: settings.secret,
+    publishableKey: settings.publishable_key ?? settings.key ?? undefined,
     webhookSecret: settings.webhook_secret,
   };
+}
+
+export async function getOnrampCredentials(): Promise<{ secretKey: string; publishableKey: string }> {
+  const { secretKey, publishableKey } = await getCredentials();
+  if (!publishableKey) {
+    throw new Error("Stripe publishable key not found in integration settings.");
+  }
+  return { secretKey, publishableKey };
 }
 
 export async function getUncachableStripeClient(): Promise<Stripe> {

@@ -58,6 +58,7 @@ import type {
   StartThreadBody,
   SuggestDeckBody,
   SuggestDeckResponse,
+  TempoOnrampSession,
   UpdateCardBody,
   UpdateCategoryBody,
   UpdateDeckBody,
@@ -78,6 +79,87 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Create a Stripe Crypto Onramp session to fund the user's Tempo wallet with fiat
+ */
+export const getCreateTempoOnrampSessionUrl = () => {
+  return `/api/agents/tempo-onramp-session`;
+};
+
+export const createTempoOnrampSession = async (
+  options?: RequestInit,
+): Promise<TempoOnrampSession> => {
+  return customFetch<TempoOnrampSession>(getCreateTempoOnrampSessionUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCreateTempoOnrampSessionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTempoOnrampSession>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTempoOnrampSession>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["createTempoOnrampSession"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTempoOnrampSession>>,
+    void
+  > = () => {
+    return createTempoOnrampSession(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTempoOnrampSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTempoOnrampSession>>
+>;
+
+export type CreateTempoOnrampSessionMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a Stripe Crypto Onramp session to fund the user's Tempo wallet with fiat
+ */
+export const useCreateTempoOnrampSession = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTempoOnrampSession>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTempoOnrampSession>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getCreateTempoOnrampSessionMutationOptions(options));
+};
 
 /**
  * @summary Send a Pokémon-card-styled invite email and/or SMS to a non-DexPoky user

@@ -38,8 +38,29 @@ tags:
     description: Agentic outreach — send Pokémon-card-styled invite emails and SMS to non-DexPoky users
   - name: links
     description: Build canonical and short URLs for shareable DexPoky pages
+  - name: agents
+    description: DexAgent autonomous trading agents and Tempo wallet operations
 
 paths:
+  /agents/tempo-onramp-session:
+    post:
+      tags: [agents]
+      operationId: createTempoOnrampSession
+      summary: Create a Stripe Crypto Onramp session to fund the user's Tempo wallet with fiat
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Onramp session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TempoOnrampSession'
+        '400':
+          description: Stripe publishable key not available.
+        '500':
+          description: Failed to create onramp session.
+
   /outreach/invite:
     post:
       tags: [outreach]
@@ -2422,6 +2443,19 @@ components:
         - id
         - sentAt
         - channels
+
+    TempoOnrampSession:
+      type: object
+      properties:
+        clientSecret:
+          type: string
+          description: Stripe onramp session client_secret — pass to StripeOnramp() on the frontend.
+        publishableKey:
+          type: string
+          description: Stripe publishable key for initialising Stripe.js on the frontend.
+      required:
+        - clientSecret
+        - publishableKey
 
     InviteHistoryEntry:
       type: object

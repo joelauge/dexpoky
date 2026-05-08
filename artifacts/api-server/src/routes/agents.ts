@@ -21,6 +21,7 @@ import {
   TEMPO_EXPLORER_URL,
 } from "../lib/tempoWallet.js";
 import { notifyAgentPurchase } from "../lib/notifyAgentPurchase.js";
+import { getOnrampCredentials } from "../stripeClient.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
 
@@ -62,6 +63,67 @@ router.get("/agents/wallet", requireAuth, async (req: Request, res: Response) =>
     explorerUrl: `${TEMPO_EXPLORER_URL}/address/${wallet.address}`,
     createdAt: wallet.createdAt,
   });
+});
+
+// ── Stripe Crypto Onramp Session (fiat → Tempo pathUSD) ───────────────────────
+
+router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, res: Response) => {
+  const clerkId = (req as AuthRequest).userId;
+
+  let wallet = await db
+    .select()
+    .from(tempoWalletsTable)
+    .where(eq(tempoWalletsTable.clerkId, clerkId))
+    .then((r) => r[0] ?? null);
+
+  if (!wallet) {
+    const { address, privateKey } = generateTempoWallet();
+    const encryptedPrivateKey = encryptPrivateKey(privateKey);
+    const [created] = await db
+      .insert(tempoWalletsTable)
+      .values({ clerkId, address, encryptedPrivateKey })
+      .returning();
+    wallet = created;
+  }
+
+  let secretKey: string;
+  let publishableKey: string;
+  try {
+    ({ secretKey, publishableKey } = await getOnrampCredentials());
+  } catch {
+    res.status(400).json({ error: "Stripe publishable key not available. Ensure the Stripe integration is connected." });
+    return;
+  }
+
+  const body = new URLSearchParams({
+    destination_network: "tempo",
+    "destination_networks[]": "tempo",
+    destination_currency: "pathusd",
+    "destination_currencies[]": "pathusd",
+    [`wallet_addresses[tempo]`]: wallet.address,
+    lock_wallet_address: "true",
+    source_currency: "usd",
+  });
+
+  const stripeResp = await fetch("https://api.stripe.com/v1/crypto/onramp_sessions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Stripe-Version": "2026-03-25.dahlia",
+    },
+    body: body.toString(),
+  });
+
+  if (!stripeResp.ok) {
+    const errText = await stripeResp.text();
+    req.log.error({ status: stripeResp.status, errText }, "Stripe onramp session creation failed");
+    res.status(500).json({ error: "Failed to create onramp session" });
+    return;
+  }
+
+  const session = (await stripeResp.json()) as { client_secret: string };
+  res.json({ clientSecret: session.client_secret, publishableKey });
 });
 
 // ── Agents CRUD ───────────────────────────────────────────────────────────────

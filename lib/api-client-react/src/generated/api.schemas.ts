@@ -826,6 +826,13 @@ export interface InviteResult {
   warnings?: string[];
 }
 
+export interface TempoOnrampSession {
+  /** Stripe onramp session client_secret — pass to StripeOnramp() on the frontend. */
+  clientSecret: string;
+  /** Stripe publishable key for initialising Stripe.js on the frontend. */
+  publishableKey: string;
+}
+
 export type InviteHistoryEntryTo = {
   email?: string | null;
   phone?: string | null;
