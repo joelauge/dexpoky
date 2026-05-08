@@ -167,8 +167,13 @@ router.patch("/agents/:id", requireAuth, async (req: Request, res: Response) => 
   const patchSchema = z.object({
     name: z.string().min(1).max(100).optional(),
     status: z.enum(["active", "paused"]).optional(),
+    // buyer fields
+    pokemonName: z.string().min(1).max(200).optional(),
+    targetSetName: z.string().max(200).optional(),   // empty string clears it
     maxPricePathUsd: z.coerce.number().positive().optional(),
     budgetPathUsd: z.coerce.number().positive().optional(),
+    requireHoloOnly: z.boolean().optional(),
+    // seller fields
     floorPricePathUsd: z.coerce.number().positive().optional(),
   });
   const parsed = patchSchema.safeParse(req.body);
@@ -185,11 +190,23 @@ router.patch("/agents/:id", requireAuth, async (req: Request, res: Response) => 
   if (!existing) { res.status(404).json({ error: "Agent not found" }); return; }
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  if (parsed.data.name) updates.name = parsed.data.name;
-  if (parsed.data.status) updates.status = parsed.data.status;
-  if (parsed.data.maxPricePathUsd) updates.maxPricePathUsd = parsed.data.maxPricePathUsd.toString();
-  if (parsed.data.budgetPathUsd) updates.budgetPathUsd = parsed.data.budgetPathUsd.toString();
-  if (parsed.data.floorPricePathUsd) updates.floorPricePathUsd = parsed.data.floorPricePathUsd.toString();
+  if (parsed.data.name !== undefined) updates.name = parsed.data.name;
+  if (parsed.data.status !== undefined) updates.status = parsed.data.status;
+  if (parsed.data.pokemonName !== undefined) updates.pokemonName = parsed.data.pokemonName;
+  if (parsed.data.targetSetName !== undefined) updates.targetSetName = parsed.data.targetSetName || null;
+  if (parsed.data.maxPricePathUsd !== undefined) updates.maxPricePathUsd = parsed.data.maxPricePathUsd.toString();
+  if (parsed.data.budgetPathUsd !== undefined) updates.budgetPathUsd = parsed.data.budgetPathUsd.toString();
+  if (parsed.data.requireHoloOnly !== undefined) updates.requireHoloOnly = parsed.data.requireHoloOnly;
+  if (parsed.data.floorPricePathUsd !== undefined) {
+    updates.floorPricePathUsd = parsed.data.floorPricePathUsd.toString();
+    // also update the active managed listing price so the change takes effect immediately
+    if (existing.managedListingId) {
+      await db
+        .update(listingsTable)
+        .set({ price: parsed.data.floorPricePathUsd.toFixed(2), updatedAt: new Date() })
+        .where(and(eq(listingsTable.id, existing.managedListingId), eq(listingsTable.status, "active")));
+    }
+  }
 
   const [updated] = await db
     .update(dexAgentsTable)

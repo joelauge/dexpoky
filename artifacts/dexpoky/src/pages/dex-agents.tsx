@@ -58,6 +58,7 @@ import {
   X,
   Store,
   Database,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -84,6 +85,7 @@ interface DexAgent {
   name: string;
   // buyer
   pokemonName: string;
+  targetSetName: string | null;
   triggerType: "buy_now" | "bid";
   maxPricePathUsd: string;
   budgetPathUsd: string;
@@ -446,6 +448,16 @@ const statusLabelMap: Record<string, string> = {
 
 // ── Agent Card ────────────────────────────────────────────────────────────────
 
+interface AgentEditForm {
+  name: string;
+  pokemonName: string;
+  targetSetName: string;
+  maxPricePathUsd: number;
+  budgetPathUsd: number;
+  requireHoloOnly: boolean;
+  floorPricePathUsd: number;
+}
+
 function AgentCard({
   agent,
   runs,
@@ -457,19 +469,61 @@ function AgentCard({
 }) {
   const authFetch = useAuthFetch();
   const [showRuns, setShowRuns] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState<AgentEditForm>({
+    name: agent.name,
+    pokemonName: agent.pokemonName,
+    targetSetName: agent.targetSetName ?? "",
+    maxPricePathUsd: parseFloat(agent.maxPricePathUsd),
+    budgetPathUsd: parseFloat(agent.budgetPathUsd),
+    requireHoloOnly: agent.requireHoloOnly,
+    floorPricePathUsd: parseFloat(agent.floorPricePathUsd ?? "0"),
+  });
+
+  const patch = (body: Record<string, unknown>) =>
+    authFetch(`/api/agents/${agent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
   const toggleMutation = useMutation({
-    mutationFn: () =>
-      authFetch(`/api/agents/${agent.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: agent.status === "active" ? "paused" : "active" }),
-      }),
+    mutationFn: () => patch({ status: agent.status === "active" ? "paused" : "active" }),
     onSuccess: () => {
       toast.success(agent.status === "active" ? "Agent paused" : "Agent activated");
       onChanged();
     },
     onError: () => toast.error("Failed to update agent"),
+  });
+
+  const pauseMutation = useMutation({
+    mutationFn: () => patch({ status: "paused" }),
+    onSuccess: () => onChanged(),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      patch(
+        agent.agentRole === "buyer"
+          ? {
+              name: editForm.name,
+              pokemonName: editForm.pokemonName,
+              targetSetName: editForm.targetSetName || "",
+              maxPricePathUsd: editForm.maxPricePathUsd,
+              budgetPathUsd: editForm.budgetPathUsd,
+              requireHoloOnly: editForm.requireHoloOnly,
+            }
+          : {
+              name: editForm.name,
+              floorPricePathUsd: editForm.floorPricePathUsd,
+            },
+      ),
+    onSuccess: () => {
+      toast.success("Settings saved — resume the agent when you're ready.");
+      setEditMode(false);
+      onChanged();
+    },
+    onError: () => toast.error("Failed to save settings"),
   });
 
   const triggerMutation = useMutation({
@@ -499,9 +553,29 @@ function AgentCard({
     onError: () => toast.error("Failed to delete agent"),
   });
 
+  function openEdit() {
+    setEditForm({
+      name: agent.name,
+      pokemonName: agent.pokemonName,
+      targetSetName: agent.targetSetName ?? "",
+      maxPricePathUsd: parseFloat(agent.maxPricePathUsd),
+      budgetPathUsd: parseFloat(agent.budgetPathUsd),
+      requireHoloOnly: agent.requireHoloOnly,
+      floorPricePathUsd: parseFloat(agent.floorPricePathUsd ?? "0"),
+    });
+    if (agent.status === "active") pauseMutation.mutate();
+    setEditMode(true);
+  }
+
   const statusColor = statusColorMap[agent.status] ?? "bg-slate-100 text-slate-600";
   const statusLabel = statusLabelMap[agent.status] ?? agent.status;
-  const canToggle = agent.status !== "budget_exhausted" && agent.status !== "completed";
+  const canToggle = !editMode && agent.status !== "budget_exhausted" && agent.status !== "completed";
+  const canEdit = agent.status !== "completed";
+
+  const buyerValid = editForm.name.trim().length > 0 && editForm.pokemonName.trim().length > 0
+    && editForm.maxPricePathUsd > 0 && editForm.budgetPathUsd > 0;
+  const sellerValid = editForm.name.trim().length > 0 && editForm.floorPricePathUsd > 0;
+  const saveValid = agent.agentRole === "buyer" ? buyerValid : sellerValid;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
@@ -517,16 +591,16 @@ function AgentCard({
               </div>
               <span className="font-semibold text-slate-800">{agent.name}</span>
               <Badge className={cn("text-xs border-0", statusColor)}>
-                {statusLabel}
+                {editMode ? "Editing" : statusLabel}
               </Badge>
             </div>
 
-            {agent.agentRole === "buyer" ? (
+            {!editMode && (agent.agentRole === "buyer" ? (
               <p className="text-sm text-slate-500 mt-0.5">
                 Watching for <span className="font-medium text-slate-700">{agent.pokemonName}</span>
-                {(agent as typeof agent & { targetSetName?: string }).targetSetName && (
+                {agent.targetSetName && (
                   <span className="ml-1 text-[10px] bg-violet-100 text-violet-600 border border-violet-200 font-bold px-1.5 py-0.5 rounded">
-                    SET · {(agent as typeof agent & { targetSetName?: string }).targetSetName!.toUpperCase()}
+                    SET · {agent.targetSetName.toUpperCase()}
                   </span>
                 )}
                 {" · "}max{" "}
@@ -544,33 +618,49 @@ function AgentCard({
                   <span className="text-slate-400"> · listing #{agent.managedListingId}</span>
                 )}
               </p>
-            )}
+            ))}
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs"
-              onClick={() => triggerMutation.mutate()}
-              disabled={triggerMutation.isPending || agent.status !== "active"}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", triggerMutation.isPending && "animate-spin")} />
-              Run
-            </Button>
+            {!editMode && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => triggerMutation.mutate()}
+                disabled={triggerMutation.isPending || agent.status !== "active"}
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5 mr-1", triggerMutation.isPending && "animate-spin")} />
+                Run
+              </Button>
+            )}
 
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              onClick={() => toggleMutation.mutate()}
-              disabled={toggleMutation.isPending || !canToggle}
-              title={agent.status === "active" ? "Pause" : "Activate"}
-            >
-              {agent.status === "active"
-                ? <Pause className="h-4 w-4 text-amber-500" />
-                : <Play className="h-4 w-4 text-green-600" />}
-            </Button>
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn("h-8 w-8 p-0", editMode ? "text-violet-600 bg-violet-50 hover:bg-violet-100" : "text-slate-400 hover:text-slate-700")}
+                onClick={() => editMode ? setEditMode(false) : openEdit()}
+                title={editMode ? "Close editor" : "Edit settings"}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+
+            {!editMode && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                onClick={() => toggleMutation.mutate()}
+                disabled={toggleMutation.isPending || !canToggle}
+                title={agent.status === "active" ? "Pause" : "Activate"}
+              >
+                {agent.status === "active"
+                  ? <Pause className="h-4 w-4 text-amber-500" />
+                  : <Play className="h-4 w-4 text-green-600" />}
+              </Button>
+            )}
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -634,7 +724,7 @@ function AgentCard({
           </div>
         )}
 
-        {agent.runsCount > 0 && (
+        {!editMode && agent.runsCount > 0 && (
           <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
             <span>{agent.runsCount} run{agent.runsCount !== 1 ? "s" : ""}</span>
             {agent.lastRunAt && (
@@ -644,7 +734,110 @@ function AgentCard({
         )}
       </div>
 
-      {runs.length > 0 && (
+      {/* ── Inline edit panel ────────────────────────────────────────────────── */}
+      {editMode && (
+        <div className="border-t border-violet-100 bg-violet-50/40 px-4 py-4 space-y-4">
+          {/* paused banner */}
+          <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <Pause className="h-3.5 w-3.5 shrink-0" />
+            Agent paused while editing — resume with the play button once you save.
+          </div>
+
+          {/* name */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-slate-600">Agent Name</Label>
+            <Input
+              value={editForm.name}
+              onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+              className="h-8 text-sm"
+            />
+          </div>
+
+          {agent.agentRole === "buyer" ? (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-600">Watch for Pokémon</Label>
+                <CardSearchCombobox
+                  value={editForm.pokemonName}
+                  setName={editForm.targetSetName}
+                  onChange={(name, setName) => setEditForm((f) => ({ ...f, pokemonName: name, targetSetName: setName }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-600">Max Price (pathUSD)</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={editForm.maxPricePathUsd}
+                    onChange={(e) => setEditForm((f) => ({ ...f, maxPricePathUsd: parseFloat(e.target.value) || 0 }))}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-600">Total Budget (pathUSD)</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={editForm.budgetPathUsd}
+                    onChange={(e) => setEditForm((f) => ({ ...f, budgetPathUsd: parseFloat(e.target.value) || 0 }))}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2.5">
+                <div>
+                  <p className="text-xs font-medium text-slate-700">Holo/Foil only</p>
+                  <p className="text-[11px] text-slate-400">Only buy holographic cards</p>
+                </div>
+                <Switch
+                  checked={editForm.requireHoloOnly}
+                  onCheckedChange={(v) => setEditForm((f) => ({ ...f, requireHoloOnly: v }))}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-600">Floor Price (pathUSD)</Label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={editForm.floorPricePathUsd}
+                onChange={(e) => setEditForm((f) => ({ ...f, floorPricePathUsd: parseFloat(e.target.value) || 0 }))}
+                className="h-8 text-sm"
+              />
+              {agent.managedListingId && (
+                <p className="text-[11px] text-slate-400">Active listing price will update immediately.</p>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setEditMode(false)}
+              disabled={saveMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs bg-violet-600 hover:bg-violet-700 text-white"
+              disabled={!saveValid || saveMutation.isPending}
+              onClick={() => saveMutation.mutate()}
+            >
+              {saveMutation.isPending ? "Saving…" : "Save Changes"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!editMode && runs.length > 0 && (
         <div className="border-t border-slate-100">
           <button
             className="w-full flex items-center gap-2 px-4 py-2 text-xs text-slate-500 hover:bg-slate-50 transition-colors"
