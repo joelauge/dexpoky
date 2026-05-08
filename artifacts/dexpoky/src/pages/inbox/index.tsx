@@ -182,7 +182,7 @@ function ThreadListItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-0.5">
           <span className={cn("text-sm truncate", hasUnread ? "font-bold" : "font-medium")}>
-            {thread.otherUserDisplayName ?? "Unknown user"}
+            {thread.otherUserDisplayName ?? <em className="text-muted-foreground not-italic font-normal">Anonymous Trainer</em>}
           </span>
           {thread.lastMessage && (
             <span className="text-[10px] text-muted-foreground shrink-0">
@@ -1140,7 +1140,9 @@ out center 25;`;
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm">{thread.otherUserDisplayName ?? "Unknown user"}</p>
+          <p className="font-semibold text-sm">
+            {thread.otherUserDisplayName ?? <em className="font-normal text-muted-foreground not-italic">Anonymous Trainer</em>}
+          </p>
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             <Heart className="h-3 w-3 text-rose-400 fill-rose-100" />
             {thread.wantedCardName ?? "Trade conversation"}
@@ -1429,7 +1431,7 @@ out center 25;`;
                       ? "Your rating has been submitted."
                       : deadlinePassed
                       ? "Feedback period closed (60 days have passed)."
-                      : `How was your trade with ${thread.otherUserDisplayName ?? "the other party"}?`}
+                      : `How was your trade with ${thread.otherUserDisplayName ?? "Anonymous Trainer"}?`}
                   </p>
                 </div>
               </div>
@@ -1443,7 +1445,7 @@ out center 25;`;
                   {offerRating?.replyText && (
                     <div className="bg-muted/40 border-l-4 border-primary/30 rounded-r-xl pl-3 pr-3 py-2.5">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                        {thread.otherUserDisplayName ?? "Seller"}'s response
+                        {thread.otherUserDisplayName ?? "Anonymous Trainer"}'s response
                         {offerRating.repliedAt && (
                           <span className="font-normal ml-1.5">· {formatDistanceToNow(new Date(offerRating.repliedAt))} ago</span>
                         )}
