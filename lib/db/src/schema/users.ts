@@ -12,6 +12,7 @@ export const usersTable = pgTable("users", {
   stripeSubscriptionId: text("stripe_subscription_id"),
   freeTrialActivated: boolean("free_trial_activated").default(false).notNull(),
   freeTrialScansUsed: integer("free_trial_scans_used").default(0).notNull(),
+  phone: text("phone"),
   payoutMethod: text("payout_method"),
   payoutDestination: text("payout_destination"),
   walletBalanceCents: integer("wallet_balance_cents").default(0).notNull(),

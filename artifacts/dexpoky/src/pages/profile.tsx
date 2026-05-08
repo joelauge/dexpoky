@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { User, Star, Edit3, LogOut, Save, X, Shield, Camera, Loader2, Wallet, Banknote } from "lucide-react";
+import { User, Star, Edit3, LogOut, Save, X, Shield, Camera, Loader2, Wallet, Banknote, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -44,6 +44,7 @@ interface UserProfile {
   bio: string | null;
   avatarUrl: string | null;
   sellerDetails: string | null;
+  phone: string | null;
   ratingCount: number;
   ratingAverage: number | null;
   usernameChangedAt: string | null;
@@ -79,7 +80,7 @@ export default function Profile() {
   const qc = useQueryClient();
   const authFetch = useAuthFetch();
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ username: "", bio: "", sellerDetails: "" });
+  const [form, setForm] = useState({ username: "", bio: "", sellerDetails: "", phone: "" });
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -221,6 +222,7 @@ export default function Profile() {
       username: profile?.username ?? "",
       bio: profile?.bio ?? "",
       sellerDetails: profile?.sellerDetails ?? "",
+      phone: profile?.phone ?? "",
     });
     setEditing(true);
   };
@@ -381,11 +383,34 @@ export default function Profile() {
                     className="min-h-[80px]"
                   />
                 </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground block mb-1 flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5" />
+                    Phone Number
+                  </label>
+                  <Input
+                    type="tel"
+                    value={form.phone}
+                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                    placeholder="+1 555 000 0000 (for DexAgent SMS alerts)"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Required for DexAgent SMS approval notifications. Include country code (e.g. +1).
+                  </p>
+                </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {profile?.bio ?? "No bio yet. Click Edit to add one."}
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {profile?.bio ?? "No bio yet. Click Edit to add one."}
+                </p>
+                {profile?.phone && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    <span>{profile.phone}</span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

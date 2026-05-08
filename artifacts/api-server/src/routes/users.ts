@@ -15,6 +15,7 @@ const UpdateProfileBody = z.object({
   bio: z.string().max(500).optional(),
   avatarUrl: z.string().url().optional(),
   sellerDetails: z.string().max(1000).optional(),
+  phone: z.string().max(20).optional().nullable(),
 });
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;

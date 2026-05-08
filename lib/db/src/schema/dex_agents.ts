@@ -27,6 +27,7 @@ export const dexAgentsTable = pgTable("dex_agents", {
   spentPathUsd: numeric("spent_path_usd", { precision: 10, scale: 6 }).notNull().default("0"),
   requireHoloOnly: boolean("require_holo_only").notNull().default(false),
   requireCondition: text("require_condition"),
+  requireApproval: boolean("require_approval").notNull().default(false),
 
   // ── Seller-only fields ─────────────────────────────────────────────────────
   cardId: integer("card_id"),

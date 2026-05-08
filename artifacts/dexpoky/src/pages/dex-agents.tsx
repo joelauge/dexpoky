@@ -94,6 +94,7 @@ interface DexAgent {
   spentPathUsd: string;
   requireHoloOnly: boolean;
   requireCondition: string | null;
+  requireApproval: boolean;
   // seller
   cardId: number | null;
   floorPricePathUsd: string | null;
@@ -556,6 +557,7 @@ interface AgentEditForm {
   maxPricePathUsd: number;
   budgetPathUsd: number;
   requireHoloOnly: boolean;
+  requireApproval: boolean;
   floorPricePathUsd: number;
 }
 
@@ -578,6 +580,7 @@ function AgentCard({
     maxPricePathUsd: parseFloat(agent.maxPricePathUsd),
     budgetPathUsd: parseFloat(agent.budgetPathUsd),
     requireHoloOnly: agent.requireHoloOnly,
+    requireApproval: agent.requireApproval,
     floorPricePathUsd: parseFloat(agent.floorPricePathUsd ?? "0"),
   });
 
@@ -613,6 +616,7 @@ function AgentCard({
               maxPricePathUsd: editForm.maxPricePathUsd,
               budgetPathUsd: editForm.budgetPathUsd,
               requireHoloOnly: editForm.requireHoloOnly,
+              requireApproval: editForm.requireApproval,
             }
           : {
               name: editForm.name,
@@ -628,10 +632,12 @@ function AgentCard({
   });
 
   const triggerMutation = useMutation({
-    mutationFn: (): Promise<{ matched: boolean; cardName?: string; pricePathUsd?: string; note?: string }> =>
+    mutationFn: (): Promise<{ matched: boolean; pendingApproval?: boolean; cardName?: string; pricePathUsd?: string; note?: string }> =>
       authFetch(`/api/agents/${agent.id}/trigger`, { method: "POST" }).then((r) => r.json()),
     onSuccess: (data) => {
-      if (data?.matched) {
+      if (data?.pendingApproval) {
+        toast.success(`SMS sent! Reply YES to confirm buying "${data.cardName}" for ${data.pricePathUsd} pathUSD.`);
+      } else if (data?.matched) {
         toast.success(
           agent.agentRole === "buyer"
             ? `Bought "${data.cardName}" for ${data.pricePathUsd} pathUSD`
@@ -662,6 +668,7 @@ function AgentCard({
       maxPricePathUsd: parseFloat(agent.maxPricePathUsd),
       budgetPathUsd: parseFloat(agent.budgetPathUsd),
       requireHoloOnly: agent.requireHoloOnly,
+      requireApproval: agent.requireApproval,
       floorPricePathUsd: parseFloat(agent.floorPricePathUsd ?? "0"),
     });
     if (agent.status === "active") pauseMutation.mutate();
@@ -898,6 +905,22 @@ function AgentCard({
                   onCheckedChange={(v) => setEditForm((f) => ({ ...f, requireHoloOnly: v }))}
                 />
               </div>
+              <div className="flex items-center justify-between rounded-lg bg-white border border-violet-200 px-3 py-2.5">
+                <div>
+                  <p className="text-xs font-medium text-slate-700">Require SMS approval</p>
+                  <p className="text-[11px] text-slate-400">Text me first — I reply YES/NO before any purchase</p>
+                </div>
+                <Switch
+                  checked={editForm.requireApproval}
+                  onCheckedChange={(v) => setEditForm((f) => ({ ...f, requireApproval: v }))}
+                />
+              </div>
+              {!editForm.requireApproval && (
+                <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span><strong>Auto-purchase mode:</strong> when a match is found, this agent will buy immediately without asking. Enable SMS approval above to confirm first.</span>
+                </div>
+              )}
             </>
           ) : (
             <div className="space-y-1.5">
@@ -1374,6 +1397,7 @@ interface BuyerForm {
   maxPricePathUsd: number;
   budgetPathUsd: number;
   requireHoloOnly: boolean;
+  requireApproval: boolean;
 }
 
 function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
@@ -1387,6 +1411,7 @@ function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
     maxPricePathUsd: 5,
     budgetPathUsd: 50,
     requireHoloOnly: false,
+    requireApproval: false,
   });
 
   const mutation = useMutation({
@@ -1403,12 +1428,13 @@ function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
           maxPricePathUsd: form.maxPricePathUsd,
           budgetPathUsd: form.budgetPathUsd,
           requireHoloOnly: form.requireHoloOnly,
+          requireApproval: form.requireApproval,
         }),
       }),
     onSuccess: () => {
       toast.success("Buyer agent created!");
       setOpen(false);
-      setForm({ name: "", pokemonName: "", targetSetName: "", triggerType: "buy_now", maxPricePathUsd: 5, budgetPathUsd: 50, requireHoloOnly: false });
+      setForm({ name: "", pokemonName: "", targetSetName: "", triggerType: "buy_now", maxPricePathUsd: 5, budgetPathUsd: 50, requireHoloOnly: false, requireApproval: false });
       onCreated();
     },
     onError: () => toast.error("Failed to create agent"),
@@ -1502,12 +1528,32 @@ function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
             />
           </div>
 
-          <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5">
-            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            <span>
-              Scans the marketplace every minute and buys matching cards using pathUSD from your Tempo wallet. Make sure you have pathUSD — visit the faucet if needed.
-            </span>
+          <div className="flex items-center justify-between rounded-xl bg-violet-50 border border-violet-200 px-3 py-3">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Require SMS approval</p>
+              <p className="text-xs text-slate-400">Text me first — I reply YES/NO before buying</p>
+            </div>
+            <Switch
+              checked={form.requireApproval}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, requireApproval: v }))}
+            />
           </div>
+
+          {!form.requireApproval ? (
+            <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                <strong>Auto-purchase mode:</strong> this agent will buy cards automatically without asking first. Enable SMS approval above if you'd like to confirm each purchase. Add your phone number in your profile to use SMS.
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 text-xs text-violet-700 bg-violet-50 rounded-xl px-3 py-2.5">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                When a match is found, you'll get a text message asking you to confirm. Reply <strong>YES</strong> to buy or <strong>NO</strong> to skip. Make sure your phone number is saved in your profile.
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 justify-end pt-1">

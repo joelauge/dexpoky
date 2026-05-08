@@ -6,6 +6,7 @@ import {
   tempoWalletsTable,
   dexAgentsTable,
   agentRunsTable,
+  agentApprovalRequestsTable,
   listingsTable,
   cardsTable,
 } from "@workspace/db";
@@ -21,6 +22,7 @@ import {
   TEMPO_EXPLORER_URL,
 } from "../lib/tempoWallet.js";
 import { notifyAgentPurchase } from "../lib/notifyAgentPurchase.js";
+import { sendAgentApprovalSms, sendAgentAutoBuySms } from "../lib/agent-sms.js";
 import { getOnrampCredentials } from "../stripeClient.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
@@ -138,6 +140,7 @@ const createBuyerAgentSchema = z.object({
   budgetPathUsd: z.coerce.number().positive().max(100000),
   requireHoloOnly: z.boolean().default(false),
   requireCondition: z.string().optional(),
+  requireApproval: z.boolean().default(false),
 });
 
 const createSellerAgentSchema = z.object({
@@ -171,7 +174,7 @@ router.post("/agents", requireAuth, async (req: Request, res: Response) => {
   }
 
   if (parsed.data.agentRole === "buyer") {
-    const { name, pokemonName, targetSetName, triggerType, maxPricePathUsd, budgetPathUsd, requireHoloOnly, requireCondition } = parsed.data;
+    const { name, pokemonName, targetSetName, triggerType, maxPricePathUsd, budgetPathUsd, requireHoloOnly, requireCondition, requireApproval } = parsed.data;
     const [agent] = await db
       .insert(dexAgentsTable)
       .values({
@@ -185,6 +188,7 @@ router.post("/agents", requireAuth, async (req: Request, res: Response) => {
         budgetPathUsd: budgetPathUsd.toString(),
         requireHoloOnly,
         requireCondition: requireCondition ?? null,
+        requireApproval,
         status: "active",
       })
       .returning();
@@ -235,6 +239,7 @@ router.patch("/agents/:id", requireAuth, async (req: Request, res: Response) => 
     maxPricePathUsd: z.coerce.number().positive().optional(),
     budgetPathUsd: z.coerce.number().positive().optional(),
     requireHoloOnly: z.boolean().optional(),
+    requireApproval: z.boolean().optional(),
     // seller fields
     floorPricePathUsd: z.coerce.number().positive().optional(),
   });
@@ -259,6 +264,7 @@ router.patch("/agents/:id", requireAuth, async (req: Request, res: Response) => 
   if (parsed.data.maxPricePathUsd !== undefined) updates.maxPricePathUsd = parsed.data.maxPricePathUsd.toString();
   if (parsed.data.budgetPathUsd !== undefined) updates.budgetPathUsd = parsed.data.budgetPathUsd.toString();
   if (parsed.data.requireHoloOnly !== undefined) updates.requireHoloOnly = parsed.data.requireHoloOnly;
+  if (parsed.data.requireApproval !== undefined) updates.requireApproval = parsed.data.requireApproval;
   if (parsed.data.floorPricePathUsd !== undefined) {
     updates.floorPricePathUsd = parsed.data.floorPricePathUsd.toString();
     // also update the active managed listing price so the change takes effect immediately
@@ -385,6 +391,7 @@ router.get("/agents/inventory", requireAuth, async (req: Request, res: Response)
 
 export type AgentRunResult = {
   matched: boolean;
+  pendingApproval?: boolean;
   listingId?: number;
   cardName?: string;
   pricePathUsd?: string;
@@ -400,6 +407,77 @@ export async function runAgentOnce(
     return runSellerAgentOnce(agent, clerkId);
   }
   return runBuyerAgentOnce(agent, clerkId);
+}
+
+// ── Shared purchase executor ──────────────────────────────────────────────────
+
+async function executePurchase(
+  agent: typeof dexAgentsTable.$inferSelect,
+  listing: typeof listingsTable.$inferSelect,
+  card: typeof cardsTable.$inferSelect,
+  wallet: typeof tempoWalletsTable.$inferSelect,
+  clerkId: string,
+): Promise<{ txHash?: string; status: string; note: string }> {
+  const priceFloat = parseFloat(listing.price.toString());
+  let txHash: string | undefined;
+  let status = "simulated";
+  let note = `Testnet simulation — would buy "${card.name}" for ${priceFloat.toFixed(6)} pathUSD`;
+
+  try {
+    const sellerWallet = await db
+      .select()
+      .from(tempoWalletsTable)
+      .where(eq(tempoWalletsTable.clerkId, listing.sellerClerkId ?? ""))
+      .then((r) => r[0] ?? null);
+
+    const toAddress = sellerWallet?.address ?? "0x000000000000000000000000000000000000dead";
+    const privateKey = decryptPrivateKey(wallet.encryptedPrivateKey);
+    txHash = await sendPathUsd(privateKey, toAddress, priceFloat.toFixed(6));
+    status = "success";
+    note = `Bought "${card.name}" for ${priceFloat.toFixed(6)} pathUSD on Tempo Testnet`;
+
+    await db.update(dexAgentsTable).set({
+      spentPathUsd: sql`${dexAgentsTable.spentPathUsd}::numeric + ${priceFloat}`,
+      lastRunAt: new Date(),
+      runsCount: sql`${dexAgentsTable.runsCount} + 1`,
+      updatedAt: new Date(),
+    }).where(eq(dexAgentsTable.id, agent.id));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    status = "simulated";
+    note = `Testnet tx failed (${msg.slice(0, 80)}) — recording as simulated`;
+    await db.update(dexAgentsTable).set({ lastRunAt: new Date(), runsCount: sql`${dexAgentsTable.runsCount} + 1` }).where(eq(dexAgentsTable.id, agent.id));
+  }
+
+  // Mark listing sold and transfer card ownership
+  const acquiredAt = new Date();
+  await Promise.all([
+    db.update(listingsTable).set({ status: "sold" }).where(eq(listingsTable.id, listing.id)),
+    db.update(cardsTable).set({ ownerClerkId: clerkId, agentAcquiredAt: acquiredAt }).where(eq(cardsTable.id, card.id)),
+  ]);
+
+  await db.insert(agentRunsTable).values({
+    agentId: agent.id, clerkId,
+    listingId: listing.id,
+    cardName: card.name,
+    amountPathUsd: priceFloat.toFixed(6),
+    tempoTxHash: txHash,
+    status, note,
+  });
+
+  void notifyAgentPurchase({
+    buyerClerkId: clerkId,
+    sellerClerkId: listing.sellerClerkId ?? clerkId,
+    agentName: agent.name,
+    cardName: card.name,
+    cardId: card.id,
+    cardImageUrl: card.imageUrl ?? undefined,
+    pricePathUsd: priceFloat.toFixed(6),
+    listingId: listing.id,
+    txHash,
+  });
+
+  return { txHash, status, note };
 }
 
 // ── Buyer Agent ───────────────────────────────────────────────────────────────
@@ -456,70 +534,159 @@ async function runBuyerAgentOnce(
   const { listing, card } = listings[0];
   const priceFloat = parseFloat(listing.price.toString());
 
-  let txHash: string | undefined;
-  let status = "simulated";
-  let note = `Testnet simulation — would buy "${card.name}" for ${priceFloat.toFixed(6)} pathUSD`;
+  // ── SMS approval flow ─────────────────────────────────────────────────────
+  if (agent.requireApproval) {
+    const [user] = await db
+      .select({ phone: usersTable.phone })
+      .from(usersTable)
+      .where(eq(usersTable.clerkId, clerkId));
 
-  try {
-    const sellerWallet = await db
-      .select()
-      .from(tempoWalletsTable)
-      .where(eq(tempoWalletsTable.clerkId, listing.sellerClerkId ?? ""))
-      .then((r) => r[0] ?? null);
+    if (user?.phone) {
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const [approvalReq] = await db
+        .insert(agentApprovalRequestsTable)
+        .values({
+          agentId: agent.id,
+          clerkId,
+          listingId: listing.id,
+          cardName: card.name,
+          pricePathUsd: priceFloat.toFixed(6),
+          status: "pending",
+          expiresAt,
+        })
+        .returning();
 
-    const toAddress = sellerWallet?.address ?? "0x000000000000000000000000000000000000dead";
-    const privateKey = decryptPrivateKey(wallet.encryptedPrivateKey);
-    txHash = await sendPathUsd(privateKey, toAddress, priceFloat.toFixed(6));
-    status = "success";
-    note = `Bought "${card.name}" for ${priceFloat.toFixed(6)} pathUSD on Tempo Testnet`;
+      try {
+        await sendAgentApprovalSms({
+          toPhone: user.phone,
+          agentName: agent.name,
+          cardName: card.name,
+          pricePathUsd: priceFloat.toFixed(2),
+        });
+      } catch {
+        // SMS send failure — cancel the approval request and fall through to auto-buy
+        await db.update(agentApprovalRequestsTable)
+          .set({ status: "rejected" })
+          .where(eq(agentApprovalRequestsTable.id, approvalReq.id));
+      }
 
-    await db.update(dexAgentsTable).set({
-      spentPathUsd: sql`${dexAgentsTable.spentPathUsd}::numeric + ${priceFloat}`,
-      lastRunAt: new Date(),
-      runsCount: sql`${dexAgentsTable.runsCount} + 1`,
-      updatedAt: new Date(),
-    }).where(eq(dexAgentsTable.id, agent.id));
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    status = "simulated";
-    note = `Testnet tx failed (${msg.slice(0, 80)}) — recording as simulated`;
-    await db.update(dexAgentsTable).set({ lastRunAt: new Date(), runsCount: sql`${dexAgentsTable.runsCount} + 1` }).where(eq(dexAgentsTable.id, agent.id));
+      await db.insert(agentRunsTable).values({
+        agentId: agent.id, clerkId,
+        listingId: listing.id,
+        cardName: card.name,
+        amountPathUsd: priceFloat.toFixed(6),
+        status: "pending_approval",
+        note: `SMS approval requested — "${card.name}" for ${priceFloat.toFixed(2)} pathUSD`,
+      });
+      await db.update(dexAgentsTable).set({ lastRunAt: new Date(), runsCount: sql`${dexAgentsTable.runsCount} + 1` }).where(eq(dexAgentsTable.id, agent.id));
+
+      return {
+        matched: true,
+        pendingApproval: true,
+        listingId: listing.id,
+        cardName: card.name,
+        pricePathUsd: priceFloat.toFixed(2),
+        note: "SMS approval sent — reply YES to confirm purchase",
+      };
+    }
+    // No phone on file — fall through to auto-buy but note the skip
   }
 
-  // Always complete the purchase for both success and simulated:
-  // mark listing sold, transfer card ownership, and stamp acquisition timestamp
-  const acquiredAt = new Date();
-  await Promise.all([
-    db.update(listingsTable).set({ status: "sold" }).where(eq(listingsTable.id, listing.id)),
-    db.update(cardsTable)
-      .set({ ownerClerkId: clerkId, agentAcquiredAt: acquiredAt })
-      .where(eq(cardsTable.id, card.id)),
-  ]);
+  // ── Auto-purchase ─────────────────────────────────────────────────────────
+  const { note } = await executePurchase(agent, listing, card, wallet, clerkId);
 
-  await db.insert(agentRunsTable).values({
-    agentId: agent.id, clerkId,
-    listingId: listing.id,
-    cardName: card.name,
-    amountPathUsd: priceFloat.toFixed(6),
-    tempoTxHash: txHash,
-    status, note,
-  });
+  // Send auto-buy FYI SMS if user has a phone and approval was NOT required
+  if (!agent.requireApproval) {
+    const [user] = await db
+      .select({ phone: usersTable.phone })
+      .from(usersTable)
+      .where(eq(usersTable.clerkId, clerkId));
+    if (user?.phone) {
+      void sendAgentAutoBuySms({
+        toPhone: user.phone,
+        agentName: agent.name,
+        cardName: card.name,
+        pricePathUsd: priceFloat.toFixed(2),
+      });
+    }
+  }
 
-  // Notify the buyer (inbox + email) for both real and simulated purchases
-  void notifyAgentPurchase({
-    buyerClerkId: clerkId,
-    sellerClerkId: listing.sellerClerkId ?? clerkId,
-    agentName: agent.name,
-    cardName: card.name,
-    cardId: card.id,
-    cardImageUrl: card.imageUrl ?? undefined,
-    pricePathUsd: priceFloat.toFixed(6),
-    listingId: listing.id,
-    txHash,
-  });
-
-  return { matched: true, listingId: listing.id, cardName: card.name, pricePathUsd: priceFloat.toFixed(6), txHash, note };
+  return { matched: true, listingId: listing.id, cardName: card.name, pricePathUsd: priceFloat.toFixed(6), note };
 }
+
+// ── Twilio SMS webhook (YES/NO approval replies) ───────────────────────────────
+
+router.post("/agents/sms-webhook", async (req: Request, res: Response) => {
+  const twiml = (msg: string) =>
+    res.type("text/xml").send(
+      `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${msg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Message></Response>`
+    );
+
+  const from = (req.body?.From as string ?? "").trim();
+  const bodyText = (req.body?.Body as string ?? "").trim().toUpperCase();
+
+  if (!from) { twiml("Unknown sender."); return; }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.phone, from));
+
+  if (!user) {
+    twiml("We couldn't find a DexPoky account linked to this number. Add your phone number in Profile settings.");
+    return;
+  }
+
+  const [approval] = await db
+    .select()
+    .from(agentApprovalRequestsTable)
+    .where(and(
+      eq(agentApprovalRequestsTable.clerkId, user.clerkId),
+      eq(agentApprovalRequestsTable.status, "pending"),
+      sql`${agentApprovalRequestsTable.expiresAt} > NOW()`,
+    ))
+    .orderBy(desc(agentApprovalRequestsTable.createdAt))
+    .limit(1);
+
+  if (!approval) {
+    twiml("No pending purchase requests found. Your agent is still watching.");
+    return;
+  }
+
+  if (bodyText.startsWith("YES") || bodyText === "Y") {
+    // Mark approved first to prevent double-buys if they text YES twice
+    await db.update(agentApprovalRequestsTable)
+      .set({ status: "approved" })
+      .where(eq(agentApprovalRequestsTable.id, approval.id));
+
+    const [agent] = await db.select().from(dexAgentsTable).where(eq(dexAgentsTable.id, approval.agentId));
+    if (!agent) { twiml("Agent not found — it may have been deleted."); return; }
+
+    const [listing] = await db.select().from(listingsTable).where(eq(listingsTable.id, approval.listingId!));
+    if (!listing || listing.status !== "active") {
+      await db.update(agentApprovalRequestsTable).set({ status: "rejected" }).where(eq(agentApprovalRequestsTable.id, approval.id));
+      twiml(`Sorry, the listing for ${approval.cardName ?? "this card"} is no longer available.`);
+      return;
+    }
+
+    const [card] = await db.select().from(cardsTable).where(eq(cardsTable.id, listing.cardId!));
+    if (!card) { twiml("Card record not found."); return; }
+
+    const wallet = await db.select().from(tempoWalletsTable).where(eq(tempoWalletsTable.clerkId, user.clerkId)).then((r) => r[0] ?? null);
+    if (!wallet) { twiml("No Tempo wallet found for your account."); return; }
+
+    void executePurchase(agent, listing, card, wallet, user.clerkId);
+
+    twiml(`Purchasing ${approval.cardName ?? "the card"} for ${parseFloat(approval.pricePathUsd ?? "0").toFixed(2)} pathUSD now! Check your DexPoky collection shortly.`);
+  } else if (bodyText.startsWith("NO") || bodyText === "N") {
+    await db.update(agentApprovalRequestsTable)
+      .set({ status: "rejected" })
+      .where(eq(agentApprovalRequestsTable.id, approval.id));
+    twiml(`Purchase cancelled. Your DexAgent will continue watching for ${approval.cardName ?? "your card"}.`);
+  } else {
+    twiml(`Reply YES to buy ${approval.cardName ?? "the card"} for ${parseFloat(approval.pricePathUsd ?? "0").toFixed(2)} pathUSD, or NO to skip.`);
+  }
+});
 
 // ── Seller Agent ──────────────────────────────────────────────────────────────
 
