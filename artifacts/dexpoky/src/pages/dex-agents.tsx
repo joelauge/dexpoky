@@ -727,11 +727,19 @@ function ActivityFeed({ runs, agents }: { runs: AgentRun[]; agents: DexAgent[] }
 
 // ── Card Search Combobox ──────────────────────────────────────────────────────
 
-interface TcgCard { id: string; name: string; image?: string; }
-interface MktListing { id: number; name: string | null; imageUrl: string | null; setName: string | null; price: string; }
+interface MktListing {
+  id: number;
+  price: string;
+  card?: {
+    name: string | null;
+    imageUrl: string | null;
+    setName: string | null;
+  };
+}
+interface CatalogCard { id: string; name: string; imageUrl?: string | null; setName?: string | null; setCode?: string | null; }
 
 interface CardResult {
-  source: "marketplace" | "tcgdex";
+  source: "marketplace" | "catalog";
   key: string;
   name: string;
   setName?: string;
@@ -775,53 +783,55 @@ function CardSearchCombobox({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Search both sources in parallel
+  // Search both sources in parallel via backend (avoids browser cross-origin blocks)
   useEffect(() => {
     const q = debouncedQuery.trim();
     if (q.length < 2) { setResults([]); return; }
     setLoading(true);
 
+    // Marketplace: nested card object — l.card.name / l.card.imageUrl
     const mktFetch = authFetch(`/api/marketplace?search=${encodeURIComponent(q)}&limit=6`)
       .then((r) => r.json() as Promise<MktListing[]>)
       .catch(() => [] as MktListing[]);
 
-    const tcgFetch = fetch(`https://api.tcgdex.net/v2/en/cards?name=${encodeURIComponent(q)}&pageSize=30`)
-      .then((r) => r.json() as Promise<TcgCard[]>)
-      .catch(() => [] as TcgCard[]);
+    // Catalog: backend proxies PokeWallet + TCGdex with wildcard search
+    const catalogFetch = fetch(`/api/catalog/search?q=${encodeURIComponent(q)}&limit=25`)
+      .then((r) => r.json() as Promise<{ results: CatalogCard[] }>)
+      .catch(() => ({ results: [] as CatalogCard[] }));
 
-    Promise.all([mktFetch, tcgFetch]).then(([mkt, tcg]) => {
-      const mktResults: CardResult[] = (Array.isArray(mkt) ? mkt : []).map((l) => ({
-        source: "marketplace" as const,
-        key: `mkt-${l.id}`,
-        name: l.name ?? "",
-        setName: l.setName ?? undefined,
-        imageUrl: l.imageUrl ?? undefined,
-        price: l.price,
-        listingId: l.id,
-      }));
+    Promise.all([mktFetch, catalogFetch]).then(([mkt, catalog]) => {
+      const mktResults: CardResult[] = (Array.isArray(mkt) ? mkt : [])
+        .filter((l) => l.card?.name)
+        .map((l) => ({
+          source: "marketplace" as const,
+          key: `mkt-${l.id}`,
+          name: l.card!.name!,
+          setName: l.card!.setName ?? undefined,
+          imageUrl: l.card!.imageUrl ?? undefined,
+          price: l.price,
+          listingId: l.id,
+        }));
 
-      // Deduplicate TCGdex by name+set (keep first occurrence per unique name)
+      // Deduplicate catalog results by name (keep first unique name per card)
       const seen = new Set<string>();
-      const tcgResults: CardResult[] = (Array.isArray(tcg) ? tcg : [])
+      const catalogResults: CardResult[] = (catalog.results ?? [])
         .filter((c) => {
           if (!c.name) return false;
-          if (seen.has(c.name)) return false;
-          seen.add(c.name);
+          const key = `${c.name}||${c.setCode ?? ""}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
           return true;
         })
         .slice(0, 20)
-        .map((c) => {
-          const setId = c.id.split("-")[0];
-          return {
-            source: "tcgdex" as const,
-            key: `tcg-${c.id}`,
-            name: c.name,
-            imageUrl: c.image ? `${c.image}/high.webp` : undefined,
-            setName: setId,
-          };
-        });
+        .map((c) => ({
+          source: "catalog" as const,
+          key: `cat-${c.id}`,
+          name: c.name,
+          imageUrl: c.imageUrl ?? undefined,
+          setName: c.setName ?? c.setCode ?? undefined,
+        }));
 
-      setResults([...mktResults, ...tcgResults]);
+      setResults([...mktResults, ...catalogResults]);
       setLoading(false);
     });
   }, [debouncedQuery]);
@@ -916,14 +926,14 @@ function CardSearchCombobox({
             </>
           )}
 
-          {/* TCGdex section */}
-          {results.filter((r) => r.source === "tcgdex").length > 0 && (
+          {/* Catalog section (PokeWallet + TCGdex via backend) */}
+          {results.filter((r) => r.source === "catalog").length > 0 && (
             <>
               <div className="sticky top-0 bg-white/95 backdrop-blur-sm flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-100">
                 <Database className="h-3 w-3 text-violet-500" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-600">All Pokémon TCG cards</span>
               </div>
-              {results.filter((r) => r.source === "tcgdex").map((card) => (
+              {results.filter((r) => r.source === "catalog").map((card) => (
                 <button
                   key={card.key}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-50 text-left transition-colors"
