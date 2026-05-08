@@ -20,6 +20,7 @@ import {
   TEMPO_FAUCET_URL,
   TEMPO_EXPLORER_URL,
 } from "../lib/tempoWallet.js";
+import { notifyAgentPurchase } from "../lib/notifyAgentPurchase.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
 
@@ -389,6 +390,12 @@ async function runBuyerAgentOnce(
     status = "success";
     note = `Bought "${card.name}" for ${priceFloat.toFixed(6)} pathUSD on Tempo Testnet`;
 
+    // Complete the purchase: mark listing sold + transfer card to buyer
+    await Promise.all([
+      db.update(listingsTable).set({ status: "sold" }).where(eq(listingsTable.id, listing.id)),
+      db.update(cardsTable).set({ ownerClerkId: clerkId }).where(eq(cardsTable.id, card.id)),
+    ]);
+
     await db.update(dexAgentsTable).set({
       spentPathUsd: sql`${dexAgentsTable.spentPathUsd}::numeric + ${priceFloat}`,
       lastRunAt: new Date(),
@@ -409,6 +416,17 @@ async function runBuyerAgentOnce(
     amountPathUsd: priceFloat.toFixed(6),
     tempoTxHash: txHash,
     status, note,
+  });
+
+  // Notify the buyer (inbox + email) for both real and simulated purchases
+  void notifyAgentPurchase({
+    buyerClerkId: clerkId,
+    sellerClerkId: listing.sellerClerkId ?? clerkId,
+    agentName: agent.name,
+    cardName: card.name,
+    pricePathUsd: priceFloat.toFixed(6),
+    listingId: listing.id,
+    txHash,
   });
 
   return { matched: true, listingId: listing.id, cardName: card.name, pricePathUsd: priceFloat.toFixed(6), txHash, note };
