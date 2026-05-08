@@ -532,29 +532,50 @@ async function runBuyerAgentOnce(
     const topFind = ebayFinds[0] ?? null;
 
     if (topFind) {
-      // Deduplicate: skip if we already alerted for this exact URL in the last 24h
+      // Find most recent record for this agent + URL (any status)
       const [existing] = await db
-        .select({ id: agentExternalFindsTable.id })
+        .select({
+          id: agentExternalFindsTable.id,
+          status: agentExternalFindsTable.status,
+          snoozeUntil: agentExternalFindsTable.snoozeUntil,
+        })
         .from(agentExternalFindsTable)
         .where(and(
           eq(agentExternalFindsTable.agentId, agent.id),
           eq(agentExternalFindsTable.listingUrl, topFind.url),
-          sql`${agentExternalFindsTable.createdAt} > NOW() - INTERVAL '24 hours'`,
-        ));
+        ))
+        .orderBy(desc(agentExternalFindsTable.createdAt))
+        .limit(1);
 
-      if (!existing) {
+      // A snoozed record whose snooze has expired gets re-alerted
+      const isSnoozeExpired =
+        existing?.status === "snoozed" &&
+        existing.snoozeUntil != null &&
+        new Date(existing.snoozeUntil) <= new Date();
+
+      // Any other existing record blocks a new alert
+      const shouldAlert = !existing || isSnoozeExpired;
+
+      if (shouldAlert) {
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        await db.insert(agentExternalFindsTable).values({
-          agentId: agent.id,
-          clerkId,
-          cardName: agent.pokemonName,
-          site: "eBay",
-          listingTitle: topFind.title,
-          listingUrl: topFind.url,
-          priceUsd: topFind.priceUsd.toFixed(2),
-          status: "pending",
-          expiresAt,
-        });
+
+        if (isSnoozeExpired && existing) {
+          await db.update(agentExternalFindsTable)
+            .set({ status: "pending", snoozeUntil: null, expiresAt })
+            .where(eq(agentExternalFindsTable.id, existing.id));
+        } else {
+          await db.insert(agentExternalFindsTable).values({
+            agentId: agent.id,
+            clerkId,
+            cardName: agent.pokemonName,
+            site: "eBay",
+            listingTitle: topFind.title,
+            listingUrl: topFind.url,
+            priceUsd: topFind.priceUsd.toFixed(2),
+            status: "pending",
+            expiresAt,
+          });
+        }
 
         const [user] = await db
           .select({ phone: usersTable.phone })
@@ -573,7 +594,9 @@ async function runBuyerAgentOnce(
           });
         }
 
-        const note = `No DexPoky match — found on eBay for $${topFind.priceUsd.toFixed(2)} (SMS alert sent)`;
+        const note = isSnoozeExpired
+          ? `eBay snooze expired — re-alerted for $${topFind.priceUsd.toFixed(2)}`
+          : `No DexPoky match — found on eBay for $${topFind.priceUsd.toFixed(2)} (SMS alert sent)`;
         await db.insert(agentRunsTable).values({ status: "ebay_alert", note, agentId: agent.id, clerkId });
         await db.update(dexAgentsTable).set({ lastRunAt: new Date(), runsCount: sql`${dexAgentsTable.runsCount} + 1` }).where(eq(dexAgentsTable.id, agent.id));
         return { matched: false, note };
@@ -688,6 +711,40 @@ router.get("/agents/external-finds", requireAuth, async (req: Request, res: Resp
   res.json(finds);
 });
 
+// ── SMS snooze helpers ────────────────────────────────────────────────────────
+
+/** Parse freeform time text into minutes. Returns null if unparseable. */
+function parseReminderMinutes(text: string): number | null {
+  const t = text.toLowerCase().trim();
+  const wk = t.match(/(\d+(?:\.\d+)?)\s*w(?:eeks?)?(?:\b|$)/);
+  if (wk) return Math.round(parseFloat(wk[1]) * 7 * 24 * 60);
+  const dy = t.match(/(\d+(?:\.\d+)?)\s*d(?:ays?)?(?:\b|$)/);
+  if (dy) return Math.round(parseFloat(dy[1]) * 24 * 60);
+  const hr = t.match(/(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?(?:\b|$)/);
+  if (hr) return Math.round(parseFloat(hr[1]) * 60);
+  const mn = t.match(/(\d+(?:\.\d+)?)\s*m(?:inutes?|ins?)?(?:\b|$)/);
+  if (mn) return Math.round(parseFloat(mn[1]));
+  if (/\btomorrow\b/.test(t)) return 24 * 60;
+  if (/\bnext\s*week\b/.test(t)) return 7 * 24 * 60;
+  // Bare number: ≤90 → treat as days, >90 → treat as minutes
+  const num = t.match(/^(\d+)$/);
+  if (num) { const n = parseInt(num[1]); return n <= 90 ? n * 24 * 60 : n; }
+  return null;
+}
+
+function isSnoozeRequest(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  return /\b(remind|snooze|later|hold|wait|not\s*now|maybe|check\s*back)\b/.test(t) ||
+    ["r", "later", "snooze", "remind"].includes(t);
+}
+
+function formatSnoozeConfirmation(minutes: number): string {
+  if (minutes >= 7 * 24 * 60) return `${Math.round(minutes / (7 * 24 * 60))} week(s)`;
+  if (minutes >= 24 * 60) return `${Math.round(minutes / (24 * 60))} day(s)`;
+  if (minutes >= 60) return `${Math.round(minutes / 60)} hour(s)`;
+  return `${minutes} minute(s)`;
+}
+
 // ── Twilio SMS webhook (YES/NO approval replies) ───────────────────────────────
 
 router.post("/agents/sms-webhook", async (req: Request, res: Response) => {
@@ -697,7 +754,8 @@ router.post("/agents/sms-webhook", async (req: Request, res: Response) => {
     );
 
   const from = (req.body?.From as string ?? "").trim();
-  const bodyText = (req.body?.Body as string ?? "").trim().toUpperCase();
+  const bodyRaw = (req.body?.Body as string ?? "").trim();
+  const bodyText = bodyRaw.toUpperCase();
 
   if (!from) { twiml("Unknown sender."); return; }
 
@@ -708,6 +766,32 @@ router.post("/agents/sms-webhook", async (req: Request, res: Response) => {
 
   if (!user) {
     twiml("We couldn't find a DexPoky account linked to this number. Add your phone number in Profile settings.");
+    return;
+  }
+
+  // ── State: awaiting snooze time ─────────────────────────────────────────────
+  if (user.smsState === "awaiting_snooze_time" && user.smsStateData) {
+    const findId = parseInt(user.smsStateData, 10);
+    // Clear state immediately to prevent loops on invalid input
+    await db.update(usersTable)
+      .set({ smsState: null, smsStateData: null })
+      .where(eq(usersTable.clerkId, user.clerkId));
+
+    const minutes = parseReminderMinutes(bodyRaw);
+    if (!minutes || minutes <= 0) {
+      twiml("Sorry, I didn't understand that time. Your listing is still saved as pending — your agent will re-alert on its next scan.");
+      return;
+    }
+
+    const snoozeUntil = new Date(Date.now() + minutes * 60 * 1000);
+    await db.update(agentExternalFindsTable)
+      .set({ status: "snoozed", snoozeUntil })
+      .where(and(
+        eq(agentExternalFindsTable.id, findId),
+        eq(agentExternalFindsTable.clerkId, user.clerkId),
+      ));
+
+    twiml(`Got it! I'll remind you about this listing in ${formatSnoozeConfirmation(minutes)}.`);
     return;
   }
 
@@ -750,8 +834,13 @@ router.post("/agents/sms-webhook", async (req: Request, res: Response) => {
         .set({ status: "dismissed" })
         .where(eq(agentExternalFindsTable.id, extFind.id));
       twiml(`Dismissed. Your DexAgent will keep watching for ${extFind.cardName}.`);
+    } else if (isSnoozeRequest(bodyRaw)) {
+      await db.update(usersTable)
+        .set({ smsState: "awaiting_snooze_time", smsStateData: extFind.id.toString() })
+        .where(eq(usersTable.clerkId, user.clerkId));
+      twiml(`When should I remind you about "${extFind.cardName}"?\n\nReply with a time, for example:\n  1 day\n  3 days\n  7 days\n  2 hours\n  30 minutes\n\nOr any amount — I understand days, hours, and minutes.`);
     } else {
-      twiml(`Reply YES to save the ${extFind.cardName} listing from ${extFind.site} ($${extFind.priceUsd}) to your inbox, or NO to dismiss.`);
+      twiml(`Reply YES to save the ${extFind.cardName} listing from ${extFind.site} ($${extFind.priceUsd}) to your inbox, NO to dismiss, or REMIND ME to be reminded later.`);
     }
     return;
   }

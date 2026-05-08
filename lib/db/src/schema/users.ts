@@ -13,6 +13,8 @@ export const usersTable = pgTable("users", {
   freeTrialActivated: boolean("free_trial_activated").default(false).notNull(),
   freeTrialScansUsed: integer("free_trial_scans_used").default(0).notNull(),
   phone: text("phone"),
+  smsState: text("sms_state"),
+  smsStateData: text("sms_state_data"),
   payoutMethod: text("payout_method"),
   payoutDestination: text("payout_destination"),
   walletBalanceCents: integer("wallet_balance_cents").default(0).notNull(),

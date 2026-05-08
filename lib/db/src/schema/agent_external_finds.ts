@@ -13,6 +13,7 @@ export const agentExternalFindsTable = pgTable("agent_external_finds", {
   listingUrl: text("listing_url").notNull(),
   priceUsd: numeric("price_usd", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().default("pending"),
+  snoozeUntil: timestamp("snooze_until"),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
