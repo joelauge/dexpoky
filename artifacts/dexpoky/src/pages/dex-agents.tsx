@@ -52,6 +52,8 @@ import {
   Info,
   ShoppingCart,
   Tag,
+  ShieldCheck,
+  ShieldQuestion,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -117,6 +119,11 @@ interface InventoryCard {
   condition: string | null;
   estimatedValue: string | null;
   imageUrl: string | null;
+  certId: number | null;
+  certStatus: string | null;
+  certCompany: string | null;
+  certGrade: string | null;
+  certNumber: string | null;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -845,12 +852,20 @@ function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
 
 // ── Create Seller Agent Dialog ────────────────────────────────────────────────
 
+const CERT_COMPANY_LABELS: Record<string, string> = { psa: "PSA", bgs: "BGS", cgc: "CGC" };
+const CERT_COMPANY_COLORS: Record<string, string> = {
+  psa: "bg-blue-100 text-blue-700 border-blue-200",
+  bgs: "bg-red-100 text-red-700 border-red-200",
+  cgc: "bg-purple-100 text-purple-700 border-purple-200",
+};
+
 function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
   const authFetch = useAuthFetch();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
   const [floorPrice, setFloorPrice] = useState(10);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   const { data: inventory = [], isLoading: inventoryLoading } = useQuery<InventoryCard[]>({
     queryKey: ["agents-inventory"],
@@ -858,7 +873,10 @@ function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
     enabled: open,
   });
 
+  const verifiedCards = inventory.filter((c) => c.certStatus === "verified");
+  const visibleCards = verifiedOnly ? verifiedCards : inventory;
   const selectedCard = inventory.find((c) => c.id === selectedCardId);
+  const selectedIsVerified = selectedCard?.certStatus === "verified";
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -912,11 +930,30 @@ function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Card to Sell</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Card to Sell</Label>
+              {verifiedCards.length > 0 && (
+                <button
+                  onClick={() => { setVerifiedOnly((v) => !v); setSelectedCardId(null); }}
+                  className={cn(
+                    "flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors",
+                    verifiedOnly
+                      ? "bg-green-100 text-green-700 border-green-200"
+                      : "bg-slate-100 text-slate-500 border-slate-200 hover:border-slate-300",
+                  )}
+                >
+                  <ShieldCheck className="h-3 w-3" />
+                  Verified only
+                </button>
+              )}
+            </div>
+
             {inventoryLoading ? (
               <Skeleton className="h-10 w-full rounded-lg" />
-            ) : inventory.length === 0 ? (
-              <p className="text-sm text-slate-400 py-2">No cards in your inventory yet.</p>
+            ) : visibleCards.length === 0 ? (
+              <p className="text-sm text-slate-400 py-2">
+                {verifiedOnly ? "No verified cards yet. Submit a PSA/BGS/CGC cert on a card first." : "No cards in your inventory yet."}
+              </p>
             ) : (
               <Select
                 value={selectedCardId?.toString() ?? ""}
@@ -926,11 +963,20 @@ function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
                   <SelectValue placeholder="Pick a card from your inventory…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {inventory.map((card) => (
+                  {visibleCards.map((card) => (
                     <SelectItem key={card.id} value={card.id.toString()}>
-                      <span className="font-medium">{card.name}</span>
-                      {card.setName && <span className="text-slate-400 ml-1.5">· {card.setName}</span>}
-                      {card.condition && <span className="text-slate-400 ml-1.5">· {card.condition}</span>}
+                      <div className="flex items-center gap-2">
+                        {card.certStatus === "verified" && card.certCompany ? (
+                          <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border",
+                            CERT_COMPANY_COLORS[card.certCompany] ?? "bg-slate-100 text-slate-600 border-slate-200")}>
+                            {CERT_COMPANY_LABELS[card.certCompany] ?? card.certCompany.toUpperCase()} {card.certGrade}
+                          </span>
+                        ) : (
+                          <ShieldQuestion className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                        )}
+                        <span className="font-medium">{card.name}</span>
+                        {card.setName && <span className="text-slate-400">· {card.setName}</span>}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -938,16 +984,32 @@ function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
             )}
 
             {selectedCard && (
-              <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
+              <div className={cn(
+                "flex items-center gap-2 p-2.5 rounded-xl border",
+                selectedIsVerified ? "bg-green-50 border-green-200" : "bg-slate-50 border-slate-200",
+              )}>
                 {selectedCard.imageUrl && (
-                  <img src={selectedCard.imageUrl} alt={selectedCard.name} className="h-10 w-8 object-contain rounded" />
+                  <img src={selectedCard.imageUrl} alt={selectedCard.name} className="h-12 w-9 object-contain rounded" />
                 )}
-                <div className="min-w-0">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800">{selectedCard.name}</p>
                   <p className="text-xs text-slate-500">
                     {[selectedCard.rarity, selectedCard.condition].filter(Boolean).join(" · ")}
                     {selectedCard.estimatedValue && ` · ~$${parseFloat(selectedCard.estimatedValue).toFixed(2)}`}
                   </p>
+                  {selectedIsVerified && selectedCard.certCompany && (
+                    <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold mt-1 px-1.5 py-0.5 rounded border",
+                      CERT_COMPANY_COLORS[selectedCard.certCompany] ?? "")}>
+                      <ShieldCheck className="h-2.5 w-2.5" />
+                      {CERT_COMPANY_LABELS[selectedCard.certCompany]} {selectedCard.certGrade} · Verified
+                    </span>
+                  )}
+                  {!selectedIsVerified && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 mt-1">
+                      <ShieldQuestion className="h-2.5 w-2.5" />
+                      Not graded — open card detail to submit a cert
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -963,9 +1025,19 @@ function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
               onChange={(e) => setFloorPrice(parseFloat(e.target.value) || 0)}
             />
             <p className="text-xs text-slate-400">
-              The agent will list your card at this price. Any buyer meeting this price completes the sale.
+              The agent lists your card at this price. Any buyer meeting it completes the sale.
             </p>
           </div>
+
+          {selectedCard && !selectedIsVerified && (
+            <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5">
+              <ShieldQuestion className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                <strong>Unverified card.</strong> In production, only PSA/BGS/CGC-verified cards are eligible for agent transactions.
+                You can still create this agent now, but submit a grading cert on the card detail page to enable production-ready selling.
+              </span>
+            </div>
+          )}
 
           <div className="flex items-start gap-2 text-xs text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2.5">
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />

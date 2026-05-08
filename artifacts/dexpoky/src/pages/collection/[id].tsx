@@ -9,8 +9,9 @@ import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/
 import {
   ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, ExternalLink,
   ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2, Calendar, Clock,
-  Share2, Camera, Maximize2, BookOpen, CheckCircle2,
+  Share2, Camera, Maximize2, BookOpen, CheckCircle2, ShieldCheck,
 } from "lucide-react";
+import { GradingVerification } from "@/components/grading-verification";
 import { Textarea } from "@/components/ui/textarea";
 import { ShareModal } from "@/components/share-modal";
 import { toast } from "sonner";
@@ -615,6 +616,15 @@ export default function CardDetail() {
             {/* Price history chart — directly below the date, no gap */}
             <div className="w-full min-w-0 overflow-hidden">
               <PriceHistoryChart cardId={id} />
+            </div>
+
+            {/* Professional Grading Verification */}
+            <div className="mt-6 mb-2">
+              <h3 className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Professional Grading
+              </h3>
+              <GradingVerification cardId={id} />
             </div>
 
             {/* Other Printings */}

@@ -30,6 +30,7 @@ import developerRouter from "./developer";
 import outreachRouter from "./outreach";
 import linksRouter from "./links";
 import agentsRouter from "./agents";
+import gradingRouter from "./grading";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(developerRouter);
 router.use(outreachRouter);
 router.use(linksRouter);
 router.use(agentsRouter);
+router.use(gradingRouter);
 
 export default router;

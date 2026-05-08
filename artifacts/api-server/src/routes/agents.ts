@@ -261,6 +261,8 @@ router.post("/agents/:id/trigger", requireAuth, async (req: Request, res: Respon
 
 router.get("/agents/inventory", requireAuth, async (req: Request, res: Response) => {
   const clerkId = (req as AuthRequest).userId;
+  const { cardGradingCertsTable } = await import("@workspace/db");
+
   const cards = await db
     .select({
       id: cardsTable.id,
@@ -271,10 +273,19 @@ router.get("/agents/inventory", requireAuth, async (req: Request, res: Response)
       condition: cardsTable.condition,
       estimatedValue: cardsTable.estimatedValue,
       imageUrl: cardsTable.imageUrl,
+      certId: cardGradingCertsTable.id,
+      certStatus: cardGradingCertsTable.status,
+      certCompany: cardGradingCertsTable.gradingCompany,
+      certGrade: cardGradingCertsTable.grade,
+      certNumber: cardGradingCertsTable.certNumber,
     })
     .from(cardsTable)
+    .leftJoin(cardGradingCertsTable, eq(cardGradingCertsTable.cardId, cardsTable.id))
     .where(eq(cardsTable.ownerClerkId, clerkId))
-    .orderBy(cardsTable.name)
+    .orderBy(
+      sql`case when ${cardGradingCertsTable.status} = 'verified' then 0 else 1 end`,
+      cardsTable.name,
+    )
     .limit(200);
   res.json(cards);
 });

@@ -21,3 +21,4 @@ export * from "./api_keys";
 export * from "./invite_sends";
 export * from "./tempo_wallets";
 export * from "./dex_agents";
+export * from "./card_grading_certs";
