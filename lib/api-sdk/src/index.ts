@@ -24,6 +24,7 @@ export * from "./resources/trades";
 export * from "./resources/billing";
 export * from "./resources/outreach";
 export * from "./resources/links";
+export * from "./resources/agents";
 
 export type {
   Card,

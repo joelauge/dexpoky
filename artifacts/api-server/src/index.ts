@@ -2,6 +2,7 @@ import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient.js";
+import { startAgentScheduler } from "./lib/agentScheduler.js";
 
 const rawPort = process.env["PORT"];
 
@@ -47,6 +48,7 @@ async function initStripe() {
 }
 
 await initStripe();
+startAgentScheduler();
 
 app.listen(port, (err) => {
   if (err) {

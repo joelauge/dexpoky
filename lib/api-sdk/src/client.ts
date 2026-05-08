@@ -21,6 +21,7 @@ import { trades } from "./resources/trades";
 import { billing } from "./resources/billing";
 import { outreach } from "./resources/outreach";
 import { links } from "./resources/links";
+import { agents } from "./resources/agents";
 
 export interface DexPokyClientOptions {
   /**
@@ -82,6 +83,7 @@ export class DexPokyClient {
   readonly billing = billing;
   readonly outreach = outreach;
   readonly links = links;
+  readonly agents = agents;
 
   constructor(options: DexPokyClientOptions = {}) {
     if (options.baseUrl) {

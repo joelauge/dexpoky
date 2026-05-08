@@ -25,6 +25,7 @@ import {
   ChevronUp,
   Wallet,
   Code2,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -193,6 +194,11 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
+              <Link href="/agents" className="flex items-center gap-2 cursor-pointer">
+                <Bot className="h-4 w-4" /> DexAgents
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
               <Link href="/subscription" className="flex items-center gap-2 cursor-pointer">
                 <Sparkles className="h-4 w-4" /> Subscription
               </Link>
@@ -255,6 +261,11 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
             <DropdownMenuItem asChild>
               <Link href="/wallet" className="flex items-center gap-2 cursor-pointer">
                 <Wallet className="h-4 w-4" /> Wallet
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/agents" className="flex items-center gap-2 cursor-pointer">
+                <Bot className="h-4 w-4" /> DexAgents
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
@@ -341,6 +352,7 @@ function MobileProfileBar() {
     { href: "/profile",      icon: User,         label: "Profile" },
     { href: "/inbox",        icon: MessageSquare, label: "Inbox",  badge: totalUnread },
     { href: "/wallet",       icon: Wallet,        label: "Wallet" },
+    { href: "/agents",       icon: Bot,           label: "DexAgents" },
     { href: "/subscription", icon: Sparkles,      label: "Subscription" },
     { href: "/developer",    icon: Code2,         label: "DexPoky API" },
   ];

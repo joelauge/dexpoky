@@ -40,6 +40,7 @@ import Wishlist from "@/pages/wishlist";
 import InboxPage from "@/pages/inbox/index";
 import WalletPage from "@/pages/wallet/index";
 import DeveloperPage from "@/pages/developer";
+import DexAgentsPage from "@/pages/dex-agents";
 import { UsernameGate } from "@/components/username-gate";
 import { usePaymentSSE } from "@/hooks/use-payment-sse";
 
@@ -305,6 +306,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/inbox" component={() => <ProtectedRoute component={InboxPage} />} />
             <Route path="/wallet" component={() => <ProtectedRoute component={WalletPage} />} />
             <Route path="/developer" component={() => <ProtectedRoute component={DeveloperPage} />} />
+            <Route path="/agents" component={() => <ProtectedRoute component={DexAgentsPage} />} />
             <Route path="/marketplace" component={Marketplace} />
             <Route path="/marketplace/:id" component={ListingDetail} />
             <Route path="/sell" component={() => <ProtectedRoute component={Sell} />} />

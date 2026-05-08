@@ -29,6 +29,7 @@ import sseRouter from "./sse";
 import developerRouter from "./developer";
 import outreachRouter from "./outreach";
 import linksRouter from "./links";
+import agentsRouter from "./agents";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use(sseRouter);
 router.use(developerRouter);
 router.use(outreachRouter);
 router.use(linksRouter);
+router.use(agentsRouter);
 
 export default router;
