@@ -91,7 +91,7 @@ export default function WalletPage() {
 
   return (
     <Layout>
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
           <Link href="/inbox">

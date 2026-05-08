@@ -204,7 +204,7 @@ export default function DexAgentsPage() {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center">
