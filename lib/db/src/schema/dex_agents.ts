@@ -8,20 +8,31 @@ import {
   integer,
 } from "drizzle-orm/pg-core";
 
+export const agentRoleEnum = ["buyer", "seller"] as const;
 export const agentTriggerEnum = ["buy_now", "bid"] as const;
-export const agentStatusEnum = ["active", "paused", "budget_exhausted"] as const;
+export const agentStatusEnum = ["active", "paused", "budget_exhausted", "completed"] as const;
 
 export const dexAgentsTable = pgTable("dex_agents", {
   id: serial("id").primaryKey(),
   clerkId: text("clerk_id").notNull(),
+  agentRole: text("agent_role").notNull().default("buyer"),
   name: text("name").notNull(),
-  pokemonName: text("pokemon_name").notNull(),
+
+  // ── Buyer-only fields ──────────────────────────────────────────────────────
+  pokemonName: text("pokemon_name").notNull().default(""),
   triggerType: text("trigger_type").notNull().default("buy_now"),
-  maxPricePathUsd: numeric("max_price_path_usd", { precision: 10, scale: 6 }).notNull(),
-  budgetPathUsd: numeric("budget_path_usd", { precision: 10, scale: 6 }).notNull(),
+  maxPricePathUsd: numeric("max_price_path_usd", { precision: 10, scale: 6 }).notNull().default("0"),
+  budgetPathUsd: numeric("budget_path_usd", { precision: 10, scale: 6 }).notNull().default("0"),
   spentPathUsd: numeric("spent_path_usd", { precision: 10, scale: 6 }).notNull().default("0"),
   requireHoloOnly: boolean("require_holo_only").notNull().default(false),
   requireCondition: text("require_condition"),
+
+  // ── Seller-only fields ─────────────────────────────────────────────────────
+  cardId: integer("card_id"),
+  floorPricePathUsd: numeric("floor_price_path_usd", { precision: 10, scale: 6 }),
+  managedListingId: integer("managed_listing_id"),
+
+  // ── Common ─────────────────────────────────────────────────────────────────
   status: text("status").notNull().default("active"),
   runsCount: integer("runs_count").notNull().default(0),
   lastRunAt: timestamp("last_run_at"),

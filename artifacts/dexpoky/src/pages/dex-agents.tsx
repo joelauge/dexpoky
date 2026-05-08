@@ -26,6 +26,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Bot,
   Plus,
   Trash2,
@@ -43,11 +50,15 @@ import {
   ChevronRight,
   RefreshCw,
   Info,
+  ShoppingCart,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuthFetch } from "@/lib/use-auth-fetch";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface TempoWalletInfo {
   address: string;
@@ -62,7 +73,9 @@ interface TempoWalletInfo {
 interface DexAgent {
   id: number;
   clerkId: string;
+  agentRole: "buyer" | "seller";
   name: string;
+  // buyer
   pokemonName: string;
   triggerType: "buy_now" | "bid";
   maxPricePathUsd: string;
@@ -70,20 +83,16 @@ interface DexAgent {
   spentPathUsd: string;
   requireHoloOnly: boolean;
   requireCondition: string | null;
-  status: "active" | "paused" | "budget_exhausted";
+  // seller
+  cardId: number | null;
+  floorPricePathUsd: string | null;
+  managedListingId: number | null;
+  // common
+  status: "active" | "paused" | "budget_exhausted" | "completed";
   runsCount: number;
   lastRunAt: string | null;
   createdAt: string;
   updatedAt: string;
-}
-
-interface CreateAgentForm {
-  name: string;
-  pokemonName: string;
-  triggerType: "buy_now" | "bid";
-  maxPricePathUsd: number;
-  budgetPathUsd: number;
-  requireHoloOnly: boolean;
 }
 
 interface AgentRun {
@@ -99,9 +108,23 @@ interface AgentRun {
   createdAt: string;
 }
 
+interface InventoryCard {
+  id: number;
+  name: string;
+  pokemonName: string;
+  setName: string | null;
+  rarity: string | null;
+  condition: string | null;
+  estimatedValue: string | null;
+  imageUrl: string | null;
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function DexAgentsPage() {
   const authFetch = useAuthFetch();
   const qc = useQueryClient();
+  const [tab, setTab] = useState<"buyer" | "seller">("buyer");
 
   const { data: wallet, isLoading: walletLoading } = useQuery<TempoWalletInfo>({
     queryKey: ["tempo-wallet"],
@@ -129,43 +152,93 @@ export default function DexAgentsPage() {
     toast.success("Address copied");
   }
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["dex-agents"] });
+    qc.invalidateQueries({ queryKey: ["agent-runs"] });
+  };
+
+  const buyerAgents = agents.filter((a) => a.agentRole === "buyer");
+  const sellerAgents = agents.filter((a) => a.agentRole === "seller");
+  const visibleAgents = tab === "buyer" ? buyerAgents : sellerAgents;
+
   return (
     <Layout>
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+        {/* Header */}
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center">
             <Bot className="h-5 w-5 text-violet-600" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900">DexAgents</h1>
-            <p className="text-sm text-slate-500">Autonomous card-buying agents powered by Tempo stablecoins</p>
+            <p className="text-sm text-slate-500">
+              Autonomous buying and selling agents powered by Tempo stablecoins
+            </p>
           </div>
         </div>
 
-        <WalletPanel wallet={wallet} loading={walletLoading} onCopy={copyAddress} copied={copiedAddr} />
+        <WalletPanel
+          wallet={wallet}
+          loading={walletLoading}
+          onCopy={copyAddress}
+          copied={copiedAddr}
+        />
 
+        {/* Tabs + Add button */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-800">My Agents</h2>
-          <CreateAgentDialog onCreated={() => qc.invalidateQueries({ queryKey: ["dex-agents"] })} />
+          <div className="flex gap-1 p-1 bg-slate-100 rounded-xl">
+            <TabBtn
+              active={tab === "buyer"}
+              onClick={() => setTab("buyer")}
+              icon={<ShoppingCart className="h-3.5 w-3.5" />}
+              label="Buyers"
+              count={buyerAgents.length}
+            />
+            <TabBtn
+              active={tab === "seller"}
+              onClick={() => setTab("seller")}
+              icon={<Tag className="h-3.5 w-3.5" />}
+              label="Sellers"
+              count={sellerAgents.length}
+            />
+          </div>
+
+          {tab === "buyer" ? (
+            <CreateBuyerAgentDialog onCreated={invalidate} />
+          ) : (
+            <CreateSellerAgentDialog onCreated={invalidate} />
+          )}
         </div>
 
+        {/* Tab description */}
+        <div className="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2.5 -mt-4">
+          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-slate-400" />
+          {tab === "buyer" ? (
+            <span>
+              <strong className="text-slate-600">Buyer agents</strong> scan the marketplace every minute and automatically purchase matching cards using pathUSD from your Tempo Testnet wallet.
+            </span>
+          ) : (
+            <span>
+              <strong className="text-slate-600">Seller agents</strong> list a card from your inventory at your floor price. Any buyer — human or agent — can purchase it. The agent marks itself complete once the card sells.
+            </span>
+          )}
+        </div>
+
+        {/* Agent list */}
         {agentsLoading ? (
           <div className="space-y-3">
             {[1, 2].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
           </div>
-        ) : agents.length === 0 ? (
-          <EmptyAgents />
+        ) : visibleAgents.length === 0 ? (
+          <EmptyAgents role={tab} />
         ) : (
           <div className="space-y-3">
-            {agents.map((agent) => (
+            {visibleAgents.map((agent) => (
               <AgentCard
                 key={agent.id}
                 agent={agent}
                 runs={runs.filter((r) => r.agentId === agent.id)}
-                onChanged={() => {
-                  qc.invalidateQueries({ queryKey: ["dex-agents"] });
-                  qc.invalidateQueries({ queryKey: ["agent-runs"] });
-                }}
+                onChanged={invalidate}
               />
             ))}
           </div>
@@ -176,6 +249,44 @@ export default function DexAgentsPage() {
     </Layout>
   );
 }
+
+// ── Tab button ────────────────────────────────────────────────────────────────
+
+function TabBtn({
+  active,
+  onClick,
+  icon,
+  label,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+        active
+          ? "bg-white text-slate-900 shadow-sm"
+          : "text-slate-500 hover:text-slate-700",
+      )}
+    >
+      {icon}
+      {label}
+      {count > 0 && (
+        <span className={cn("text-xs px-1.5 py-0.5 rounded-full", active ? "bg-violet-100 text-violet-700" : "bg-slate-200 text-slate-500")}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ── Wallet Panel ──────────────────────────────────────────────────────────────
 
 function WalletPanel({
   wallet,
@@ -210,18 +321,20 @@ function WalletPanel({
               {wallet.address}
             </code>
             <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={onCopy}>
-              {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5 text-slate-500" />}
+              {copied ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              ) : (
+                <Copy className="h-3.5 w-3.5 text-slate-500" />
+              )}
             </Button>
           </div>
 
-          <div className="flex items-end gap-4">
-            <div>
-              <p className="text-xs text-slate-500 mb-0.5">Balance</p>
-              <p className="text-3xl font-bold text-slate-900">
-                {parseFloat(wallet.balance).toFixed(2)}
-                <span className="text-base font-medium text-slate-500 ml-1">pathUSD</span>
-              </p>
-            </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-0.5">Balance</p>
+            <p className="text-3xl font-bold text-slate-900">
+              {parseFloat(wallet.balance).toFixed(2)}
+              <span className="text-base font-medium text-slate-500 ml-1">pathUSD</span>
+            </p>
           </div>
 
           <div className="flex gap-2 flex-wrap">
@@ -248,7 +361,7 @@ function WalletPanel({
 
           <div className="flex items-start gap-2 text-xs text-violet-600 bg-violet-50/80 rounded-lg px-3 py-2">
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            <span>This is a Tempo Testnet wallet. pathUSD is free test tokens — no real money involved. Visit the faucet to fund your agent.</span>
+            <span>Tempo Testnet only. pathUSD is free test tokens — no real money involved.</span>
           </div>
         </div>
       ) : null}
@@ -256,21 +369,45 @@ function WalletPanel({
   );
 }
 
-function EmptyAgents() {
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function EmptyAgents({ role }: { role: "buyer" | "seller" }) {
   return (
     <div className="text-center py-16 rounded-2xl border-2 border-dashed border-slate-200">
-      <Bot className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-      <p className="text-slate-500 font-medium">No DexAgents yet</p>
-      <p className="text-sm text-slate-400 mt-1">Create an agent to automatically buy cards using pathUSD stablecoins</p>
+      {role === "buyer" ? (
+        <ShoppingCart className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+      ) : (
+        <Tag className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+      )}
+      <p className="text-slate-500 font-medium">
+        {role === "buyer" ? "No buyer agents yet" : "No seller agents yet"}
+      </p>
+      <p className="text-sm text-slate-400 mt-1">
+        {role === "buyer"
+          ? "Create an agent to automatically buy cards using pathUSD stablecoins"
+          : "Create an agent to list a card and auto-sell when someone meets your floor price"}
+      </p>
     </div>
   );
 }
+
+// ── Status helpers ────────────────────────────────────────────────────────────
 
 const statusColorMap: Record<string, string> = {
   active: "bg-green-100 text-green-700",
   paused: "bg-amber-100 text-amber-700",
   budget_exhausted: "bg-red-100 text-red-600",
+  completed: "bg-blue-100 text-blue-700",
 };
+
+const statusLabelMap: Record<string, string> = {
+  active: "Active",
+  paused: "Paused",
+  budget_exhausted: "Budget Exhausted",
+  completed: "Sold",
+};
+
+// ── Agent Card ────────────────────────────────────────────────────────────────
 
 function AgentCard({
   agent,
@@ -283,10 +420,6 @@ function AgentCard({
 }) {
   const authFetch = useAuthFetch();
   const [showRuns, setShowRuns] = useState(false);
-
-  const spent = parseFloat(agent.spentPathUsd);
-  const budget = parseFloat(agent.budgetPathUsd);
-  const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
 
   const toggleMutation = useMutation({
     mutationFn: () =>
@@ -307,9 +440,13 @@ function AgentCard({
       authFetch(`/api/agents/${agent.id}/trigger`, { method: "POST" }).then((r) => r.json()),
     onSuccess: (data) => {
       if (data?.matched) {
-        toast.success(`Agent bought "${data.cardName}" for ${data.pricePathUsd} pathUSD`);
+        toast.success(
+          agent.agentRole === "buyer"
+            ? `Bought "${data.cardName}" for ${data.pricePathUsd} pathUSD`
+            : `Card sold for ${data.pricePathUsd} pathUSD`,
+        );
       } else {
-        toast.info(data?.note ?? "No matching listings found");
+        toast.info(data?.note ?? "No action taken");
       }
       onChanged();
     },
@@ -317,8 +454,7 @@ function AgentCard({
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () =>
-      authFetch(`/api/agents/${agent.id}`, { method: "DELETE" }),
+    mutationFn: () => authFetch(`/api/agents/${agent.id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Agent deleted");
       onChanged();
@@ -327,12 +463,8 @@ function AgentCard({
   });
 
   const statusColor = statusColorMap[agent.status] ?? "bg-slate-100 text-slate-600";
-
-  const statusLabel = agent.status === "budget_exhausted"
-    ? "Budget Exhausted"
-    : agent.status === "active"
-      ? "Active"
-      : "Paused";
+  const statusLabel = statusLabelMap[agent.status] ?? agent.status;
+  const canToggle = agent.status !== "budget_exhausted" && agent.status !== "completed";
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
@@ -340,18 +472,37 @@ function AgentCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
+              <div className={cn("h-6 w-6 rounded-md flex items-center justify-center shrink-0",
+                agent.agentRole === "buyer" ? "bg-violet-100" : "bg-emerald-100")}>
+                {agent.agentRole === "buyer"
+                  ? <ShoppingCart className="h-3.5 w-3.5 text-violet-600" />
+                  : <Tag className="h-3.5 w-3.5 text-emerald-600" />}
+              </div>
               <span className="font-semibold text-slate-800">{agent.name}</span>
               <Badge className={cn("text-xs border-0", statusColor)}>
                 {statusLabel}
               </Badge>
-              <Badge variant="outline" className="text-xs">
-                {agent.triggerType === "buy_now" ? "Buy Now" : "Bid"}
-              </Badge>
             </div>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Watching for <span className="font-medium text-slate-700">{agent.pokemonName}</span>
-              {" · "}max <span className="font-medium text-slate-700">{parseFloat(agent.maxPricePathUsd).toFixed(2)} pathUSD</span>
-            </p>
+
+            {agent.agentRole === "buyer" ? (
+              <p className="text-sm text-slate-500 mt-0.5">
+                Watching for <span className="font-medium text-slate-700">{agent.pokemonName}</span>
+                {" · "}max{" "}
+                <span className="font-medium text-slate-700">
+                  {parseFloat(agent.maxPricePathUsd).toFixed(2)} pathUSD
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm text-slate-500 mt-0.5">
+                Floor price{" "}
+                <span className="font-medium text-slate-700">
+                  {parseFloat(agent.floorPricePathUsd ?? "0").toFixed(2)} pathUSD
+                </span>
+                {agent.managedListingId && (
+                  <span className="text-slate-400"> · listing #{agent.managedListingId}</span>
+                )}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
@@ -371,7 +522,7 @@ function AgentCard({
               variant="ghost"
               className="h-8 w-8 p-0"
               onClick={() => toggleMutation.mutate()}
-              disabled={toggleMutation.isPending || agent.status === "budget_exhausted"}
+              disabled={toggleMutation.isPending || !canToggle}
               title={agent.status === "active" ? "Pause" : "Activate"}
             >
               {agent.status === "active"
@@ -390,6 +541,11 @@ function AgentCard({
                   <AlertDialogTitle>Delete agent?</AlertDialogTitle>
                   <AlertDialogDescription>
                     This will permanently delete "{agent.name}" and all its run history.
+                    {agent.agentRole === "seller" && agent.managedListingId && (
+                      <span className="block mt-1 text-amber-700">
+                        The active marketplace listing will also be cancelled.
+                      </span>
+                    )}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -406,23 +562,42 @@ function AgentCard({
           </div>
         </div>
 
-        <div className="mt-3 space-y-1">
-          <div className="flex justify-between text-xs text-slate-500">
-            <span>Budget used</span>
-            <span>{spent.toFixed(2)} / {budget.toFixed(2)} pathUSD</span>
+        {/* Buyer: budget bar */}
+        {agent.agentRole === "buyer" && (() => {
+          const spent = parseFloat(agent.spentPathUsd);
+          const budget = parseFloat(agent.budgetPathUsd);
+          const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
+          return (
+            <div className="mt-3 space-y-1">
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Budget used</span>
+                <span>{spent.toFixed(2)} / {budget.toFixed(2)} pathUSD</span>
+              </div>
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full transition-all",
+                    pct >= 90 ? "bg-red-400" : pct >= 60 ? "bg-amber-400" : "bg-violet-500")}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Seller: completed callout */}
+        {agent.agentRole === "seller" && agent.status === "completed" && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            Card sold successfully for {parseFloat(agent.floorPricePathUsd ?? "0").toFixed(2)} pathUSD
           </div>
-          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className={cn("h-full rounded-full transition-all", pct >= 90 ? "bg-red-400" : pct >= 60 ? "bg-amber-400" : "bg-violet-500")}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
+        )}
 
         {agent.runsCount > 0 && (
           <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
             <span>{agent.runsCount} run{agent.runsCount !== 1 ? "s" : ""}</span>
-            {agent.lastRunAt && <span>Last ran {format(new Date(agent.lastRunAt), "MMM d, h:mm a")}</span>}
+            {agent.lastRunAt && (
+              <span>Last ran {format(new Date(agent.lastRunAt), "MMM d, h:mm a")}</span>
+            )}
           </div>
         )}
       </div>
@@ -438,9 +613,7 @@ function AgentCard({
           </button>
           {showRuns && (
             <div className="px-4 pb-3 space-y-1.5">
-              {runs.slice(0, 5).map((run) => (
-                <RunRow key={run.id} run={run} />
-              ))}
+              {runs.slice(0, 5).map((run) => <RunRow key={run.id} run={run} />)}
             </div>
           )}
         </div>
@@ -449,9 +622,12 @@ function AgentCard({
   );
 }
 
+// ── Run row ───────────────────────────────────────────────────────────────────
+
 function RunRow({ run }: { run: AgentRun }) {
   const isSuccess = run.status === "success";
   const isSim = run.status === "simulated";
+  const isListed = run.status === "listed";
 
   return (
     <div className="flex items-start gap-2 text-xs">
@@ -460,7 +636,9 @@ function RunRow({ run }: { run: AgentRun }) {
           ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
           : isSim
             ? <Zap className="h-3.5 w-3.5 text-violet-400" />
-            : <XCircle className="h-3.5 w-3.5 text-slate-300" />}
+            : isListed
+              ? <Tag className="h-3.5 w-3.5 text-emerald-500" />
+              : <XCircle className="h-3.5 w-3.5 text-slate-300" />}
       </div>
       <div className="flex-1 min-w-0">
         <span className="text-slate-600">{run.note}</span>
@@ -480,9 +658,10 @@ function RunRow({ run }: { run: AgentRun }) {
   );
 }
 
+// ── Activity Feed ─────────────────────────────────────────────────────────────
+
 function ActivityFeed({ runs, agents }: { runs: AgentRun[]; agents: DexAgent[] }) {
   if (runs.length === 0) return null;
-
   const agentMap = new Map(agents.map((a) => [a.id, a.name]));
   const recent = runs.slice(0, 20);
 
@@ -500,19 +679,27 @@ function ActivityFeed({ runs, agents }: { runs: AgentRun[]; agents: DexAgent[] }
                 ? <CheckCircle2 className="h-4 w-4 text-green-500" />
                 : run.status === "simulated"
                   ? <Zap className="h-4 w-4 text-violet-400" />
-                  : <Clock className="h-4 w-4 text-slate-300" />}
+                  : run.status === "listed"
+                    ? <Tag className="h-4 w-4 text-emerald-500" />
+                    : <Clock className="h-4 w-4 text-slate-300" />}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 text-xs">
-                <span className="font-medium text-slate-600">{agentMap.get(run.agentId) ?? `Agent #${run.agentId}`}</span>
+                <span className="font-medium text-slate-600">
+                  {agentMap.get(run.agentId) ?? `Agent #${run.agentId}`}
+                </span>
                 <span className="text-slate-400">·</span>
                 <span className="text-slate-500 truncate">{run.note}</span>
               </div>
               {run.amountPathUsd && (
-                <p className="text-xs text-violet-600 mt-0.5">{parseFloat(run.amountPathUsd).toFixed(4)} pathUSD</p>
+                <p className="text-xs text-violet-600 mt-0.5">
+                  {parseFloat(run.amountPathUsd).toFixed(4)} pathUSD
+                </p>
               )}
             </div>
-            <span className="text-xs text-slate-400 shrink-0">{format(new Date(run.createdAt), "MMM d, h:mm a")}</span>
+            <span className="text-xs text-slate-400 shrink-0">
+              {format(new Date(run.createdAt), "MMM d, h:mm a")}
+            </span>
           </div>
         ))}
       </div>
@@ -520,10 +707,21 @@ function ActivityFeed({ runs, agents }: { runs: AgentRun[]; agents: DexAgent[] }
   );
 }
 
-function CreateAgentDialog({ onCreated }: { onCreated: () => void }) {
+// ── Create Buyer Agent Dialog ─────────────────────────────────────────────────
+
+interface BuyerForm {
+  name: string;
+  pokemonName: string;
+  triggerType: "buy_now" | "bid";
+  maxPricePathUsd: number;
+  budgetPathUsd: number;
+  requireHoloOnly: boolean;
+}
+
+function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
   const authFetch = useAuthFetch();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<CreateAgentForm>({
+  const [form, setForm] = useState<BuyerForm>({
     name: "",
     pokemonName: "",
     triggerType: "buy_now",
@@ -537,10 +735,10 @@ function CreateAgentDialog({ onCreated }: { onCreated: () => void }) {
       authFetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ agentRole: "buyer", ...form }),
       }),
     onSuccess: () => {
-      toast.success("DexAgent created!");
+      toast.success("Buyer agent created!");
       setOpen(false);
       setForm({ name: "", pokemonName: "", triggerType: "buy_now", maxPricePathUsd: 5, budgetPathUsd: 50, requireHoloOnly: false });
       onCreated();
@@ -548,27 +746,28 @@ function CreateAgentDialog({ onCreated }: { onCreated: () => void }) {
     onError: () => toast.error("Failed to create agent"),
   });
 
+  const valid = form.name && form.pokemonName && form.maxPricePathUsd > 0 && form.budgetPathUsd > 0;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white gap-1.5">
           <Plus className="h-4 w-4" />
-          New Agent
+          New Buyer
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-violet-600" />
-            Create DexAgent
+            <ShoppingCart className="h-5 w-5 text-violet-600" />
+            Create Buyer Agent
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label htmlFor="agent-name" className="text-sm font-medium">Agent Name</Label>
+            <Label className="text-sm font-medium">Agent Name</Label>
             <Input
-              id="agent-name"
               placeholder="e.g. Charizard Hunter"
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -576,9 +775,8 @@ function CreateAgentDialog({ onCreated }: { onCreated: () => void }) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="pokemon-name" className="text-sm font-medium">Watch for Pokémon</Label>
+            <Label className="text-sm font-medium">Watch for Pokémon</Label>
             <Input
-              id="pokemon-name"
               placeholder="e.g. Charizard, Pikachu, Mewtwo"
               value={form.pokemonName}
               onChange={(e) => setForm((f) => ({ ...f, pokemonName: e.target.value }))}
@@ -625,8 +823,7 @@ function CreateAgentDialog({ onCreated }: { onCreated: () => void }) {
           <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5">
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
-              Your agent will scan the marketplace every minute and automatically buy matching cards using your Tempo Testnet wallet.
-              Make sure you have pathUSD — visit the faucet if needed.
+              Scans the marketplace every minute and buys matching cards using pathUSD from your Tempo wallet. Make sure you have pathUSD — visit the faucet if needed.
             </span>
           </div>
         </div>
@@ -635,7 +832,154 @@ function CreateAgentDialog({ onCreated }: { onCreated: () => void }) {
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
           <Button
             className="bg-violet-600 hover:bg-violet-700 text-white"
-            disabled={!form.name || !form.pokemonName || form.maxPricePathUsd <= 0 || form.budgetPathUsd <= 0 || mutation.isPending}
+            disabled={!valid || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? "Creating…" : "Create Agent"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Create Seller Agent Dialog ────────────────────────────────────────────────
+
+function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
+  const authFetch = useAuthFetch();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+  const [floorPrice, setFloorPrice] = useState(10);
+
+  const { data: inventory = [], isLoading: inventoryLoading } = useQuery<InventoryCard[]>({
+    queryKey: ["agents-inventory"],
+    queryFn: () => authFetch("/api/agents/inventory").then((r) => r.json()),
+    enabled: open,
+  });
+
+  const selectedCard = inventory.find((c) => c.id === selectedCardId);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      authFetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentRole: "seller",
+          name,
+          cardId: selectedCardId,
+          floorPricePathUsd: floorPrice,
+        }),
+      }),
+    onSuccess: () => {
+      toast.success("Seller agent created — listing will go live shortly!");
+      setOpen(false);
+      setName("");
+      setSelectedCardId(null);
+      setFloorPrice(10);
+      onCreated();
+    },
+    onError: () => toast.error("Failed to create agent"),
+  });
+
+  const valid = name && selectedCardId && floorPrice > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5">
+          <Plus className="h-4 w-4" />
+          New Seller
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Tag className="h-5 w-5 text-emerald-600" />
+            Create Seller Agent
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Agent Name</Label>
+            <Input
+              placeholder="e.g. Sell my Charizard"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Card to Sell</Label>
+            {inventoryLoading ? (
+              <Skeleton className="h-10 w-full rounded-lg" />
+            ) : inventory.length === 0 ? (
+              <p className="text-sm text-slate-400 py-2">No cards in your inventory yet.</p>
+            ) : (
+              <Select
+                value={selectedCardId?.toString() ?? ""}
+                onValueChange={(v) => setSelectedCardId(Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pick a card from your inventory…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {inventory.map((card) => (
+                    <SelectItem key={card.id} value={card.id.toString()}>
+                      <span className="font-medium">{card.name}</span>
+                      {card.setName && <span className="text-slate-400 ml-1.5">· {card.setName}</span>}
+                      {card.condition && <span className="text-slate-400 ml-1.5">· {card.condition}</span>}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {selectedCard && (
+              <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
+                {selectedCard.imageUrl && (
+                  <img src={selectedCard.imageUrl} alt={selectedCard.name} className="h-10 w-8 object-contain rounded" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-800">{selectedCard.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {[selectedCard.rarity, selectedCard.condition].filter(Boolean).join(" · ")}
+                    {selectedCard.estimatedValue && ` · ~$${parseFloat(selectedCard.estimatedValue).toFixed(2)}`}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Floor Price (pathUSD)</Label>
+            <Input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={floorPrice}
+              onChange={(e) => setFloorPrice(parseFloat(e.target.value) || 0)}
+            />
+            <p className="text-xs text-slate-400">
+              The agent will list your card at this price. Any buyer meeting this price completes the sale.
+            </p>
+          </div>
+
+          <div className="flex items-start gap-2 text-xs text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2.5">
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              Your card will be listed on the marketplace at your floor price. Real buyers and buyer agents can both purchase it. Once sold, the agent marks itself complete.
+            </span>
+          </div>
+        </div>
+
+        <div className="flex gap-2 justify-end pt-1">
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            disabled={!valid || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
             {mutation.isPending ? "Creating…" : "Create Agent"}
