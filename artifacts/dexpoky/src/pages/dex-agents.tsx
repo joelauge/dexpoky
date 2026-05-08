@@ -734,9 +734,18 @@ interface MktListing {
     name: string | null;
     imageUrl: string | null;
     setName: string | null;
+    estimatedValue?: number | null;
   };
 }
-interface CatalogCard { id: string; name: string; imageUrl?: string | null; setName?: string | null; setCode?: string | null; }
+interface CatalogCard {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+  setName?: string | null;
+  setCode?: string | null;
+  marketPrice?: number | null;
+  rarity?: string | null;
+}
 
 interface CardResult {
   source: "marketplace" | "catalog";
@@ -745,6 +754,7 @@ interface CardResult {
   setName?: string;
   imageUrl?: string;
   price?: string;
+  marketPrice?: number;
   listingId?: number;
 }
 
@@ -764,13 +774,15 @@ function CardSearchCombobox({
 }: {
   value: string;
   setName: string;
-  onChange: (name: string, setName: string) => void;
+  onChange: (name: string, setName: string, imageUrl?: string, marketPrice?: number) => void;
 }) {
   const authFetch = useAuthFetch();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<CardResult[]>([]);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | undefined>();
+  const [selectedMarketPrice, setSelectedMarketPrice] = useState<number | undefined>();
   const containerRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(query, 350);
 
@@ -829,6 +841,7 @@ function CardSearchCombobox({
           name: c.name,
           imageUrl: c.imageUrl ?? undefined,
           setName: c.setName ?? c.setCode ?? undefined,
+          marketPrice: c.marketPrice ?? undefined,
         }));
 
       setResults([...mktResults, ...catalogResults]);
@@ -841,9 +854,9 @@ function CardSearchCombobox({
   if (isSelected) {
     return (
       <div className="flex items-center gap-2 p-2.5 rounded-xl bg-violet-50 border border-violet-200">
-        {results.find((r) => r.name === value)?.imageUrl ? (
+        {selectedImageUrl ? (
           <img
-            src={results.find((r) => r.name === value)!.imageUrl}
+            src={selectedImageUrl}
             alt={value}
             className="h-10 w-7 object-contain rounded shrink-0"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -855,12 +868,17 @@ function CardSearchCombobox({
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-violet-800">{value}</p>
-          {selectedSetName && (
-            <p className="text-xs text-violet-500">{selectedSetName}</p>
-          )}
+          <div className="flex items-center gap-2">
+            {selectedSetName && (
+              <p className="text-xs text-violet-500">{selectedSetName}</p>
+            )}
+            {selectedMarketPrice != null && (
+              <p className="text-xs font-semibold text-emerald-600">~${selectedMarketPrice.toFixed(2)}</p>
+            )}
+          </div>
         </div>
         <button
-          onClick={() => { onChange("", ""); setQuery(""); }}
+          onClick={() => { onChange("", "", undefined, undefined); setSelectedImageUrl(undefined); setSelectedMarketPrice(undefined); setQuery(""); }}
           className="p-1 rounded-lg hover:bg-violet-100 text-violet-400 hover:text-violet-600 transition-colors shrink-0"
           title="Clear selection"
         >
@@ -906,7 +924,12 @@ function CardSearchCombobox({
                 <button
                   key={card.key}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-50 text-left transition-colors group"
-                  onClick={() => { onChange(card.name, card.setName ?? ""); setOpen(false); setQuery(""); }}
+                  onClick={() => {
+                    setSelectedImageUrl(card.imageUrl);
+                    setSelectedMarketPrice(card.price ? parseFloat(card.price) : undefined);
+                    onChange(card.name, card.setName ?? "", card.imageUrl, card.price ? parseFloat(card.price) : undefined);
+                    setOpen(false); setQuery("");
+                  }}
                 >
                   {card.imageUrl ? (
                     <img src={card.imageUrl} alt={card.name} className="h-10 w-7 object-contain rounded shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
@@ -937,7 +960,12 @@ function CardSearchCombobox({
                 <button
                   key={card.key}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-50 text-left transition-colors"
-                  onClick={() => { onChange(card.name, card.setName ?? ""); setOpen(false); setQuery(""); }}
+                  onClick={() => {
+                    setSelectedImageUrl(card.imageUrl);
+                    setSelectedMarketPrice(card.marketPrice);
+                    onChange(card.name, card.setName ?? "", card.imageUrl, card.marketPrice);
+                    setOpen(false); setQuery("");
+                  }}
                 >
                   {card.imageUrl ? (
                     <img src={card.imageUrl} alt={card.name} className="h-10 w-7 object-contain rounded shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
@@ -946,9 +974,14 @@ function CardSearchCombobox({
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{card.name}</p>
-                    {card.setName && <p className="text-xs text-slate-400 truncate">Set · {card.setName.toUpperCase()}</p>}
+                    {card.setName && <p className="text-xs text-slate-400 truncate">{card.setName}</p>}
                   </div>
-                  <span className="text-[9px] bg-violet-50 text-violet-600 font-bold px-1.5 py-0.5 rounded border border-violet-200 shrink-0">WATCH</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {card.marketPrice != null && (
+                      <span className="text-xs font-semibold text-violet-700">~${card.marketPrice.toFixed(2)}</span>
+                    )}
+                    <span className="text-[9px] bg-violet-50 text-violet-600 font-bold px-1.5 py-0.5 rounded border border-violet-200">WATCH</span>
+                  </div>
                 </button>
               ))}
             </>
