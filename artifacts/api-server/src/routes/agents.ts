@@ -114,7 +114,7 @@ router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, re
     headers: {
       Authorization: `Bearer ${secretKey}`,
       "Content-Type": "application/x-www-form-urlencoded",
-      "Stripe-Version": "2026-03-25.dahlia",
+      "Stripe-Version": "2025-08-27.basil",
     },
     body: body.toString(),
   });
@@ -122,7 +122,12 @@ router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, re
   if (!stripeResp.ok) {
     const errText = await stripeResp.text();
     req.log.error({ status: stripeResp.status, errText }, "Stripe onramp session creation failed");
-    res.status(500).json({ error: "Failed to create onramp session" });
+    let userMessage = "Failed to create onramp session";
+    try {
+      const errJson = JSON.parse(errText);
+      if (errJson?.error?.message) userMessage = errJson.error.message;
+    } catch { /* keep default */ }
+    res.status(500).json({ error: userMessage });
     return;
   }
 
