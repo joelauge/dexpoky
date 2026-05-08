@@ -43,7 +43,7 @@ async function getCredentials(): Promise<{ secretKey: string; publishableKey?: s
 
   return {
     secretKey: settings.secret,
-    publishableKey: settings.publishable_key ?? settings.key ?? undefined,
+    publishableKey: settings.publishable ?? settings.publishable_key ?? settings.key ?? undefined,
     webhookSecret: settings.webhook_secret,
   };
 }
