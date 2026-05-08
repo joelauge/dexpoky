@@ -17,9 +17,18 @@ export const tempoTestnet = defineChain({
   testnet: true,
 });
 
-const PATH_USD_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" as const;
+// Tempo Testnet stablecoin addresses (official — from https://docs.tempo.xyz/quickstart/faucet)
+const TEMPO_TOKENS = [
+  { symbol: "pathUSD",  address: "0x20c0000000000000000000000000000000000000" as const },
+  { symbol: "AlphaUSD", address: "0x20c0000000000000000000000000000000000001" as const },
+  { symbol: "BetaUSD",  address: "0x20c0000000000000000000000000000000000002" as const },
+  { symbol: "ThetaUSD", address: "0x20c0000000000000000000000000000000000003" as const },
+] as const;
 
-const PATH_USD_ABI = [
+// Primary token used for agent-to-agent transfers
+const PATH_USD_ADDRESS = TEMPO_TOKENS[0].address;
+
+const TOKEN_ABI = [
   {
     name: "transfer",
     type: "function",
@@ -37,14 +46,10 @@ const PATH_USD_ABI = [
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
   },
-  {
-    name: "decimals",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint8" }],
-  },
 ] as const;
+
+const TOKEN_DECIMALS = 6;
+const TOKEN_DIVISOR = BigInt(10 ** TOKEN_DECIMALS);
 
 function getEncKey(): Buffer {
   const secret = process.env.SESSION_SECRET ?? "dexpoky-tempo-fallback-key-32ch!!";
@@ -79,22 +84,50 @@ export const tempoPublicClient = createPublicClient({
   transport: http(),
 });
 
+function rawToDollar(raw: bigint): string {
+  const whole = raw / TOKEN_DIVISOR;
+  const frac = raw % TOKEN_DIVISOR;
+  return `${whole}.${frac.toString().padStart(TOKEN_DECIMALS, "0").replace(/0+$/, "") || "0"}`;
+}
+
+// Returns the combined pathUSD + AlphaUSD + BetaUSD + ThetaUSD balance as a decimal string.
 export async function getPathUsdBalance(address: string): Promise<string> {
   try {
-    const raw = await tempoPublicClient.readContract({
-      address: PATH_USD_ADDRESS,
-      abi: PATH_USD_ABI,
-      functionName: "balanceOf",
-      args: [address as `0x${string}`],
-    });
-    const decimals = 6;
-    const divisor = BigInt(10 ** decimals);
-    const whole = raw / divisor;
-    const frac = raw % divisor;
-    return `${whole}.${frac.toString().padStart(decimals, "0").replace(/0+$/, "") || "0"}`;
+    const balances = await Promise.all(
+      TEMPO_TOKENS.map((t) =>
+        tempoPublicClient
+          .readContract({
+            address: t.address,
+            abi: TOKEN_ABI,
+            functionName: "balanceOf",
+            args: [address as `0x${string}`],
+          })
+          .catch(() => BigInt(0)),
+      ),
+    );
+    const total = balances.reduce((sum, b) => sum + b, BigInt(0));
+    return rawToDollar(total);
   } catch {
     return "0.0";
   }
+}
+
+// Returns per-token balances for detailed display
+export async function getAllTokenBalances(address: string): Promise<{ symbol: string; balance: string }[]> {
+  const balances = await Promise.all(
+    TEMPO_TOKENS.map(async (t) => {
+      const raw = await tempoPublicClient
+        .readContract({
+          address: t.address,
+          abi: TOKEN_ABI,
+          functionName: "balanceOf",
+          args: [address as `0x${string}`],
+        })
+        .catch(() => BigInt(0));
+      return { symbol: t.symbol, balance: rawToDollar(raw) };
+    }),
+  );
+  return balances;
 }
 
 export async function sendPathUsd(
@@ -109,12 +142,11 @@ export async function sendPathUsd(
     transport: http(),
   }).extend(publicActions);
 
-  const decimals = 6;
-  const amountBig = BigInt(Math.round(parseFloat(amountPathUsd) * 10 ** decimals));
+  const amountBig = BigInt(Math.round(parseFloat(amountPathUsd) * 10 ** TOKEN_DECIMALS));
 
   const hash = await (walletClient as any).writeContract({
     address: PATH_USD_ADDRESS,
-    abi: PATH_USD_ABI,
+    abi: TOKEN_ABI,
     functionName: "transfer",
     args: [toAddress as `0x${string}`, amountBig],
   });

@@ -71,6 +71,7 @@ interface TempoWalletInfo {
   network: string;
   token: string;
   balance: string;
+  tokens?: { symbol: string; balance: string }[];
   faucetUrl: string;
   explorerUrl: string;
   createdAt: string;
@@ -352,12 +353,25 @@ function WalletPanel({
           </div>
 
           <div>
-            <p className="text-xs text-slate-500 mb-0.5">Balance</p>
+            <p className="text-xs text-slate-500 mb-0.5">Total Balance</p>
             <p className="text-3xl font-bold text-slate-900">
-              {parseFloat(wallet.balance).toFixed(2)}
-              <span className="text-base font-medium text-slate-500 ml-1">pathUSD</span>
+              {parseFloat(wallet.balance).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+              <span className="text-base font-medium text-slate-500 ml-1">USD</span>
             </p>
           </div>
+
+          {wallet.tokens && wallet.tokens.some((t) => parseFloat(t.balance) > 0) && (
+            <div className="grid grid-cols-2 gap-1.5">
+              {wallet.tokens.filter((t) => parseFloat(t.balance) > 0).map((t) => (
+                <div key={t.symbol} className="flex items-center justify-between bg-white/60 rounded-lg px-2.5 py-1.5 text-xs">
+                  <span className="font-medium text-slate-600">{t.symbol}</span>
+                  <span className="font-semibold text-slate-800 tabular-nums">
+                    {parseFloat(t.balance).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="flex gap-2 flex-wrap">
             <a

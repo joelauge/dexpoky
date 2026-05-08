@@ -15,6 +15,7 @@ import {
   encryptPrivateKey,
   decryptPrivateKey,
   getPathUsdBalance,
+  getAllTokenBalances,
   sendPathUsd,
   TEMPO_FAUCET_URL,
   TEMPO_EXPLORER_URL,
@@ -45,13 +46,17 @@ router.get("/agents/wallet", requireAuth, async (req: Request, res: Response) =>
     wallet = created;
   }
 
-  const balance = await getPathUsdBalance(wallet.address);
+  const [balance, tokens] = await Promise.all([
+    getPathUsdBalance(wallet.address),
+    getAllTokenBalances(wallet.address),
+  ]);
 
   res.json({
     address: wallet.address,
     network: "Tempo Testnet",
     token: "pathUSD",
     balance,
+    tokens,
     faucetUrl: TEMPO_FAUCET_URL,
     explorerUrl: `${TEMPO_EXPLORER_URL}/address/${wallet.address}`,
     createdAt: wallet.createdAt,
