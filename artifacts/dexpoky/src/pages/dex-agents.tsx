@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Layout } from "@/components/layout";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -150,11 +150,12 @@ export default function DexAgentsPage() {
     queryFn: () => authFetch("/api/agents").then((r) => r.json()),
   });
 
-  const { data: runs = [] } = useQuery<AgentRun[]>({
-    queryKey: ["agent-runs"],
-    queryFn: () => authFetch("/api/agents/runs").then((r) => r.json()),
+  const { data: runsData } = useQuery<{ runs: AgentRun[]; hasMore: boolean }>({
+    queryKey: ["agent-runs-card"],
+    queryFn: () => authFetch("/api/agents/runs?limit=50").then((r) => r.json()),
     refetchInterval: 15000,
   });
+  const runs = runsData?.runs ?? [];
 
   const [copiedAddr, setCopiedAddr] = useState(false);
 
@@ -259,7 +260,7 @@ export default function DexAgentsPage() {
           </div>
         )}
 
-        <ActivityFeed runs={runs} agents={agents} />
+        <ActivityFeed agents={agents} />
       </div>
     </Layout>
   );
@@ -701,10 +702,53 @@ function RunRow({ run }: { run: AgentRun }) {
 
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 
-function ActivityFeed({ runs, agents }: { runs: AgentRun[]; agents: DexAgent[] }) {
-  if (runs.length === 0) return null;
+const PAGE_SIZE = 10;
+
+function ActivityFeed({ agents }: { agents: DexAgent[] }) {
+  const authFetch = useAuthFetch();
   const agentMap = new Map(agents.map((a) => [a.id, a.name]));
-  const recent = runs.slice(0, 20);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  type RunsPage = { runs: AgentRun[]; hasMore: boolean };
+
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = useInfiniteQuery<RunsPage, Error, RunsPage, string[], number>({
+    queryKey: ["agent-runs-feed"],
+    queryFn: ({ pageParam }) =>
+      authFetch(`/api/agents/runs?limit=${PAGE_SIZE}&offset=${pageParam}`).then((r) => r.json()) as Promise<RunsPage>,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.hasMore ? allPages.length * PAGE_SIZE : undefined,
+    refetchInterval: 20000,
+  });
+
+  const allRuns: AgentRun[] = (data as unknown as { pages: RunsPage[] } | undefined)
+    ?.pages.flatMap((p) => p.runs ?? []) ?? [];
+
+  const onIntersect = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        void fetchNextPage();
+      }
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage],
+  );
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(onIntersect, { threshold: 0.1 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onIntersect]);
+
+  if (isLoading) return null;
+  if (allRuns.length === 0) return null;
 
   return (
     <div>
@@ -713,7 +757,7 @@ function ActivityFeed({ runs, agents }: { runs: AgentRun[]; agents: DexAgent[] }
         <h2 className="text-sm font-semibold text-slate-700">Recent Activity</h2>
       </div>
       <div className="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
-        {recent.map((run) => (
+        {allRuns.map((run) => (
           <div key={run.id} className="flex items-center gap-3 px-4 py-2.5">
             <div className="shrink-0">
               {run.status === "success"
@@ -743,6 +787,17 @@ function ActivityFeed({ runs, agents }: { runs: AgentRun[]; agents: DexAgent[] }
             </span>
           </div>
         ))}
+
+        {/* Sentinel — triggers next page fetch when scrolled into view */}
+        <div ref={sentinelRef} className="px-4 py-3 flex justify-center">
+          {isFetchingNextPage ? (
+            <span className="text-xs text-slate-400">Loading more…</span>
+          ) : hasNextPage ? (
+            <span className="text-xs text-slate-300">Scroll for more</span>
+          ) : allRuns.length > PAGE_SIZE ? (
+            <span className="text-xs text-slate-300">All caught up</span>
+          ) : null}
+        </div>
       </div>
     </div>
   );

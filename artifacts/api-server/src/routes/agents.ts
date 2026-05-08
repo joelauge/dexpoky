@@ -232,6 +232,8 @@ router.delete("/agents/:id", requireAuth, async (req: Request, res: Response) =>
 router.get("/agents/runs", requireAuth, async (req: Request, res: Response) => {
   const clerkId = (req as AuthRequest).userId;
   const agentId = req.query.agentId ? Number(req.query.agentId) : undefined;
+  const limit = Math.min(Number(req.query.limit ?? 10), 100);
+  const offset = Math.max(Number(req.query.offset ?? 0), 0);
 
   const conditions = [eq(agentRunsTable.clerkId, clerkId)];
   if (agentId) conditions.push(eq(agentRunsTable.agentId, agentId));
@@ -241,9 +243,11 @@ router.get("/agents/runs", requireAuth, async (req: Request, res: Response) => {
     .from(agentRunsTable)
     .where(and(...conditions))
     .orderBy(desc(agentRunsTable.createdAt))
-    .limit(50);
+    .limit(limit + 1)   // fetch one extra to determine hasMore
+    .offset(offset);
 
-  res.json(runs);
+  const hasMore = runs.length > limit;
+  res.json({ runs: hasMore ? runs.slice(0, limit) : runs, hasMore });
 });
 
 // ── Manual trigger ────────────────────────────────────────────────────────────
