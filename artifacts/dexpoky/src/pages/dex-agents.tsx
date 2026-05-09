@@ -487,7 +487,7 @@ function TempoOnrampDialog() {
             Fund Tempo Wallet with fiat
           </DialogTitle>
           <p className="text-xs text-slate-500 mt-0.5">
-            Pay with a debit or credit card — Stripe delivers pathUSD directly to your Tempo wallet.
+            Pay with a debit or credit card — Stripe delivers USDC on Ethereum to your DexPoky wallet address.
           </p>
         </DialogHeader>
 
@@ -496,7 +496,7 @@ function TempoOnrampDialog() {
           <div className="mx-4 mt-4 rounded-xl bg-violet-50 border border-violet-200 px-4 py-3">
             <p className="text-xs font-semibold text-violet-700 mb-1">Your DexPoky wallet address</p>
             <p className="text-xs text-violet-600 mb-2">
-              Choose any currency below, then paste this EVM-compatible address when Stripe asks for a destination:
+              USDC will be delivered to this Ethereum address. It's the same address as your Tempo wallet.
             </p>
             <div className="flex items-center gap-2">
               <code className="flex-1 text-[11px] font-mono bg-white border border-violet-200 rounded-lg px-2 py-1.5 text-violet-900 truncate">

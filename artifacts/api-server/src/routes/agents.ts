@@ -100,6 +100,12 @@ router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, re
   }
 
   const body = new URLSearchParams({
+    destination_network: "ethereum",
+    "destination_networks[]": "ethereum",
+    destination_currency: "usdc",
+    "destination_currencies[]": "usdc",
+    [`wallet_addresses[ethereum]`]: wallet.address,
+    lock_wallet_address: "true",
     source_currency: "usd",
   });
 
