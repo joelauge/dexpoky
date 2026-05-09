@@ -104,8 +104,6 @@ router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, re
     "destination_networks[]": "tempo",
     destination_currency: "pathusd",
     "destination_currencies[]": "pathusd",
-    [`wallet_addresses[tempo]`]: wallet.address,
-    lock_wallet_address: "true",
     source_currency: "usd",
   });
 
@@ -114,7 +112,7 @@ router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, re
     headers: {
       Authorization: `Bearer ${secretKey}`,
       "Content-Type": "application/x-www-form-urlencoded",
-      "Stripe-Version": "2026-04-22.dahlia; tempo=preview",
+      "Stripe-Version": "2026-04-22.dahlia",
     },
     body: body.toString(),
   });
@@ -132,7 +130,7 @@ router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, re
   }
 
   const session = (await stripeResp.json()) as { client_secret: string };
-  res.json({ clientSecret: session.client_secret, publishableKey });
+  res.json({ clientSecret: session.client_secret, publishableKey, walletAddress: wallet.address });
 });
 
 // ── Agents CRUD ───────────────────────────────────────────────────────────────

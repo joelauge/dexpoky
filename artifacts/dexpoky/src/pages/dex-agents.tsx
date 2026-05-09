@@ -418,19 +418,23 @@ function TempoOnrampDialog() {
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   async function startOnramp() {
     setLoading(true);
     setError(null);
     setMounted(false);
+    setWalletAddress(null);
     try {
       const resp = await authFetch("/api/agents/tempo-onramp-session", { method: "POST" });
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error((body as { error?: string }).error ?? `Server error ${resp.status}`);
       }
-      const { clientSecret, publishableKey } = await resp.json() as { clientSecret: string; publishableKey: string };
+      const { clientSecret, publishableKey, walletAddress: addr } = await resp.json() as { clientSecret: string; publishableKey: string; walletAddress: string };
+      setWalletAddress(addr);
 
       await Promise.all([
         loadScript("https://js.stripe.com/dahlia/stripe.js"),
@@ -455,8 +459,17 @@ function TempoOnrampDialog() {
     else {
       setMounted(false);
       setError(null);
+      setWalletAddress(null);
       if (containerRef.current) containerRef.current.innerHTML = "";
     }
+  }
+
+  function handleCopy() {
+    if (!walletAddress) return;
+    navigator.clipboard.writeText(walletAddress).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   }
 
   return (
@@ -477,6 +490,28 @@ function TempoOnrampDialog() {
             Pay with a debit or credit card — Stripe delivers pathUSD directly to your Tempo wallet.
           </p>
         </DialogHeader>
+
+        {/* Wallet address banner — shown once the session loads */}
+        {walletAddress && (
+          <div className="mx-4 mt-4 rounded-xl bg-violet-50 border border-violet-200 px-4 py-3">
+            <p className="text-xs font-semibold text-violet-700 mb-1">Your Tempo wallet address</p>
+            <p className="text-xs text-violet-600 mb-2">
+              When Stripe asks for a destination wallet address, paste this in:
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-[11px] font-mono bg-white border border-violet-200 rounded-lg px-2 py-1.5 text-violet-900 truncate">
+                {walletAddress}
+              </code>
+              <button
+                onClick={handleCopy}
+                className="shrink-0 inline-flex items-center gap-1 text-xs font-medium bg-violet-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-violet-700 transition-colors"
+              >
+                {copied ? <CheckCircle2 className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="min-h-[480px] flex flex-col items-center justify-center p-4">
           {loading && (
