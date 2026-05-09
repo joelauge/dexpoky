@@ -3,7 +3,6 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
-  tempoWalletsTable,
   dexAgentsTable,
   agentRunsTable,
   agentApprovalRequestsTable,
@@ -12,128 +11,14 @@ import {
   cardsTable,
 } from "@workspace/db";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
-import {
-  generateTempoWallet,
-  encryptPrivateKey,
-  decryptPrivateKey,
-  getPathUsdBalance,
-  getAllTokenBalances,
-  sendPathUsd,
-  TEMPO_FAUCET_URL,
-  TEMPO_EXPLORER_URL,
-} from "../lib/tempoWallet.js";
 import { notifyAgentPurchase } from "../lib/notifyAgentPurchase.js";
 import { sendAgentApprovalSms, sendAgentAutoBuySms, sendAgentExternalFindSms } from "../lib/agent-sms.js";
 import { fetchEbayActiveListings } from "./detect-helpers.js";
-import { getOnrampCredentials } from "../stripeClient.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
 
 const router = Router();
 
-// ── Wallet ───────────────────────────────────────────────────────────────────
-
-router.get("/agents/wallet", requireAuth, async (req: Request, res: Response) => {
-  const clerkId = (req as AuthRequest).userId;
-
-  let wallet = await db
-    .select()
-    .from(tempoWalletsTable)
-    .where(eq(tempoWalletsTable.clerkId, clerkId))
-    .then((r) => r[0] ?? null);
-
-  if (!wallet) {
-    const { address, privateKey } = generateTempoWallet();
-    const encryptedPrivateKey = encryptPrivateKey(privateKey);
-    const [created] = await db
-      .insert(tempoWalletsTable)
-      .values({ clerkId, address, encryptedPrivateKey })
-      .returning();
-    wallet = created;
-  }
-
-  const [balance, tokens] = await Promise.all([
-    getPathUsdBalance(wallet.address),
-    getAllTokenBalances(wallet.address),
-  ]);
-
-  res.json({
-    address: wallet.address,
-    network: "Tempo Testnet",
-    token: "pathUSD",
-    balance,
-    tokens,
-    faucetUrl: TEMPO_FAUCET_URL,
-    explorerUrl: `${TEMPO_EXPLORER_URL}/address/${wallet.address}`,
-    createdAt: wallet.createdAt,
-  });
-});
-
-// ── Stripe Crypto Onramp Session (fiat → Tempo pathUSD) ───────────────────────
-
-router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, res: Response) => {
-  const clerkId = (req as AuthRequest).userId;
-
-  let wallet = await db
-    .select()
-    .from(tempoWalletsTable)
-    .where(eq(tempoWalletsTable.clerkId, clerkId))
-    .then((r) => r[0] ?? null);
-
-  if (!wallet) {
-    const { address, privateKey } = generateTempoWallet();
-    const encryptedPrivateKey = encryptPrivateKey(privateKey);
-    const [created] = await db
-      .insert(tempoWalletsTable)
-      .values({ clerkId, address, encryptedPrivateKey })
-      .returning();
-    wallet = created;
-  }
-
-  let secretKey: string;
-  let publishableKey: string;
-  try {
-    ({ secretKey, publishableKey } = await getOnrampCredentials());
-  } catch {
-    res.status(400).json({ error: "Stripe publishable key not available. Ensure the Stripe integration is connected." });
-    return;
-  }
-
-  const body = new URLSearchParams({
-    destination_network: "ethereum",
-    "destination_networks[]": "ethereum",
-    destination_currency: "usdc",
-    "destination_currencies[]": "usdc",
-    [`wallet_addresses[ethereum]`]: wallet.address,
-    lock_wallet_address: "true",
-    source_currency: "usd",
-  });
-
-  const stripeResp = await fetch("https://api.stripe.com/v1/crypto/onramp_sessions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Stripe-Version": "2026-04-22.dahlia",
-    },
-    body: body.toString(),
-  });
-
-  if (!stripeResp.ok) {
-    const errText = await stripeResp.text();
-    req.log.error({ status: stripeResp.status, errText }, "Stripe onramp session creation failed");
-    let userMessage = "Failed to create onramp session";
-    try {
-      const errJson = JSON.parse(errText);
-      if (errJson?.error?.message) userMessage = errJson.error.message;
-    } catch { /* keep default */ }
-    res.status(500).json({ error: userMessage });
-    return;
-  }
-
-  const session = (await stripeResp.json()) as { client_secret: string; redirect_url: string };
-  res.json({ clientSecret: session.client_secret, redirectUrl: session.redirect_url, publishableKey, walletAddress: wallet.address });
-});
 
 // ── Agents CRUD ───────────────────────────────────────────────────────────────
 
@@ -422,54 +307,57 @@ async function executePurchase(
   agent: typeof dexAgentsTable.$inferSelect,
   listing: typeof listingsTable.$inferSelect,
   card: typeof cardsTable.$inferSelect,
-  wallet: typeof tempoWalletsTable.$inferSelect,
   clerkId: string,
-): Promise<{ txHash?: string; status: string; note: string }> {
+): Promise<{ status: string; note: string }> {
   const priceFloat = parseFloat(listing.price.toString());
-  let txHash: string | undefined;
-  let status = "simulated";
-  let note = `Testnet simulation — would buy "${card.name}" for ${priceFloat.toFixed(6)} pathUSD`;
+  const amountCents = Math.round(priceFloat * 100);
+  const feeCents = Math.round(amountCents * 0.03);
+  const netCents = amountCents - feeCents;
 
-  try {
-    const sellerWallet = await db
-      .select()
-      .from(tempoWalletsTable)
-      .where(eq(tempoWalletsTable.clerkId, listing.sellerClerkId ?? ""))
-      .then((r) => r[0] ?? null);
+  const [buyer] = await db
+    .select({ walletBalanceCents: usersTable.walletBalanceCents })
+    .from(usersTable)
+    .where(eq(usersTable.clerkId, clerkId));
 
-    const toAddress = sellerWallet?.address ?? "0x000000000000000000000000000000000000dead";
-    const privateKey = decryptPrivateKey(wallet.encryptedPrivateKey);
-    txHash = await sendPathUsd(privateKey, toAddress, priceFloat.toFixed(6));
-    status = "success";
-    note = `Bought "${card.name}" for ${priceFloat.toFixed(6)} pathUSD on Tempo Testnet`;
+  if (!buyer || buyer.walletBalanceCents < amountCents) {
+    const have = buyer ? (buyer.walletBalanceCents / 100).toFixed(2) : "0.00";
+    const need = priceFloat.toFixed(2);
+    const note = `Insufficient wallet balance ($${have} available, $${need} needed)`;
+    await db.insert(agentRunsTable).values({ agentId: agent.id, clerkId, listingId: listing.id, cardName: card.name, amountPathUsd: priceFloat.toFixed(6), status: "skipped", note });
+    return { status: "skipped", note };
+  }
 
-    await db.update(dexAgentsTable).set({
+  const acquiredAt = new Date();
+  await db.transaction(async (tx) => {
+    await tx.update(usersTable)
+      .set({ walletBalanceCents: sql`${usersTable.walletBalanceCents} - ${amountCents}` })
+      .where(eq(usersTable.clerkId, clerkId));
+
+    if (listing.sellerClerkId) {
+      await tx.update(usersTable)
+        .set({ walletBalanceCents: sql`${usersTable.walletBalanceCents} + ${netCents}` })
+        .where(eq(usersTable.clerkId, listing.sellerClerkId));
+    }
+
+    await tx.update(listingsTable).set({ status: "sold" }).where(eq(listingsTable.id, listing.id));
+    await tx.update(cardsTable).set({ ownerClerkId: clerkId, agentAcquiredAt: acquiredAt }).where(eq(cardsTable.id, card.id));
+
+    await tx.update(dexAgentsTable).set({
       spentPathUsd: sql`${dexAgentsTable.spentPathUsd}::numeric + ${priceFloat}`,
       lastRunAt: new Date(),
       runsCount: sql`${dexAgentsTable.runsCount} + 1`,
       updatedAt: new Date(),
     }).where(eq(dexAgentsTable.id, agent.id));
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    status = "simulated";
-    note = `Testnet tx failed (${msg.slice(0, 80)}) — recording as simulated`;
-    await db.update(dexAgentsTable).set({ lastRunAt: new Date(), runsCount: sql`${dexAgentsTable.runsCount} + 1` }).where(eq(dexAgentsTable.id, agent.id));
-  }
 
-  // Mark listing sold and transfer card ownership
-  const acquiredAt = new Date();
-  await Promise.all([
-    db.update(listingsTable).set({ status: "sold" }).where(eq(listingsTable.id, listing.id)),
-    db.update(cardsTable).set({ ownerClerkId: clerkId, agentAcquiredAt: acquiredAt }).where(eq(cardsTable.id, card.id)),
-  ]);
-
-  await db.insert(agentRunsTable).values({
-    agentId: agent.id, clerkId,
-    listingId: listing.id,
-    cardName: card.name,
-    amountPathUsd: priceFloat.toFixed(6),
-    tempoTxHash: txHash,
-    status, note,
+    await tx.insert(agentRunsTable).values({
+      agentId: agent.id, clerkId,
+      listingId: listing.id,
+      cardName: card.name,
+      amountPathUsd: priceFloat.toFixed(6),
+      tempoTxHash: null,
+      status: "success",
+      note: `Agent bought "${card.name}" for $${priceFloat.toFixed(2)}`,
+    });
   });
 
   void notifyAgentPurchase({
@@ -481,10 +369,10 @@ async function executePurchase(
     cardImageUrl: card.imageUrl ?? undefined,
     pricePathUsd: priceFloat.toFixed(6),
     listingId: listing.id,
-    txHash,
+    txHash: undefined,
   });
 
-  return { txHash, status, note };
+  return { status: "success", note: `Agent bought "${card.name}" for $${priceFloat.toFixed(2)}` };
 }
 
 // ── Buyer Agent ───────────────────────────────────────────────────────────────
@@ -499,14 +387,6 @@ async function runBuyerAgentOnce(
     await db.insert(agentRunsTable).values({ status: "skipped", note: "Budget exhausted", agentId: agent.id, clerkId });
     return { matched: false, note: "Budget exhausted" };
   }
-
-  const wallet = await db
-    .select()
-    .from(tempoWalletsTable)
-    .where(eq(tempoWalletsTable.clerkId, clerkId))
-    .then((r) => r[0] ?? null);
-
-  if (!wallet) return { matched: false, note: "No Tempo wallet found" };
 
   const maxPrice = parseFloat(agent.maxPricePathUsd);
   const affordableMax = Math.min(maxPrice, remaining);
@@ -676,7 +556,7 @@ async function runBuyerAgentOnce(
   }
 
   // ── Auto-purchase ─────────────────────────────────────────────────────────
-  const { note } = await executePurchase(agent, listing, card, wallet, clerkId);
+  const { note } = await executePurchase(agent, listing, card, clerkId);
 
   // Send auto-buy FYI SMS if user has a phone and approval was NOT required
   if (!agent.requireApproval) {
@@ -869,12 +749,9 @@ router.post("/agents/sms-webhook", async (req: Request, res: Response) => {
     const [card] = await db.select().from(cardsTable).where(eq(cardsTable.id, listing.cardId!));
     if (!card) { twiml("Card record not found."); return; }
 
-    const wallet = await db.select().from(tempoWalletsTable).where(eq(tempoWalletsTable.clerkId, user.clerkId)).then((r) => r[0] ?? null);
-    if (!wallet) { twiml("No Tempo wallet found for your account."); return; }
+    void executePurchase(agent, listing, card, user.clerkId);
 
-    void executePurchase(agent, listing, card, wallet, user.clerkId);
-
-    twiml(`Purchasing ${approval.cardName ?? "the card"} for ${parseFloat(approval.pricePathUsd ?? "0").toFixed(2)} pathUSD now! Check your DexPoky collection shortly.`);
+    twiml(`Purchasing ${approval.cardName ?? "the card"} for $${parseFloat(approval.pricePathUsd ?? "0").toFixed(2)} now! Check your DexPoky collection shortly.`);
   } else if (bodyText.startsWith("NO") || bodyText === "N") {
     await db.update(agentApprovalRequestsTable)
       .set({ status: "rejected" })
