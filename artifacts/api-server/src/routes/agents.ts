@@ -100,10 +100,6 @@ router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, re
   }
 
   const body = new URLSearchParams({
-    destination_network: "tempo",
-    "destination_networks[]": "tempo",
-    destination_currency: "pathusd",
-    "destination_currencies[]": "pathusd",
     source_currency: "usd",
   });
 
