@@ -114,7 +114,7 @@ router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, re
     headers: {
       Authorization: `Bearer ${secretKey}`,
       "Content-Type": "application/x-www-form-urlencoded",
-      "Stripe-Version": "2026-04-22.dahlia",
+      "Stripe-Version": "2026-04-22.dahlia; tempo=preview",
     },
     body: body.toString(),
   });
