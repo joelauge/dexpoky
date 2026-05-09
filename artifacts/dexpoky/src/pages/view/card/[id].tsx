@@ -42,7 +42,7 @@ export default function PublicCardView() {
     enabled: !!owner,
   });
 
-  const displayName = profile?.username ?? "A DexPoky Collector";
+  const displayName = profile?.username ?? "Anonymous Trainer";
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 flex flex-col select-none">
@@ -58,7 +58,9 @@ export default function PublicCardView() {
             </div>
           )}
           <div>
-            <p className="text-white/90 text-sm font-semibold leading-tight">{displayName}</p>
+            <p className="text-white/90 text-sm font-semibold leading-tight">
+              {profile?.username ?? <em className="not-italic font-normal text-white/50">Anonymous Trainer</em>}
+            </p>
             <p className="text-white/40 text-xs leading-tight">Pokémon card collector</p>
           </div>
         </div>

@@ -289,7 +289,7 @@ export default function PublicListingView() {
   const buyNowPrice = listing?.buyNowPrice ? parseFloat(listing.buyNowPrice) : null;
   const price = listing?.price ? parseFloat(listing.price) : null;
 
-  const displayName = seller?.username ?? "A DexPoky Seller";
+  const displayName = seller?.username ?? "Anonymous Trainer";
   const card = listing?.card;
 
   const images = listing?.listingImages ?? [];
@@ -309,7 +309,9 @@ export default function PublicListingView() {
             </div>
           )}
           <div>
-            <p className="text-white/90 text-sm font-semibold leading-tight">{displayName}</p>
+            <p className="text-white/90 text-sm font-semibold leading-tight">
+              {seller?.username ?? <em className="not-italic font-normal text-white/50">Anonymous Trainer</em>}
+            </p>
             <p className="text-white/40 text-xs leading-tight">
               {isAuction ? "Running an auction" : "Selling on DexPoky"}
             </p>

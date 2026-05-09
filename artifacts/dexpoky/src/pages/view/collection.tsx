@@ -31,7 +31,7 @@ export default function PublicCollectionView() {
     enabled: !!owner,
   });
 
-  const displayName = profile?.username ?? "A DexPoky Collector";
+  const displayName = profile?.username ?? "Anonymous Trainer";
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 flex flex-col">
@@ -47,7 +47,9 @@ export default function PublicCollectionView() {
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-white/90 text-sm font-semibold leading-tight truncate">{displayName}</p>
+            <p className="text-white/90 text-sm font-semibold leading-tight truncate">
+              {profile?.username ?? <em className="not-italic font-normal text-white/50">Anonymous Trainer</em>}
+            </p>
             <p className="text-white/40 text-xs leading-tight">Pokémon card collector</p>
           </div>
         </div>

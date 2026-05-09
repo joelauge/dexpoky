@@ -114,7 +114,7 @@ export default function SellerProfile() {
     );
   }
 
-  const displayName = profile.username ?? "Anonymous Seller";
+  const displayName = profile.username ?? "Anonymous Trainer";
 
   return (
     <Layout>
@@ -141,7 +141,9 @@ export default function SellerProfile() {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-foreground mb-1">{displayName}</h1>
+            <h1 className="text-2xl font-bold text-foreground mb-1">
+              {profile.username ?? <em className="text-muted-foreground not-italic font-normal">Anonymous Trainer</em>}
+            </h1>
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <SellerBadge
                 level={profile.sellerLevel}
