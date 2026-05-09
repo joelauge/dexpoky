@@ -131,8 +131,8 @@ router.post("/agents/tempo-onramp-session", requireAuth, async (req: Request, re
     return;
   }
 
-  const session = (await stripeResp.json()) as { client_secret: string };
-  res.json({ clientSecret: session.client_secret, publishableKey, walletAddress: wallet.address });
+  const session = (await stripeResp.json()) as { client_secret: string; redirect_url: string };
+  res.json({ clientSecret: session.client_secret, redirectUrl: session.redirect_url, publishableKey, walletAddress: wallet.address });
 });
 
 // ── Agents CRUD ───────────────────────────────────────────────────────────────

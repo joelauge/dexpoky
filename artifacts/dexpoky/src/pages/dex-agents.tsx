@@ -401,51 +401,30 @@ function TabBtn({
 
 // ── Stripe Crypto Onramp Dialog ────────────────────────────────────────────────
 
-function loadScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-    const s = document.createElement("script");
-    s.src = src;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error(`Failed to load ${src}`));
-    document.head.appendChild(s);
-  });
-}
 
 function TempoOnrampDialog() {
   const authFetch = useAuthFetch();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   async function startOnramp() {
     setLoading(true);
     setError(null);
-    setMounted(false);
     setWalletAddress(null);
+    setRedirectUrl(null);
     try {
       const resp = await authFetch("/api/agents/tempo-onramp-session", { method: "POST" });
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error((body as { error?: string }).error ?? `Server error ${resp.status}`);
       }
-      const { clientSecret, publishableKey, walletAddress: addr } = await resp.json() as { clientSecret: string; publishableKey: string; walletAddress: string };
-      setWalletAddress(addr);
-
-      await Promise.all([
-        loadScript("https://js.stripe.com/dahlia/stripe.js"),
-        loadScript("https://crypto-js.stripe.com/crypto-onramp-outer.js"),
-      ]);
-
-      if (!containerRef.current) throw new Error("Container not ready");
-
-      const stripe = (window as unknown as { Stripe: (pk: string) => { StripeOnramp: (cs: string) => { mount: (el: HTMLElement) => void } } }).Stripe(publishableKey);
-      stripe.StripeOnramp(clientSecret).mount(containerRef.current);
-      setMounted(true);
+      const data = await resp.json() as { clientSecret: string; redirectUrl: string; publishableKey: string; walletAddress: string };
+      setWalletAddress(data.walletAddress);
+      setRedirectUrl(data.redirectUrl);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -457,10 +436,9 @@ function TempoOnrampDialog() {
     setOpen(next);
     if (next) startOnramp();
     else {
-      setMounted(false);
       setError(null);
       setWalletAddress(null);
-      if (containerRef.current) containerRef.current.innerHTML = "";
+      setRedirectUrl(null);
     }
   }
 
@@ -477,55 +455,78 @@ function TempoOnrampDialog() {
       <DialogTrigger asChild>
         <button className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-violet-600 rounded-lg px-3 py-1.5 hover:bg-violet-700 transition-colors">
           <CreditCard className="h-3.5 w-3.5" />
-          Buy pathUSD with card
+          Buy USDC with card
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg p-0 overflow-hidden">
+      <DialogContent className="max-w-md p-0 overflow-hidden">
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-100">
           <DialogTitle className="flex items-center gap-2 text-base">
             <CreditCard className="h-4 w-4 text-violet-600" />
-            Fund Tempo Wallet with fiat
+            Fund wallet with fiat
           </DialogTitle>
           <p className="text-xs text-slate-500 mt-0.5">
-            Pay with a debit or credit card — Stripe delivers USDC on Ethereum to your DexPoky wallet address.
+            Pay with a debit or credit card — Stripe delivers USDC on Ethereum directly to your wallet.
           </p>
         </DialogHeader>
 
-        {/* Wallet address banner — shown once the session loads */}
-        {walletAddress && (
-          <div className="mx-4 mt-4 rounded-xl bg-violet-50 border border-violet-200 px-4 py-3">
-            <p className="text-xs font-semibold text-violet-700 mb-1">Your DexPoky wallet address</p>
-            <p className="text-xs text-violet-600 mb-2">
-              USDC will be delivered to this Ethereum address. It's the same address as your Tempo wallet.
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-[11px] font-mono bg-white border border-violet-200 rounded-lg px-2 py-1.5 text-violet-900 truncate">
-                {walletAddress}
-              </code>
-              <button
-                onClick={handleCopy}
-                className="shrink-0 inline-flex items-center gap-1 text-xs font-medium bg-violet-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-violet-700 transition-colors"
-              >
-                {copied ? <CheckCircle2 className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="min-h-[480px] flex flex-col items-center justify-center p-4">
+        <div className="p-5 space-y-4">
           {loading && (
-            <div className="flex flex-col items-center gap-3 text-slate-500">
+            <div className="flex flex-col items-center gap-3 py-8 text-slate-500">
               <Loader2 className="h-7 w-7 animate-spin text-violet-500" />
-              <span className="text-sm">Setting up onramp…</span>
+              <span className="text-sm">Preparing your session…</span>
             </div>
           )}
+
           {error && (
-            <div className="w-full rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+            <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
               <strong>Error:</strong> {error}
             </div>
           )}
-          <div ref={containerRef} className={cn("w-full", !mounted && "hidden")} />
+
+          {walletAddress && !loading && (
+            <>
+              <div className="rounded-xl bg-violet-50 border border-violet-200 px-4 py-3">
+                <p className="text-xs font-semibold text-violet-700 mb-1">Destination wallet</p>
+                <p className="text-xs text-violet-600 mb-2">
+                  USDC (Ethereum) will be sent to your DexPoky wallet address. This is pre-filled automatically.
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-[11px] font-mono bg-white border border-violet-200 rounded-lg px-2 py-1.5 text-violet-900 truncate">
+                    {walletAddress}
+                  </code>
+                  <button
+                    onClick={handleCopy}
+                    className="shrink-0 inline-flex items-center gap-1 text-xs font-medium bg-violet-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-violet-700 transition-colors"
+                  >
+                    {copied ? <CheckCircle2 className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs text-slate-600 space-y-1">
+                <p className="font-semibold text-slate-700">How it works</p>
+                <ol className="list-decimal list-inside space-y-0.5 text-slate-500">
+                  <li>Click "Open Stripe onramp" below</li>
+                  <li>Choose your amount and pay by card</li>
+                  <li>USDC lands in your wallet within minutes</li>
+                </ol>
+              </div>
+
+              {redirectUrl && (
+                <a
+                  href={redirectUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl px-4 py-3 transition-colors"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Open Stripe onramp
+                  <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                </a>
+              )}
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
