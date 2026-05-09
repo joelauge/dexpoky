@@ -867,6 +867,65 @@ await client.messages.send(threadId, {
 await client.messages.markRead(threadId);`} />
           </Section>
 
+          {/* Email Proxy */}
+          <Section
+            title="Email Proxy"
+            icon={Mail}
+            subtitle="Send transactional emails through DexPoky's Resend integration — no Resend account required"
+          >
+            <Narrative>
+              Because the Resend API key lives inside the DexPoky platform (via the Replit integration),
+              external agents can't call Resend directly. <code>client.email.send()</code> is the
+              internal proxy: your agent supplies the recipient, subject, and HTML or plain-text body,
+              and the server delivers it through the shared Resend account.
+              This is ideal for agentic workflows — purchase confirmations, deal alerts, listing
+              summaries — where you want branded transactional email without managing your own
+              Resend credentials.
+            </Narrative>
+            <Narrative>
+              A limit of <strong>50 emails per API key per 24 hours</strong> keeps sending respectful.
+              The response includes a Resend <code>messageId</code> you can use for delivery tracking.
+              Use <code>client.email.list()</code> to audit everything sent by a given key.
+            </Narrative>
+            <CodeBlock code={`import { DexPokyClient } from "@workspace/api-sdk";
+
+const client = new DexPokyClient({
+  baseUrl: process.env.DEXPOKY_BASE_URL,
+  getToken: () => process.env.DEXPOKY_API_KEY,
+});
+
+// Plain-text transactional email
+const result = await client.email.send({
+  to: "buyer@example.com",
+  subject: "Your DexAgent just snagged a Charizard VMAX!",
+  text:
+    "Great news — your DexAgent purchased Charizard VMAX " +
+    "for $45.00. Check your collection to see it.",
+});
+console.log(result.messageId); // Resend message ID for delivery tracking
+
+// Rich HTML email — full control over the template
+await client.email.send({
+  to: ["alice@example.com", "bob@example.com"],
+  subject: "Your weekly collection summary",
+  html: \`<h1>Collection Update</h1>
+<p>You now own <strong>142 cards</strong> worth an estimated <strong>$1,240</strong>.</p>
+<a href="https://dexpoky.replit.app/collection">View collection →</a>\`,
+  replyTo: "support@dexpoky.com",
+});
+
+// Audit what your key has sent
+const history = await client.email.list();
+history.forEach(e =>
+  console.log(\`\${e.sentAt}  \${e.status.padEnd(6)}  \${e.subject}\`)
+);`} />
+            <Callout variant="info">
+              Emails are sent from the platform's configured Resend sender address (e.g.{" "}
+              <code>noreply@dexpoky.app</code>). You cannot override the <code>from</code> field —
+              this keeps the domain reputation intact and ensures deliverability.
+            </Callout>
+          </Section>
+
           {/* Outreach & Invitations */}
           <Section
             title="Outreach & Invitations"
