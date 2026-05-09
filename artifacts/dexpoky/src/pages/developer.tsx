@@ -468,7 +468,7 @@ export default function DeveloperPage() {
             <CodeBlock code={`import { DexPokyClient } from "@workspace/api-sdk";
 
 const client = new DexPokyClient({
-  baseUrl: "https://your-app.replit.app", // omit this when running in the browser
+  baseUrl: "https://dexpoky.replit.app", // omit this when running in the browser
   getToken: () => process.env.DEXPOKY_API_KEY,
 });
 
@@ -502,7 +502,7 @@ console.log(\`\${card.name} is worth ~$\${card.estimatedValue}\`);`} />
             </Narrative>
             <CodeBlock lang="env" code={`# .env  (add this file to .gitignore!)
 DEXPOKY_API_KEY=dpx_your_key_here
-DEXPOKY_BASE_URL=https://your-app.replit.app`} />
+DEXPOKY_BASE_URL=https://dexpoky.replit.app`} />
             <CodeBlock code={`const client = new DexPokyClient({
   baseUrl: process.env.DEXPOKY_BASE_URL,
   getToken: () => process.env.DEXPOKY_API_KEY ?? null,
@@ -695,7 +695,7 @@ console.log(\`You have $\${(balanceCents / 100).toFixed(2)} available\`);
 // Start a top-up via Stripe (returns a URL to redirect the user to)
 const { url } = await client.wallet.topUp({
   amountCents: 5000, // $50.00
-  successUrl: "https://your-app.replit.app/wallet?topup=ok",
+  successUrl: "https://dexpoky.replit.app/wallet?topup=ok",
 });
 
 // List all trade threads you're part of
@@ -911,7 +911,7 @@ const result = await client.outreach.invite({
   // ctaUrl intentionally omitted — tracking URL is created automatically
 });
 console.log(\`Sent via \${result.channels.join(", ")} at \${result.sentAt}\`);
-console.log(\`Tracking URL: \${result.ctaUrl}\`); // e.g. https://your-app.replit.app?ref=dpx_42
+console.log(\`Tracking URL: \${result.ctaUrl}\`); // e.g. https://dexpoky.replit.app?ref=dpx_42
 
 // --- Supply your own destination (tracking disabled) ---
 await client.outreach.invite({
@@ -919,7 +919,7 @@ await client.outreach.invite({
   message:
     "Hey! DexPoky is a free Pokémon card marketplace with auctions " +
     "and an AI deck builder. Come check it out!",
-  ctaUrl: "https://your-app.replit.app/marketplace", // custom URL, no ref tracking
+  ctaUrl: "https://dexpoky.replit.app/marketplace", // custom URL, no ref tracking
 });
 
 // --- Combined: email + SMS at the same time ---
@@ -983,8 +983,8 @@ pending.forEach(inv => {
             </Narrative>
             <CodeBlock code={`// Marketplace listing page
 const listingLink = await client.links.listing(42);
-console.log(listingLink.url);      // https://your-app.replit.app/view/listing/42
-console.log(listingLink.shortUrl); // https://your-app.replit.app/s/aB3dEf7
+console.log(listingLink.url);      // https://dexpoky.replit.app/view/listing/42
+console.log(listingLink.shortUrl); // https://dexpoky.replit.app/s/aB3dEf7
 
 // Single card in a collection
 const cardLink = await client.links.card(99);
@@ -1128,7 +1128,7 @@ const [offer, setOffer] = useState<TradeOffer | null>(null);`} />
             The easiest way is to keep both values in environment variables so you can switch between
             development and production without changing any code.
           </p>
-          <CodeBlock lang="env" code={`DEXPOKY_BASE_URL=https://your-app.replit.app
+          <CodeBlock lang="env" code={`DEXPOKY_BASE_URL=https://dexpoky.replit.app
 DEXPOKY_API_KEY=dpx_your_key_here`} />
           <CodeBlock code={`const client = new DexPokyClient({
   baseUrl: process.env.DEXPOKY_BASE_URL,
