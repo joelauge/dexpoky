@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "RyFtBYIziTegd5AyRiLF3"
+uri = "file://FEATURES.md"
+type = "text"
+title = "FEATURES.md — DexPoky Complete Feature Reference"
