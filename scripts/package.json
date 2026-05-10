@@ -10,9 +10,11 @@
     "ingest-rulebook": "tsx ./src/ingest-rulebook.ts",
     "validate-api-zod-index": "tsx ./src/validate-api-zod-index.ts",
     "backfill-wanted-usernames": "tsx ./src/backfill-wanted-usernames.ts",
+    "backup": "tsx ./src/backup.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.19.0",
     "@workspace/db": "workspace:*",
     "drizzle-orm": "catalog:",
     "stripe": "^20",
