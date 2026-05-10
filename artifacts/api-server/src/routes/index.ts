@@ -33,6 +33,7 @@ import linksRouter from "./links";
 import agentsRouter from "./agents";
 import gradingRouter from "./grading";
 import emailRouter from "./email";
+import backupRouter from "./backup";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,6 @@ router.use(linksRouter);
 router.use(agentsRouter);
 router.use(gradingRouter);
 router.use(emailRouter);
+router.use(backupRouter);
 
 export default router;
