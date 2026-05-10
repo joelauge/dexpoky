@@ -2,6 +2,13 @@
 
 DexPoky is a Pokemon collectible card collection, inventory tracking, and trading marketplace with an auction system.
 
+## GitHub Sync
+
+- **Remote**: `https://github.com/joelauge/dexpoky.git` (main branch)
+- **Automatic**: `scripts/post-merge.sh` pushes to GitHub after every background task merge
+- **Manual / end-of-session**: agent runs `git push https://$GITHUB_TOKEN@github.com/joelauge/dexpoky.git HEAD:main` at the close of each session
+- **Secret**: `GITHUB_TOKEN` (classic PAT, `repo` scope) stored in Replit Secrets
+
 ## Run & Operate
 
 - `pnpm run typecheck` — Full typecheck across all packages
