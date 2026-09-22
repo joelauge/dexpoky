@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { 
   useBulkCreateCards, 
   useListCollections,
@@ -24,7 +24,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { CardImageUpload } from "@/components/card-image-upload";
 
@@ -63,6 +63,11 @@ interface BulkAddDialogProps {
 export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSuccess }: BulkAddDialogProps) {
   const [collectionId, setCollectionId] = useState<string>("none");
   const [cardValues, setCardValues] = useState<Record<string, { value: string, photo: string | null }>>({});
+  const [marketData, setMarketData] = useState<Record<string, { marketPrice: number | null; lowPrice: number | null; source: string | null; loading: boolean }>>({});
+  const [detections, setDetections] = useState<Record<string, {
+    status: "checking" | "match" | "mismatch" | "uncertain" | "error";
+    message: string;
+  }>>({});
   const [result, setResult] = useState<{ created: number; skipped: Array<{ cardNumber: string; reason: string }> } | null>(null);
 
   const queryClient = useQueryClient();
@@ -71,6 +76,42 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
   });
 
   const bulkCreate = useBulkCreateCards();
+
+  useEffect(() => {
+    if (!open || selectedCards.length === 0) return;
+    let cancelled = false;
+    setMarketData(Object.fromEntries(selectedCards.map((card) => [card.id, { marketPrice: null, lowPrice: null, source: null, loading: true }])));
+    void Promise.all(selectedCards.map(async (card) => {
+      const params = new URLSearchParams({ cardId: card.id, name: card.name, setName: set.name });
+      if (card.cardNumber) params.set("cardNumber", card.cardNumber);
+      if (card.rarity) params.set("rarity", card.rarity);
+      try {
+        const response = await fetch(`/api/cards/pricing?${params}`);
+        if (!response.ok) throw new Error("Pricing unavailable");
+        const data = await response.json() as { pricing?: { marketPrice?: number | null; lowPrice?: number | null; source?: string | null } };
+        if (cancelled) return;
+        const pricing = {
+          marketPrice: data.pricing?.marketPrice ?? null,
+          lowPrice: data.pricing?.lowPrice ?? null,
+          source: data.pricing?.source ?? null,
+          loading: false,
+        };
+        setMarketData((current) => ({ ...current, [card.id]: pricing }));
+        const preferred = pricing.marketPrice ?? pricing.lowPrice;
+        if (preferred != null) {
+          setCardValues((current) => ({
+            ...current,
+            [card.id]: current[card.id]?.value
+              ? current[card.id]
+              : { ...current[card.id], value: preferred.toFixed(2), photo: current[card.id]?.photo ?? null },
+          }));
+        }
+      } catch {
+        if (!cancelled) setMarketData((current) => ({ ...current, [card.id]: { marketPrice: null, lowPrice: null, source: null, loading: false } }));
+      }
+    }));
+    return () => { cancelled = true; };
+  }, [open, selectedCards, set.name]);
 
   const handleUpdateValue = (id: string, value: string) => {
     setCardValues(prev => ({
@@ -84,6 +125,46 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
       ...prev,
       [id]: { ...prev[id], photo }
     }));
+    if (!photo) setDetections((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const detectUploadedCard = async (card: BulkAddDialogProps["selectedCards"][number], imageData: string) => {
+    setDetections((current) => ({ ...current, [card.id]: { status: "checking", message: "Checking the uploaded card…" } }));
+    try {
+      const response = await fetch("/api/cards/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData }),
+      });
+      if (!response.ok) throw new Error("Detection failed");
+      const detected = await response.json() as {
+        detected: boolean;
+        confidence: "high" | "medium" | "low";
+        pokemonName: string | null;
+        cardNumber?: string | null;
+      };
+      if (!detected.detected || !detected.pokemonName) {
+        setDetections((current) => ({ ...current, [card.id]: { status: "uncertain", message: "Card details could not be confirmed from this photo." } }));
+        return;
+      }
+      const normalize = (value?: string | null) => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const nameMatches = normalize(detected.pokemonName) === normalize(card.name);
+      const numberMatches = !detected.cardNumber || !card.cardNumber || normalize(detected.cardNumber) === normalize(card.cardNumber);
+      if (!nameMatches || !numberMatches) {
+        const detectedLabel = `${detected.pokemonName}${detected.cardNumber ? ` #${detected.cardNumber}` : ""}`;
+        setDetections((current) => ({ ...current, [card.id]: { status: "mismatch", message: `Photo looks like ${detectedLabel}, not ${card.name}${card.cardNumber ? ` #${card.cardNumber}` : ""}.` } }));
+      } else if (detected.confidence === "low") {
+        setDetections((current) => ({ ...current, [card.id]: { status: "uncertain", message: "Photo appears to match, but detection confidence is low." } }));
+      } else {
+        setDetections((current) => ({ ...current, [card.id]: { status: "match", message: `Photo matches ${card.name}${card.cardNumber ? ` #${card.cardNumber}` : ""}.` } }));
+      }
+    } catch {
+      setDetections((current) => ({ ...current, [card.id]: { status: "error", message: "Photo detection is temporarily unavailable. You can retry by replacing the photo." } }));
+    }
   };
 
   const handleSave = () => {
@@ -125,7 +206,12 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
       if (!nextOpen && result) onSuccess();
-      if (!nextOpen) setResult(null);
+      if (!nextOpen) {
+        setResult(null);
+        setCardValues({});
+        setMarketData({});
+        setDetections({});
+      }
       onOpenChange(nextOpen);
     }}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
@@ -168,9 +254,9 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
             {selectedCards.map(card => {
               const cv = cardValues[card.id] || { value: "", photo: null };
               return (
-                <div key={card.id} className="flex gap-4 p-4 border rounded-xl bg-card">
-                  <div className="w-16 shrink-0 aspect-[63/88] rounded-md overflow-hidden bg-muted">
-                    {card.imageUrl && <img src={card.imageUrl} alt={card.name} className="w-full h-full object-cover" />}
+                <div key={card.id} className="flex flex-col sm:flex-row gap-4 p-4 border rounded-xl bg-card">
+                  <div className="w-28 sm:w-32 mx-auto sm:mx-0 shrink-0 self-start aspect-[63/88] rounded-lg overflow-hidden bg-muted border">
+                    {card.imageUrl && <img src={card.imageUrl} alt={card.name} className="w-full h-full object-contain" />}
                   </div>
                   <div className="flex-1 space-y-3">
                     <div className="font-semibold text-sm">{card.name} <span className="text-muted-foreground font-normal ml-1">#{card.cardNumber || card.id}</span></div>
@@ -186,13 +272,38 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
                           value={cv.value}
                           onChange={(e) => handleUpdateValue(card.id, e.target.value)}
                         />
+                        {marketData[card.id]?.loading ? (
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Loading exact-printing market data…</p>
+                        ) : marketData[card.id]?.marketPrice != null || marketData[card.id]?.lowPrice != null ? (
+                          <p className="text-[11px] text-emerald-700 flex items-center gap-1">
+                            <Sparkles className="h-3 w-3" />
+                            Market {marketData[card.id].marketPrice != null ? `$${marketData[card.id].marketPrice?.toFixed(2)}` : "unavailable"}
+                            {marketData[card.id].lowPrice != null ? ` · Low $${marketData[card.id].lowPrice?.toFixed(2)}` : ""}
+                            {marketData[card.id].source ? ` · ${marketData[card.id].source}` : ""}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">No exact-printing market price is currently available.</p>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-xs font-medium text-muted-foreground">Personal Photo (Optional)</label>
                         <CardImageUpload 
                           value={cv.photo} 
-                          onChange={(url) => handleUpdatePhoto(card.id, url)} 
+                          onChange={(url) => handleUpdatePhoto(card.id, url)}
+                          onFileSelected={(_file, imageData) => detectUploadedCard(card, imageData)}
+                          className="[&_button]:w-full [&_button]:max-w-40 [&>div]:max-w-full"
                         />
+                        {detections[card.id] && (
+                          <div className={`flex items-start gap-1.5 text-[11px] ${
+                            detections[card.id].status === "match" ? "text-emerald-700" :
+                            detections[card.id].status === "mismatch" ? "text-destructive" : "text-amber-700"
+                          }`}>
+                            {detections[card.id].status === "checking" ? <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" /> :
+                              detections[card.id].status === "match" ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> :
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                            <span>{detections[card.id].message}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -214,7 +325,10 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
             onSuccess();
             setResult(null);
             onOpenChange(false);
-          } : handleSave} disabled={bulkCreate.isPending}>
+          } : handleSave} disabled={bulkCreate.isPending || selectedCards.some((card) => {
+            const status = detections[card.id]?.status;
+            return status === "checking" || status === "mismatch";
+          })}>
             {bulkCreate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {result ? "Done" : "Save to Collection"}
           </Button>

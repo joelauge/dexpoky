@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils";
 interface CardImageUploadProps {
   value: string | null | undefined;
   onChange: (url: string | null) => void;
+  onFileSelected?: (file: File, imageData: string) => void | Promise<void>;
   className?: string;
 }
 
-export function CardImageUpload({ value, onChange, className }: CardImageUploadProps) {
+export function CardImageUpload({ value, onChange, onFileSelected, className }: CardImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -34,6 +35,14 @@ export function CardImageUpload({ value, onChange, className }: CardImageUploadP
     setProgress(0);
 
     try {
+      const imageData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not read image"));
+        reader.onerror = () => reject(new Error("Could not read image"));
+        reader.readAsDataURL(file);
+      });
+      void onFileSelected?.(file, imageData);
+
       const metaRes = await fetch("/api/storage/uploads/request-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -98,7 +107,7 @@ export function CardImageUpload({ value, onChange, className }: CardImageUploadP
             <img
               src={value}
               alt="Card image"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
           </div>
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
