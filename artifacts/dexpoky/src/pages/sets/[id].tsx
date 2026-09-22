@@ -17,8 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, CheckCircle2, Circle, AlertCircle, Heart, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { getSetCompletion } from "@/lib/set-completion";
 
-const normalize = (s?: string | null) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const WISHLIST_KEY = ["/api/wishlist"] as const;
 
 export default function SetDetail() {
@@ -82,36 +82,17 @@ export default function SetDetail() {
 
   const isLoading = setLoad || cardsLoad;
 
-  const { ownedSetCardIds, firstOwnedCardIdMap } = useMemo(() => {
-    const ids = new Set<string>();
-    const idMap = new Map<string, number>(); // set card ID -> owned card ID (for linking)
-
-    if (!ownedCards || !set) return { ownedSetCardIds: ids, firstOwnedCardIdMap: idMap };
-    const normSetName = normalize(set.name);
-
-    const setCardMap = new Map<string, string>();
-    for (const sc of set.cards) {
-      setCardMap.set(normalize(sc.localId), sc.id);
+  const completion = useMemo(() => {
+    if (!set) {
+      return getSetCompletion(
+        { id: setId, name: "", totalCards: 0, cards: [] },
+        [],
+      );
     }
-
-    for (const card of ownedCards) {
-      let matchId: string | undefined;
-
-      if (card.catalogCardId && card.catalogCardId.startsWith(`${set.id}-`)) {
-        matchId = card.catalogCardId;
-      } else if (normalize(card.setName) === normSetName) {
-        matchId = setCardMap.get(normalize(card.cardNumber));
-      }
-
-      if (matchId) {
-        ids.add(matchId);
-        if (!idMap.has(matchId)) {
-          idMap.set(matchId, card.id);
-        }
-      }
-    }
-    return { ownedSetCardIds: ids, firstOwnedCardIdMap: idMap };
+    return getSetCompletion(set, ownedCards ?? []);
   }, [ownedCards, set]);
+  const ownedSetCardIds = completion.ownedCardKeys;
+  const firstOwnedCardIdMap = completion.firstOwnedCardIdMap;
 
   const filteredCards = useMemo(() => {
     if (!set) return [];
@@ -155,9 +136,9 @@ export default function SetDetail() {
     );
   }
 
-  const total = set?.totalCards || set?.cards?.length || 0;
-  const ownedCount = ownedSetCardIds.size;
-  const progress = total > 0 ? Math.min(100, Math.round((ownedCount / total) * 100)) : 0;
+  const total = completion.totalCount;
+  const ownedCount = completion.ownedCount;
+  const progress = completion.completionPercent;
   const isComplete = progress === 100 && total > 0;
 
   return (
@@ -296,7 +277,7 @@ export default function SetDetail() {
               >
                 <Circle className="h-4 w-4 border-2 border-dashed rounded-full text-transparent" />
                 Missing
-                <Badge variant="secondary" className="ml-1 opacity-70 px-1.5 py-0 h-5 min-w-5 flex items-center justify-center">{total - ownedCount}</Badge>
+                <Badge variant="secondary" className="ml-1 opacity-70 px-1.5 py-0 h-5 min-w-5 flex items-center justify-center">{completion.missingCount}</Badge>
               </button>
             </div>
 

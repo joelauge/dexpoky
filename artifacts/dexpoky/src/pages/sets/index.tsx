@@ -8,32 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Search, Library, CheckCircle2, AlertCircle } from "lucide-react";
 import type { PokemonSetSummary, Card as OwnedCard } from "@workspace/api-client-react";
-
-// Normalize strings for matching
-const normalize = (s?: string | null) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-
-function getUniqueOwnedCount(set: PokemonSetSummary, ownedCards: OwnedCard[]) {
-  const normSetName = normalize(set.name);
-  const uniqueKeys = new Set<string>();
-
-  for (const card of ownedCards) {
-    let matched = false;
-    let localId = normalize(card.cardNumber);
-
-    if (card.catalogCardId && card.catalogCardId.startsWith(`${set.id}-`)) {
-      matched = true;
-      localId = normalize(card.catalogCardId.slice(set.id.length + 1));
-    } else if (normalize(card.setName) === normSetName) {
-      matched = true;
-    }
-
-    if (matched && localId) {
-      uniqueKeys.add(localId);
-    }
-  }
-
-  return uniqueKeys.size;
-}
+import { getSetCompletion } from "@/lib/set-completion";
 
 export default function SetsIndex() {
   useEffect(() => {
@@ -156,7 +131,7 @@ export default function SetsIndex() {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                     {seriesSets.map((set) => {
-                      const ownedCount = ownedCards ? getUniqueOwnedCount(set, ownedCards) : 0;
+                      const ownedCount = ownedCards ? getSetCompletion(set, ownedCards).ownedCount : 0;
                       const progress = set.totalCards > 0 ? Math.min(100, Math.round((ownedCount / set.totalCards) * 100)) : 0;
                       const isComplete = progress === 100 && set.totalCards > 0;
                       const hasStarted = ownedCount > 0;
