@@ -12,6 +12,7 @@ import {
 import { eq, sql, ilike, and, inArray, type SQL } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
+import { evaluateCardConfidence, type CardConfidenceInput } from "../lib/card-confidence.js";
 import {
   ListCardsQueryParams,
   CreateCardBody,
@@ -24,6 +25,44 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
+
+/** Ephemeral scan evidence scoring. The API key never leaves the server. */
+router.post("/cards/confidence", requireAuth, async (req, res): Promise<void> => {
+  const body = req.body as Partial<CardConfidenceInput>;
+  if (!body || typeof body !== "object" || !body.observed || !body.candidate) {
+    res.status(400).json({ error: "observed and candidate evidence are required" });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.json(await evaluateCardConfidence(body as CardConfidenceInput));
+});
+
+/** Owner-only score for a saved card. Identity and exact price are server-derived. */
+router.post("/cards/:id/confidence", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const userId = (req as AuthRequest).userId;
+  const [saved] = await db.select({
+    id: cardsTable.id, name: cardsTable.name, pokemonName: cardsTable.pokemonName,
+    setId: cardsTable.setId, setName: cardsTable.setName, cardNumber: cardsTable.cardNumber,
+    catalogCardId: cardsTable.catalogCardId, condition: cardsTable.condition,
+  }).from(cardsTable).where(and(eq(cardsTable.id, id), eq(cardsTable.ownerClerkId, userId)));
+  if (!saved) { res.status(404).json({ error: "Card not found" }); return; }
+  const pricing = saved.catalogCardId
+    ? await fetchPricingById(saved.catalogCardId, saved.name, undefined, {
+      name: saved.name, setName: saved.setName ?? undefined, cardNumber: saved.cardNumber ?? undefined,
+    })
+    : null;
+  const result = await evaluateCardConfidence({
+    observed: { ocrName: saved.name, ocrSetCode: saved.setId, ocrCardNumber: saved.cardNumber, visionConfidence: null },
+    candidate: { id: saved.catalogCardId ?? String(saved.id), name: saved.name, setId: saved.setId, setName: saved.setName, cardNumber: saved.cardNumber },
+    pricing,
+    condition: { value: saved.condition, source: "saved_card" },
+    context: { savedCardId: saved.id, pokemonName: saved.pokemonName },
+  });
+  res.setHeader("Cache-Control", "no-store");
+  res.json(result);
+});
 
 const cardSelect = {
   id: cardsTable.id,

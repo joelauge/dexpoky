@@ -12,6 +12,7 @@ import {
   Share2, Camera, Maximize2, BookOpen, CheckCircle2, ShieldCheck,
 } from "lucide-react";
 import { GradingVerification } from "@/components/grading-verification";
+import { CardConfidenceScorecard } from "@/components/card-confidence-scorecard";
 import { Textarea } from "@/components/ui/textarea";
 import { ShareModal } from "@/components/share-modal";
 import { toast } from "sonner";
@@ -262,6 +263,10 @@ export default function CardDetail() {
   const prevCard = currentIndex > 0 ? uniqueNavList[currentIndex - 1] : null;
   const nextCard = currentIndex < uniqueNavList.length - 1 ? uniqueNavList[currentIndex + 1] : null;
   const hasCategoryScope = !!(card?.categoryId && allCards?.some((c) => c.categoryId === card.categoryId && c.id !== id));
+  const confidenceEvidence = useMemo(() => ({
+    cardId: card?.id,
+    context: { flow: "owned_card_detail" },
+  }), [card?.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -666,6 +671,7 @@ export default function CardDetail() {
                 </span>
               )}
             </div>
+            <CardConfidenceScorecard endpoint={`/api/cards/${id}/confidence`} evidence={confidenceEvidence} />
 
             {/* Value panel */}
             <div className="bg-card border rounded-2xl p-5 mb-4 shadow-sm w-full">

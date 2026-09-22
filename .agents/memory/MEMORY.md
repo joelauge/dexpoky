@@ -1,1 +1,2 @@
 - [Set rarity ordering](set-rarity-ordering.md) — use each expansion’s accompanying checklist book as the authority for rarity section order.
+- [TypeSafe integration](typesafe-integration.md) — call Jev through its documented HTTP API and keep deterministic catalog and pricing gates authoritative.

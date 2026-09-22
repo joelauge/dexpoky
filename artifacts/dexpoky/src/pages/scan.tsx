@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,12 +27,14 @@ import { captureCardCrop, captureBottomCrop } from "@/lib/capture-crop";
 import { uploadScanImage } from "@/lib/upload-scan";
 import { CatalogSearch } from "@/components/catalog-search";
 import type { CatalogCard } from "@workspace/api-client-react";
+import { CardConfidenceScorecard } from "@/components/card-confidence-scorecard";
 
 interface TcgCard {
   id: string;
   name: string;
   imageUrl: string;
   setName: string;
+  setId?: string;
   cardNumber: string;
   rarity: string | null;
 }
@@ -91,6 +93,8 @@ export default function ScanPage() {
 
   const [phase, setPhase]                     = useState<Phase>("idle");
   const [pokemonName, setPokemonName]         = useState<string | null>(null);
+  const [observedSetCode, setObservedSetCode] = useState<string | null>(null);
+  const [observedCardNumber, setObservedCardNumber] = useState<string | null>(null);
   const [confidence, setConfidence]           = useState<"high"|"medium"|"low">("low");
   const [card, setCard]                       = useState<TcgCard | null>(null);
   const [variants, setVariants]               = useState<TcgCard[]>([]);
@@ -222,6 +226,8 @@ export default function ScanPage() {
         return;
       }
       // Record the scan against the billing limit
+      setObservedSetCode(data.setCode ?? null);
+      setObservedCardNumber(data.cardNumber ?? null);
       recordScan.mutate(undefined, {
         onSuccess: (result) => {
           if (!result.allowed) {
@@ -251,6 +257,7 @@ export default function ScanPage() {
     setCard(null); setVariants([]); setSelectedVariant(null);
     setImageFailed(false);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
+    setObservedSetCode(null); setObservedCardNumber(null);
     setConfirmSteps([]);
     setScanUrl(null);
     const ms = await navigator.mediaDevices.getUserMedia({
@@ -368,6 +375,13 @@ export default function ScanPage() {
   const displayCard = selectedVariant ?? card;
   const fallbackImage = scanUrl ?? frozenFrame;
   const displayImage = !imageFailed && displayCard?.imageUrl ? displayCard.imageUrl : fallbackImage;
+  const confidenceEvidence = useMemo(() => ({
+    observed: { visionConfidence: confidence, ocrName: pokemonName, ocrSetCode: observedSetCode, ocrCardNumber: observedCardNumber },
+    candidate: displayCard ? { id: displayCard.id, name: displayCard.name, setId: displayCard.setId, setName: displayCard.setName, cardNumber: displayCard.cardNumber } : null,
+    pricing,
+    condition: null,
+    context: { flow: "single_scan" },
+  }), [confidence, pokemonName, observedSetCode, observedCardNumber, displayCard, pricing]);
   const capturing   = phase === "capturing";
   const analyzing   = phase === "analyzing";
   const confirming  = phase === "confirming";
@@ -732,6 +746,9 @@ export default function ScanPage() {
                       </div>
                     )}
                   </div>
+                )}
+                {displayCard && (
+                  <CardConfidenceScorecard endpoint={`${BASE}/api/cards/confidence`} evidence={confidenceEvidence} />
                 )}
 
                 {/* PSA grades */}

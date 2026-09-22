@@ -26,6 +26,8 @@ import type {
   BulkUpdateCardsInput,
   BulkUpdateCardsResponse,
   Card,
+  CardConfidenceInput,
+  CardConfidenceResult,
   CatalogCardDetail,
   CatalogSearchResponse,
   Category,
@@ -1093,6 +1095,176 @@ export const useDeleteCard = <
   TContext
 > => {
   return useMutation(getDeleteCardMutationOptions(options));
+};
+
+/**
+ * @summary Score ephemeral card evidence across four independent dimensions
+ */
+export const getScoreCardConfidenceUrl = () => {
+  return `/api/cards/confidence`;
+};
+
+export const scoreCardConfidence = async (
+  cardConfidenceInput: CardConfidenceInput,
+  options?: RequestInit,
+): Promise<CardConfidenceResult> => {
+  return customFetch<CardConfidenceResult>(getScoreCardConfidenceUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(cardConfidenceInput),
+  });
+};
+
+export const getScoreCardConfidenceMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scoreCardConfidence>>,
+    TError,
+    { data: BodyType<CardConfidenceInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof scoreCardConfidence>>,
+  TError,
+  { data: BodyType<CardConfidenceInput> },
+  TContext
+> => {
+  const mutationKey = ["scoreCardConfidence"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof scoreCardConfidence>>,
+    { data: BodyType<CardConfidenceInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return scoreCardConfidence(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ScoreCardConfidenceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof scoreCardConfidence>>
+>;
+export type ScoreCardConfidenceMutationBody = BodyType<CardConfidenceInput>;
+export type ScoreCardConfidenceMutationError = ErrorType<void>;
+
+/**
+ * @summary Score ephemeral card evidence across four independent dimensions
+ */
+export const useScoreCardConfidence = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scoreCardConfidence>>,
+    TError,
+    { data: BodyType<CardConfidenceInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof scoreCardConfidence>>,
+  TError,
+  { data: BodyType<CardConfidenceInput> },
+  TContext
+> => {
+  return useMutation(getScoreCardConfidenceMutationOptions(options));
+};
+
+/**
+ * @summary Score an owned card using server-derived identity and pricing
+ */
+export const getScoreOwnedCardConfidenceUrl = (id: number) => {
+  return `/api/cards/${id}/confidence`;
+};
+
+export const scoreOwnedCardConfidence = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CardConfidenceResult> => {
+  return customFetch<CardConfidenceResult>(getScoreOwnedCardConfidenceUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getScoreOwnedCardConfidenceMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scoreOwnedCardConfidence>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof scoreOwnedCardConfidence>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["scoreOwnedCardConfidence"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof scoreOwnedCardConfidence>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return scoreOwnedCardConfidence(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ScoreOwnedCardConfidenceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof scoreOwnedCardConfidence>>
+>;
+
+export type ScoreOwnedCardConfidenceMutationError = ErrorType<void>;
+
+/**
+ * @summary Score an owned card using server-derived identity and pricing
+ */
+export const useScoreOwnedCardConfidence = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scoreOwnedCardConfidence>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof scoreOwnedCardConfidence>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getScoreOwnedCardConfidenceMutationOptions(options));
 };
 
 /**

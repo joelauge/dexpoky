@@ -310,6 +310,46 @@ paths:
         "204":
           description: Deleted
 
+  /cards/confidence:
+    post:
+      operationId: scoreCardConfidence
+      tags: [cards]
+      summary: Score ephemeral card evidence across four independent dimensions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CardConfidenceInput" }
+      responses:
+        "200":
+          description: Evidence confidence scorecard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CardConfidenceResult" }
+        "400": { description: Invalid evidence }
+
+  /cards/{id}/confidence:
+    post:
+      operationId: scoreOwnedCardConfidence
+      tags: [cards]
+      summary: Score an owned card using server-derived identity and pricing
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Evidence confidence scorecard
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CardConfidenceResult" }
+        "403": { description: Not owned by current user }
+
   /collections:
     get:
       operationId: listCollections
@@ -2813,6 +2853,62 @@ components:
         - channel
         - status
         - sentAt
+
+    CardConfidenceInput:
+      type: object
+      properties:
+        observed:
+          type: object
+          properties:
+            visionConfidence: { type: string, nullable: true }
+            ocrName: { type: string, nullable: true }
+            ocrSetCode: { type: string, nullable: true }
+            ocrCardNumber: { type: string, nullable: true }
+        candidate:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            name: { type: string, nullable: true }
+            setId: { type: string, nullable: true }
+            setName: { type: string, nullable: true }
+            cardNumber: { type: string, nullable: true }
+        pricing:
+          type: object
+          nullable: true
+          properties:
+            marketPrice: { type: number, nullable: true }
+            lowPrice: { type: number, nullable: true }
+            source: { type: string, nullable: true }
+            evidenceAt: { type: string, format: date-time, nullable: true }
+            isFallback: { type: boolean }
+        condition: { type: object, nullable: true }
+      required: [observed, candidate]
+
+    CardConfidenceDimension:
+      type: object
+      properties:
+        score: { type: number, nullable: true }
+        probabilities: { type: object, additionalProperties: { type: number } }
+        confidence: { type: number, nullable: true }
+        status: { type: string, enum: [safe, needs_review, blocked, unknown, unavailable] }
+        action: { type: string }
+        message: { type: string }
+      required: [score, probabilities, confidence, status, action, message]
+
+    CardConfidenceResult:
+      type: object
+      properties:
+        dimensions:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/CardConfidenceDimension" }
+        modelVersion: { type: string }
+        evaluatedAt: { type: string, format: date-time }
+        evidenceHash: { type: string }
+        evidenceFresh: { type: boolean }
+        unavailable: { type: boolean }
+        authenticityDisclaimer: { type: string }
+      required: [dimensions, modelVersion, evaluatedAt, evidenceHash, evidenceFresh, unavailable, authenticityDisclaimer]
 
     BuildLinkBody:
       type: object

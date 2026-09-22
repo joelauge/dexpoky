@@ -987,6 +987,74 @@ export interface InviteHistoryEntry {
   sentAt: string;
 }
 
+export type CardConfidenceInputObserved = {
+  visionConfidence?: string | null;
+  ocrName?: string | null;
+  ocrSetCode?: string | null;
+  ocrCardNumber?: string | null;
+};
+
+export type CardConfidenceInputCandidate = {
+  id?: string;
+  name?: string | null;
+  setId?: string | null;
+  setName?: string | null;
+  cardNumber?: string | null;
+} | null;
+
+export type CardConfidenceInputPricing = {
+  marketPrice?: number | null;
+  lowPrice?: number | null;
+  source?: string | null;
+  evidenceAt?: string | null;
+  isFallback?: boolean;
+} | null;
+
+export type CardConfidenceInputCondition = { [key: string]: unknown } | null;
+
+export interface CardConfidenceInput {
+  observed: CardConfidenceInputObserved;
+  candidate: CardConfidenceInputCandidate;
+  pricing?: CardConfidenceInputPricing;
+  condition?: CardConfidenceInputCondition;
+}
+
+export type CardConfidenceDimensionProbabilities = { [key: string]: number };
+
+export type CardConfidenceDimensionStatus =
+  (typeof CardConfidenceDimensionStatus)[keyof typeof CardConfidenceDimensionStatus];
+
+export const CardConfidenceDimensionStatus = {
+  safe: "safe",
+  needs_review: "needs_review",
+  blocked: "blocked",
+  unknown: "unknown",
+  unavailable: "unavailable",
+} as const;
+
+export interface CardConfidenceDimension {
+  score: number | null;
+  probabilities: CardConfidenceDimensionProbabilities;
+  confidence: number | null;
+  status: CardConfidenceDimensionStatus;
+  action: string;
+  message: string;
+}
+
+export type CardConfidenceResultDimensions = {
+  [key: string]: CardConfidenceDimension;
+};
+
+export interface CardConfidenceResult {
+  dimensions: CardConfidenceResultDimensions;
+  modelVersion: string;
+  evaluatedAt: string;
+  evidenceHash: string;
+  evidenceFresh: boolean;
+  unavailable: boolean;
+  authenticityDisclaimer: string;
+}
+
 export type BuildLinkBodyType =
   (typeof BuildLinkBodyType)[keyof typeof BuildLinkBodyType];
 

@@ -373,6 +373,96 @@ export const DeleteCardParams = zod.object({
 });
 
 /**
+ * @summary Score ephemeral card evidence across four independent dimensions
+ */
+export const ScoreCardConfidenceBody = zod.object({
+  observed: zod.object({
+    visionConfidence: zod.string().nullish(),
+    ocrName: zod.string().nullish(),
+    ocrSetCode: zod.string().nullish(),
+    ocrCardNumber: zod.string().nullish(),
+  }),
+  candidate: zod
+    .object({
+      id: zod.string().optional(),
+      name: zod.string().nullish(),
+      setId: zod.string().nullish(),
+      setName: zod.string().nullish(),
+      cardNumber: zod.string().nullish(),
+    })
+    .nullable(),
+  pricing: zod
+    .object({
+      marketPrice: zod.number().nullish(),
+      lowPrice: zod.number().nullish(),
+      source: zod.string().nullish(),
+      evidenceAt: zod.coerce.date().nullish(),
+      isFallback: zod.boolean().optional(),
+    })
+    .nullish(),
+  condition: zod.object({}).passthrough().nullish(),
+});
+
+export const ScoreCardConfidenceResponse = zod.object({
+  dimensions: zod.record(
+    zod.string(),
+    zod.object({
+      score: zod.number().nullable(),
+      probabilities: zod.record(zod.string(), zod.number()),
+      confidence: zod.number().nullable(),
+      status: zod.enum([
+        "safe",
+        "needs_review",
+        "blocked",
+        "unknown",
+        "unavailable",
+      ]),
+      action: zod.string(),
+      message: zod.string(),
+    }),
+  ),
+  modelVersion: zod.string(),
+  evaluatedAt: zod.coerce.date(),
+  evidenceHash: zod.string(),
+  evidenceFresh: zod.boolean(),
+  unavailable: zod.boolean(),
+  authenticityDisclaimer: zod.string(),
+});
+
+/**
+ * @summary Score an owned card using server-derived identity and pricing
+ */
+export const ScoreOwnedCardConfidenceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ScoreOwnedCardConfidenceResponse = zod.object({
+  dimensions: zod.record(
+    zod.string(),
+    zod.object({
+      score: zod.number().nullable(),
+      probabilities: zod.record(zod.string(), zod.number()),
+      confidence: zod.number().nullable(),
+      status: zod.enum([
+        "safe",
+        "needs_review",
+        "blocked",
+        "unknown",
+        "unavailable",
+      ]),
+      action: zod.string(),
+      message: zod.string(),
+    }),
+  ),
+  modelVersion: zod.string(),
+  evaluatedAt: zod.coerce.date(),
+  evidenceHash: zod.string(),
+  evidenceFresh: zod.boolean(),
+  unavailable: zod.boolean(),
+  authenticityDisclaimer: zod.string(),
+});
+
+/**
  * @summary List the current user's collections
  */
 export const ListCollectionsResponseItem = zod.object({

@@ -33,6 +33,7 @@ import { ScanPaywall } from "@/components/scan-paywall";
 import { captureCardCrop, captureBottomCrop } from "@/lib/capture-crop";
 import { uploadScanImage } from "@/lib/upload-scan";
 import { Input } from "@/components/ui/input";
+import { CardConfidenceScorecard } from "@/components/card-confidence-scorecard";
 import {
   useCreateCard,
   useListCategories,
@@ -76,6 +77,9 @@ interface BulkEntry {
   originalScanUrl?: string | null; // uploaded scan URL (resolved in background)
   status: EntryStatus;
   pokemonName?: string;
+  observedSetCode?: string | null;
+  observedCardNumber?: string | null;
+  visionConfidence?: "high" | "medium" | "low";
   variants: TcgCard[];
   selectedVariantId?: string;
   pricing?: PricingData | null;
@@ -324,6 +328,9 @@ export default function ScanBulkPage() {
                 ? `No printings found for "${idData.pokemonName}"`
                 : e.errorMsg,
               pokemonName: idData.pokemonName ?? undefined,
+              observedSetCode: idData.setCode ?? null,
+              observedCardNumber: idData.cardNumber ?? null,
+              visionConfidence: idData.confidence,
               variants,
               selectedVariantId: lookupData.card?.id ?? variants[0]?.id,
               pricing: lookupData.pricing ?? null,
@@ -929,6 +936,25 @@ export default function ScanBulkPage() {
                             </div>
                           </div>
                         </div>
+                      )}
+
+                      {/* Condition */}
+                      {variant && (
+                        <CardConfidenceScorecard
+                          endpoint={`${BASE}/api/cards/confidence`}
+                          evidence={{
+                            observed: {
+                              visionConfidence: e.visionConfidence,
+                              ocrName: e.pokemonName,
+                              ocrSetCode: e.observedSetCode,
+                              ocrCardNumber: e.observedCardNumber,
+                            },
+                            candidate: { id: variant.id, name: variant.name, setId: variant.setId, setName: variant.setName, cardNumber: variant.cardNumber },
+                            pricing: e.pricing,
+                            condition: { value: e.condition, source: "bulk_review" },
+                            context: { flow: "bulk_scan_review" },
+                          }}
+                        />
                       )}
 
                       {/* Condition */}
