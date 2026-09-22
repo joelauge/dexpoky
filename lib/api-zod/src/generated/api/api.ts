@@ -1708,6 +1708,59 @@ export const SendMessageBody = zod.object({
 });
 
 /**
+ * @summary Review the current trade offer with exact facts and neutral DexPoky judgments
+ */
+export const GetTradeCoachParams = zod.object({
+  threadId: zod.coerce.number(),
+});
+
+export const GetTradeCoachResponse = zod.object({
+  facts: zod.object({
+    proposalFrom: zod.enum(["buyer", "seller"]),
+    sellerSideValue: zod.number().nullable(),
+    buyerSideValue: zod.number().nullable(),
+    proposalCardValue: zod.number().nullable(),
+    proposalCash: zod.number(),
+    difference: zod.number().nullable(),
+    missingValues: zod.array(zod.string()),
+  }),
+  judgments: zod.object({
+    marketBalance: zod.object({
+      score: zod.number().nullable(),
+      confidence: zod.number().nullable(),
+      probabilities: zod.record(zod.string(), zod.number()),
+      label: zod.string(),
+      message: zod.string(),
+    }),
+    personalValue: zod.object({
+      score: zod.number().nullable(),
+      confidence: zod.number().nullable(),
+      probabilities: zod.record(zod.string(), zod.number()),
+      label: zod.string(),
+      message: zod.string(),
+    }),
+    conditionRisk: zod.object({
+      score: zod.number().nullable(),
+      confidence: zod.number().nullable(),
+      probabilities: zod.record(zod.string(), zod.number()),
+      label: zod.string(),
+      message: zod.string(),
+    }),
+    confidence: zod.object({
+      score: zod.number().nullable(),
+      confidence: zod.number().nullable(),
+      probabilities: zod.record(zod.string(), zod.number()),
+      label: zod.string(),
+      message: zod.string(),
+    }),
+  }),
+  evidenceHash: zod.string(),
+  evaluatedAt: zod.coerce.date(),
+  unavailable: zod.boolean(),
+  disclaimer: zod.string(),
+});
+
+/**
  * @summary Mark all messages in a thread as read for the current user
  */
 export const MarkThreadReadParams = zod.object({

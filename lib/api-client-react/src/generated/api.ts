@@ -75,6 +75,7 @@ import type {
   SuggestDeckBody,
   SuggestDeckResponse,
   TempoOnrampSession,
+  TradeCoachResult,
   UpdateCardBody,
   UpdateCategoryBody,
   UpdateDeckBody,
@@ -5253,6 +5254,93 @@ export const useSendMessage = <
 > => {
   return useMutation(getSendMessageMutationOptions(options));
 };
+
+/**
+ * @summary Review the current trade offer with exact facts and neutral DexPoky judgments
+ */
+export const getGetTradeCoachUrl = (threadId: number) => {
+  return `/api/threads/${threadId}/offer/coach`;
+};
+
+export const getTradeCoach = async (
+  threadId: number,
+  options?: RequestInit,
+): Promise<TradeCoachResult> => {
+  return customFetch<TradeCoachResult>(getGetTradeCoachUrl(threadId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTradeCoachQueryKey = (threadId: number) => {
+  return [`/api/threads/${threadId}/offer/coach`] as const;
+};
+
+export const getGetTradeCoachQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTradeCoach>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  threadId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTradeCoach>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTradeCoachQueryKey(threadId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTradeCoach>>> = ({
+    signal,
+  }) => getTradeCoach(threadId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!threadId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTradeCoach>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTradeCoachQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTradeCoach>>
+>;
+export type GetTradeCoachQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Review the current trade offer with exact facts and neutral DexPoky judgments
+ */
+
+export function useGetTradeCoach<
+  TData = Awaited<ReturnType<typeof getTradeCoach>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  threadId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTradeCoach>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTradeCoachQueryOptions(threadId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Mark all messages in a thread as read for the current user

@@ -879,6 +879,50 @@ export interface DmThreadSummary {
   updatedAt: string;
 }
 
+export type TradeCoachDimensionProbabilities = { [key: string]: number };
+
+export interface TradeCoachDimension {
+  score: number | null;
+  confidence: number | null;
+  probabilities: TradeCoachDimensionProbabilities;
+  label: string;
+  message: string;
+}
+
+export type TradeCoachFactsProposalFrom =
+  (typeof TradeCoachFactsProposalFrom)[keyof typeof TradeCoachFactsProposalFrom];
+
+export const TradeCoachFactsProposalFrom = {
+  buyer: "buyer",
+  seller: "seller",
+} as const;
+
+export interface TradeCoachFacts {
+  proposalFrom: TradeCoachFactsProposalFrom;
+  sellerSideValue: number | null;
+  buyerSideValue: number | null;
+  proposalCardValue: number | null;
+  proposalCash: number;
+  difference: number | null;
+  missingValues: string[];
+}
+
+export type TradeCoachResultJudgments = {
+  marketBalance: TradeCoachDimension;
+  personalValue: TradeCoachDimension;
+  conditionRisk: TradeCoachDimension;
+  confidence: TradeCoachDimension;
+};
+
+export interface TradeCoachResult {
+  facts: TradeCoachFacts;
+  judgments: TradeCoachResultJudgments;
+  evidenceHash: string;
+  evaluatedAt: string;
+  unavailable: boolean;
+  disclaimer: string;
+}
+
 export type WantedListingStatus =
   (typeof WantedListingStatus)[keyof typeof WantedListingStatus];
 

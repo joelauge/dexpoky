@@ -1,7 +1,18 @@
 import { Router } from "express";
 import { createHmac, randomInt } from "crypto";
-import { db, dmThreadsTable, tradeOffersTable, cardsTable, usersTable, tradePaymentsTable } from "@workspace/db";
-import { eq, inArray, sql } from "drizzle-orm";
+import {
+  db,
+  dmThreadsTable,
+  tradeOffersTable,
+  cardsTable,
+  usersTable,
+  tradePaymentsTable,
+  listingsTable,
+  wantedListingsTable,
+  wishlistItemsTable,
+  ratingsTable,
+} from "@workspace/db";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { getUncachableStripeClient } from "../stripeClient.js";
 import { stripeService } from "../stripeService.js";
@@ -10,6 +21,15 @@ import type { Request, Response } from "express";
 import type { OfferHistoryEntry, OfferedCard } from "@workspace/db";
 import { notifyPaymentConfirmed } from "../lib/notifyNewMessage.js";
 import { pushPaymentReceived } from "../lib/paymentEvents.js";
+import {
+  evaluateTrade,
+  TRADE_COACH_EVALUATOR_VERSION,
+  TRADE_COACH_SUCCESS_TTL_MS,
+  tradeCoachEvidenceHash,
+  type TradeCoachEvidence,
+  type TradeCoachEvaluation,
+  type TradeCoachResult,
+} from "../lib/jev-trade-coach.js";
 
 const router = Router();
 
@@ -64,7 +84,14 @@ function serializeOffer(offer: typeof tradeOffersTable.$inferSelect, role: "buye
     !!offer.storeMeetupPinExpiresAt &&
     offer.storeMeetupPinExpiresAt > now;
 
-  const { storeMeetupPinHash: _hash, ...rest } = offer;
+  const {
+    storeMeetupPinHash: _hash,
+    coachEvidenceHash: _coachHash,
+    coachResult: _coachResult,
+    coachModelVersion: _coachModel,
+    coachEvaluatedAt: _coachAt,
+    ...rest
+  } = offer;
   return {
     ...rest,
     askingPrice: offer.askingPrice != null ? parseFloat(String(offer.askingPrice)) : null,
@@ -93,6 +120,174 @@ router.get("/threads/:threadId/offer", requireAuth, async (req, res) => {
 
   const role = thread.buyerClerkId === userId ? "buyer" : "seller";
   res.json(serializeOffer(offer, role));
+});
+
+async function ratingSummary(clerkId: string) {
+  const rows = await db
+    .select({ score: ratingsTable.score })
+    .from(ratingsTable)
+    .where(eq(ratingsTable.ratedClerkId, clerkId));
+  return {
+    ratingCount: rows.length,
+    average: rows.length
+      ? Math.round((rows.reduce((sum, row) => sum + row.score, 0) / rows.length) * 10) / 10
+      : null,
+  };
+}
+
+async function buildTradeCoachEvidence(
+  thread: typeof dmThreadsTable.$inferSelect,
+  offer: typeof tradeOffersTable.$inferSelect,
+): Promise<TradeCoachEvidence> {
+  const history = (offer.offerHistory as OfferHistoryEntry[] | null) ?? [];
+  const latest = history.at(-1) ?? {
+    amount: offer.offerAmount != null
+      ? parseFloat(String(offer.offerAmount))
+      : offer.askingPrice != null ? parseFloat(String(offer.askingPrice)) : 0,
+    cards: [],
+    from: "seller" as const,
+    sentAt: offer.createdAt.toISOString(),
+  };
+  const proposalCardIds = latest.cards?.map((card) => card.cardId) ?? [];
+  const proposalRows = proposalCardIds.length
+    ? await db
+        .select({
+          id: cardsTable.id,
+          name: cardsTable.name,
+          catalogCardId: cardsTable.catalogCardId,
+          condition: cardsTable.condition,
+          estimatedValue: cardsTable.estimatedValue,
+        })
+        .from(cardsTable)
+        .where(inArray(cardsTable.id, proposalCardIds))
+    : [];
+  const proposalMap = new Map(proposalRows.map((card) => [card.id, card]));
+
+  const [listedRow] = thread.listingId
+    ? await db
+        .select({
+          name: cardsTable.name,
+          catalogCardId: cardsTable.catalogCardId,
+          condition: cardsTable.condition,
+          estimatedValue: cardsTable.estimatedValue,
+        })
+        .from(listingsTable)
+        .innerJoin(cardsTable, eq(cardsTable.id, listingsTable.cardId))
+        .where(eq(listingsTable.id, thread.listingId))
+    : [];
+  const [wanted] = thread.wantedListingId
+    ? await db
+        .select({ catalogCardId: wantedListingsTable.catalogCardId })
+        .from(wantedListingsTable)
+        .where(eq(wantedListingsTable.id, thread.wantedListingId))
+    : [];
+
+  const proposalCatalogIds = proposalRows
+    .map((card) => card.catalogCardId)
+    .filter((id): id is string => !!id);
+  const wishlistOwner = latest.from === "buyer"
+    ? thread.sellerClerkId
+    : thread.buyerClerkId;
+  const recipientWishlist = proposalCatalogIds.length
+    ? await db
+        .select({
+          catalogCardId: wishlistItemsTable.catalogCardId,
+          priority: wishlistItemsTable.priority,
+        })
+        .from(wishlistItemsTable)
+        .where(and(
+          eq(wishlistItemsTable.ownerClerkId, wishlistOwner),
+          inArray(wishlistItemsTable.catalogCardId, proposalCatalogIds),
+        ))
+    : [];
+  const wishlistPriority = new Map(recipientWishlist.map((item) => [
+    item.catalogCardId,
+    item.priority as "low" | "normal" | "high",
+  ]));
+
+  const [buyerHistory, sellerHistory] = await Promise.all([
+    ratingSummary(thread.buyerClerkId),
+    ratingSummary(thread.sellerClerkId),
+  ]);
+
+  return {
+    offerId: offer.id,
+    status: offer.status,
+    listedCard: listedRow ? {
+      name: listedRow.name,
+      catalogCardId: listedRow.catalogCardId,
+      condition: listedRow.condition,
+      exactValue: listedRow.estimatedValue != null ? parseFloat(String(listedRow.estimatedValue)) : null,
+    } : null,
+    proposal: {
+      from: latest.from,
+      cash: latest.amount,
+      cards: (latest.cards ?? []).map((snapshot) => {
+        const live = proposalMap.get(snapshot.cardId);
+        return {
+          name: snapshot.cardName,
+          catalogCardId: live?.catalogCardId ?? null,
+          condition: snapshot.condition ?? live?.condition ?? null,
+          exactValue: snapshot.estimatedValue ?? (
+            live?.estimatedValue != null ? parseFloat(String(live.estimatedValue)) : null
+          ),
+        };
+      }),
+    },
+    personalSignals: {
+      listedCardMatchesBuyerWant: !!listedRow?.catalogCardId &&
+        listedRow.catalogCardId === wanted?.catalogCardId,
+      proposalMatchesRecipientWishlist: proposalRows.flatMap((card) => {
+        const priority = card.catalogCardId ? wishlistPriority.get(card.catalogCardId) : null;
+        return priority ? [priority] : [];
+      }),
+    },
+    traderHistory: { buyer: buyerHistory, seller: sellerHistory },
+  };
+}
+
+router.get("/threads/:threadId/offer/coach", requireAuth, async (req, res) => {
+  const threadId = parseInt(String(req.params.threadId), 10);
+  if (isNaN(threadId)) { res.status(400).json({ error: "Invalid threadId" }); return; }
+  const userId = (req as AuthRequest).userId;
+  const thread = await getThread(threadId, userId);
+  if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
+  const [offer] = await db
+    .select()
+    .from(tradeOffersTable)
+    .where(eq(tradeOffersTable.threadId, threadId));
+  if (!offer) { res.status(404).json({ error: "No offer found for this thread" }); return; }
+
+  const evidence = await buildTradeCoachEvidence(thread, offer);
+  const evidenceHash = tradeCoachEvidenceHash(evidence);
+  if (offer.coachEvidenceHash === evidenceHash && offer.coachResult && offer.coachEvaluatedAt) {
+    const cached = offer.coachResult as unknown as TradeCoachResult;
+    const cacheAge = Date.now() - offer.coachEvaluatedAt.getTime();
+    if (
+      !cached.unavailable &&
+      offer.coachModelVersion?.startsWith(`${TRADE_COACH_EVALUATOR_VERSION}:`) &&
+      cacheAge >= 0 &&
+      cacheAge < TRADE_COACH_SUCCESS_TTL_MS
+    ) {
+      res.json(cached);
+      return;
+    }
+  }
+
+  const evaluation: TradeCoachEvaluation = await evaluateTrade(evidence);
+  const { audit, ...result } = evaluation;
+  if (!evaluation.unavailable) {
+    await db
+      .update(tradeOffersTable)
+      .set({
+        coachEvidenceHash: result.evidenceHash,
+        coachResult: result as unknown as Record<string, unknown>,
+        coachModelVersion: `${audit.evaluatorVersion}:${audit.modelVersion}`,
+        coachEvaluatedAt: new Date(result.evaluatedAt),
+      })
+      .where(eq(tradeOffersTable.id, offer.id));
+  }
+  res.json(result);
 });
 
 router.patch("/threads/:threadId/offer", requireAuth, async (req, res) => {

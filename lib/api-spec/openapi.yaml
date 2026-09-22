@@ -1288,6 +1288,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
 
+  /threads/{threadId}/offer/coach:
+    get:
+      operationId: getTradeCoach
+      tags: [messages]
+      summary: Review the current trade offer with exact facts and neutral DexPoky judgments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deterministic trade facts and four independent coach judgments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TradeCoachResult'
+        "404":
+          description: Thread or offer not found, or the user is not a participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
   /threads/{threadId}/read:
     post:
       operationId: markThreadRead
@@ -2735,6 +2762,79 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    TradeCoachDimension:
+      type: object
+      required: [score, confidence, probabilities, label, message]
+      properties:
+        score:
+          type: number
+          nullable: true
+        confidence:
+          type: number
+          nullable: true
+        probabilities:
+          type: object
+          additionalProperties:
+            type: number
+        label:
+          type: string
+        message:
+          type: string
+
+    TradeCoachFacts:
+      type: object
+      required: [proposalFrom, sellerSideValue, buyerSideValue, proposalCardValue, proposalCash, difference, missingValues]
+      properties:
+        proposalFrom:
+          type: string
+          enum: [buyer, seller]
+        sellerSideValue:
+          type: number
+          nullable: true
+        buyerSideValue:
+          type: number
+          nullable: true
+        proposalCardValue:
+          type: number
+          nullable: true
+        proposalCash:
+          type: number
+        difference:
+          type: number
+          nullable: true
+        missingValues:
+          type: array
+          items:
+            type: string
+
+    TradeCoachResult:
+      type: object
+      required: [facts, judgments, evidenceHash, evaluatedAt, unavailable, disclaimer]
+      properties:
+        facts:
+          $ref: '#/components/schemas/TradeCoachFacts'
+        judgments:
+          type: object
+          required: [marketBalance, personalValue, conditionRisk, confidence]
+          properties:
+            marketBalance:
+              $ref: '#/components/schemas/TradeCoachDimension'
+            personalValue:
+              $ref: '#/components/schemas/TradeCoachDimension'
+            conditionRisk:
+              $ref: '#/components/schemas/TradeCoachDimension'
+            confidence:
+              $ref: '#/components/schemas/TradeCoachDimension'
+        evidenceHash:
+          type: string
+        evaluatedAt:
+          type: string
+          format: date-time
+        unavailable:
+          type: boolean
+        disclaimer:
+          type: string
 
     WantedListing:
       type: object

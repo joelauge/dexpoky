@@ -20,6 +20,7 @@ import {
   Video, DollarSign, CheckCircle2, XCircle, RefreshCw,
   Store, Shield, Gem, Calendar, MapPin, X, Lock, CreditCard, Banknote,
   Package, Navigation, Loader2, Search, Wallet, Clock, Receipt, ArrowRight, Star,
+  Scale, Sparkles, AlertTriangle,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { toast } from "sonner";
@@ -75,6 +76,34 @@ interface TradeOffer {
   role: "buyer" | "seller";
 }
 
+interface TradeCoachDimension {
+  score: number | null;
+  confidence: number | null;
+  label: string;
+  message: string;
+}
+
+interface TradeCoachResult {
+  facts: {
+    proposalFrom: "buyer" | "seller";
+    sellerSideValue: number | null;
+    buyerSideValue: number | null;
+    proposalCardValue: number | null;
+    proposalCash: number;
+    difference: number | null;
+    missingValues: string[];
+  };
+  judgments: {
+    marketBalance: TradeCoachDimension;
+    personalValue: TradeCoachDimension;
+    conditionRisk: TradeCoachDimension;
+    confidence: TradeCoachDimension;
+  };
+  evaluatedAt: string;
+  unavailable: boolean;
+  disclaimer: string;
+}
+
 type ActiveAction = null | "offer" | "video" | "meetup" | "payment";
 
 type ThreadItem =
@@ -84,6 +113,79 @@ type ThreadItem =
   | { kind: "meetup";           location: string; proposedAt: Date; notes: string | null;                     ts: number }
   | { kind: "status";           status: OfferStatus; finalAmount: number | null;                               ts: number }
   | { kind: "payment_proposal"; method: EscrowMethod; confirmedBySeller: boolean;                              ts: number };
+
+function TradeCoachPanel({ result, loading }: { result?: TradeCoachResult; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="border-b bg-violet-50/50 px-4 py-3">
+        <Skeleton className="h-20 w-full rounded-xl" />
+      </div>
+    );
+  }
+  if (!result) return null;
+  const dimensions = [
+    ["Market balance", result.judgments.marketBalance],
+    ["Personal value", result.judgments.personalValue],
+    ["Condition risk", result.judgments.conditionRisk],
+    ["Coach confidence", result.judgments.confidence],
+  ] as const;
+  const money = (value: number | null) => value == null ? "Missing" : `$${value.toFixed(2)}`;
+  return (
+    <div className="border-b bg-violet-50/50 px-4 py-3 space-y-3">
+      <div className="flex items-start gap-2">
+        <Sparkles className="h-4 w-4 mt-0.5 text-violet-600 shrink-0" />
+        <div>
+          <p className="text-xs font-bold text-violet-800">DexPoky Trade Coach</p>
+          <p className="text-[11px] text-violet-700/80">{result.disclaimer}</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border bg-white/80 p-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Scale className="h-3.5 w-3.5 text-slate-600" />
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Exact facts</p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-[10px] text-muted-foreground">Seller gives</p><p className="text-sm font-bold">{money(result.facts.sellerSideValue)}</p></div>
+          <div><p className="text-[10px] text-muted-foreground">Buyer gives</p><p className="text-sm font-bold">{money(result.facts.buyerSideValue)}</p></div>
+          <div><p className="text-[10px] text-muted-foreground">Difference</p><p className="text-sm font-bold">{money(result.facts.difference)}</p></div>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-2 text-center">
+          {result.facts.proposalFrom === "buyer"
+            ? `Buyer offers $${result.facts.proposalCash.toFixed(2)} cash${result.facts.proposalCardValue != null ? ` + $${result.facts.proposalCardValue.toFixed(2)} in cards` : " + cards with missing values"}`
+            : `Buyer gives $${result.facts.proposalCash.toFixed(2)} cash; seller adds ${result.facts.proposalCardValue != null ? `$${result.facts.proposalCardValue.toFixed(2)} in cards` : "cards with missing values"}`}
+        </p>
+      </div>
+
+      {result.facts.missingValues.length > 0 && (
+        <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 text-amber-600 shrink-0" />
+          <p className="text-[11px] text-amber-800">
+            {result.facts.missingValues.join(" ")} Confirm this before accepting.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {dimensions.map(([title, dimension]) => (
+          <div key={title} className="rounded-lg border bg-white/80 p-2.5">
+            <div className="flex justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{title}</p>
+              {dimension.confidence != null && (
+                <span className="text-[10px] text-muted-foreground">{Math.round(dimension.confidence * 100)}% sure</span>
+              )}
+            </div>
+            <p className="text-xs font-semibold mt-0.5">{dimension.label}</p>
+            <p className="text-[11px] leading-snug text-muted-foreground mt-0.5">{dimension.message}</p>
+          </div>
+        ))}
+      </div>
+      {result.unavailable && (
+        <p className="text-[10px] text-muted-foreground">The coach is temporarily unavailable. Exact facts are still shown.</p>
+      )}
+    </div>
+  );
+}
 
 // ── Escrow options ─────────────────────────────────────────────────────────
 
@@ -261,6 +363,19 @@ function TradeThread({
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [ratingSubScores, setRatingSubScores] = useState({ condition: 0, communication: 0, shipping: 0, value: 0 });
+
+  const { data: tradeCoach, isLoading: tradeCoachLoading } = useQuery<TradeCoachResult>({
+    queryKey: ["/api/threads", thread.id, "offer", "coach", offer?.updatedAt],
+    queryFn: async () => {
+      const res = await authFetch(`/api/threads/${thread.id}/offer/coach`);
+      if (!res.ok) throw new Error("Trade coach unavailable");
+      return res.json();
+    },
+    enabled: !!offer && offer.status !== "declined" && offer.status !== "cancelled",
+    staleTime: 30 * 1000,
+    refetchOnMount: "always",
+    refetchInterval: offer?.status === "pending" || offer?.status === "countered" ? 60 * 1000 : false,
+  });
 
   const { data: offerRating, isLoading: offerRatingLoading } = useQuery<{ replyText: string | null; repliedAt: string | null } | null>({
     queryKey: ["/api/ratings/offer", offer?.id],
@@ -1190,6 +1305,10 @@ out center 25;`;
             )}
           </div>
         )}
+
+      {offer && offer.status !== "declined" && offer.status !== "cancelled" && (
+        <TradeCoachPanel result={tradeCoach} loading={tradeCoachLoading} />
+      )}
 
       {/* ── Event stream ───────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-3">

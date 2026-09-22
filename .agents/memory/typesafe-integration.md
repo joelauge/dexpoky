@@ -8,3 +8,5 @@ Use TypeSafe Jev through its documented server-side HTTP API. Keep exact catalog
 **Why:** The HTTP API was verified against the configured service, while SDK installation was not reliable. Catalog and pricing facts are exact constraints rather than probabilistic judgments. Users should not see provider details or spend space on weak suggestions, and young users need clear actions they can take immediately.
 
 **How to apply:** For future Jev features, keep the API key server-side, validate responses, provide an explicit unavailable fallback, and place code-owned hard gates around model scores. Use simple DexPoky language and do not show a required action without an adjacent working control.
+
+For trade reviews, calculate each party's cash and card totals in code and keep them visibly separate from semantic judgments. Cache only successful judgments for a bounded time, version the evaluator, and never let Jev accept, reject, reprice, transfer ownership, or claim a trade is guaranteed fair.
