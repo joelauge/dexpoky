@@ -43,6 +43,7 @@ DexPoky is a Pokemon collectible card collection, inventory tracking, and tradin
 ## Architecture decisions
 
 - Clerk whitelabel auth is used with separate client/server configurations, requiring specific Vite and CSS layer setups for theme compatibility.
+- Card scoring and confidence judgments use TypeSafe AI's Jev model. Read `.agents/skills/typesafe-ai/SKILL.md` and the current TypeSafe docs before designing or changing these workflows.
 - In-app payments integrate with Stripe for top-ups and trade settlements, including a 3% platform fee.
 - "Meet at Card Shop" payment method uses a time-sensitive, hashed PIN for secure in-person transaction confirmation.
 - AI deck builder (powered by OpenAI's `gpt-5.4`) post-filters suggestions based on user-owned cards and includes Pokémon TCG official deck-building rules in its prompt.
