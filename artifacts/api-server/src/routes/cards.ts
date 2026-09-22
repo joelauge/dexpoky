@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { cardsTable, categoriesTable, collectionsTable, activityEventsTable } from "@workspace/db";
-import { searchTcgdex, fetchPricingById, rankTcgResults } from "./detect-helpers.js";
+import {
+  searchTcgdex,
+  fetchPricingById,
+  rankTcgResults,
+  type PricingData,
+  type TcgResult,
+} from "./detect-helpers.js";
 import {
   pwSearch,
   pwGetCard,
@@ -13,6 +19,7 @@ import { eq, sql, ilike, and, inArray, type SQL } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { evaluateCardConfidence, type CardConfidenceInput } from "../lib/card-confidence.js";
+import { BoundedAsyncCache, normalizeLookupKey, recordLookup } from "../lib/lookup-performance.js";
 import {
   ListCardsQueryParams,
   CreateCardBody,
@@ -25,6 +32,37 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
+const scanLookupCache = new BoundedAsyncCache<{
+  card: TcgResult | null;
+  variants: TcgResult[];
+  pricing: PricingData;
+  freshness: { identityTtlSeconds: number; pricingPolicy: string };
+}>(150, 15 * 60 * 1000);
+
+export function buildOwnedCardConditions(
+  userId: string,
+  filters: { categoryId?: number; forSale?: boolean; search?: string; rarity?: string },
+): SQL[] {
+  const conditions: SQL[] = [eq(cardsTable.ownerClerkId, userId)];
+  if (filters.categoryId !== undefined) conditions.push(eq(cardsTable.categoryId, filters.categoryId));
+  if (filters.forSale !== undefined) conditions.push(eq(cardsTable.forSale, filters.forSale));
+  if (filters.search) {
+    const normalized = filters.search.trim();
+    const tsQuery = sql`websearch_to_tsquery('simple', ${normalized})`;
+    conditions.push(sql`(
+      to_tsvector('simple', coalesce(${cardsTable.name}, '') || ' ' || coalesce(${cardsTable.pokemonName}, '') || ' ' ||
+        coalesce(${cardsTable.setName}, '') || ' ' || coalesce(${cardsTable.setId}, '') || ' ' || coalesce(${cardsTable.cardNumber}, ''))
+      @@ ${tsQuery}
+      OR ${cardsTable.name} ILIKE ${`${normalized}%`}
+      OR ${cardsTable.pokemonName} ILIKE ${`${normalized}%`}
+      OR ${cardsTable.setName} ILIKE ${`${normalized}%`}
+      OR ${cardsTable.setId} ILIKE ${`${normalized}%`}
+      OR ${cardsTable.cardNumber} ILIKE ${`${normalized}%`}
+    )`);
+  }
+  if (filters.rarity) conditions.push(eq(cardsTable.rarity, filters.rarity));
+  return conditions;
+}
 
 /** Ephemeral scan evidence scoring. The API key never leaves the server. */
 router.post("/cards/confidence", requireAuth, async (req, res): Promise<void> => {
@@ -159,6 +197,7 @@ router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> =>
 });
 
 router.get("/cards", requireAuth, async (req, res) => {
+  const startedAt = performance.now();
   const userId = (req as AuthRequest).userId;
   const parsed = ListCardsQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -166,11 +205,7 @@ router.get("/cards", requireAuth, async (req, res) => {
     return;
   }
   const { categoryId, forSale, search, rarity } = parsed.data;
-  const conditions: SQL[] = [eq(cardsTable.ownerClerkId, userId)];
-  if (categoryId !== undefined) conditions.push(eq(cardsTable.categoryId, categoryId));
-  if (forSale !== undefined) conditions.push(eq(cardsTable.forSale, forSale));
-  if (search) conditions.push(ilike(cardsTable.name, `%${search}%`));
-  if (rarity) conditions.push(eq(cardsTable.rarity, rarity));
+  const conditions = buildOwnedCardConditions(userId, { categoryId, forSale, search, rarity });
 
   const cards = await db
     .select(cardSelect)
@@ -178,8 +213,18 @@ router.get("/cards", requireAuth, async (req, res) => {
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
     .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
     .where(and(...conditions))
-    .orderBy(cardsTable.createdAt);
+    .orderBy(
+      search
+        ? sql`CASE
+            WHEN lower(coalesce(${cardsTable.setId}, '')) = lower(${search}) OR lower(coalesce(${cardsTable.cardNumber}, '')) = lower(${search}) THEN 0
+            WHEN lower(${cardsTable.name}) = lower(${search}) OR lower(${cardsTable.pokemonName}) = lower(${search}) THEN 1
+            ELSE 2
+          END`
+        : cardsTable.createdAt,
+      cardsTable.createdAt,
+    );
 
+  recordLookup("owned", performance.now() - startedAt);
   res.json(cards);
 });
 
@@ -261,6 +306,7 @@ router.post("/cards", requireAuth, async (req, res) => {
  * PokeWallet is rate limited or unavailable so the scan flow never breaks.
  */
 router.get("/cards/lookup", async (req, res) => {
+  const startedAt = performance.now();
   const name = String(req.query.name ?? "").trim();
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
 
@@ -269,6 +315,15 @@ router.get("/cards/lookup", async (req, res) => {
   const cardNumber = String(req.query.cardNumber ?? "").trim() || undefined;
   const setCode = String(req.query.setCode ?? "").trim() || undefined;
 
+  const cacheKey = normalizeLookupKey(name, cardNumber, setCode);
+  const cached = scanLookupCache.get(cacheKey);
+  if (cached) {
+    recordLookup("scan", performance.now() - startedAt, { cache: "hit" });
+    res.json(cached);
+    return;
+  }
+  const externalStartedAt = performance.now();
+  const loaded = await scanLookupCache.getOrLoad(cacheKey, async () => {
   const pw = await pwSearch(name, 100);
   // TCGdex is the authoritative source for OCR set/number identity. PokeWallet
   // name search can otherwise return a similarly named printing while omitting
@@ -284,16 +339,16 @@ router.get("/cards/lookup", async (req, res) => {
       const variants = rankTcgResults([...tcg.variants, ...catalogVariants], name, cardNumber, setCode);
       const top = variants[0];
        const catalogTop = top ? pw.data.results.find((r) => r.id === top.id) : undefined;
-      res.json({
+       return {
         card: top ?? null,
         variants,
          pricing: catalogTop ? buildPricingFromCatalog(catalogTop) : tcg.pricing,
-      });
-      return;
+         freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." },
+       };
     }
     if (tcg.variants.length > 0) {
-      res.json({ card: tcg.variants[0], variants: tcg.variants, pricing: tcg.pricing });
-      return;
+      return { card: tcg.variants[0], variants: tcg.variants, pricing: tcg.pricing,
+        freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." } };
     }
   }
   if (pw.ok && pw.data.results.length > 0) {
@@ -319,13 +374,20 @@ router.get("/cards/lookup", async (req, res) => {
      const pricing = topRaw ? buildPricingFromCatalog(topRaw) : {
        marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null,
      };
-    res.json({ card: variants[0] ?? null, variants, pricing });
-    return;
+    return { card: variants[0] ?? null, variants, pricing,
+      freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." } };
   }
 
   // Fallback to TCGdex — pass cardNumber so it can sort the results too
   const { variants, pricing } = await searchTcgdex(name, cardNumber, setCode);
-  res.json({ card: variants[0] ?? null, variants, pricing });
+  return { card: variants[0] ?? null, variants, pricing,
+    freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." } };
+  });
+  recordLookup("scan", performance.now() - startedAt, {
+    cache: loaded.status,
+    externalMs: loaded.status === "miss" ? performance.now() - externalStartedAt : undefined,
+  });
+  res.json(loaded.value);
 });
 
 /**

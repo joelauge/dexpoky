@@ -1373,6 +1373,12 @@ export const SearchCatalogResponse = zod.object({
   source: zod.enum(["pokewallet", "tcgdex", "empty"]),
   rateLimited: zod.boolean(),
   remainingHour: zod.number().nullish(),
+  enrichmentPending: zod.boolean(),
+  freshness: zod.object({
+    identityTtlSeconds: zod.number(),
+    imagesTtlSeconds: zod.number(),
+    pricingPolicy: zod.string(),
+  }),
 });
 
 /**

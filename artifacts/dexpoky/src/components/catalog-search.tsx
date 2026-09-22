@@ -44,6 +44,7 @@ export function CatalogSearch({
         enabled,
         staleTime: 60_000,
         queryKey: ["/api/catalog/search", debounced, limit] as const,
+        refetchInterval: (query) => query.state.data?.enrichmentPending ? 750 : false,
       },
     },
   );

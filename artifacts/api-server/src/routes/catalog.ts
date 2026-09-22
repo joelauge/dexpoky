@@ -7,8 +7,32 @@ import {
   enrichCatalogCardImages,
 } from "../lib/pokewallet.js";
 import { searchTcgdex } from "./detect-helpers.js";
+import { BoundedAsyncCache, normalizeLookupKey, recordLookup } from "../lib/lookup-performance.js";
+import { rerankCatalogCandidates } from "../lib/catalog-reranker.js";
+import type { NormalizedCatalogCard } from "../lib/pokewallet.js";
 
 const router = Router();
+type CatalogPayload = {
+  results: NormalizedCatalogCard[];
+  source: "pokewallet" | "tcgdex" | "empty";
+  rateLimited: boolean;
+  remainingHour: number | null;
+  enrichmentPending: boolean;
+  freshness: { identityTtlSeconds: number; imagesTtlSeconds: number; pricingPolicy: string };
+};
+const catalogCache = new BoundedAsyncCache<CatalogPayload>(200, 10 * 60 * 1000);
+
+export function deterministicCatalogRank(cards: NormalizedCatalogCard[], query: string): NormalizedCatalogCard[] {
+  const q = query.toLowerCase().trim();
+  const compact = q.replace(/[^a-z0-9]/g, "");
+  return cards.map((card, index) => {
+    const setNumber = `${card.setCode}${card.cardNumber}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const exactIdentity = compact.length > 2 && compact === setNumber;
+    const exactName = card.name.toLowerCase() === q || card.pokemonName.toLowerCase() === q;
+    const prefix = card.name.toLowerCase().startsWith(q) || card.pokemonName.toLowerCase().startsWith(q);
+    return { card, index, score: exactIdentity ? 0 : exactName ? 1 : prefix ? 2 : 3 };
+  }).sort((a, b) => a.score - b.score || a.index - b.index).map(({ card }) => card);
+}
 
 /**
  * GET /catalog/search?q=charizard&limit=20
@@ -17,30 +41,49 @@ const router = Router();
  * limited / unavailable so search never returns a hard error to the UI.
  */
 router.get("/catalog/search", async (req, res) => {
+  const startedAt = performance.now();
   const q = String(req.query.q ?? "").trim();
   const limit = Math.max(1, Math.min(50, Number(req.query.limit ?? 20) || 20));
   if (!q) {
-    res.json({ results: [], source: "empty", rateLimited: false, remainingHour: null });
+    res.json({ results: [], source: "empty", rateLimited: false, remainingHour: null, enrichmentPending: false,
+      freshness: { identityTtlSeconds: 600, imagesTtlSeconds: 86400, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." } });
     return;
   }
 
-  const pw = await pwSearch(q, limit);
-  if (pw.ok) {
-    const normalized = pw.data.results.map(normalizeCatalogCard);
-    const enriched = await enrichCatalogCardImages(normalized);
-    res.json({
-      results: enriched,
+  const key = normalizeLookupKey(q, limit);
+  const alreadyCached = catalogCache.get(key);
+  if (alreadyCached) {
+    recordLookup("catalog", performance.now() - startedAt, { cache: "hit", jev: "skipped" });
+    res.json(alreadyCached);
+    return;
+  }
+  const externalStartedAt = performance.now();
+  let jevStatus: "invoked" | "fallback" | "skipped" = "skipped";
+  const loaded = await catalogCache.getOrLoad(key, async () => {
+    const pw = await pwSearch(q, limit);
+    if (pw.ok) {
+      const deterministic = deterministicCatalogRank(pw.data.results.map(normalizeCatalogCard), q);
+      const reranked = await rerankCatalogCandidates(q, deterministic);
+      jevStatus = reranked.status;
+      const payload: CatalogPayload = {
+      results: reranked.results,
       source: "pokewallet",
       rateLimited: false,
       remainingHour: pw.remainingHour,
-    });
-    return;
-  }
+      enrichmentPending: reranked.results.some((card) => !card.imageUrl),
+      freshness: { identityTtlSeconds: 600, imagesTtlSeconds: 86400, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." },
+      };
+      if (payload.enrichmentPending) {
+        void enrichCatalogCardImages(payload.results).then((results) => {
+          catalogCache.set(key, { ...payload, results, enrichmentPending: false });
+        });
+      }
+      return payload;
+    }
 
-  // Fallback to TCGdex when PokeWallet is unavailable
-  const fallback = await searchTcgdex(q);
-  res.json({
-    results: fallback.variants.map((v) => ({
+    const fallback = await searchTcgdex(q);
+    return {
+    results: deterministicCatalogRank(fallback.variants.map((v) => ({
       id: v.id,
       name: v.name,
       pokemonName: v.name,
@@ -52,11 +95,20 @@ router.get("/catalog/search", async (req, res) => {
       marketPrice: null,
       tcgplayerUrl: null,
       cardmarketUrl: null,
-    })),
+    })), q).slice(0, limit),
     source: "tcgdex",
     rateLimited: pw.reason === "RATE_LIMITED",
     remainingHour: null,
+    enrichmentPending: false,
+    freshness: { identityTtlSeconds: 600, imagesTtlSeconds: 86400, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." },
+    };
   });
+  recordLookup("catalog", performance.now() - startedAt, {
+    cache: loaded.status,
+    externalMs: loaded.status === "miss" ? performance.now() - externalStartedAt : undefined,
+    jev: jevStatus,
+  });
+  res.json(loaded.value);
 });
 
 /**

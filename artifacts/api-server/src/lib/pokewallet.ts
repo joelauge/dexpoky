@@ -119,6 +119,8 @@ interface CacheEntry<T> {
 const searchCache = new Map<string, CacheEntry<PokeWalletSearchResponse>>();
 const cardCache = new Map<string, CacheEntry<PokeWalletCard>>();
 const setsCache = new Map<string, CacheEntry<PokeWalletSetsResponse>>();
+const inflight = new Map<string, Promise<PokeWalletResult<unknown>>>();
+const MAX_CACHE_ENTRIES = 300;
 
 let rateLimitedUntil = 0;
 let warnedMissingKey = false;
@@ -165,6 +167,21 @@ async function fetchPokeWallet<T>(opts: FetchOpts): Promise<PokeWalletResult<T>>
   if (isRateLimited()) {
     return { ok: false, reason: "RATE_LIMITED", message: "Cached rate-limit cooldown" };
   }
+
+  const requestKey = opts.cacheKey ? `${opts.path}::${opts.cacheKey}` : opts.path;
+  const existing = inflight.get(requestKey);
+  if (existing) return await existing as PokeWalletResult<T>;
+
+  const request = fetchPokeWalletUncached<T>(opts, apiKey);
+  inflight.set(requestKey, request as Promise<PokeWalletResult<unknown>>);
+  try {
+    return await request;
+  } finally {
+    inflight.delete(requestKey);
+  }
+}
+
+async function fetchPokeWalletUncached<T>(opts: FetchOpts, apiKey: string): Promise<PokeWalletResult<T>> {
 
   let res: Response;
   try {
@@ -224,6 +241,11 @@ async function fetchPokeWallet<T>(opts: FetchOpts): Promise<PokeWalletResult<T>>
 
   if (opts.cache && opts.cacheKey) {
     opts.cache.set(opts.cacheKey, { expires: Date.now() + opts.ttlMs, data: data as unknown as never });
+    while (opts.cache.size > MAX_CACHE_ENTRIES) {
+      const oldest = opts.cache.keys().next().value;
+      if (oldest) opts.cache.delete(oldest);
+      else break;
+    }
   }
 
   return { ok: true, data, remainingHour, remainingDay };

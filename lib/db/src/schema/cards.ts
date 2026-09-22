@@ -9,6 +9,7 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
 import { collectionsTable } from "./collections";
@@ -71,6 +72,10 @@ export const cardsTable = pgTable("cards", {
     table.ownerClerkId,
     table.setId,
     table.cardNumber,
+  ),
+  ownerIdentitySearchIdx: index("cards_owner_identity_search_idx").using(
+    "gin",
+    sql`to_tsvector('simple', coalesce(${table.name}, '') || ' ' || coalesce(${table.pokemonName}, '') || ' ' || coalesce(${table.setName}, '') || ' ' || coalesce(${table.setId}, '') || ' ' || coalesce(${table.cardNumber}, ''))`,
   ),
 }));
 

@@ -2489,10 +2489,27 @@ components:
         remainingHour:
           type: integer
           nullable: true
+        enrichmentPending:
+          type: boolean
+        freshness:
+          $ref: "#/components/schemas/LookupFreshness"
       required:
         - results
         - source
         - rateLimited
+        - enrichmentPending
+        - freshness
+
+    LookupFreshness:
+      type: object
+      properties:
+        identityTtlSeconds:
+          type: integer
+        imagesTtlSeconds:
+          type: integer
+        pricingPolicy:
+          type: string
+      required: [identityTtlSeconds, imagesTtlSeconds, pricingPolicy]
 
     CatalogPricing:
       type: object

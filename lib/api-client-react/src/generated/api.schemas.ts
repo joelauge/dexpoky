@@ -719,11 +719,19 @@ export const CatalogSearchResponseSource = {
   empty: "empty",
 } as const;
 
+export interface LookupFreshness {
+  identityTtlSeconds: number;
+  imagesTtlSeconds: number;
+  pricingPolicy: string;
+}
+
 export interface CatalogSearchResponse {
   results: CatalogCard[];
   source: CatalogSearchResponseSource;
   rateLimited: boolean;
   remainingHour?: number | null;
+  enrichmentPending: boolean;
+  freshness: LookupFreshness;
 }
 
 export type CatalogPricingSource =
