@@ -628,6 +628,7 @@ export default function ScanPage() {
                       )}
                     </div>
                     <Button
+                      id="scan-add-to-collection"
                       size="sm"
                       className="mt-3 rounded-lg"
                       disabled={pricingLoading}
@@ -748,7 +749,20 @@ export default function ScanPage() {
                   </div>
                 )}
                 {displayCard && (
-                  <CardConfidenceScorecard endpoint={`${BASE}/api/cards/confidence`} evidence={confidenceEvidence} />
+                  <CardConfidenceScorecard
+                    endpoint={`${BASE}/api/cards/confidence`}
+                    evidence={confidenceEvidence}
+                    actionTargets={{
+                      confirm_condition: {
+                        label: "Add card to choose condition",
+                        onClick: () => document.getElementById("scan-add-to-collection")?.click(),
+                      },
+                      complete_listing: {
+                        label: "Add card to start listing",
+                        onClick: () => document.getElementById("scan-add-to-collection")?.click(),
+                      },
+                    }}
+                  />
                 )}
 
                 {/* PSA grades */}

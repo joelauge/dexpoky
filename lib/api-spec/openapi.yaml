@@ -2953,7 +2953,6 @@ components:
           additionalProperties: { type: number }
         reasons: { type: array, items: { type: string } }
         informational: { type: boolean }
-        model: { type: string }
         unavailable: { type: boolean }
         evidenceHash: { type: string }
         card: { $ref: "#/components/schemas/RecommendationCard" }

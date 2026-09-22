@@ -1028,7 +1028,6 @@ export interface Recommendation {
   probabilities: RecommendationProbabilities;
   reasons: string[];
   informational: boolean;
-  model?: string;
   unavailable?: boolean;
   evidenceHash?: string;
   card?: RecommendationCard;

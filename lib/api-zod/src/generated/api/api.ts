@@ -1813,7 +1813,6 @@ export const GetRecommendationsOpportunitiesResponse = zod.object({
       probabilities: zod.record(zod.string(), zod.number()),
       reasons: zod.array(zod.string()),
       informational: zod.boolean(),
-      model: zod.string().optional(),
       unavailable: zod.boolean().optional(),
       evidenceHash: zod.string().optional(),
       card: zod
@@ -1878,7 +1877,6 @@ export const GetCardsIdRecommendationsResponse = zod.object({
       probabilities: zod.record(zod.string(), zod.number()),
       reasons: zod.array(zod.string()),
       informational: zod.boolean(),
-      model: zod.string().optional(),
       unavailable: zod.boolean().optional(),
       evidenceHash: zod.string().optional(),
       card: zod

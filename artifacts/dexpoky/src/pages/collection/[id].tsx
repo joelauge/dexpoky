@@ -674,7 +674,20 @@ export default function CardDetail() {
             </div>
             <CardRecommendations cardId={id} />
 
-            <CardConfidenceScorecard endpoint={`/api/cards/${id}/confidence`} evidence={confidenceEvidence} />
+            <CardConfidenceScorecard
+              endpoint={`/api/cards/${id}/confidence`}
+              evidence={confidenceEvidence}
+              actionTargets={{
+                confirm_condition: {
+                  label: "Check condition",
+                  href: `/collection/${id}/edit?focus=condition`,
+                },
+                complete_listing: {
+                  label: "Start listing",
+                  href: `/sell?card=${id}`,
+                },
+              }}
+            />
 
             {/* Value panel */}
             <div className="bg-card border rounded-2xl p-5 mb-4 shadow-sm w-full">

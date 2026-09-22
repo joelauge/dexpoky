@@ -15,7 +15,7 @@ import { formatCurrency, formatLabel } from "@/lib/constants";
 import { Link } from "wouter";
 import {
   Archive, Swords, Tag, ArrowRightLeft, Award, Eye,
-  ThumbsUp, ThumbsDown, X, Info, Sparkles, Zap, Loader2
+  ThumbsUp, ThumbsDown, X, ShieldCheck, Zap, Loader2
 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -64,13 +64,13 @@ export function ProfileSelector({
   );
 }
 
-const ACTION_CONFIG: Record<string, { icon: React.ElementType, color: string, bg: string, label: string }> = {
-  keep: { icon: Archive, color: "text-slate-600 dark:text-slate-400", bg: "bg-slate-100 dark:bg-slate-900", label: "Keep" },
-  play: { icon: Swords, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100 dark:bg-emerald-900/30", label: "Play" },
-  sell: { icon: Tag, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/30", label: "Sell" },
-  trade: { icon: ArrowRightLeft, color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-100 dark:bg-indigo-900/30", label: "Trade" },
-  grade: { icon: Award, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-900/30", label: "Grade" },
-  watch: { icon: Eye, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30", label: "Watch" },
+const ACTION_CONFIG: Record<string, { icon: React.ElementType, color: string, bg: string, label: string, help: string }> = {
+  keep: { icon: Archive, color: "text-slate-600 dark:text-slate-400", bg: "bg-slate-100 dark:bg-slate-900", label: "Keep", help: "Hold on to this card." },
+  play: { icon: Swords, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100 dark:bg-emerald-900/30", label: "Play", help: "Use this card in a deck." },
+  sell: { icon: Tag, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/30", label: "Sell", help: "Offer this card for money." },
+  trade: { icon: ArrowRightLeft, color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-100 dark:bg-indigo-900/30", label: "Trade", help: "Swap it with another collector." },
+  grade: { icon: Award, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-900/30", label: "Grade", help: "Ask an expert to check its condition." },
+  watch: { icon: Eye, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30", label: "Watch", help: "Keep an eye on its value." },
 };
 
 export interface ExtendedRecommendation {
@@ -81,7 +81,6 @@ export interface ExtendedRecommendation {
   probabilities: Record<string, number>;
   reasons: string[];
   informational: boolean;
-  model?: string;
   unavailable?: boolean;
   evidenceHash?: string;
   card: {
@@ -124,7 +123,7 @@ export function RecommendationCard({
     <CardUI className="shadow-sm border-border/50 relative overflow-hidden group">
       {isInformational && (
         <div className="absolute top-0 right-0 bg-muted/80 text-muted-foreground text-[9px] font-bold px-2 py-0.5 rounded-bl-lg z-10 flex items-center gap-1">
-          <Info className="h-2.5 w-2.5" /> Informational
+          <ShieldCheck className="h-2.5 w-2.5" /> DexPoky suggestion
         </div>
       )}
       <CardContent className="p-4 pt-5">
@@ -155,7 +154,7 @@ export function RecommendationCard({
                     <span className="text-xs font-semibold text-primary">{formatCurrency(card.estimatedValue)}</span>
                   )}
                   <span className="text-[10px] text-muted-foreground">
-                    {Math.round(score * 100)}% fit · {Math.round(confidence * 100)}% confidence
+                    {Math.round(score * 100)}% match · {Math.round(confidence * 100)}% sure
                   </span>
                 </div>
               </div>
@@ -165,10 +164,12 @@ export function RecommendationCard({
               </div>
             </div>
 
+            <p className="text-xs font-medium text-foreground/80 mt-2">{config.help}</p>
+
             <ul className="mt-2.5 space-y-1">
               {reasons.slice(0, 2).map((reason, i) => (
                 <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                  <Sparkles className="h-3 w-3 mt-0.5 shrink-0 text-amber-500/70" />
+                  <ShieldCheck className="h-3 w-3 mt-0.5 shrink-0 text-primary/70" />
                   <span className="leading-snug">{reason}</span>
                 </li>
               ))}
@@ -243,10 +244,14 @@ export function OpportunitiesFeed({ limit }: { limit?: number }) {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold tracking-tight flex items-center gap-2">
           <Zap className="h-4 w-4 text-amber-500" />
-          Smart Opportunities
+          DexPoky Opportunities
         </h3>
         <ProfileSelector profile={profile} onChange={changeProfile} />
       </div>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        DexPoky checks your cards, decks, copies, condition, and value to find a helpful next step.
+        These are suggestions. You choose what to do.
+      </p>
 
       {isLoading ? (
         <div className="space-y-3">
@@ -256,7 +261,7 @@ export function OpportunitiesFeed({ limit }: { limit?: number }) {
         </div>
       ) : isError ? (
         <div className="p-4 border rounded-xl bg-muted/20">
-          <p className="text-sm font-medium">Recommendations are unavailable</p>
+          <p className="text-sm font-medium">DexPoky judgments are unavailable</p>
           <p className="text-xs text-muted-foreground mt-1">Your collection is still available. Try again later.</p>
         </div>
       ) : displayList && displayList.length > 0 ? (
@@ -273,7 +278,7 @@ export function OpportunitiesFeed({ limit }: { limit?: number }) {
         <div className="text-center p-6 border-2 border-dashed rounded-xl bg-muted/20">
           <Zap className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-sm font-medium text-foreground">No opportunities right now</p>
-          <p className="text-xs text-muted-foreground mt-1">We'll let you know when we spot good {profile} moves.</p>
+          <p className="text-xs text-muted-foreground mt-1">DexPoky will surface strong {profile} moves when the evidence supports them.</p>
         </div>
       )}
     </div>
@@ -329,16 +334,20 @@ export function CardRecommendations({ cardId }: { cardId: number }) {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold tracking-tight flex items-center gap-2">
           <Zap className="h-4 w-4 text-amber-500" />
-          Smart Actions
+          DexPoky Card Judgment
         </h3>
         <ProfileSelector profile={profile} onChange={changeProfile} />
       </div>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        DexPoky scores six choices for this card. A higher match means the choice may fit your collection better.
+        “Sure” shows how clear the card facts are. You always make the final choice.
+      </p>
 
       {isLoading ? (
         <Skeleton className="h-[160px] w-full rounded-xl" />
       ) : isError ? (
         <div className="p-4 border rounded-xl bg-muted/20">
-          <p className="text-sm font-medium">Smart actions are unavailable</p>
+          <p className="text-sm font-medium">DexPoky judgments are unavailable</p>
           <p className="text-xs text-muted-foreground mt-1">Card details are unaffected. Try again later.</p>
         </div>
       ) : (

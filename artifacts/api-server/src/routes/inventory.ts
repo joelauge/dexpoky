@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { cardsTable, categoriesTable, listingsTable, activityEventsTable, shortLinksTable, dmThreadsTable } from "@workspace/db";
 import { eq, sql, desc, and, inArray } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
+import { visibleActivityTypes } from "../lib/activity-visibility.js";
 
 const router = Router();
 
@@ -92,7 +93,10 @@ router.get("/inventory/recent-activity", requireAuth, async (req, res) => {
   const events = await db
     .select()
     .from(activityEventsTable)
-    .where(eq(activityEventsTable.clerkId, userId))
+    .where(and(
+      eq(activityEventsTable.clerkId, userId),
+      inArray(activityEventsTable.type, visibleActivityTypes),
+    ))
     .orderBy(desc(activityEventsTable.createdAt))
     .limit(limit);
 

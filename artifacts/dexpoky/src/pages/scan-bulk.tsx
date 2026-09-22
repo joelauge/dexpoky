@@ -954,11 +954,21 @@ export default function ScanBulkPage() {
                             condition: { value: e.condition, source: "bulk_review" },
                             context: { flow: "bulk_scan_review" },
                           }}
+                          actionTargets={{
+                            confirm_condition: {
+                              label: "Choose condition",
+                              onClick: () => document.getElementById(`bulk-condition-${e.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }),
+                            },
+                            complete_listing: {
+                              label: "Save cards first",
+                              onClick: () => document.getElementById("bulk-save-cards")?.scrollIntoView({ behavior: "smooth", block: "center" }),
+                            },
+                          }}
                         />
                       )}
 
                       {/* Condition */}
-                      <div>
+                      <div id={`bulk-condition-${e.id}`}>
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                           Condition
                         </p>
@@ -1133,7 +1143,7 @@ export default function ScanBulkPage() {
         {/* Sticky bottom action bar (review phase only) */}
         {phase === "reviewing" && (
           <div className="fixed bottom-4 left-0 right-0 px-4 z-30">
-            <div className="max-w-2xl mx-auto bg-background/95 backdrop-blur border shadow-lg rounded-2xl p-3 flex items-center gap-2">
+            <div id="bulk-save-cards" className="max-w-2xl mx-auto bg-background/95 backdrop-blur border shadow-lg rounded-2xl p-3 flex items-center gap-2">
               <Button variant="outline" onClick={backToCapturing} className="gap-1">
                 <Camera className="h-4 w-4" /> Add more
               </Button>

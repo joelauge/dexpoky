@@ -8,7 +8,7 @@ export interface OwnedCardRecommendationInput {
   card: { id: number; name: string; catalogCardId: string | null; estimatedValue: number | null; listingPrice: number | null; condition: string; forSale: boolean; imageUrl: string | null; };
   duplicateCount: number; deckUses: number; wishlistMatch: boolean; evidenceAt?: Date | string | null;
 }
-export interface RawJudgment { action: RecommendationAction; score: number; confidence: number; probabilities: Record<string, number>; rationale: string; }
+export interface RawJudgment { action: RecommendationAction; score: number; confidence: number; probabilities: Record<string, number>; }
 type JevAnswer = { type?: string; score?: number; confidence?: number; probabilities?: Record<string, number> };
 type JevResponse = { model?: string; answers?: Record<string, JevAnswer> };
 const MODEL = "jev-latest";
@@ -54,6 +54,38 @@ function deterministic(input: OwnedCardRecommendationInput, action: Recommendati
   const value = input.card.estimatedValue ?? 0;
   return ({ keep: input.duplicateCount === 1 ? .75 : .3, play: input.deckUses ? .9 : .15, sell: input.duplicateCount > 1 ? .8 : .2, trade: input.duplicateCount > 1 ? .7 : .25, grade: value >= 100 && ["mint", "near_mint"].includes(input.card.condition) ? .8 : .1, watch: value > 0 ? .45 : .15 })[action];
 }
+
+function dexPokyReason(action: RecommendationAction, input: OwnedCardRecommendationInput): string {
+  const value = input.card.estimatedValue;
+  switch (action) {
+    case "keep":
+      return input.duplicateCount === 1
+        ? "This is your only copy, so you may want to keep it"
+        : "You have an extra copy, so keeping every copy may be less important";
+    case "play":
+      return input.deckUses > 0
+        ? "You already use this card in a deck"
+        : "This card is not in one of your decks yet";
+    case "sell":
+      if (input.card.forSale) return "This card is already marked for sale";
+      return input.duplicateCount > 1
+        ? "You could sell an extra copy and still keep one"
+        : "Selling this card would leave you without a copy";
+    case "trade":
+      return input.duplicateCount > 1
+        ? "An extra copy may be easier to trade"
+        : "Trading this card would leave you without a copy";
+    case "grade":
+      if (["mint", "near_mint"].includes(input.card.condition) && value != null) {
+        return "Its condition and value may make expert grading worth checking";
+      }
+      return "Its condition or value may not make grading useful right now";
+    case "watch":
+      return value != null
+        ? "DexPoky can track this card's value from its current price"
+        : "DexPoky needs better price information before tracking changes";
+  }
+}
 function consumeUserBudget(userId?: string): boolean {
   if (!userId) return true;
   const cutoff = Date.now() - USER_BUDGET_WINDOW_MS;
@@ -80,7 +112,7 @@ async function rawJudgments(input: OwnedCardRecommendationInput, evidenceHash: s
   const existing = inFlight.get(cacheKey);
   if (existing) return existing;
   const work = (async () => {
-    const fallback = (): RawResult => ({ judgments: recommendationActions.map((action) => ({ action, score: deterministic(input, action), confidence: .35, probabilities: {}, rationale: "Code-derived facts; Jev is unavailable." })), model: MODEL, unavailable: true });
+    const fallback = (): RawResult => ({ judgments: recommendationActions.map((action) => ({ action, score: deterministic(input, action), confidence: .35, probabilities: {} })), model: MODEL, unavailable: true });
     const key = process.env.TYPESAFE_API_KEY; if (!key) return fallback();
     if (!consumeUserBudget(userId)) return fallback();
     const questions = Object.fromEntries(recommendationActions.map((action) => [action, { type: "score", instructions: `How appropriate is the informational action ${action} for this owned card, using only the supplied evidence?`, criteria: ["not appropriate", "uncertain", "strongly appropriate"] }]));
@@ -90,7 +122,7 @@ async function rawJudgments(input: OwnedCardRecommendationInput, evidenceHash: s
       if (!response.ok) throw new Error(`TypeSafe HTTP ${response.status}`);
       const raw = await response.json() as unknown; if (!validate(raw)) throw new Error("Invalid TypeSafe response");
       const answers = (raw as JevResponse).answers!;
-      return { model: (raw as JevResponse).model ?? MODEL, unavailable: false, judgments: recommendationActions.map((action) => { const a = answers[action]; return { action, score: clamp((a.score ?? 0) / 2), confidence: clamp(a.confidence ?? 0), probabilities: a.probabilities ?? {}, rationale: "Jev judgment grounded in server-derived evidence." }; }) };
+      return { model: (raw as JevResponse).model ?? MODEL, unavailable: false, judgments: recommendationActions.map((action) => { const a = answers[action]; return { action, score: clamp((a.score ?? 0) / 2), confidence: clamp(a.confidence ?? 0), probabilities: a.probabilities ?? {} }; }) };
     } catch { return fallback(); } finally { clearTimeout(timer); }
   })();
   inFlight.set(cacheKey, work);
@@ -115,7 +147,7 @@ export async function recommendCard(input: OwnedCardRecommendationInput, profile
   const evidenceHash = hash(input); const raw = await rawJudgments(input, evidenceHash, userId);
   const recommendations = raw.judgments.map((judgment) => {
     const score = clamp(judgment.score + (weights[profile][judgment.action] ?? 0) * .12);
-    return { key: recommendationKey(input.card.id, judgment.action), action: judgment.action, score: Math.round(score * 100) / 100, confidence: judgment.confidence, probabilities: judgment.probabilities, reasons: [input.duplicateCount > 1 ? `${input.duplicateCount} copies owned` : null, input.deckUses ? `used in ${input.deckUses} deck${input.deckUses === 1 ? "" : "s"}` : null, input.wishlistMatch ? "matches a saved wishlist item" : null, judgment.rationale].filter(Boolean), informational: true, model: raw.model, unavailable: raw.unavailable, evidenceHash };
+    return { key: recommendationKey(input.card.id, judgment.action), action: judgment.action, score: Math.round(score * 100) / 100, confidence: judgment.confidence, probabilities: judgment.probabilities, reasons: [input.duplicateCount > 1 ? `You own ${input.duplicateCount} copies` : null, input.deckUses ? `You use it in ${input.deckUses} deck${input.deckUses === 1 ? "" : "s"}` : null, input.wishlistMatch ? "It matches a card on your wish list" : null, dexPokyReason(judgment.action, input)].filter(Boolean), informational: true, unavailable: raw.unavailable, evidenceHash };
   }).sort((a, b) => (b.score * b.confidence) - (a.score * a.confidence));
   return { card: input.card, profile, recommendations, informational: true, evidenceHash, unavailable: raw.unavailable };
 }

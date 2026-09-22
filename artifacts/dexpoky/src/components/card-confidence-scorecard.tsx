@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, HelpCircle, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 
 export interface CardConfidenceResult {
   dimensions: Record<string, {
@@ -25,10 +27,17 @@ const labels: Record<string, string> = {
   listingReadiness: "Listing readiness",
 };
 
-export function CardConfidenceScorecard({ endpoint, evidence, onResult }: {
+type ActionTarget = {
+  label: string;
+  href?: string;
+  onClick?: () => void;
+};
+
+export function CardConfidenceScorecard({ endpoint, evidence, onResult, actionTargets }: {
   endpoint: string;
   evidence: unknown;
   onResult?: (result: CardConfidenceResult) => void;
+  actionTargets?: Partial<Record<string, ActionTarget>>;
 }) {
   const [result, setResult] = useState<CardConfidenceResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -48,16 +57,16 @@ export function CardConfidenceScorecard({ endpoint, evidence, onResult }: {
   }, [endpoint, evidenceBody]);
 
   return (
-    <section className="rounded-2xl border bg-card p-4 space-y-3" aria-label="Card evidence confidence">
+    <section className="rounded-2xl border bg-card p-4 space-y-3" aria-label="DexPoky card check">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-sm">Evidence confidence</h3>
-          <p className="text-[11px] text-muted-foreground">This is evidence confidence, not authenticity proof.</p>
+          <h3 className="font-semibold text-sm">How sure is DexPoky?</h3>
+          <p className="text-[11px] text-muted-foreground">DexPoky checks the card details below. This does not prove a card is real.</p>
         </div>
         {loading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
         {result && (
           <Badge variant="outline" className="text-[10px]">
-            {result.unavailable ? "Deterministic only" : result.evidenceFresh ? "Fresh" : "Stale"} · {result.modelVersion}
+            DexPoky Assistant
           </Badge>
         )}
       </div>
@@ -78,14 +87,28 @@ export function CardConfidenceScorecard({ endpoint, evidence, onResult }: {
             <p className="text-[11px] text-muted-foreground">{dimension.message}</p>
             {dimension.confidence != null && (
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                Model confidence {Math.round(dimension.confidence * 100)}%
+                DexPoky is {Math.round(dimension.confidence * 100)}% sure
               </p>
             )}
-            {dimension.action !== "none" && <p className="text-[11px] font-medium text-primary mt-0.5">Action: {dimension.action.replaceAll("_", " ")}</p>}
+            {dimension.action !== "none" && actionTargets?.[dimension.action] && (() => {
+              const target = actionTargets[dimension.action]!;
+              const button = (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 mt-2 text-xs"
+                  onClick={target.onClick}
+                >
+                  {target.label}
+                </Button>
+              );
+              return target.href ? <Link href={target.href}>{button}</Link> : button;
+            })()}
           </div>
         </div>;
-      }) : !loading && <p className="text-xs text-muted-foreground">Confidence is currently unknown. Review the evidence manually.</p>}
-      {result && <p className="text-[10px] text-muted-foreground">Evaluated {new Date(result.evaluatedAt).toLocaleString()}</p>}
+      }) : !loading && <p className="text-xs text-muted-foreground">DexPoky could not check this right now. Please review the card details yourself.</p>}
+      {result && <p className="text-[10px] text-muted-foreground">Checked {new Date(result.evaluatedAt).toLocaleString()}</p>}
     </section>
   );
 }

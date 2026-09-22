@@ -10,7 +10,7 @@ import {
   UpdateCardBodyRarity,
   UpdateCardBodyCondition,
 } from "@workspace/api-client-react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, useSearch } from "wouter";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
@@ -68,6 +68,7 @@ export default function EditCard() {
   const [, params] = useRoute("/collection/:id/edit");
   const id = params?.id ? parseInt(params.id) : 0;
   const [, setLocation] = useLocation();
+  const search = useSearch();
 
   const { data: card, isLoading } = useGetCard(id, {
     query: { enabled: !!id, queryKey: ["/api/cards", id] },
@@ -108,6 +109,14 @@ export default function EditCard() {
       imageUrl: card.imageUrl ?? null,
     });
   }, [card?.id]);
+
+  useEffect(() => {
+    if (!card || new URLSearchParams(search).get("focus") !== "condition") return;
+    const timer = window.setTimeout(() => {
+      document.getElementById("condition-field")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [card, search]);
 
   const onSubmit = (data: EditFormValues) => {
     updateCard.mutate(
@@ -192,7 +201,7 @@ export default function EditCard() {
                       control={form.control}
                       name="pokemonName"
                       render={({ field }) => (
-                        <FormItem>
+                        <FormItem id="condition-field">
                           <FormLabel>Pokémon Name</FormLabel>
                           <FormControl>
                             <Input placeholder="e.g. Pikachu" {...field} />
