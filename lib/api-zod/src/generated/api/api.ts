@@ -8,6 +8,128 @@
 import * as zod from "zod";
 
 /**
+ * @summary Get privacy-safe aggregate reliability signals for a profile
+ */
+export const GetUserTrustSignalsParams = zod.object({
+  clerkId: zod.coerce.string(),
+});
+
+export const getUserTrustSignalsResponseDimensionsCommunicationScoreMin = 0;
+export const getUserTrustSignalsResponseDimensionsCommunicationScoreMax = 1;
+
+export const getUserTrustSignalsResponseDimensionsCommunicationConfidenceMin = 0;
+export const getUserTrustSignalsResponseDimensionsCommunicationConfidenceMax = 1;
+
+export const getUserTrustSignalsResponseDimensionsListingAccuracyScoreMin = 0;
+export const getUserTrustSignalsResponseDimensionsListingAccuracyScoreMax = 1;
+
+export const getUserTrustSignalsResponseDimensionsListingAccuracyConfidenceMin = 0;
+export const getUserTrustSignalsResponseDimensionsListingAccuracyConfidenceMax = 1;
+
+export const getUserTrustSignalsResponseDimensionsFulfillmentScoreMin = 0;
+export const getUserTrustSignalsResponseDimensionsFulfillmentScoreMax = 1;
+
+export const getUserTrustSignalsResponseDimensionsFulfillmentConfidenceMin = 0;
+export const getUserTrustSignalsResponseDimensionsFulfillmentConfidenceMax = 1;
+
+export const getUserTrustSignalsResponseDimensionsTransactionHistoryScoreMin = 0;
+export const getUserTrustSignalsResponseDimensionsTransactionHistoryScoreMax = 1;
+
+export const getUserTrustSignalsResponseDimensionsTransactionHistoryConfidenceMin = 0;
+export const getUserTrustSignalsResponseDimensionsTransactionHistoryConfidenceMax = 1;
+
+export const GetUserTrustSignalsResponse = zod.object({
+  dimensions: zod.object({
+    communication: zod.object({
+      score: zod
+        .number()
+        .min(getUserTrustSignalsResponseDimensionsCommunicationScoreMin)
+        .max(getUserTrustSignalsResponseDimensionsCommunicationScoreMax)
+        .nullable(),
+      confidence: zod
+        .number()
+        .min(getUserTrustSignalsResponseDimensionsCommunicationConfidenceMin)
+        .max(getUserTrustSignalsResponseDimensionsCommunicationConfidenceMax),
+      evidence: zod.array(zod.string()),
+      uncertain: zod.boolean(),
+    }),
+    listingAccuracy: zod.object({
+      score: zod
+        .number()
+        .min(getUserTrustSignalsResponseDimensionsListingAccuracyScoreMin)
+        .max(getUserTrustSignalsResponseDimensionsListingAccuracyScoreMax)
+        .nullable(),
+      confidence: zod
+        .number()
+        .min(getUserTrustSignalsResponseDimensionsListingAccuracyConfidenceMin)
+        .max(getUserTrustSignalsResponseDimensionsListingAccuracyConfidenceMax),
+      evidence: zod.array(zod.string()),
+      uncertain: zod.boolean(),
+    }),
+    fulfillment: zod.object({
+      score: zod
+        .number()
+        .min(getUserTrustSignalsResponseDimensionsFulfillmentScoreMin)
+        .max(getUserTrustSignalsResponseDimensionsFulfillmentScoreMax)
+        .nullable(),
+      confidence: zod
+        .number()
+        .min(getUserTrustSignalsResponseDimensionsFulfillmentConfidenceMin)
+        .max(getUserTrustSignalsResponseDimensionsFulfillmentConfidenceMax),
+      evidence: zod.array(zod.string()),
+      uncertain: zod.boolean(),
+    }),
+    transactionHistory: zod.object({
+      score: zod
+        .number()
+        .min(getUserTrustSignalsResponseDimensionsTransactionHistoryScoreMin)
+        .max(getUserTrustSignalsResponseDimensionsTransactionHistoryScoreMax)
+        .nullable(),
+      confidence: zod
+        .number()
+        .min(
+          getUserTrustSignalsResponseDimensionsTransactionHistoryConfidenceMin,
+        )
+        .max(
+          getUserTrustSignalsResponseDimensionsTransactionHistoryConfidenceMax,
+        ),
+      evidence: zod.array(zod.string()),
+      uncertain: zod.boolean(),
+    }),
+  }),
+  historyLabel: zod.enum(["new", "limited", "established"]),
+  unavailable: zod.boolean(),
+  evaluatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Create and privately triage a transaction problem for human review
+ */
+
+export const createDisputeReportBodyDeclaredCategoryMax = 80;
+
+export const createDisputeReportBodyDescriptionMin = 10;
+export const createDisputeReportBodyDescriptionMax = 5000;
+
+export const CreateDisputeReportBody = zod.object({
+  tradeOfferId: zod.number().min(1),
+  declaredCategory: zod
+    .string()
+    .max(createDisputeReportBodyDeclaredCategoryMax)
+    .nullish(),
+  description: zod
+    .string()
+    .min(createDisputeReportBodyDescriptionMin)
+    .max(createDisputeReportBodyDescriptionMax),
+  evidenceProvided: zod.object({
+    paymentReceipt: zod.boolean(),
+    tracking: zod.boolean(),
+    itemPhotos: zod.boolean(),
+    messages: zod.boolean(),
+  }),
+});
+
+/**
  * @summary Create a Stripe Crypto Onramp session to fund the user's Tempo wallet with fiat
  */
 export const CreateTempoOnrampSessionResponse = zod.object({

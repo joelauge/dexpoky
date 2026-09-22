@@ -43,6 +43,8 @@ import type {
   Deck,
   DeckSummary,
   DeckWithCards,
+  DisputeReportInput,
+  DisputeTriageResult,
   DmMessage,
   DmThread,
   DmThreadSummary,
@@ -78,6 +80,7 @@ import type {
   SuggestDeckResponse,
   TempoOnrampSession,
   TradeCoachResult,
+  TrustSignalResult,
   UpdateCardBody,
   UpdateCategoryBody,
   UpdateDeckBody,
@@ -99,6 +102,181 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Get privacy-safe aggregate reliability signals for a profile
+ */
+export const getGetUserTrustSignalsUrl = (clerkId: string) => {
+  return `/api/ratings/user/${clerkId}/trust`;
+};
+
+export const getUserTrustSignals = async (
+  clerkId: string,
+  options?: RequestInit,
+): Promise<TrustSignalResult> => {
+  return customFetch<TrustSignalResult>(getGetUserTrustSignalsUrl(clerkId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUserTrustSignalsQueryKey = (clerkId: string) => {
+  return [`/api/ratings/user/${clerkId}/trust`] as const;
+};
+
+export const getGetUserTrustSignalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserTrustSignals>>,
+  TError = ErrorType<unknown>,
+>(
+  clerkId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUserTrustSignals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUserTrustSignalsQueryKey(clerkId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUserTrustSignals>>
+  > = ({ signal }) =>
+    getUserTrustSignals(clerkId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clerkId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserTrustSignals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUserTrustSignalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUserTrustSignals>>
+>;
+export type GetUserTrustSignalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get privacy-safe aggregate reliability signals for a profile
+ */
+
+export function useGetUserTrustSignals<
+  TData = Awaited<ReturnType<typeof getUserTrustSignals>>,
+  TError = ErrorType<unknown>,
+>(
+  clerkId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUserTrustSignals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUserTrustSignalsQueryOptions(clerkId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create and privately triage a transaction problem for human review
+ */
+export const getCreateDisputeReportUrl = () => {
+  return `/api/reports`;
+};
+
+export const createDisputeReport = async (
+  disputeReportInput: DisputeReportInput,
+  options?: RequestInit,
+): Promise<DisputeTriageResult> => {
+  return customFetch<DisputeTriageResult>(getCreateDisputeReportUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(disputeReportInput),
+  });
+};
+
+export const getCreateDisputeReportMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createDisputeReport>>,
+    TError,
+    { data: BodyType<DisputeReportInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createDisputeReport>>,
+  TError,
+  { data: BodyType<DisputeReportInput> },
+  TContext
+> => {
+  const mutationKey = ["createDisputeReport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createDisputeReport>>,
+    { data: BodyType<DisputeReportInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createDisputeReport(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateDisputeReportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createDisputeReport>>
+>;
+export type CreateDisputeReportMutationBody = BodyType<DisputeReportInput>;
+export type CreateDisputeReportMutationError = ErrorType<void>;
+
+/**
+ * @summary Create and privately triage a transaction problem for human review
+ */
+export const useCreateDisputeReport = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createDisputeReport>>,
+    TError,
+    { data: BodyType<DisputeReportInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createDisputeReport>>,
+  TError,
+  { data: BodyType<DisputeReportInput> },
+  TContext
+> => {
+  return useMutation(getCreateDisputeReportMutationOptions(options));
+};
 
 /**
  * @summary Create a Stripe Crypto Onramp session to fund the user's Tempo wallet with fiat

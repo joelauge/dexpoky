@@ -42,8 +42,50 @@ tags:
     description: Build canonical and short URLs for shareable DexPoky pages
   - name: agents
     description: DexAgent autonomous trading agents and Tempo wallet operations
+  - name: trust
+    description: Privacy-safe trust signals and private transaction report triage
 
 paths:
+  /ratings/user/{clerkId}/trust:
+    get:
+      operationId: getUserTrustSignals
+      tags: [trust]
+      summary: Get privacy-safe aggregate reliability signals for a profile
+      parameters:
+        - name: clerkId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Aggregate trust dimensions with evidence and uncertainty
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrustSignalResult" }
+
+  /reports:
+    post:
+      operationId: createDisputeReport
+      tags: [trust]
+      summary: Create and privately triage a transaction problem for human review
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DisputeReportInput" }
+      responses:
+        "201":
+          description: Private report created and routed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DisputeTriageResult" }
+        "403":
+          description: Reporter is not a transaction participant
+        "404":
+          description: Transaction not found
+
   /agents/tempo-onramp-session:
     post:
       tags: [agents]
@@ -3345,6 +3387,77 @@ components:
         unavailable: { type: boolean }
         authenticityDisclaimer: { type: string }
       required: [dimensions, modelVersion, evaluatedAt, evidenceHash, evidenceFresh, unavailable, authenticityDisclaimer]
+
+    TrustDimensionSignal:
+      type: object
+      required: [score, confidence, evidence, uncertain]
+      properties:
+        score: { type: ["number", "null"], minimum: 0, maximum: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence:
+          type: array
+          items: { type: string }
+        uncertain: { type: boolean }
+
+    TrustSignalResult:
+      type: object
+      required: [dimensions, historyLabel, unavailable, evaluatedAt]
+      properties:
+        dimensions:
+          type: object
+          required: [communication, listingAccuracy, fulfillment, transactionHistory]
+          properties:
+            communication: { $ref: "#/components/schemas/TrustDimensionSignal" }
+            listingAccuracy: { $ref: "#/components/schemas/TrustDimensionSignal" }
+            fulfillment: { $ref: "#/components/schemas/TrustDimensionSignal" }
+            transactionHistory: { $ref: "#/components/schemas/TrustDimensionSignal" }
+        historyLabel: { type: string, enum: [new, limited, established] }
+        unavailable: { type: boolean }
+        evaluatedAt: { type: string, format: date-time }
+
+    DisputeEvidenceInput:
+      type: object
+      required: [paymentReceipt, tracking, itemPhotos, messages]
+      properties:
+        paymentReceipt: { type: boolean }
+        tracking: { type: boolean }
+        itemPhotos: { type: boolean }
+        messages: { type: boolean }
+
+    DisputeReportInput:
+      type: object
+      required: [tradeOfferId, description, evidenceProvided]
+      properties:
+        tradeOfferId: { type: integer, minimum: 1 }
+        declaredCategory: { type: ["string", "null"], maxLength: 80 }
+        description: { type: string, minLength: 10, maxLength: 5000 }
+        evidenceProvided: { $ref: "#/components/schemas/DisputeEvidenceInput" }
+
+    DisputeTriageResult:
+      type: object
+      required: [reportId, category, urgency, confidence, missingEvidence, reviewState, route, escalated, unavailable, facts, createdAt]
+      properties:
+        reportId: { type: integer }
+        category:
+          type: string
+          enum: [payment, item_not_received, item_not_as_described, counterfeit, communication, safety, other]
+        urgency: { type: string, enum: [routine, priority, urgent] }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        missingEvidence:
+          type: array
+          items: { type: string }
+        reviewState:
+          type: string
+          enum: [needs_evidence, queued_for_review, priority_human_review]
+        route:
+          type: string
+          enum: [payments_review, delivery_review, item_review, conduct_review, general_review]
+        escalated: { type: boolean }
+        unavailable: { type: boolean }
+        facts:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
 
     BuildLinkBody:
       type: object

@@ -6,7 +6,7 @@ import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Star, User, ChevronLeft, ChevronRight, MessageSquare, Loader2 } from "lucide-react";
+import { ArrowLeft, Star, User, ChevronLeft, ChevronRight, MessageSquare, Loader2, ShieldCheck, CircleHelp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useAuthFetch } from "@/lib/use-auth-fetch";
 import { toast } from "sonner";
@@ -65,6 +65,26 @@ interface RatingsResponse {
   sellerLevel: string;
 }
 
+interface TrustSignal {
+  score: number | null;
+  confidence: number;
+  evidence: string[];
+  uncertain: boolean;
+}
+
+interface TrustResponse {
+  dimensions: Record<"communication" | "listingAccuracy" | "fulfillment" | "transactionHistory", TrustSignal>;
+  historyLabel: "new" | "limited" | "established";
+  unavailable: boolean;
+}
+
+const TRUST_LABELS = {
+  communication: "Communication",
+  listingAccuracy: "Listing accuracy",
+  fulfillment: "Fulfillment",
+  transactionHistory: "Transaction history",
+} as const;
+
 type Role = "all" | "seller" | "buyer";
 type Period = "all" | "1m" | "6m" | "12m";
 
@@ -122,6 +142,17 @@ export default function FeedbackPage() {
       return fetch(`/api/ratings/user/${clerkId}?${qs}`).then(r => r.json());
     },
     enabled: !!clerkId,
+  });
+
+  const { data: trustData, isLoading: trustLoading } = useQuery<TrustResponse>({
+    queryKey: ["/api/ratings/user", clerkId, "trust"],
+    queryFn: async () => {
+      const response = await fetch(`/api/ratings/user/${clerkId}/trust`);
+      if (!response.ok) throw new Error("Trust signals unavailable");
+      return response.json();
+    },
+    enabled: !!clerkId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleSubmitReply = async (ratingId: number) => {
@@ -251,6 +282,64 @@ export default function FeedbackPage() {
             </div>
           </div>
         </div>
+
+        {/* Evidence-based trust dimensions */}
+        <section className="bg-card border rounded-2xl p-5 mb-6" aria-labelledby="trust-heading">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <h2 id="trust-heading" className="font-semibold flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-violet-600" />
+                Reliability signals
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Based only on completed-transaction counts and submitted ratings. These are not identity checks or guarantees.
+              </p>
+            </div>
+            {trustData && (
+              <Badge variant="outline" className="capitalize shrink-0">{trustData.historyLabel} history</Badge>
+            )}
+          </div>
+          {trustLoading ? (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {[1, 2, 3, 4].map((item) => <div key={item} className="h-24 rounded-xl bg-muted/40 animate-pulse" />)}
+            </div>
+          ) : trustData ? (
+            <>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {(Object.keys(TRUST_LABELS) as Array<keyof typeof TRUST_LABELS>).map((key) => {
+                  const signal = trustData.dimensions[key];
+                  const score = signal.score == null ? null : Math.round(signal.score * 100);
+                  return (
+                    <div key={key} className="border rounded-xl p-3">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-sm font-semibold">{TRUST_LABELS[key]}</span>
+                        {score == null || signal.uncertain ? (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <CircleHelp className="h-3.5 w-3.5" /> Limited evidence
+                          </span>
+                        ) : (
+                          <span className="text-sm font-bold">{score}%</span>
+                        )}
+                      </div>
+                      <ul className="space-y-1">
+                        {signal.evidence.map((fact) => (
+                          <li key={fact} className="text-xs text-muted-foreground">{fact}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+              {trustData.unavailable && (
+                <p className="text-xs text-muted-foreground mt-3">
+                  Automated summarization is temporarily unavailable; the displayed signals use the same observed facts with conservative confidence.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Reliability signals are temporarily unavailable.</p>
+          )}
+        </section>
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-5">

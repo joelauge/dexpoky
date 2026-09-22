@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "@workspace/db";
-import { ratingsTable, listingsTable, tradeOffersTable, dmThreadsTable, usersTable } from "@workspace/db";
-import { eq, and, isNull, gte, desc, inArray } from "drizzle-orm";
+import { ratingsTable, listingsTable, tradeOffersTable, dmThreadsTable, usersTable, tradePaymentsTable, disputeReportsTable } from "@workspace/db";
+import { eq, and, isNull, gte, desc, inArray, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { evaluateTrust, isTransactionParticipant, triageDispute, TRIAGE_EVALUATOR_VERSION } from "../lib/jev-trust-disputes.js";
 
 const ReplyBody = z.object({
   replyText: z.string().min(1).max(500),
@@ -32,6 +33,18 @@ const CreateTradeRatingBody = z.object({
   comment: z.string().max(500).optional(),
 }).merge(SubScores);
 
+const DisputeReportBody = z.object({
+  tradeOfferId: z.number().int().positive(),
+  declaredCategory: z.string().max(80).nullable().optional(),
+  description: z.string().min(10).max(5000),
+  evidenceProvided: z.object({
+    paymentReceipt: z.boolean().default(false),
+    tracking: z.boolean().default(false),
+    itemPhotos: z.boolean().default(false),
+    messages: z.boolean().default(false),
+  }),
+});
+
 function computeSellerLevel(positiveCount: number): string {
   if (positiveCount >= 500) return "Top Rated";
   if (positiveCount >= 200) return "Platinum";
@@ -40,6 +53,113 @@ function computeSellerLevel(positiveCount: number): string {
   if (positiveCount >= 1) return "Bronze";
   return "New";
 }
+
+router.get("/ratings/user/:clerkId/trust", async (req, res) => {
+  const clerkId = String(req.params.clerkId);
+  const [ratings, completedRows] = await Promise.all([
+    db.select({
+      score: ratingsTable.score,
+      subCondition: ratingsTable.subCondition,
+      subCommunication: ratingsTable.subCommunication,
+      subShipping: ratingsTable.subShipping,
+      subValue: ratingsTable.subValue,
+      createdAt: ratingsTable.createdAt,
+    }).from(ratingsTable).where(eq(ratingsTable.ratedClerkId, clerkId)),
+    db.select({ id: tradeOffersTable.id })
+      .from(tradeOffersTable)
+      .where(and(eq(tradeOffersTable.sellerClerkId, clerkId), eq(tradeOffersTable.status, "paid"))),
+  ]);
+  const average = (field: "score" | "subCondition" | "subCommunication" | "subShipping" | "subValue") => {
+    const values = ratings.map((row) => row[field]).filter((value): value is number => value != null);
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  };
+  const recentCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  const trust = await evaluateTrust({
+    ratingCount: ratings.length,
+    completedTransactions: completedRows.length,
+    averageScore: average("score"),
+    communicationAverage: average("subCommunication"),
+    conditionAverage: average("subCondition"),
+    shippingAverage: average("subShipping"),
+    valueAverage: average("subValue"),
+    negativeCount: ratings.filter((row) => row.score <= 2).length,
+    recentNegativeCount: ratings.filter((row) => row.score <= 2 && row.createdAt.getTime() >= recentCutoff).length,
+  });
+  res.json(trust);
+});
+
+router.post("/reports", requireAuth, async (req, res) => {
+  const reporterClerkId = (req as AuthRequest).userId;
+  const parsed = DisputeReportBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid report", details: parsed.error.issues });
+    return;
+  }
+  const { tradeOfferId, description, declaredCategory, evidenceProvided } = parsed.data;
+  const [transaction] = await db
+    .select({
+      offerId: tradeOffersTable.id,
+      status: tradeOffersTable.status,
+      buyerClerkId: dmThreadsTable.buyerClerkId,
+      sellerClerkId: dmThreadsTable.sellerClerkId,
+      paymentStatus: tradePaymentsTable.status,
+      paymentMethod: tradePaymentsTable.paymentMethod,
+      amountCents: tradePaymentsTable.amountCents,
+    })
+    .from(tradeOffersTable)
+    .innerJoin(dmThreadsTable, eq(dmThreadsTable.id, tradeOffersTable.threadId))
+    .leftJoin(tradePaymentsTable, eq(tradePaymentsTable.tradeOfferId, tradeOffersTable.id))
+    .where(eq(tradeOffersTable.id, tradeOfferId))
+    .limit(1);
+  if (!transaction) {
+    res.status(404).json({ error: "Transaction not found" });
+    return;
+  }
+  if (!isTransactionParticipant(reporterClerkId, transaction)) {
+    res.status(403).json({ error: "Only transaction participants can report a problem" });
+    return;
+  }
+  const subjectClerkId = reporterClerkId === transaction.buyerClerkId
+    ? transaction.sellerClerkId : transaction.buyerClerkId;
+  const [priorCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(disputeReportsTable)
+    .where(eq(disputeReportsTable.reporterClerkId, reporterClerkId));
+  const triage = await triageDispute({
+    description,
+    declaredCategory: declaredCategory ?? null,
+    transaction: {
+      offerId: transaction.offerId,
+      status: transaction.status,
+      paymentStatus: transaction.paymentStatus,
+      paymentMethod: transaction.paymentMethod,
+      amountCents: transaction.amountCents,
+    },
+    evidenceProvided: {
+      transactionId: true,
+      ...evidenceProvided,
+    },
+    priorReportsByReporter: priorCount?.count ?? 0,
+  });
+  const [report] = await db.insert(disputeReportsTable).values({
+    tradeOfferId,
+    reporterClerkId,
+    subjectClerkId,
+    description,
+    evidenceProvided: { transactionId: true, ...evidenceProvided },
+    category: triage.category,
+    urgency: triage.urgency,
+    missingEvidence: triage.missingEvidence,
+    confidence: String(triage.confidence),
+    reviewState: triage.reviewState,
+    route: triage.route,
+    escalated: triage.escalated,
+    observedFacts: triage.facts,
+    evaluatorVersion: TRIAGE_EVALUATOR_VERSION,
+    modelUnavailable: triage.unavailable,
+  }).returning({ id: disputeReportsTable.id, createdAt: disputeReportsTable.createdAt });
+  res.status(201).json({ ...triage, reportId: report.id, createdAt: report.createdAt.toISOString() });
+});
 
 router.get("/ratings/user/:clerkId", async (req, res) => {
   const { clerkId } = req.params;

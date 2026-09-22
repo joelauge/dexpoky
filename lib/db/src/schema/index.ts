@@ -26,3 +26,4 @@ export * from "./card_grading_certs";
 export * from "./agent_approval_requests";
 export * from "./agent_external_finds";
 export * from "./email_sends";
+export * from "./dispute_reports";

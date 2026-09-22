@@ -1325,6 +1325,128 @@ export interface CardConfidenceResult {
   authenticityDisclaimer: string;
 }
 
+export interface TrustDimensionSignal {
+  /**
+   * @minimum 0
+   * @maximum 1
+   * @nullable
+   */
+  score: number | null;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  confidence: number;
+  evidence: string[];
+  uncertain: boolean;
+}
+
+export type TrustSignalResultDimensions = {
+  communication: TrustDimensionSignal;
+  listingAccuracy: TrustDimensionSignal;
+  fulfillment: TrustDimensionSignal;
+  transactionHistory: TrustDimensionSignal;
+};
+
+export type TrustSignalResultHistoryLabel =
+  (typeof TrustSignalResultHistoryLabel)[keyof typeof TrustSignalResultHistoryLabel];
+
+export const TrustSignalResultHistoryLabel = {
+  new: "new",
+  limited: "limited",
+  established: "established",
+} as const;
+
+export interface TrustSignalResult {
+  dimensions: TrustSignalResultDimensions;
+  historyLabel: TrustSignalResultHistoryLabel;
+  unavailable: boolean;
+  evaluatedAt: string;
+}
+
+export interface DisputeEvidenceInput {
+  paymentReceipt: boolean;
+  tracking: boolean;
+  itemPhotos: boolean;
+  messages: boolean;
+}
+
+export interface DisputeReportInput {
+  /** @minimum 1 */
+  tradeOfferId: number;
+  /**
+   * @maxLength 80
+   * @nullable
+   */
+  declaredCategory?: string | null;
+  /**
+   * @minLength 10
+   * @maxLength 5000
+   */
+  description: string;
+  evidenceProvided: DisputeEvidenceInput;
+}
+
+export type DisputeTriageResultCategory =
+  (typeof DisputeTriageResultCategory)[keyof typeof DisputeTriageResultCategory];
+
+export const DisputeTriageResultCategory = {
+  payment: "payment",
+  item_not_received: "item_not_received",
+  item_not_as_described: "item_not_as_described",
+  counterfeit: "counterfeit",
+  communication: "communication",
+  safety: "safety",
+  other: "other",
+} as const;
+
+export type DisputeTriageResultUrgency =
+  (typeof DisputeTriageResultUrgency)[keyof typeof DisputeTriageResultUrgency];
+
+export const DisputeTriageResultUrgency = {
+  routine: "routine",
+  priority: "priority",
+  urgent: "urgent",
+} as const;
+
+export type DisputeTriageResultReviewState =
+  (typeof DisputeTriageResultReviewState)[keyof typeof DisputeTriageResultReviewState];
+
+export const DisputeTriageResultReviewState = {
+  needs_evidence: "needs_evidence",
+  queued_for_review: "queued_for_review",
+  priority_human_review: "priority_human_review",
+} as const;
+
+export type DisputeTriageResultRoute =
+  (typeof DisputeTriageResultRoute)[keyof typeof DisputeTriageResultRoute];
+
+export const DisputeTriageResultRoute = {
+  payments_review: "payments_review",
+  delivery_review: "delivery_review",
+  item_review: "item_review",
+  conduct_review: "conduct_review",
+  general_review: "general_review",
+} as const;
+
+export interface DisputeTriageResult {
+  reportId: number;
+  category: DisputeTriageResultCategory;
+  urgency: DisputeTriageResultUrgency;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  confidence: number;
+  missingEvidence: string[];
+  reviewState: DisputeTriageResultReviewState;
+  route: DisputeTriageResultRoute;
+  escalated: boolean;
+  unavailable: boolean;
+  facts: string[];
+  createdAt: string;
+}
+
 export type BuildLinkBodyType =
   (typeof BuildLinkBodyType)[keyof typeof BuildLinkBodyType];
 
