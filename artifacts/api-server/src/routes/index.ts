@@ -35,6 +35,7 @@ import agentsRouter from "./agents";
 import gradingRouter from "./grading";
 import emailRouter from "./email";
 import backupRouter from "./backup";
+import recommendationsRouter from "./recommendations";
 
 const router: IRouter = Router();
 
@@ -74,5 +75,6 @@ router.use(agentsRouter);
 router.use(gradingRouter);
 router.use(emailRouter);
 router.use(backupRouter);
+router.use(recommendationsRouter);
 
 export default router;

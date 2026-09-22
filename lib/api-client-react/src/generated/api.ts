@@ -47,7 +47,11 @@ import type {
   DmThread,
   DmThreadSummary,
   ErrorEnvelope,
+  GetCardsIdRecommendations200,
+  GetCardsIdRecommendationsParams,
   GetRecentActivityParams,
+  GetRecommendationsOpportunities200,
+  GetRecommendationsOpportunitiesParams,
   HealthStatus,
   InventoryStats,
   InviteHistoryEntry,
@@ -59,6 +63,7 @@ import type {
   PokemonResult,
   PokemonSetDetail,
   PokemonSetSummary,
+  PostRecommendationsKeyFeedbackBody,
   RulebookResponse,
   RulebookSearchResult,
   SearchCatalogParams,
@@ -5505,3 +5510,321 @@ export function useSearchRulebook<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get ranked owned-card opportunities
+ */
+export const getGetRecommendationsOpportunitiesUrl = (
+  params?: GetRecommendationsOpportunitiesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/recommendations/opportunities?${stringifiedParams}`
+    : `/api/recommendations/opportunities`;
+};
+
+export const getRecommendationsOpportunities = async (
+  params?: GetRecommendationsOpportunitiesParams,
+  options?: RequestInit,
+): Promise<GetRecommendationsOpportunities200> => {
+  return customFetch<GetRecommendationsOpportunities200>(
+    getGetRecommendationsOpportunitiesUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetRecommendationsOpportunitiesQueryKey = (
+  params?: GetRecommendationsOpportunitiesParams,
+) => {
+  return [
+    `/api/recommendations/opportunities`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetRecommendationsOpportunitiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRecommendationsOpportunities>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetRecommendationsOpportunitiesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRecommendationsOpportunities>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetRecommendationsOpportunitiesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getRecommendationsOpportunities>>
+  > = ({ signal }) =>
+    getRecommendationsOpportunities(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRecommendationsOpportunities>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRecommendationsOpportunitiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRecommendationsOpportunities>>
+>;
+export type GetRecommendationsOpportunitiesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get ranked owned-card opportunities
+ */
+
+export function useGetRecommendationsOpportunities<
+  TData = Awaited<ReturnType<typeof getRecommendationsOpportunities>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetRecommendationsOpportunitiesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRecommendationsOpportunities>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRecommendationsOpportunitiesQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Recommend actions for one owned card
+ */
+export const getGetCardsIdRecommendationsUrl = (
+  id: number,
+  params?: GetCardsIdRecommendationsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/cards/${id}/recommendations?${stringifiedParams}`
+    : `/api/cards/${id}/recommendations`;
+};
+
+export const getCardsIdRecommendations = async (
+  id: number,
+  params?: GetCardsIdRecommendationsParams,
+  options?: RequestInit,
+): Promise<GetCardsIdRecommendations200> => {
+  return customFetch<GetCardsIdRecommendations200>(
+    getGetCardsIdRecommendationsUrl(id, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetCardsIdRecommendationsQueryKey = (
+  id: number,
+  params?: GetCardsIdRecommendationsParams,
+) => {
+  return [
+    `/api/cards/${id}/recommendations`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetCardsIdRecommendationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCardsIdRecommendations>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetCardsIdRecommendationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCardsIdRecommendations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCardsIdRecommendationsQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCardsIdRecommendations>>
+  > = ({ signal }) =>
+    getCardsIdRecommendations(id, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCardsIdRecommendations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCardsIdRecommendationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCardsIdRecommendations>>
+>;
+export type GetCardsIdRecommendationsQueryError = ErrorType<void>;
+
+/**
+ * @summary Recommend actions for one owned card
+ */
+
+export function useGetCardsIdRecommendations<
+  TData = Awaited<ReturnType<typeof getCardsIdRecommendations>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetCardsIdRecommendationsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCardsIdRecommendations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCardsIdRecommendationsQueryOptions(
+    id,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save feedback for a recommendation
+ */
+export const getPostRecommendationsKeyFeedbackUrl = (key: string) => {
+  return `/api/recommendations/${key}/feedback`;
+};
+
+export const postRecommendationsKeyFeedback = async (
+  key: string,
+  postRecommendationsKeyFeedbackBody: PostRecommendationsKeyFeedbackBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getPostRecommendationsKeyFeedbackUrl(key), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(postRecommendationsKeyFeedbackBody),
+  });
+};
+
+export const getPostRecommendationsKeyFeedbackMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postRecommendationsKeyFeedback>>,
+    TError,
+    { key: string; data: BodyType<PostRecommendationsKeyFeedbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postRecommendationsKeyFeedback>>,
+  TError,
+  { key: string; data: BodyType<PostRecommendationsKeyFeedbackBody> },
+  TContext
+> => {
+  const mutationKey = ["postRecommendationsKeyFeedback"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postRecommendationsKeyFeedback>>,
+    { key: string; data: BodyType<PostRecommendationsKeyFeedbackBody> }
+  > = (props) => {
+    const { key, data } = props ?? {};
+
+    return postRecommendationsKeyFeedback(key, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostRecommendationsKeyFeedbackMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postRecommendationsKeyFeedback>>
+>;
+export type PostRecommendationsKeyFeedbackMutationBody =
+  BodyType<PostRecommendationsKeyFeedbackBody>;
+export type PostRecommendationsKeyFeedbackMutationError = ErrorType<void>;
+
+/**
+ * @summary Save feedback for a recommendation
+ */
+export const usePostRecommendationsKeyFeedback = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postRecommendationsKeyFeedback>>,
+    TError,
+    { key: string; data: BodyType<PostRecommendationsKeyFeedbackBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof postRecommendationsKeyFeedback>>,
+  TError,
+  { key: string; data: BodyType<PostRecommendationsKeyFeedbackBody> },
+  TContext
+> => {
+  return useMutation(getPostRecommendationsKeyFeedbackMutationOptions(options));
+};

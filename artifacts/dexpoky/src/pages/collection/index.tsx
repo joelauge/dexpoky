@@ -21,6 +21,7 @@ import { CardSizeSlider } from "@/components/card-size-slider";
 import { motion, AnimatePresence } from "framer-motion";
 import { ManageCollectionsDialog } from "./manage-collections-dialog";
 import { BulkUpdateDialog } from "./bulk-update-dialog";
+import { OpportunitiesFeed } from "@/components/recommendations";
 import { cn } from "@/lib/utils";
 import { getCardIdentity } from "@/lib/set-completion";
 
@@ -337,6 +338,10 @@ export default function Collection() {
                 </Button>
               </Link>
             </div>
+          </div>
+
+          <div className="mb-6">
+            <OpportunitiesFeed limit={2} />
           </div>
 
           <div className="bg-card border rounded-xl p-4 shadow-sm mb-6">

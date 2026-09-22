@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { CardItem } from "@/components/ui/card-item";
 import { formatDistanceToNow } from "date-fns";
 import { WelcomeBackModal } from "@/components/welcome-back-modal";
+import { OpportunitiesFeed } from "@/components/recommendations";
 
 type ActivityEventType =
   | "card_added"
@@ -410,9 +411,13 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Activity Feed */}
-            <div>
-              <Card className="shadow-sm max-h-[680px] flex flex-col">
+            {/* Activity Feed and Recommendations */}
+            <div className="space-y-8">
+              {/* Recommendations */}
+              <OpportunitiesFeed limit={3} />
+
+              {/* Activity Feed */}
+              <Card className="shadow-sm max-h-[500px] flex flex-col">
                 <CardHeader className="pb-3 border-b">
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="h-5 w-5 text-primary" />

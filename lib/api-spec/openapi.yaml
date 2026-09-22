@@ -1353,7 +1353,93 @@ paths:
                 items:
                   $ref: "#/components/schemas/RulebookSearchResult"
 
+  /recommendations/opportunities:
+    get:
+      tags: [recommendations]
+      summary: Get ranked owned-card opportunities
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: profile
+          schema:
+            type: string
+            enum: [collector, player, seller, trader, investor]
+      responses:
+        "200":
+          description: Ranked informational recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile, opportunities, informational]
+                properties:
+                  profile: { type: string }
+                  informational: { type: boolean }
+                  opportunities: { type: array, items: { $ref: "#/components/schemas/Recommendation" } }
+  /cards/{id}/recommendations:
+    get:
+      tags: [recommendations]
+      summary: Recommend actions for one owned card
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: profile
+          schema: { type: string, enum: [collector, player, seller, trader, investor] }
+      responses:
+        "200":
+          description: Informational recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [card, profile, recommendations, informational, evidenceHash, unavailable]
+                properties:
+                  card: { $ref: "#/components/schemas/RecommendationCard" }
+                  profile: { type: string, enum: [collector, player, seller, trader, investor] }
+                  recommendations:
+                    type: array
+                    items: { $ref: "#/components/schemas/Recommendation" }
+                  informational: { type: boolean }
+                  evidenceHash: { type: string }
+                  unavailable: { type: boolean }
+        "400": { description: Invalid card id }
+        "404": { description: Owned card not found }
+  /recommendations/{key}/feedback:
+    post:
+      tags: [recommendations]
+      summary: Save feedback for a recommendation
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value: { type: string, enum: [dismissed, helpful, not_helpful] }
+      responses:
+        "201": { description: Feedback saved }
+        "400": { description: Invalid feedback }
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     HealthStatus:
       type: object
@@ -2854,6 +2940,35 @@ components:
         - status
         - sentAt
 
+    Recommendation:
+      type: object
+      required: [key, action, score, confidence, probabilities, reasons, informational]
+      properties:
+        key: { type: string }
+        action: { type: string, enum: [keep, play, sell, trade, grade, watch] }
+        score: { type: number, minimum: 0, maximum: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        probabilities:
+          type: object
+          additionalProperties: { type: number }
+        reasons: { type: array, items: { type: string } }
+        informational: { type: boolean }
+        model: { type: string }
+        unavailable: { type: boolean }
+        evidenceHash: { type: string }
+        card: { $ref: "#/components/schemas/RecommendationCard" }
+    RecommendationCard:
+      type: object
+      required: [id, name, catalogCardId, estimatedValue, listingPrice, condition, forSale, imageUrl]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        catalogCardId: { type: string, nullable: true }
+        estimatedValue: { type: number, nullable: true }
+        listingPrice: { type: number, nullable: true }
+        condition: { type: string }
+        forSale: { type: boolean }
+        imageUrl: { type: string, nullable: true }
     CardConfidenceInput:
       type: object
       properties:

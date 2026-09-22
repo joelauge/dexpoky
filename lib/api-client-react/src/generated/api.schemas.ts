@@ -987,6 +987,53 @@ export interface InviteHistoryEntry {
   sentAt: string;
 }
 
+export type RecommendationAction =
+  (typeof RecommendationAction)[keyof typeof RecommendationAction];
+
+export const RecommendationAction = {
+  keep: "keep",
+  play: "play",
+  sell: "sell",
+  trade: "trade",
+  grade: "grade",
+  watch: "watch",
+} as const;
+
+export type RecommendationProbabilities = { [key: string]: number };
+
+export interface RecommendationCard {
+  id: number;
+  name: string;
+  catalogCardId: string | null;
+  estimatedValue: number | null;
+  listingPrice: number | null;
+  condition: string;
+  forSale: boolean;
+  imageUrl: string | null;
+}
+
+export interface Recommendation {
+  key: string;
+  action: RecommendationAction;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  score: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  confidence: number;
+  probabilities: RecommendationProbabilities;
+  reasons: string[];
+  informational: boolean;
+  model?: string;
+  unavailable?: boolean;
+  evidenceHash?: string;
+  card?: RecommendationCard;
+}
+
 export type CardConfidenceInputObserved = {
   visionConfidence?: string | null;
   ocrName?: string | null;
@@ -1130,4 +1177,73 @@ export type ListWantedListingsParams = {
 
 export type SearchRulebookParams = {
   q?: string;
+};
+
+export type GetRecommendationsOpportunitiesParams = {
+  profile?: GetRecommendationsOpportunitiesProfile;
+};
+
+export type GetRecommendationsOpportunitiesProfile =
+  (typeof GetRecommendationsOpportunitiesProfile)[keyof typeof GetRecommendationsOpportunitiesProfile];
+
+export const GetRecommendationsOpportunitiesProfile = {
+  collector: "collector",
+  player: "player",
+  seller: "seller",
+  trader: "trader",
+  investor: "investor",
+} as const;
+
+export type GetRecommendationsOpportunities200 = {
+  profile: string;
+  informational: boolean;
+  opportunities: Recommendation[];
+};
+
+export type GetCardsIdRecommendationsParams = {
+  profile?: GetCardsIdRecommendationsProfile;
+};
+
+export type GetCardsIdRecommendationsProfile =
+  (typeof GetCardsIdRecommendationsProfile)[keyof typeof GetCardsIdRecommendationsProfile];
+
+export const GetCardsIdRecommendationsProfile = {
+  collector: "collector",
+  player: "player",
+  seller: "seller",
+  trader: "trader",
+  investor: "investor",
+} as const;
+
+export type GetCardsIdRecommendations200Profile =
+  (typeof GetCardsIdRecommendations200Profile)[keyof typeof GetCardsIdRecommendations200Profile];
+
+export const GetCardsIdRecommendations200Profile = {
+  collector: "collector",
+  player: "player",
+  seller: "seller",
+  trader: "trader",
+  investor: "investor",
+} as const;
+
+export type GetCardsIdRecommendations200 = {
+  card: RecommendationCard;
+  profile: GetCardsIdRecommendations200Profile;
+  recommendations: Recommendation[];
+  informational: boolean;
+  evidenceHash: string;
+  unavailable: boolean;
+};
+
+export type PostRecommendationsKeyFeedbackBodyValue =
+  (typeof PostRecommendationsKeyFeedbackBodyValue)[keyof typeof PostRecommendationsKeyFeedbackBodyValue];
+
+export const PostRecommendationsKeyFeedbackBodyValue = {
+  dismissed: "dismissed",
+  helpful: "helpful",
+  not_helpful: "not_helpful",
+} as const;
+
+export type PostRecommendationsKeyFeedbackBody = {
+  value: PostRecommendationsKeyFeedbackBodyValue;
 };

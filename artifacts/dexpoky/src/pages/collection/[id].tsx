@@ -31,6 +31,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PriceHistoryChart } from "@/components/price-history-chart";
+import { CardRecommendations } from "@/components/recommendations";
 import { getCardIdentity } from "@/lib/set-completion";
 import {
   Dialog,
@@ -671,6 +672,8 @@ export default function CardDetail() {
                 </span>
               )}
             </div>
+            <CardRecommendations cardId={id} />
+
             <CardConfidenceScorecard endpoint={`/api/cards/${id}/confidence`} evidence={confidenceEvidence} />
 
             {/* Value panel */}

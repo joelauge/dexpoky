@@ -1775,3 +1775,138 @@ export const SearchRulebookResponseItem = zod.object({
   score: zod.number(),
 });
 export const SearchRulebookResponse = zod.array(SearchRulebookResponseItem);
+
+/**
+ * @summary Get ranked owned-card opportunities
+ */
+export const GetRecommendationsOpportunitiesQueryParams = zod.object({
+  profile: zod
+    .enum(["collector", "player", "seller", "trader", "investor"])
+    .optional(),
+});
+
+export const getRecommendationsOpportunitiesResponseOpportunitiesItemScoreMin = 0;
+export const getRecommendationsOpportunitiesResponseOpportunitiesItemScoreMax = 1;
+
+export const getRecommendationsOpportunitiesResponseOpportunitiesItemConfidenceMin = 0;
+export const getRecommendationsOpportunitiesResponseOpportunitiesItemConfidenceMax = 1;
+
+export const GetRecommendationsOpportunitiesResponse = zod.object({
+  profile: zod.string(),
+  informational: zod.boolean(),
+  opportunities: zod.array(
+    zod.object({
+      key: zod.string(),
+      action: zod.enum(["keep", "play", "sell", "trade", "grade", "watch"]),
+      score: zod
+        .number()
+        .min(getRecommendationsOpportunitiesResponseOpportunitiesItemScoreMin)
+        .max(getRecommendationsOpportunitiesResponseOpportunitiesItemScoreMax),
+      confidence: zod
+        .number()
+        .min(
+          getRecommendationsOpportunitiesResponseOpportunitiesItemConfidenceMin,
+        )
+        .max(
+          getRecommendationsOpportunitiesResponseOpportunitiesItemConfidenceMax,
+        ),
+      probabilities: zod.record(zod.string(), zod.number()),
+      reasons: zod.array(zod.string()),
+      informational: zod.boolean(),
+      model: zod.string().optional(),
+      unavailable: zod.boolean().optional(),
+      evidenceHash: zod.string().optional(),
+      card: zod
+        .object({
+          id: zod.number(),
+          name: zod.string(),
+          catalogCardId: zod.string().nullable(),
+          estimatedValue: zod.number().nullable(),
+          listingPrice: zod.number().nullable(),
+          condition: zod.string(),
+          forSale: zod.boolean(),
+          imageUrl: zod.string().nullable(),
+        })
+        .optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Recommend actions for one owned card
+ */
+export const GetCardsIdRecommendationsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetCardsIdRecommendationsQueryParams = zod.object({
+  profile: zod
+    .enum(["collector", "player", "seller", "trader", "investor"])
+    .optional(),
+});
+
+export const getCardsIdRecommendationsResponseRecommendationsItemScoreMin = 0;
+export const getCardsIdRecommendationsResponseRecommendationsItemScoreMax = 1;
+
+export const getCardsIdRecommendationsResponseRecommendationsItemConfidenceMin = 0;
+export const getCardsIdRecommendationsResponseRecommendationsItemConfidenceMax = 1;
+
+export const GetCardsIdRecommendationsResponse = zod.object({
+  card: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    catalogCardId: zod.string().nullable(),
+    estimatedValue: zod.number().nullable(),
+    listingPrice: zod.number().nullable(),
+    condition: zod.string(),
+    forSale: zod.boolean(),
+    imageUrl: zod.string().nullable(),
+  }),
+  profile: zod.enum(["collector", "player", "seller", "trader", "investor"]),
+  recommendations: zod.array(
+    zod.object({
+      key: zod.string(),
+      action: zod.enum(["keep", "play", "sell", "trade", "grade", "watch"]),
+      score: zod
+        .number()
+        .min(getCardsIdRecommendationsResponseRecommendationsItemScoreMin)
+        .max(getCardsIdRecommendationsResponseRecommendationsItemScoreMax),
+      confidence: zod
+        .number()
+        .min(getCardsIdRecommendationsResponseRecommendationsItemConfidenceMin)
+        .max(getCardsIdRecommendationsResponseRecommendationsItemConfidenceMax),
+      probabilities: zod.record(zod.string(), zod.number()),
+      reasons: zod.array(zod.string()),
+      informational: zod.boolean(),
+      model: zod.string().optional(),
+      unavailable: zod.boolean().optional(),
+      evidenceHash: zod.string().optional(),
+      card: zod
+        .object({
+          id: zod.number(),
+          name: zod.string(),
+          catalogCardId: zod.string().nullable(),
+          estimatedValue: zod.number().nullable(),
+          listingPrice: zod.number().nullable(),
+          condition: zod.string(),
+          forSale: zod.boolean(),
+          imageUrl: zod.string().nullable(),
+        })
+        .optional(),
+    }),
+  ),
+  informational: zod.boolean(),
+  evidenceHash: zod.string(),
+  unavailable: zod.boolean(),
+});
+
+/**
+ * @summary Save feedback for a recommendation
+ */
+export const PostRecommendationsKeyFeedbackParams = zod.object({
+  key: zod.coerce.string(),
+});
+
+export const PostRecommendationsKeyFeedbackBody = zod.object({
+  value: zod.enum(["dismissed", "helpful", "not_helpful"]),
+});
