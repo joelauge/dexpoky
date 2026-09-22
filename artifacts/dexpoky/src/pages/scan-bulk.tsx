@@ -901,11 +901,20 @@ export default function ScanBulkPage() {
                                       }`}
                                     >
                                       <div className="aspect-[5/7] bg-muted relative">
-                                        {v.imageUrl ? (
-                                          <img src={v.imageUrl} alt={v.name} className="w-full h-full object-contain" />
-                                        ) : (
-                                          <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">no image</div>
-                                        )}
+                                         <img
+                                           src={v.imageUrl || "/logo.png"}
+                                           alt={v.imageUrl ? v.name : ""}
+                                           aria-hidden={!v.imageUrl}
+                                           className={v.imageUrl
+                                             ? "w-full h-full object-contain"
+                                             : "w-full h-full object-contain p-3 grayscale opacity-20"}
+                                           onError={(event) => {
+                                             event.currentTarget.onerror = null;
+                                             event.currentTarget.src = "/logo.png";
+                                             event.currentTarget.alt = "";
+                                             event.currentTarget.className = "w-full h-full object-contain p-3 grayscale opacity-20";
+                                           }}
+                                         />
                                         {selected && (
                                           <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center">
                                             <Check className="h-2.5 w-2.5" />

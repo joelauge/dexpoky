@@ -794,10 +794,20 @@ export default function ScanPage() {
                             className={`shrink-0 w-20 rounded-xl overflow-hidden border-2 transition-all ${active ? "border-primary scale-105 shadow-md" : "border-transparent hover:border-border"}`}
                           >
                             <div className="aspect-[3/4] bg-muted flex items-center justify-center">
-                              {v.imageUrl
-                                ? <img src={v.imageUrl} alt={v.name} className="w-full h-full object-cover" />
-                                : <span className="text-[9px] text-muted-foreground p-1 text-center leading-tight">{v.setName}</span>
-                              }
+                              <img
+                                src={v.imageUrl || "/logo.png"}
+                                alt={v.imageUrl ? v.name : ""}
+                                aria-hidden={!v.imageUrl}
+                                className={v.imageUrl
+                                  ? "w-full h-full object-cover"
+                                  : "w-full h-full object-contain p-3 grayscale opacity-20"}
+                                onError={(event) => {
+                                  event.currentTarget.onerror = null;
+                                  event.currentTarget.src = "/logo.png";
+                                  event.currentTarget.alt = "";
+                                  event.currentTarget.className = "w-full h-full object-contain p-3 grayscale opacity-20";
+                                }}
+                              />
                             </div>
                             <div className="p-1 bg-card border-t">
                               <p className="text-[9px] font-medium truncate leading-tight">{v.setName}</p>
