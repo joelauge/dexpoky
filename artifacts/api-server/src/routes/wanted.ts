@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { randomBytes } from "crypto";
-import { db, wantedListingsTable } from "@workspace/db";
-import { eq, ilike, desc, or, and, isNull, gt, sql } from "drizzle-orm";
+import { db, wantedListingsTable, listingsTable, cardsTable } from "@workspace/db";
+import { eq, ilike, desc, or, and, isNull, gt, sql, ne, lte } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { logger } from "../lib/logger.js";
 import { CreateWantedListingBody, UpdateWantedListingBody } from "@workspace/api-zod";
+import { rerankWantedMatches } from "../lib/jev-wanted-matches.js";
 
 const router = Router();
 
@@ -78,6 +79,50 @@ router.get("/wanted/mine", requireAuth, async (req, res) => {
   res.json(rows.map(serializeWanted));
 });
 
+router.get("/wanted/:id/matches", requireAuth, async (req, res) => {
+  const id = Number(String(req.params.id));
+  const userId = (req as AuthRequest).userId;
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [wanted] = await db.select().from(wantedListingsTable).where(eq(wantedListingsTable.id, id));
+  if (!wanted) { res.status(404).json({ error: "Not found" }); return; }
+  if (wanted.ownerClerkId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const filters = [
+    eq(listingsTable.status, "active"),
+    ne(listingsTable.sellerClerkId, userId),
+    sql`lower(${cardsTable.pokemonName}) = lower(${wanted.pokemonName})`,
+  ];
+  if (wanted.maxPrice != null) filters.push(lte(listingsTable.price, wanted.maxPrice));
+  const rows = await db
+    .select({
+      listingId: listingsTable.id,
+      cardId: cardsTable.id,
+      catalogCardId: cardsTable.catalogCardId,
+      name: cardsTable.name,
+      pokemonName: cardsTable.pokemonName,
+      setName: cardsTable.setName,
+      cardNumber: cardsTable.cardNumber,
+      rarity: cardsTable.rarity,
+      condition: cardsTable.condition,
+      price: listingsTable.price,
+      description: listingsTable.description,
+    })
+    .from(listingsTable)
+    .innerJoin(cardsTable, eq(listingsTable.cardId, cardsTable.id))
+    .where(and(...filters));
+
+  const matches = await rerankWantedMatches({
+    catalogCardId: wanted.catalogCardId,
+    name: wanted.name,
+    pokemonName: wanted.pokemonName,
+    setName: wanted.setName,
+    cardNumber: wanted.cardNumber,
+    maxPrice: wanted.maxPrice == null ? null : Number(wanted.maxPrice),
+    preferences: wanted.notes,
+  }, rows.map((row) => ({ ...row, price: Number(row.price) })));
+  res.json(matches);
+});
+
 router.get("/wanted/by-code/:code", async (req, res) => {
   const { code } = req.params;
   const [row] = await db
@@ -143,7 +188,7 @@ router.post("/wanted", requireAuth, async (req, res) => {
 });
 
 router.patch("/wanted/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
@@ -172,9 +217,14 @@ router.patch("/wanted/:id", requireAuth, async (req, res) => {
     return;
   }
 
+  const changes = parsed.data as { status?: "active" | "closed"; notes?: string | null; maxPrice?: number | null };
   const [updated] = await db
     .update(wantedListingsTable)
-    .set({ status: parsed.data.status })
+    .set({
+      ...(changes.status !== undefined ? { status: changes.status } : {}),
+      ...(changes.notes !== undefined ? { notes: changes.notes?.trim() || null } : {}),
+      ...(changes.maxPrice !== undefined ? { maxPrice: changes.maxPrice == null ? null : String(changes.maxPrice) } : {}),
+    })
     .where(eq(wantedListingsTable.id, id))
     .returning();
 
@@ -182,7 +232,7 @@ router.patch("/wanted/:id", requireAuth, async (req, res) => {
 });
 
 router.delete("/wanted/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;

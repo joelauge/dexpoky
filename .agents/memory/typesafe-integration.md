@@ -10,3 +10,5 @@ Use TypeSafe Jev through its documented server-side HTTP API. Keep exact catalog
 **How to apply:** For future Jev features, keep the API key server-side, validate responses, provide an explicit unavailable fallback, and place code-owned hard gates around model scores. Use simple DexPoky language and do not show a required action without an adjacent working control.
 
 For trade reviews, calculate each party's cash and card totals in code and keep them visibly separate from semantic judgments. Cache only successful judgments for a bounded time, version the evaluator, and never let Jev accept, reject, reprice, transfer ownership, or claim a trade is guaranteed fair.
+
+For semantic reranking, build and filter the complete eligible candidate set in code before calling Jev. With no semantic intent, preserve exact deterministic behavior. If semantic evaluation is unavailable or malformed, show low-confidence fallback results and suppress urgent notifications rather than treating fallback confidence as high.

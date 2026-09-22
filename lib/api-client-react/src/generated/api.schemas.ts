@@ -985,7 +985,47 @@ export const UpdateWantedBodyStatus = {
 } as const;
 
 export interface UpdateWantedBody {
-  status: UpdateWantedBodyStatus;
+  status?: UpdateWantedBodyStatus;
+  /** @maxLength 1000 */
+  notes?: string | null;
+  /** @minimum 0 */
+  maxPrice?: number | null;
+}
+
+export type WantedMatchLabel =
+  (typeof WantedMatchLabel)[keyof typeof WantedMatchLabel];
+
+export const WantedMatchLabel = {
+  Strong_match: "Strong match",
+  Possible_match: "Possible match",
+  Near_match: "Near match",
+} as const;
+
+export interface WantedMatch {
+  listingId: number;
+  cardId: number;
+  catalogCardId?: string | null;
+  name: string;
+  pokemonName: string;
+  setName?: string | null;
+  cardNumber?: string | null;
+  rarity: string;
+  condition: string;
+  price: number;
+  description?: string | null;
+  exactPrinting: boolean;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  relevance: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  confidence: number;
+  label: WantedMatchLabel;
+  explanation: string;
 }
 
 export interface InviteRecipient {

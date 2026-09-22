@@ -4,6 +4,8 @@ import { useUser } from "@clerk/react";
 import {
   useListCards, useListCategories,
   useCreateWantedListing, useListMyWantedListings, useDeleteWantedListing,
+  useListWantedMatches, useUpdateWantedListing,
+  getListWantedMatchesQueryKey,
 } from "@workspace/api-client-react";
 import type { WantedListing } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -49,6 +51,83 @@ function computeExpiresAt(expiry: ExpiryOption, customDate: string): string | nu
   if (expiry === "3m")    return new Date(Date.now() + 90 * 86_400_000).toISOString();
   if (expiry === "custom" && customDate) return new Date(customDate).toISOString();
   return null;
+}
+
+function WantedMatchesPanel({ listing }: { listing: WantedListing }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [notes, setNotes] = useState(listing.notes ?? "");
+  const [maxPrice, setMaxPrice] = useState(listing.maxPrice?.toString() ?? "");
+  const { data: matches = [], isLoading } = useListWantedMatches(listing.id, {
+    query: {
+      enabled: open && listing.status === "active",
+      queryKey: getListWantedMatchesQueryKey(listing.id),
+    },
+  });
+  const update = useUpdateWantedListing({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ["/api/wanted/mine"] });
+        qc.invalidateQueries({ queryKey: getListWantedMatchesQueryKey(listing.id) });
+        setEditing(false);
+        toast.success("Match preferences updated");
+      },
+      onError: () => toast.error("Couldn't update match preferences"),
+    },
+  });
+
+  if (listing.status !== "active") return null;
+  return (
+    <div className="border-t px-3 py-2.5 bg-muted/20">
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={() => setOpen((value) => !value)} className="text-xs font-semibold text-primary hover:underline">
+          {open ? "Hide ranked matches" : "View ranked matches"}
+        </button>
+        <button type="button" onClick={() => setEditing((value) => !value)} className="text-xs text-muted-foreground hover:text-foreground">
+          Edit preferences
+        </button>
+      </div>
+      {editing && (
+        <div className="mt-3 space-y-2">
+          <textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            maxLength={1000}
+            rows={3}
+            placeholder="e.g. Near mint or better, English printing, prefer local pickup"
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+          />
+          <Input type="number" min="0" step="0.01" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} placeholder="Maximum price" />
+          <Button
+            size="sm"
+            disabled={update.isPending}
+            onClick={() => update.mutate({ id: listing.id, data: { notes: notes.trim() || null, maxPrice: maxPrice ? Number(maxPrice) : null } })}
+          >
+            Save and rerank
+          </Button>
+        </div>
+      )}
+      {open && (
+        <div className="mt-3 space-y-2">
+          {isLoading ? <p className="text-xs text-muted-foreground">Ranking eligible listings…</p> : matches.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No active listings meet the identity, ownership, and budget rules yet.</p>
+          ) : matches.map((match) => (
+            <a key={match.listingId} href={`/marketplace/${match.listingId}`} className="flex items-start justify-between gap-3 rounded-lg border bg-background p-2.5 hover:border-primary/40">
+              <div className="min-w-0">
+                <p className="text-xs font-bold truncate">{match.name} · {match.condition.replaceAll("_", " ")}</p>
+                <p className="text-[11px] text-muted-foreground">{match.label} · {match.explanation}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-xs font-bold">${match.price.toFixed(2)}</p>
+                <p className="text-[10px] text-muted-foreground">{Math.round(match.confidence * 100)}% confidence</p>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 type SellType = "single" | "group" | "category" | "collection";
@@ -1569,6 +1648,7 @@ export default function SharePage() {
                               </div>
                             </div>
                           </div>
+                          <WantedMatchesPanel listing={listing} />
                           {confirmDeleteId === listing.id && (
                             <div className="flex items-center justify-between gap-2 px-3 py-2 bg-red-50 border-t border-red-100">
                               <p className="text-xs text-red-700 font-medium">Delete this request?</p>

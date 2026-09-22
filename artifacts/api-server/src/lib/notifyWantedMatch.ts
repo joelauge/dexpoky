@@ -2,6 +2,7 @@ import { db, activityEventsTable, wantedListingsTable, cardsTable } from "@works
 import { eq, and } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 import { logger } from "./logger.js";
+import { rerankWantedMatches, shouldSendUrgentWantedNotification } from "./jev-wanted-matches.js";
 
 function getAppBaseUrl(): string {
   const domains = process.env.REPLIT_DOMAINS;
@@ -78,7 +79,16 @@ export async function notifyWantedListingMatches(params: {
   const { listingId, cardId, sellerClerkId, price } = params;
 
   const [card] = await db
-    .select({ catalogCardId: cardsTable.catalogCardId, name: cardsTable.name, imageUrl: cardsTable.imageUrl })
+    .select({
+      catalogCardId: cardsTable.catalogCardId,
+      name: cardsTable.name,
+      pokemonName: cardsTable.pokemonName,
+      setName: cardsTable.setName,
+      cardNumber: cardsTable.cardNumber,
+      rarity: cardsTable.rarity,
+      condition: cardsTable.condition,
+      imageUrl: cardsTable.imageUrl,
+    })
     .from(cardsTable)
     .where(eq(cardsTable.id, cardId));
 
@@ -114,6 +124,34 @@ export async function notifyWantedListingMatches(params: {
     if (notifiedBuyers.has(wanted.ownerClerkId)) {
       continue;
     }
+    if (wanted.maxPrice != null && price > Number(wanted.maxPrice)) {
+      continue;
+    }
+    const [match] = await rerankWantedMatches({
+      catalogCardId: wanted.catalogCardId,
+      name: wanted.name,
+      pokemonName: wanted.pokemonName,
+      setName: wanted.setName,
+      cardNumber: wanted.cardNumber,
+      maxPrice: wanted.maxPrice == null ? null : Number(wanted.maxPrice),
+      preferences: wanted.notes,
+    }, [{
+      listingId,
+      cardId,
+      catalogCardId: card.catalogCardId,
+      name: card.name,
+      pokemonName: card.pokemonName,
+      setName: card.setName,
+      cardNumber: card.cardNumber,
+      rarity: card.rarity,
+      condition: card.condition,
+      price,
+      description: null,
+    }]);
+    if (!match || !shouldSendUrgentWantedNotification(match, !!wanted.notes?.trim())) {
+      logger.info({ wantedId: wanted.id, listingId, label: match?.label }, "Suppressed uncertain wanted match notification");
+      continue;
+    }
     notifiedBuyers.add(wanted.ownerClerkId);
 
     try {
@@ -127,6 +165,8 @@ export async function notifyWantedListingMatches(params: {
           imageUrl: card.imageUrl ?? null,
           price,
           listingUrl,
+          matchLabel: match.label,
+          matchConfidence: match.confidence,
         },
       });
     } catch (err) {

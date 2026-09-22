@@ -1606,8 +1606,14 @@ export const UpdateWantedListingParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const updateWantedListingBodyNotesMax = 1000;
+
+export const updateWantedListingBodyMaxPriceMin = 0;
+
 export const UpdateWantedListingBody = zod.object({
-  status: zod.enum(["active", "closed"]),
+  status: zod.enum(["active", "closed"]).optional(),
+  notes: zod.string().max(updateWantedListingBodyNotesMax).nullish(),
+  maxPrice: zod.number().min(updateWantedListingBodyMaxPriceMin).nullish(),
 });
 
 export const UpdateWantedListingResponse = zod.object({
@@ -1638,6 +1644,47 @@ export const UpdateWantedListingResponse = zod.object({
 export const DeleteWantedListingParams = zod.object({
   id: zod.coerce.number(),
 });
+
+/**
+ * @summary List eligible marketplace matches ranked by the buyer's preferences
+ */
+export const ListWantedMatchesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const listWantedMatchesResponseRelevanceMin = 0;
+export const listWantedMatchesResponseRelevanceMax = 1;
+
+export const listWantedMatchesResponseConfidenceMin = 0;
+export const listWantedMatchesResponseConfidenceMax = 1;
+
+export const ListWantedMatchesResponseItem = zod.object({
+  listingId: zod.number(),
+  cardId: zod.number(),
+  catalogCardId: zod.string().nullish(),
+  name: zod.string(),
+  pokemonName: zod.string(),
+  setName: zod.string().nullish(),
+  cardNumber: zod.string().nullish(),
+  rarity: zod.string(),
+  condition: zod.string(),
+  price: zod.number(),
+  description: zod.string().nullish(),
+  exactPrinting: zod.boolean(),
+  relevance: zod
+    .number()
+    .min(listWantedMatchesResponseRelevanceMin)
+    .max(listWantedMatchesResponseRelevanceMax),
+  confidence: zod
+    .number()
+    .min(listWantedMatchesResponseConfidenceMin)
+    .max(listWantedMatchesResponseConfidenceMax),
+  label: zod.enum(["Strong match", "Possible match", "Near match"]),
+  explanation: zod.string(),
+});
+export const ListWantedMatchesResponse = zod.array(
+  ListWantedMatchesResponseItem,
+);
 
 /**
  * @summary Start or retrieve an existing DM thread for a wanted listing

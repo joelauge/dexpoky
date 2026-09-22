@@ -86,6 +86,7 @@ import type {
   UploadUrlRequest,
   UploadUrlResponse,
   WantedListing,
+  WantedMatch,
   WishlistItem,
 } from "./api.schemas";
 
@@ -4998,6 +4999,93 @@ export const useDeleteWantedListing = <
 > => {
   return useMutation(getDeleteWantedListingMutationOptions(options));
 };
+
+/**
+ * @summary List eligible marketplace matches ranked by the buyer's preferences
+ */
+export const getListWantedMatchesUrl = (id: number) => {
+  return `/api/wanted/${id}/matches`;
+};
+
+export const listWantedMatches = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WantedMatch[]> => {
+  return customFetch<WantedMatch[]>(getListWantedMatchesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListWantedMatchesQueryKey = (id: number) => {
+  return [`/api/wanted/${id}/matches`] as const;
+};
+
+export const getListWantedMatchesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWantedMatches>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWantedMatches>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListWantedMatchesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listWantedMatches>>
+  > = ({ signal }) => listWantedMatches(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listWantedMatches>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListWantedMatchesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWantedMatches>>
+>;
+export type ListWantedMatchesQueryError = ErrorType<void>;
+
+/**
+ * @summary List eligible marketplace matches ranked by the buyer's preferences
+ */
+
+export function useListWantedMatches<
+  TData = Awaited<ReturnType<typeof listWantedMatches>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWantedMatches>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListWantedMatchesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Start or retrieve an existing DM thread for a wanted listing
