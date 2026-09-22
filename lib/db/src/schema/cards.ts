@@ -63,9 +63,6 @@ export const cardsTable = pgTable("cards", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
-  ownerCatalogUnique: uniqueIndex("cards_owner_catalog_unique")
-    .on(table.ownerClerkId, table.catalogCardId)
-    .where(sql`${table.catalogCardId} is not null`),
   ownerSetNumberUnique: uniqueIndex("cards_owner_set_number_unique")
     .on(table.ownerClerkId, table.setId, table.cardNumber)
     .where(sql`${table.setId} is not null and ${table.cardNumber} is not null`),
