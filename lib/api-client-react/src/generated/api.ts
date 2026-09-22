@@ -64,6 +64,7 @@ import type {
   PokemonSetDetail,
   PokemonSetSummary,
   PostRecommendationsKeyFeedbackBody,
+  RepriceOwnedCardsResponse,
   RulebookResponse,
   RulebookSearchResult,
   SearchCatalogParams,
@@ -1862,6 +1863,87 @@ export const useBulkUpdateCards = <
   TContext
 > => {
   return useMutation(getBulkUpdateCardsMutationOptions(options));
+};
+
+/**
+ * @summary Repair the authenticated user's collection values using exact-printing prices
+ */
+export const getRepriceOwnedCardsUrl = () => {
+  return `/api/cards/reprice`;
+};
+
+export const repriceOwnedCards = async (
+  options?: RequestInit,
+): Promise<RepriceOwnedCardsResponse> => {
+  return customFetch<RepriceOwnedCardsResponse>(getRepriceOwnedCardsUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRepriceOwnedCardsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof repriceOwnedCards>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof repriceOwnedCards>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["repriceOwnedCards"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof repriceOwnedCards>>,
+    void
+  > = () => {
+    return repriceOwnedCards(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RepriceOwnedCardsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof repriceOwnedCards>>
+>;
+
+export type RepriceOwnedCardsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Repair the authenticated user's collection values using exact-printing prices
+ */
+export const useRepriceOwnedCards = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof repriceOwnedCards>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof repriceOwnedCards>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRepriceOwnedCardsMutationOptions(options));
 };
 
 /**

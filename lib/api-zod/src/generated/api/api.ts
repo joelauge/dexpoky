@@ -654,6 +654,17 @@ export const BulkUpdateCardsResponse = zod.object({
 });
 
 /**
+ * @summary Repair the authenticated user's collection values using exact-printing prices
+ */
+export const RepriceOwnedCardsResponse = zod.object({
+  corrected: zod.number(),
+  unchanged: zod.number(),
+  unresolved: zod.number(),
+  unavailable: zod.number(),
+  total: zod.number(),
+});
+
+/**
  * @summary List all card categories
  */
 export const ListCategoriesResponseItem = zod.object({

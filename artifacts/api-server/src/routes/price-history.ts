@@ -2,16 +2,187 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { cardPriceHistoryTable, cardsTable } from "@workspace/db";
 import { fetchPricingById } from "./detect-helpers.js";
-import { eq, asc, and, sql } from "drizzle-orm";
+import { eq, asc, and, sql, or, isNotNull } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
+import { pwGetCard, buildPricingFromCatalog } from "../lib/pokewallet.js";
 
 const router = Router();
+
+type RepriceCandidate = {
+  id: number;
+  name: string;
+  pokemonName: string;
+  cardNumber: string | null;
+  setName: string | null;
+  setId: string | null;
+  catalogCardId: string | null;
+  rarity: string | null;
+  estimatedValue: number | null;
+};
+
+export type RepriceOutcome = "corrected" | "unchanged" | "unresolved" | "unavailable";
+export type RepriceAction =
+  | { outcome: "corrected"; value: number }
+  | { outcome: "unchanged" }
+  | { outcome: "unresolved"; clearValue: true }
+  | { outcome: "unavailable"; preserveValue: true };
+
+export function classifyReprice(
+  currentValue: number | null,
+  exactValue: number | null,
+  lookupStatus: "resolved" | "unresolved" | "unavailable",
+): RepriceOutcome {
+  if (lookupStatus === "unavailable") return "unavailable";
+  if (lookupStatus === "unresolved") return "unresolved";
+  if (exactValue == null) return "unavailable";
+  return currentValue != null && Math.abs(currentValue - exactValue) < 0.005
+    ? "unchanged"
+    : "corrected";
+}
+
+export function buildRepriceAction(
+  currentValue: number | null,
+  exactValue: number | null,
+  lookupStatus: "resolved" | "unresolved" | "unavailable",
+): RepriceAction {
+  const outcome = classifyReprice(currentValue, exactValue, lookupStatus);
+  if (outcome === "corrected") return { outcome, value: exactValue as number };
+  if (outcome === "unresolved") return { outcome, clearValue: true };
+  if (outcome === "unavailable") return { outcome, preserveValue: true };
+  return { outcome };
+}
+
+async function fetchExactPrice(card: RepriceCandidate): Promise<{
+  marketPrice: number | null;
+  source: string | null;
+  identity: string | null;
+  status: "resolved" | "unresolved" | "unavailable";
+}> {
+  if (card.catalogCardId?.startsWith("pk_")) {
+    const result = await pwGetCard(card.catalogCardId);
+    if (!result.ok) {
+      return {
+        marketPrice: null,
+        source: null,
+        identity: card.catalogCardId,
+        status: result.reason === "NOT_FOUND" ? "unresolved" : "unavailable",
+      };
+    }
+    const pricing = buildPricingFromCatalog(result.data);
+    return {
+      marketPrice: pricing.marketPrice,
+      source: pricing.source,
+      identity: card.catalogCardId,
+      status: pricing.marketPrice == null ? "unresolved" : "resolved",
+    };
+  }
+
+  const identity = buildTcgdexId(
+    card.catalogCardId,
+    card.setId,
+    card.setName,
+    card.cardNumber,
+  );
+  if (!identity) {
+    return { marketPrice: null, source: null, identity: null, status: "unresolved" };
+  }
+  const pricing = await fetchPricingById(
+    identity,
+    card.pokemonName || card.name,
+    card.rarity ?? undefined,
+  );
+  return {
+    marketPrice: pricing.marketPrice,
+    source: pricing.source,
+    identity,
+    // The exact-ID pricing chain currently returns the same empty result for
+    // upstream failures and no-price responses. Preserve the old value rather
+    // than destructively treating that ambiguity as confirmed no-price.
+    status: pricing.marketPrice == null ? "unavailable" : "resolved",
+  };
+}
+
+async function repriceOwnedCard(
+  ownerClerkId: string,
+  card: RepriceCandidate,
+): Promise<RepriceOutcome> {
+  const pricing = await fetchExactPrice(card);
+  const action = buildRepriceAction(card.estimatedValue, pricing.marketPrice, pricing.status);
+  const outcome = action.outcome;
+
+  if (outcome === "unresolved" || outcome === "unavailable") {
+    if (action.outcome === "unresolved" && card.estimatedValue != null) {
+      await db.update(cardsTable)
+        .set({ estimatedValue: null, updatedAt: new Date() })
+        .where(and(eq(cardsTable.id, card.id), eq(cardsTable.ownerClerkId, ownerClerkId)));
+    }
+    return outcome;
+  }
+
+  if (outcome === "unchanged") return outcome;
+
+  await db.transaction(async (tx) => {
+    const updated = await tx.update(cardsTable)
+      .set({
+        estimatedValue: String(pricing.marketPrice),
+        updatedAt: new Date(),
+        ...(!card.catalogCardId && pricing.identity
+          ? { catalogCardId: pricing.identity }
+          : {}),
+      })
+      .where(and(eq(cardsTable.id, card.id), eq(cardsTable.ownerClerkId, ownerClerkId)))
+      .returning({ id: cardsTable.id });
+    if (updated.length === 0) return;
+    await tx.insert(cardPriceHistoryTable).values({
+      cardId: card.id,
+      price: String(pricing.marketPrice),
+      source: `exact:${pricing.source ?? "catalog"}`,
+    });
+  });
+  return outcome;
+}
+
+// POST /api/cards/reprice
+// Repairs the authenticated owner's stored collection values using only exact-printing prices.
+router.post("/cards/reprice", requireAuth, async (req, res): Promise<void> => {
+  const ownerClerkId = (req as AuthRequest).userId;
+  const cards = await db.select({
+    id: cardsTable.id,
+    name: cardsTable.name,
+    pokemonName: cardsTable.pokemonName,
+    cardNumber: cardsTable.cardNumber,
+    setName: cardsTable.setName,
+    setId: cardsTable.setId,
+    catalogCardId: cardsTable.catalogCardId,
+    rarity: cardsTable.rarity,
+    estimatedValue: sql<number | null>`${cardsTable.estimatedValue}::float`,
+  }).from(cardsTable).where(and(
+    eq(cardsTable.ownerClerkId, ownerClerkId),
+    or(
+      isNotNull(cardsTable.catalogCardId),
+      and(isNotNull(cardsTable.setId), isNotNull(cardsTable.cardNumber)),
+      and(isNotNull(cardsTable.setName), isNotNull(cardsTable.cardNumber)),
+    ),
+  ));
+
+  const counts = { corrected: 0, unchanged: 0, unresolved: 0, unavailable: 0 };
+  const batchSize = 4;
+  for (let index = 0; index < cards.length; index += batchSize) {
+    const outcomes = await Promise.all(
+      cards.slice(index, index + batchSize).map((card) => repriceOwnedCard(ownerClerkId, card)),
+    );
+    for (const outcome of outcomes) counts[outcome] += 1;
+  }
+
+  res.json({ ...counts, total: cards.length });
+});
 
 // GET /api/cards/:id/price-history
 // Returns stored price snapshots immediately. Triggers a background live-price fetch
 // (at most once per calendar day) so future requests will show the new data point.
 router.get("/cards/:id/price-history", requireAuth, async (req, res) => {
-  const cardId = parseInt(req.params.id, 10);
+  const rawCardId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const cardId = parseInt(rawCardId, 10);
   if (isNaN(cardId)) { res.status(400).json({ error: "Invalid card id" }); return; }
   const ownerClerkId = (req as AuthRequest).userId;
 

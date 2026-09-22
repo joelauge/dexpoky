@@ -465,6 +465,18 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/BulkUpdateCardsResponse" }
 
+  /cards/reprice:
+    post:
+      operationId: repriceOwnedCards
+      tags: [cards]
+      summary: Repair the authenticated user's collection values using exact-printing prices
+      responses:
+        "200":
+          description: Repricing result counts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RepriceOwnedCardsResponse" }
+
   /categories:
     get:
       operationId: listCategories
@@ -1761,6 +1773,16 @@ components:
           items: { $ref: "#/components/schemas/Card" }
         count: { type: integer }
       required: [updated, count]
+
+    RepriceOwnedCardsResponse:
+      type: object
+      properties:
+        corrected: { type: integer }
+        unchanged: { type: integer }
+        unresolved: { type: integer }
+        unavailable: { type: integer }
+        total: { type: integer }
+      required: [corrected, unchanged, unresolved, unavailable, total]
 
     Category:
       type: object

@@ -264,6 +264,14 @@ export interface BulkUpdateCardsResponse {
   count: number;
 }
 
+export interface RepriceOwnedCardsResponse {
+  corrected: number;
+  unchanged: number;
+  unresolved: number;
+  unavailable: number;
+  total: number;
+}
+
 export interface Category {
   id: number;
   name: string;

@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { useListCards, CardRarity, CardCondition, useListCollections, getListCollectionsQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CardItem } from "@/components/ui/card-item";
 import { Input } from "@/components/ui/input";
@@ -12,7 +11,6 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library, ExternalLink, CheckCircle2, ListChecks, Folder, Layers, LayoutList } from "lucide-react";
 import { ShareModal } from "@/components/share-modal";
 import { Link, useRoute, useLocation } from "wouter";
 import { formatLabel } from "@/lib/constants";
@@ -24,6 +22,10 @@ import { BulkUpdateDialog } from "./bulk-update-dialog";
 import { OpportunitiesFeed } from "@/components/recommendations";
 import { cn } from "@/lib/utils";
 import { getCardIdentity } from "@/lib/set-completion";
+import { useListCards, CardRarity, CardCondition, useListCollections, getListCollectionsQueryKey, getListCardsQueryKey, useRepriceOwnedCards } from "@workspace/api-client-react";
+import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library, ExternalLink, CheckCircle2, ListChecks, Folder, Layers, LayoutList, RefreshCw } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 type SortKey =
   | "date_new"
@@ -103,6 +105,7 @@ interface CelebrationCard {
 }
 
 export default function Collection() {
+  const queryClient = useQueryClient();
   const [location, setLocation] = useLocation();
   const [matchCollection, paramsCollection] = useRoute("/collections/:id");
   const selectedCollectionId = matchCollection && paramsCollection?.id ? Number(paramsCollection.id) : null;
@@ -131,6 +134,21 @@ export default function Collection() {
     search: search || undefined,
     rarity: rarity !== "all" ? rarity : undefined,
     forSale: forSale === "all" ? undefined : forSale === "yes",
+  });
+  const reprice = useRepriceOwnedCards({
+    mutation: {
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: getListCardsQueryKey() });
+        const reviewed = result.corrected + result.unchanged;
+        toast.success(
+          `Prices reviewed: ${result.corrected} corrected, ${reviewed - result.corrected} unchanged, ${result.unresolved} unresolved.`,
+        );
+        if (result.unavailable > 0) {
+          toast.info(`${result.unavailable} cards kept their old value because pricing was temporarily unavailable.`);
+        }
+      },
+      onError: () => toast.error("Couldn't refresh collection prices. Your existing values were kept."),
+    },
   });
 
   const cards = useMemo(() => {
@@ -296,6 +314,15 @@ export default function Collection() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2 shrink-0">
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => reprice.mutate()}
+                disabled={reprice.isPending}
+              >
+                <RefreshCw className={cn("h-4 w-4", reprice.isPending && "animate-spin")} />
+                {reprice.isPending ? "Checking Prices" : "Refresh Prices"}
+              </Button>
               <div className="flex items-center gap-1 border-r border-border/50 pr-3 mr-1">
                 <Button 
                   variant={isGrouped ? "secondary" : "ghost"} 
