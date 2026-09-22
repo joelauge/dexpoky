@@ -7,8 +7,13 @@ pnpm exec tsc --build lib/api-client-react/tsconfig.json
 # Sync to GitHub
 if [ -n "$GITHUB_TOKEN" ]; then
   echo "[github-sync] pushing to github.com/joelauge/dexpoky..."
-  git push https://$GITHUB_TOKEN@github.com/joelauge/dexpoky.git HEAD:main --quiet
-  echo "[github-sync] done"
+  if GIT_TERMINAL_PROMPT=0 git \
+    -c 'credential.helper=!f() { echo username=x-access-token; echo password=$GITHUB_TOKEN; }; f' \
+    push https://github.com/joelauge/dexpoky.git HEAD:main --quiet; then
+    echo "[github-sync] done"
+  else
+    echo "[github-sync] WARNING: push failed (non-blocking)"
+  fi
 else
   echo "[github-sync] GITHUB_TOKEN not set — skipping"
 fi
