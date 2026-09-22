@@ -246,6 +246,27 @@ export interface PokemonResult {
   rarity?: string | null;
 }
 
+export interface PokemonSetSummary {
+  id: string;
+  name: string;
+  logoUrl?: string | null;
+  symbolUrl?: string | null;
+  seriesName?: string | null;
+  releaseDate?: string | null;
+  totalCards: number;
+}
+
+export interface PokemonSetCard {
+  id: string;
+  localId: string;
+  name: string;
+  imageUrl?: string | null;
+}
+
+export type PokemonSetDetail = PokemonSetSummary & {
+  cards: PokemonSetCard[];
+};
+
 export interface UploadUrlRequest {
   /** @minLength 1 */
   name: string;

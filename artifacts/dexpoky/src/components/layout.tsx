@@ -26,6 +26,7 @@ import {
   Wallet,
   Code2,
   Bot,
+  Album,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -437,6 +438,7 @@ export function Layout({ children }: LayoutProps) {
   const authNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/collection", label: "Collection", icon: Layers },
+    { href: "/sets", label: "Sets", icon: Album },
     { href: "/wishlist", label: "Wishlist", icon: Heart },
     { href: "/decks", label: "Decks", icon: Library },
     { href: "/categories", label: "Categories", icon: FolderTree },

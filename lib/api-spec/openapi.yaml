@@ -575,6 +575,42 @@ paths:
                 items:
                   $ref: "#/components/schemas/PokemonResult"
 
+  /pokemon/sets:
+    get:
+      operationId: listPokemonSets
+      tags: [pokemon]
+      summary: List all Pokemon TCG sets
+      responses:
+        "200":
+          description: Pokemon TCG sets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PokemonSetSummary"
+
+  /pokemon/sets/{id}:
+    get:
+      operationId: getPokemonSet
+      tags: [pokemon]
+      summary: Get a Pokemon TCG set and its cards
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pokemon TCG set detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PokemonSetDetail"
+        "404":
+          description: Set not found
+
   /decks:
     get:
       operationId: listDecks
@@ -1545,6 +1581,61 @@ components:
         - setName
         - setId
         - cardNumber
+
+    PokemonSetSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        logoUrl:
+          type: string
+          nullable: true
+        symbolUrl:
+          type: string
+          nullable: true
+        seriesName:
+          type: string
+          nullable: true
+        releaseDate:
+          type: string
+          nullable: true
+        totalCards:
+          type: integer
+      required:
+        - id
+        - name
+        - totalCards
+
+    PokemonSetCard:
+      type: object
+      properties:
+        id:
+          type: string
+        localId:
+          type: string
+        name:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+      required:
+        - id
+        - localId
+        - name
+
+    PokemonSetDetail:
+      allOf:
+        - $ref: "#/components/schemas/PokemonSetSummary"
+        - type: object
+          properties:
+            cards:
+              type: array
+              items:
+                $ref: "#/components/schemas/PokemonSetCard"
+          required:
+            - cards
 
     UploadUrlRequest:
       type: object

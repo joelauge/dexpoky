@@ -743,6 +743,50 @@ export const SearchPokemonResponseItem = zod.object({
 export const SearchPokemonResponse = zod.array(SearchPokemonResponseItem);
 
 /**
+ * @summary List all Pokemon TCG sets
+ */
+export const ListPokemonSetsResponseItem = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  logoUrl: zod.string().nullish(),
+  symbolUrl: zod.string().nullish(),
+  seriesName: zod.string().nullish(),
+  releaseDate: zod.string().nullish(),
+  totalCards: zod.number(),
+});
+export const ListPokemonSetsResponse = zod.array(ListPokemonSetsResponseItem);
+
+/**
+ * @summary Get a Pokemon TCG set and its cards
+ */
+export const GetPokemonSetParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetPokemonSetResponse = zod
+  .object({
+    id: zod.string(),
+    name: zod.string(),
+    logoUrl: zod.string().nullish(),
+    symbolUrl: zod.string().nullish(),
+    seriesName: zod.string().nullish(),
+    releaseDate: zod.string().nullish(),
+    totalCards: zod.number(),
+  })
+  .and(
+    zod.object({
+      cards: zod.array(
+        zod.object({
+          id: zod.string(),
+          localId: zod.string(),
+          name: zod.string(),
+          imageUrl: zod.string().nullish(),
+        }),
+      ),
+    }),
+  );
+
+/**
  * @summary List the signed-in user's decks
  */
 export const ListDecksResponseItem = zod.object({

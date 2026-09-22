@@ -9,6 +9,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
 import Dashboard from "@/pages/dashboard";
+import SetsIndex from "@/pages/sets/index";
+import SetDetail from "@/pages/sets/[id]";
 import Collection from "@/pages/collection/index";
 import NewCard from "@/pages/collection/new";
 import EditCard from "@/pages/collection/edit";
@@ -296,6 +298,8 @@ function ClerkProviderWithRoutes() {
             <Route path="/" component={HomeRoute} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
+            <Route path="/sets" component={() => <ProtectedRoute component={SetsIndex} />} />
+            <Route path="/sets/:id" component={() => <ProtectedRoute component={SetDetail} />} />
             <Route path="/collection" component={() => <ProtectedRoute component={Collection} />} />
             <Route path="/collection/new" component={() => <ProtectedRoute component={NewCard} />} />
             <Route path="/collection/:id/edit" component={() => <ProtectedRoute component={EditCard} />} />

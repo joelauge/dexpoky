@@ -120,7 +120,7 @@ function MarketplaceSearchTab({ onWishlistAdded }: { onWishlistAdded: () => void
 
   const { data: listings, isLoading, isFetching } = useListListings(
     { search: debouncedSearch, status: ListListingsStatus.active },
-    { query: { enabled: debouncedSearch.length >= 2 } },
+    { query: { enabled: debouncedSearch.length >= 2, queryKey: ["/api/marketplace", debouncedSearch, "active"] } },
   );
 
   const { data: wishlist } = useListWishlist();

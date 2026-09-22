@@ -19,6 +19,7 @@ export function WelcomeBackModal({ username }: WelcomeBackModalProps) {
       const t = setTimeout(() => setOpen(true), 400);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, []);
 
   function handleClose() {

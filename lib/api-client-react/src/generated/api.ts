@@ -48,6 +48,8 @@ import type {
   ListWantedListingsParams,
   Listing,
   PokemonResult,
+  PokemonSetDetail,
+  PokemonSetSummary,
   RulebookResponse,
   RulebookSearchResult,
   SearchCatalogParams,
@@ -2279,6 +2281,168 @@ export function useSearchPokemon<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getSearchPokemonQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List all Pokemon TCG sets
+ */
+export const getListPokemonSetsUrl = () => {
+  return `/api/pokemon/sets`;
+};
+
+export const listPokemonSets = async (
+  options?: RequestInit,
+): Promise<PokemonSetSummary[]> => {
+  return customFetch<PokemonSetSummary[]>(getListPokemonSetsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPokemonSetsQueryKey = () => {
+  return [`/api/pokemon/sets`] as const;
+};
+
+export const getListPokemonSetsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPokemonSets>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPokemonSets>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPokemonSetsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listPokemonSets>>> = ({
+    signal,
+  }) => listPokemonSets({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPokemonSets>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPokemonSetsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPokemonSets>>
+>;
+export type ListPokemonSetsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all Pokemon TCG sets
+ */
+
+export function useListPokemonSets<
+  TData = Awaited<ReturnType<typeof listPokemonSets>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPokemonSets>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPokemonSetsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a Pokemon TCG set and its cards
+ */
+export const getGetPokemonSetUrl = (id: string) => {
+  return `/api/pokemon/sets/${id}`;
+};
+
+export const getPokemonSet = async (
+  id: string,
+  options?: RequestInit,
+): Promise<PokemonSetDetail> => {
+  return customFetch<PokemonSetDetail>(getGetPokemonSetUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPokemonSetQueryKey = (id: string) => {
+  return [`/api/pokemon/sets/${id}`] as const;
+};
+
+export const getGetPokemonSetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPokemonSet>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPokemonSet>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPokemonSetQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPokemonSet>>> = ({
+    signal,
+  }) => getPokemonSet(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPokemonSet>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPokemonSetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPokemonSet>>
+>;
+export type GetPokemonSetQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a Pokemon TCG set and its cards
+ */
+
+export function useGetPokemonSet<
+  TData = Awaited<ReturnType<typeof getPokemonSet>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPokemonSet>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPokemonSetQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
