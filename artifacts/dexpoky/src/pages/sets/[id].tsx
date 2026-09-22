@@ -31,6 +31,9 @@ const RARITY_SECTION_ORDER = [
   "Special Illustration Rare",
   "Mega Hyper Rare",
 ];
+const RARITY_SECTION_RANK = new Map(
+  RARITY_SECTION_ORDER.map((rarity, index) => [rarity.toLowerCase(), index]),
+);
 
 export default function SetDetail() {
   const [, params] = useRoute("/sets/:id");
@@ -142,10 +145,8 @@ export default function SetDetail() {
       groups.set(rarity, group);
     }
     return Array.from(groups.entries()).sort(([rarityA], [rarityB]) => {
-      const indexA = RARITY_SECTION_ORDER.indexOf(rarityA);
-      const indexB = RARITY_SECTION_ORDER.indexOf(rarityB);
-      const rankA = indexA === -1 ? RARITY_SECTION_ORDER.length : indexA;
-      const rankB = indexB === -1 ? RARITY_SECTION_ORDER.length : indexB;
+      const rankA = RARITY_SECTION_RANK.get(rarityA.toLowerCase()) ?? RARITY_SECTION_ORDER.length;
+      const rankB = RARITY_SECTION_RANK.get(rarityB.toLowerCase()) ?? RARITY_SECTION_ORDER.length;
       return rankA - rankB;
     });
   }, [filteredCards]);
