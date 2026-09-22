@@ -6,9 +6,29 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Search, Library, CheckCircle2, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, Library, CheckCircle2, AlertCircle, ArrowUpDown } from "lucide-react";
 import type { PokemonSetSummary, Card as OwnedCard } from "@workspace/api-client-react";
 import { getSetCompletion } from "@/lib/set-completion";
+
+type SetSortOrder =
+  | "release-desc"
+  | "release-asc"
+  | "name-asc"
+  | "name-desc"
+  | "completion-desc"
+  | "completion-asc";
+
+const SET_SORT_STORAGE_KEY = "dexpoky:sets:sort-order";
+const DEFAULT_SET_SORT: SetSortOrder = "release-desc";
+const VALID_SET_SORTS = new Set<SetSortOrder>([
+  "release-desc",
+  "release-asc",
+  "name-asc",
+  "name-desc",
+  "completion-desc",
+  "completion-asc",
+]);
 
 export default function SetsIndex() {
   useEffect(() => {
@@ -16,6 +36,15 @@ export default function SetsIndex() {
   }, []);
 
   const [search, setSearch] = useState("");
+  const [sortOrder, setSortOrder] = useState<SetSortOrder>(() => {
+    if (typeof window === "undefined") return DEFAULT_SET_SORT;
+    const savedSort = window.localStorage.getItem(SET_SORT_STORAGE_KEY) as SetSortOrder | null;
+    return savedSort && VALID_SET_SORTS.has(savedSort) ? savedSort : DEFAULT_SET_SORT;
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(SET_SORT_STORAGE_KEY, sortOrder);
+  }, [sortOrder]);
   
   const { data: sets, isLoading: setsLoading, error: setsError } = useListPokemonSets();
   const { data: ownedCards, isLoading: cardsLoading, error: cardsError } = useListCards();
@@ -32,6 +61,30 @@ export default function SetsIndex() {
       (s.seriesName && s.seriesName.toLowerCase().includes(lowerSearch))
     );
 
+    const getReleaseTime = (set: PokemonSetSummary) =>
+      set.releaseDate ? new Date(set.releaseDate).getTime() : 0;
+    const getCompletion = (set: PokemonSetSummary) => {
+      if (!ownedCards || set.totalCards <= 0) return 0;
+      return getSetCompletion(set, ownedCards).ownedCount / set.totalCards;
+    };
+    const compareSets = (a: PokemonSetSummary, b: PokemonSetSummary) => {
+      switch (sortOrder) {
+        case "release-asc":
+          return getReleaseTime(a) - getReleaseTime(b);
+        case "name-asc":
+          return a.name.localeCompare(b.name);
+        case "name-desc":
+          return b.name.localeCompare(a.name);
+        case "completion-desc":
+          return getCompletion(b) - getCompletion(a) || a.name.localeCompare(b.name);
+        case "completion-asc":
+          return getCompletion(a) - getCompletion(b) || a.name.localeCompare(b.name);
+        case "release-desc":
+        default:
+          return getReleaseTime(b) - getReleaseTime(a);
+      }
+    };
+
     // Group by series
     const groups = new Map<string, PokemonSetSummary[]>();
     for (const set of filteredSets) {
@@ -40,24 +93,21 @@ export default function SetsIndex() {
       groups.get(series)!.push(set);
     }
 
-    // Sort sets within series by release date descending
+    // Sort sets within each series using the selected order.
     for (const seriesSets of groups.values()) {
-      seriesSets.sort((a, b) => {
-        const dateA = a.releaseDate ? new Date(a.releaseDate).getTime() : 0;
-        const dateB = b.releaseDate ? new Date(b.releaseDate).getTime() : 0;
-        return dateB - dateA; // Newest first
-      });
+      seriesSets.sort(compareSets);
     }
 
-    // Sort series by newest set release date descending
+    // Keep the grouped layout while ordering series consistently with the
+    // selected set order. The first sorted set represents each series.
     const sortedSeries = Array.from(groups.keys()).sort((a, b) => {
-      const maxDateA = Math.max(...groups.get(a)!.map(s => s.releaseDate ? new Date(s.releaseDate).getTime() : 0));
-      const maxDateB = Math.max(...groups.get(b)!.map(s => s.releaseDate ? new Date(s.releaseDate).getTime() : 0));
-      return maxDateB - maxDateA;
+      if (sortOrder === "name-asc") return a.localeCompare(b);
+      if (sortOrder === "name-desc") return b.localeCompare(a);
+      return compareSets(groups.get(a)![0], groups.get(b)![0]);
     });
 
     return { groupedSets: groups, seriesList: sortedSeries };
-  }, [sets, search]);
+  }, [sets, ownedCards, search, sortOrder]);
 
   return (
     <Layout>
@@ -75,14 +125,30 @@ export default function SetsIndex() {
             </p>
           </div>
 
-          <div className="relative w-full md:w-80 shrink-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search sets or series..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-card border-muted/60 focus-visible:ring-primary/50 rounded-xl shadow-sm h-11"
-            />
+          <div className="flex w-full md:w-auto flex-col sm:flex-row gap-3 shrink-0">
+            <div className="relative w-full md:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search sets or series..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 bg-card border-muted/60 focus-visible:ring-primary/50 rounded-xl shadow-sm h-11"
+              />
+            </div>
+            <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as SetSortOrder)}>
+              <SelectTrigger className="w-full sm:w-52 h-11 rounded-xl bg-card border-muted/60 shadow-sm">
+                <ArrowUpDown className="h-4 w-4 mr-2 text-muted-foreground" />
+                <SelectValue aria-label="Sort sets" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="release-desc">Newest first</SelectItem>
+                <SelectItem value="release-asc">Oldest first</SelectItem>
+                <SelectItem value="name-asc">Name: A–Z</SelectItem>
+                <SelectItem value="name-desc">Name: Z–A</SelectItem>
+                <SelectItem value="completion-desc">Most complete</SelectItem>
+                <SelectItem value="completion-asc">Least complete</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
