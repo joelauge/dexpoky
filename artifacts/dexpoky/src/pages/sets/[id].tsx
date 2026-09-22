@@ -20,7 +20,17 @@ import { toast } from "sonner";
 import { getSetCompletion } from "@/lib/set-completion";
 
 const WISHLIST_KEY = ["/api/wishlist"] as const;
-const RARITY_SECTION_ORDER = ["Common", "Uncommon", "Rare", "Double Rare"];
+const RARITY_SECTION_ORDER = [
+  "Common",
+  "Uncommon",
+  "Rare",
+  "Double Rare",
+  "Ultra Rare",
+  "Mega Attack Rare",
+  "Illustration Rare",
+  "Special Illustration Rare",
+  "Mega Hyper Rare",
+];
 
 export default function SetDetail() {
   const [, params] = useRoute("/sets/:id");

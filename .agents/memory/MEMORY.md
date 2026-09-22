@@ -1,0 +1,1 @@
+- [Set rarity ordering](set-rarity-ordering.md) — use each expansion’s accompanying checklist book as the authority for rarity section order.
