@@ -65,7 +65,6 @@ router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
   if (existingCollections.length !== collectionIds.length) { res.status(400).json({ error: "Invalid collection" }); return; }
 
   const result = await db.transaction(async (tx) => {
-    const skipped: Array<{ setId: string; cardNumber: string; reason: string }> = [];
     const createdIds: number[] = [];
     for (const item of parsed.data.cards) {
       const [created] = await tx.insert(cardsTable).values({
@@ -83,20 +82,16 @@ router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
         originalScanUrl: item.originalScanUrl ?? null,
         collectionId: item.collectionId ?? null,
         forSale: false,
-      }).onConflictDoNothing().returning({ id: cardsTable.id });
-      if (!created) {
-        skipped.push({ setId: item.setId, cardNumber: item.cardNumber, reason: "Already owned" });
-        continue;
-      }
+      }).returning({ id: cardsTable.id });
       createdIds.push(created.id);
     }
-    return { createdIds, skipped };
+    return { createdIds };
   });
   const created = result.createdIds.length ? await db.select(cardSelect).from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
     .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
     .where(inArray(cardsTable.id, result.createdIds)) : [];
-  res.status(201).json({ created, skipped: result.skipped });
+  res.status(201).json({ created, skipped: [] });
 });
 
 router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> => {

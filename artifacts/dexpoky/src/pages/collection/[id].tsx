@@ -30,6 +30,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PriceHistoryChart } from "@/components/price-history-chart";
+import { getCardIdentity } from "@/lib/set-completion";
 import {
   Dialog,
   DialogContent,
@@ -205,27 +206,66 @@ export default function CardDetail() {
     if (card) setNavScope(card.categoryId ? "category" : "all");
   }, [card?.id]);
 
-  const navList = useMemo(() => {
-    if (!allCards) return [];
-    if (navScope === "category" && card?.categoryId)
-      return allCards.filter((c) => c.categoryId === card.categoryId);
-    return allCards;
-  }, [allCards, navScope, card?.categoryId]);
+  const duplicateCopies = useMemo(() => {
+    if (!card || !allCards) return [];
+    const currentKey = getCardIdentity(card);
+    return allCards.filter(c => {
+       const key = getCardIdentity(c);
+       return key === currentKey;
+    }).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [card, allCards]);
 
-  const currentIndex = navList.findIndex((c) => c.id === id);
-  const prevCard = currentIndex > 0 ? navList[currentIndex - 1] : null;
-  const nextCard = currentIndex < navList.length - 1 ? navList[currentIndex + 1] : null;
+  const copyIndex = duplicateCopies.findIndex(c => c.id === id);
+  const prevCopy = copyIndex > 0 ? duplicateCopies[copyIndex - 1] : null;
+  const nextCopy = copyIndex < duplicateCopies.length - 1 ? duplicateCopies[copyIndex + 1] : null;
+
+  const uniqueNavList = useMemo(() => {
+    if (!allCards || !card) return [];
+    let list = allCards;
+    if (navScope === "category" && card.categoryId) {
+      list = allCards.filter(c => c.categoryId === card.categoryId);
+    }
+    const seen = new Set<string>();
+    const result = [];
+    const currentKey = getCardIdentity(card);
+
+    for (const c of list) {
+      const key = getCardIdentity(c);
+      if (key === currentKey) {
+        if (c.id === card.id) {
+           result.push(c);
+           seen.add(key);
+        }
+      } else {
+        if (!seen.has(key)) {
+          result.push(c);
+          seen.add(key);
+        }
+      }
+    }
+    return result;
+  }, [allCards, navScope, card]);
+
+  const currentIndex = uniqueNavList.findIndex((c) => c.id === id);
+  const prevCard = currentIndex > 0 ? uniqueNavList[currentIndex - 1] : null;
+  const nextCard = currentIndex < uniqueNavList.length - 1 ? uniqueNavList[currentIndex + 1] : null;
   const hasCategoryScope = !!(card?.categoryId && allCards?.some((c) => c.categoryId === card.categoryId && c.id !== id));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === "ArrowLeft" && prevCard) setLocation(`/collection/${prevCard.id}`);
-      if (e.key === "ArrowRight" && nextCard) setLocation(`/collection/${nextCard.id}`);
+      if (e.key === "ArrowLeft") {
+         if (prevCopy) setLocation(`/collection/${prevCopy.id}`);
+         else if (prevCard) setLocation(`/collection/${prevCard.id}`);
+      }
+      if (e.key === "ArrowRight") {
+         if (nextCopy) setLocation(`/collection/${nextCopy.id}`);
+         else if (nextCard) setLocation(`/collection/${nextCard.id}`);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [prevCard, nextCard]);
+  }, [prevCard, nextCard, prevCopy, nextCopy, setLocation]);
   // ──────────────────────────────────────────────────────────────────────────
 
 
@@ -327,8 +367,32 @@ export default function CardDetail() {
               )}
             </HoloCard>
 
-            {/* Prev / Next */}
-            {navList.length > 1 && (
+            {/* Prev / Next (Duplicate Navigation) */}
+            {duplicateCopies.length > 1 && (
+              <div className="mt-4 flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl p-1.5 shadow-sm">
+                <button
+                  onClick={() => prevCopy && setLocation(`/collection/${prevCopy.id}`)}
+                  disabled={!prevCopy}
+                  className="p-1.5 rounded-lg text-primary hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary">Copy {copyIndex + 1} of {duplicateCopies.length}</span>
+                  <span className="text-[10px] text-muted-foreground font-medium">{formatLabel(card.condition)} Condition</span>
+                </div>
+                <button
+                  onClick={() => nextCopy && setLocation(`/collection/${nextCopy.id}`)}
+                  disabled={!nextCopy}
+                  className="p-1.5 rounded-lg text-primary hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Prev / Next (Unique List Navigation) */}
+            {uniqueNavList.length > 1 && (
               <div className="flex items-center gap-2 mt-3">
                 <button
                   onClick={() => prevCard && setLocation(`/collection/${prevCard.id}`)}
@@ -341,7 +405,7 @@ export default function CardDetail() {
 
                 <div className="flex flex-col items-center shrink-0 gap-0.5">
                   <span className="text-xs font-bold tabular-nums whitespace-nowrap">
-                    {currentIndex + 1} / {navList.length}
+                    {currentIndex + 1} / {uniqueNavList.length}
                   </span>
                   {hasCategoryScope && (
                     <button

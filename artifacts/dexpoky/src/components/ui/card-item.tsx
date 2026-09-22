@@ -7,7 +7,7 @@ import { formatCurrency, formatLabel, RARITY_COLORS, CONDITION_COLORS } from "@/
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
 interface CardItemProps {
-  card: CardType;
+  card: CardType & { quantity?: number };
   href?: string;
   showPrice?: boolean;
 }
@@ -35,13 +35,18 @@ export function CardItem({ card, href, showPrice = false }: CardItemProps) {
             <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[144px] opacity-[0.12] grayscale select-none pointer-events-none" />
           </div>
         )}
-        {isNew && (
-          <div className="absolute top-2 left-2">
+        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 items-start">
+          {card.quantity && card.quantity > 1 ? (
+            <Badge className="bg-primary hover:bg-primary text-primary-foreground font-bold text-[10px] shadow-sm border-0 px-1.5 py-0">
+              x{card.quantity}
+            </Badge>
+          ) : null}
+          {isNew && (
             <Badge className="bg-emerald-500 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider shadow-sm border-0">
               New
             </Badge>
-          </div>
-        )}
+          )}
+        </div>
         {card.forSale && (
           <div className="absolute top-2 right-2">
             <Badge variant="secondary" className="bg-white/90 text-primary font-bold shadow-sm backdrop-blur-sm border-white/20">

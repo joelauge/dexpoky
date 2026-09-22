@@ -47,7 +47,7 @@ export default function SetDetail() {
   const [savingCardId, setSavingCardId] = useState<string | null>(null);
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedMissingIds, setSelectedMissingIds] = useState<Set<string>>(new Set());
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
 
   const { data: set, isLoading: setLoad, error: setError } = useGetPokemonSet(setId, {
@@ -257,8 +257,13 @@ export default function SetDetail() {
                         )}>
                           {ownedCount}
                         </span>
-                        <span className="text-lg font-medium text-muted-foreground">/ {total} cards</span>
+                        <span className="text-lg font-medium text-muted-foreground">/ {total} unique cards</span>
                       </div>
+                      {completion.totalPhysicalCount > ownedCount && (
+                        <div className="text-xs font-medium text-muted-foreground mt-0.5">
+                          {completion.totalPhysicalCount} total physical copies
+                        </div>
+                      )}
                     </div>
                     <div className={cn(
                       "text-2xl font-bold",
@@ -331,7 +336,7 @@ export default function SetDetail() {
                 className={cn("whitespace-nowrap flex-1 md:flex-none transition-colors", isSelectionMode && "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20")}
                 onClick={() => {
                   setIsSelectionMode(!isSelectionMode);
-                  setSelectedMissingIds(new Set());
+                  setSelectedCardIds(new Set());
                 }}
               >
                 <ListPlus className="h-4 w-4 mr-2" />
@@ -393,19 +398,22 @@ export default function SetDetail() {
                   {cards.map((card) => {
               const isOwned = ownedSetCardIds.has(card.id);
               const ownedCardId = firstOwnedCardIdMap.get(card.id);
+              const ownedCardIds = completion.ownedCardIdsMap.get(card.id) || [];
+              const quantity = ownedCardIds.length;
               const isWished = wishedCardIds.has(card.id);
               const isSaving = savingCardId === card.id;
-              const isSelected = selectedMissingIds.has(card.id);
+              const isSelected = selectedCardIds.has(card.id);
               
               const CardInner = (
                 <>
                   <div className={cn(
                     "relative aspect-[63/88] rounded-[4.5%] overflow-hidden bg-muted/30 shadow-sm transition-all duration-300",
-                    isOwned 
-                      ? "ring-2 ring-primary/20 ring-offset-2 ring-offset-background hover:shadow-xl hover:-translate-y-1.5" 
-                      : isSelectionMode 
-                        ? (isSelected ? "ring-4 ring-primary ring-offset-2 opacity-100 grayscale-0 scale-[1.02]" : "opacity-70 grayscale-[0.5] hover:grayscale-[0.2] hover:opacity-100 cursor-pointer")
-                        : "opacity-60 grayscale-[0.6] hover:grayscale-[0.2] hover:opacity-100"
+                    isSelectionMode
+                      ? (isSelected ? "ring-4 ring-primary ring-offset-2 opacity-100 grayscale-0 scale-[1.02]" 
+                        : (isOwned ? "opacity-90 hover:opacity-100 cursor-pointer ring-1 ring-primary/20" : "opacity-70 grayscale-[0.5] hover:grayscale-[0.2] hover:opacity-100 cursor-pointer"))
+                      : (isOwned 
+                        ? "ring-2 ring-primary/20 ring-offset-2 ring-offset-background hover:shadow-xl hover:-translate-y-1.5" 
+                        : "opacity-60 grayscale-[0.6] hover:grayscale-[0.2] hover:opacity-100")
                   )}>
                     {card.imageUrl ? (
                       <img 
@@ -421,14 +429,22 @@ export default function SetDetail() {
                       </div>
                     )}
 
-                    {isOwned && (
-                      <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1 shadow-sm backdrop-blur-sm bg-opacity-90">
+                    {quantity > 1 && (
+                      <div className="absolute top-2 left-2 z-10">
+                        <Badge className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0 rounded shadow-sm border-0">
+                          x{quantity}
+                        </Badge>
+                      </div>
+                    )}
+
+                    {isOwned && !isSelectionMode && (
+                      <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1 shadow-sm backdrop-blur-sm bg-opacity-90 z-10">
                         <CheckCircle2 className="h-4 w-4" />
                       </div>
                     )}
 
-                    {isSelectionMode && !isOwned && (
-                      <div className={cn("absolute top-2 right-2 rounded-full p-0.5 shadow-sm backdrop-blur-sm transition-colors", isSelected ? "bg-primary text-primary-foreground" : "bg-black/20 text-white/50 border border-white/30")}>
+                    {isSelectionMode && (
+                      <div className={cn("absolute top-2 right-2 rounded-full p-0.5 shadow-sm backdrop-blur-sm transition-colors z-20", isSelected ? "bg-primary text-primary-foreground" : "bg-black/20 text-white/50 border border-white/30")}>
                         <CheckCircle2 className="h-5 w-5" />
                       </div>
                     )}
@@ -478,22 +494,26 @@ export default function SetDetail() {
                 </>
               );
 
+              if (isSelectionMode) {
+                return (
+                  <div key={card.id} className="group block cursor-pointer" onClick={(e) => {
+                    e.preventDefault();
+                    const next = new Set(selectedCardIds);
+                    if (next.has(card.id)) next.delete(card.id);
+                    else next.add(card.id);
+                    setSelectedCardIds(next);
+                  }}>
+                    {CardInner}
+                  </div>
+                );
+              }
+
               return isOwned && ownedCardId ? (
-                <Link key={card.id} href={isSelectionMode ? "#" : `/collection/${ownedCardId}`} onClick={(e) => {
-                  if (isSelectionMode) e.preventDefault();
-                }} className="group block focus:outline-none focus-visible:ring-2 ring-primary rounded-xl">
+                <Link key={card.id} href={`/collection/${ownedCardId}`} className="group block focus:outline-none focus-visible:ring-2 ring-primary rounded-xl">
                   {CardInner}
                 </Link>
               ) : (
-                <div key={card.id} className="group block cursor-default" onClick={(e) => {
-                  if (isSelectionMode) {
-                    e.preventDefault();
-                    const next = new Set(selectedMissingIds);
-                    if (next.has(card.id)) next.delete(card.id);
-                    else next.add(card.id);
-                    setSelectedMissingIds(next);
-                  }
-                }}>
+                <div key={card.id} className="group block cursor-default">
                   {CardInner}
                 </div>
               );
@@ -506,7 +526,7 @@ export default function SetDetail() {
       </div>
 
       <AnimatePresence>
-        {isSelectionMode && selectedMissingIds.size > 0 && (
+        {isSelectionMode && selectedCardIds.size > 0 && (
           <motion.div 
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -514,14 +534,14 @@ export default function SetDetail() {
             className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border rounded-full shadow-2xl p-2 px-6 flex items-center gap-6 z-50"
           >
             <div className="font-semibold whitespace-nowrap">
-              {selectedMissingIds.size} selected
+              {selectedCardIds.size} selected
             </div>
             <div className="h-6 w-px bg-border"></div>
             <div className="flex items-center gap-2">
               <Button onClick={() => setIsBulkAddOpen(true)} className="rounded-full shadow-sm">
                 Add to Collection
               </Button>
-              <Button variant="ghost" onClick={() => setSelectedMissingIds(new Set())} className="rounded-full">
+              <Button variant="ghost" onClick={() => setSelectedCardIds(new Set())} className="rounded-full">
                 Clear
               </Button>
             </div>
@@ -533,7 +553,7 @@ export default function SetDetail() {
         <BulkAddDialog 
           open={isBulkAddOpen}
           onOpenChange={setIsBulkAddOpen}
-          selectedCards={Array.from(selectedMissingIds).map(id => {
+          selectedCards={Array.from(selectedCardIds).map(id => {
             const card = set.cards.find(c => c.id === id)!;
             return {
               id: card.id,
@@ -545,7 +565,7 @@ export default function SetDetail() {
           })}
           set={set}
           onSuccess={() => {
-            setSelectedMissingIds(new Set());
+            setSelectedCardIds(new Set());
             setIsSelectionMode(false);
           }}
         />

@@ -6,9 +6,8 @@ import {
   numeric,
   boolean,
   integer,
-  uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
@@ -63,9 +62,16 @@ export const cardsTable = pgTable("cards", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
-  ownerSetNumberUnique: uniqueIndex("cards_owner_set_number_unique")
-    .on(table.ownerClerkId, table.setId, table.cardNumber)
-    .where(sql`${table.setId} is not null and ${table.cardNumber} is not null`),
+  ownerClerkIdIdx: index("cards_owner_clerk_id_idx").on(table.ownerClerkId),
+  ownerCatalogCardIdx: index("cards_owner_catalog_card_idx").on(
+    table.ownerClerkId,
+    table.catalogCardId,
+  ),
+  ownerSetCardIdx: index("cards_owner_set_card_idx").on(
+    table.ownerClerkId,
+    table.setId,
+    table.cardNumber,
+  ),
 }));
 
 export const insertCardSchema = createInsertSchema(cardsTable).omit({

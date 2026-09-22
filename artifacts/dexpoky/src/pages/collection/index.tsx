@@ -12,7 +12,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library, ExternalLink, CheckCircle2, ListChecks, Folder } from "lucide-react";
+import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library, ExternalLink, CheckCircle2, ListChecks, Folder, Layers, LayoutList } from "lucide-react";
 import { ShareModal } from "@/components/share-modal";
 import { Link, useRoute, useLocation } from "wouter";
 import { formatLabel } from "@/lib/constants";
@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ManageCollectionsDialog } from "./manage-collections-dialog";
 import { BulkUpdateDialog } from "./bulk-update-dialog";
 import { cn } from "@/lib/utils";
+import { getCardIdentity } from "@/lib/set-completion";
 
 type SortKey =
   | "date_new"
@@ -113,6 +114,7 @@ export default function Collection() {
   const [sort, setSort] = useState<SortKey>("date_new");
   const [cardSize, setCardSize, gridClass] = useCardSize();
   const [celebrationCard, setCelebrationCard] = useState<CelebrationCard | null>(null);
+  const [isGrouped, setIsGrouped] = useState(true);
   
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
@@ -206,6 +208,28 @@ export default function Collection() {
       }
     });
 
+  const displayCards = useMemo(() => {
+    if (!filteredCards) return [];
+    if (!isGrouped) return filteredCards.map(c => ({ ...c, quantity: 1, isGroup: false }));
+
+    const map = new Map<string, typeof filteredCards>();
+    filteredCards.forEach(card => {
+      const key = getCardIdentity(card);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(card);
+    });
+
+    return Array.from(map.values()).map(group => {
+      const rep = group[0];
+      return {
+        ...rep,
+        quantity: group.length,
+        isGroup: true,
+        groupId: getCardIdentity(rep),
+      };
+    });
+  }, [filteredCards, isGrouped]);
+
   return (
     <Layout>
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-8">
@@ -265,16 +289,41 @@ export default function Collection() {
                   : "All Cards"}
               </h2>
               <p className="text-muted-foreground text-sm">
-                {filteredCards?.length || 0} cards {search ? "matching search" : ""}
+                {isGrouped 
+                  ? `${displayCards.length} unique cards (${filteredCards?.length || 0} total)` 
+                  : `${filteredCards?.length || 0} cards`} {search ? "matching search" : ""}
               </p>
             </div>
             <div className="flex flex-wrap gap-2 shrink-0">
+              <div className="flex items-center gap-1 border-r border-border/50 pr-3 mr-1">
+                <Button 
+                  variant={isGrouped ? "secondary" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setIsGrouped(true)}
+                  disabled={isSelectionMode}
+                  className={cn("h-9 px-2.5", isGrouped && "bg-muted shadow-sm")}
+                  title="Group duplicates"
+                >
+                  <Layers className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant={!isGrouped ? "secondary" : "ghost"} 
+                  size="sm" 
+                  onClick={() => setIsGrouped(false)}
+                  className={cn("h-9 px-2.5", !isGrouped && "bg-muted shadow-sm")}
+                  title="Show all copies"
+                >
+                  <LayoutList className="h-4 w-4" />
+                </Button>
+              </div>
               <Button 
                 variant={isSelectionMode ? "secondary" : "outline"} 
                 className="gap-2" 
                 onClick={() => {
-                  setIsSelectionMode(!isSelectionMode);
+                  const next = !isSelectionMode;
+                  setIsSelectionMode(next);
                   setSelectedCardIds(new Set());
+                  if (next) setIsGrouped(false);
                 }}
               >
                 <ListChecks className="h-4 w-4" /> {isSelectionMode ? "Cancel Selection" : "Select Cards"}
@@ -383,9 +432,9 @@ export default function Collection() {
                 <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
               ))}
             </div>
-          ) : filteredCards && filteredCards.length > 0 ? (
+          ) : displayCards && displayCards.length > 0 ? (
             <div className={`grid ${gridClass} gap-4 pb-24`}>
-              {filteredCards.map(card => {
+              {displayCards.map(card => {
                 const isSelected = selectedCardIds.has(card.id);
                 
                 return (

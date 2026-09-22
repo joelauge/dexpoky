@@ -14,6 +14,7 @@ export interface PokemonSetLike {
 export interface OwnedCardLike {
   id: number;
   catalogCardId?: string | null;
+  setId?: string | null;
   setName?: string | null;
   cardNumber?: string | null;
 }
@@ -21,14 +22,29 @@ export interface OwnedCardLike {
 export interface SetCompletion {
   ownedCardKeys: Set<string>;
   firstOwnedCardIdMap: Map<string, number>;
+  ownedCardIdsMap: Map<string, number[]>;
   ownedCount: number;
   missingCount: number;
   totalCount: number;
   completionPercent: number;
+  totalPhysicalCount: number;
 }
 
 export const normalizeSetCardValue = (value?: string | null) =>
   (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+export function getCardIdentity(card: OwnedCardLike): string {
+  if (card.setId && card.cardNumber) {
+    return `${normalizeSetCardValue(card.setId)}-${normalizeSetCardValue(card.cardNumber)}`;
+  }
+  if (card.setName && card.cardNumber) {
+    return `${normalizeSetCardValue(card.setName)}-${normalizeSetCardValue(card.cardNumber)}`;
+  }
+  if (card.catalogCardId) {
+    return card.catalogCardId;
+  }
+  return `unique-${card.id}`;
+}
 
 export function getSetCompletion(
   set: PokemonSetLike,
@@ -41,6 +57,8 @@ export function getSetCompletion(
   );
   const ownedCardKeys = new Set<string>();
   const firstOwnedCardIdMap = new Map<string, number>();
+  const ownedCardIdsMap = new Map<string, number[]>();
+  let totalPhysicalCount = 0;
 
   for (const card of ownedCards) {
     let matchedKey: string | undefined;
@@ -67,6 +85,11 @@ export function getSetCompletion(
       if (!firstOwnedCardIdMap.has(matchedKey)) {
         firstOwnedCardIdMap.set(matchedKey, card.id);
       }
+      if (!ownedCardIdsMap.has(matchedKey)) {
+        ownedCardIdsMap.set(matchedKey, []);
+      }
+      ownedCardIdsMap.get(matchedKey)!.push(card.id);
+      totalPhysicalCount++;
     }
   }
 
@@ -79,9 +102,11 @@ export function getSetCompletion(
   return {
     ownedCardKeys,
     firstOwnedCardIdMap,
+    ownedCardIdsMap,
     ownedCount,
     missingCount,
     totalCount,
     completionPercent,
+    totalPhysicalCount,
   };
 }
