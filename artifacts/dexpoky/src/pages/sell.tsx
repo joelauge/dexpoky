@@ -12,6 +12,7 @@ import { ListingImageUpload } from "@/components/listing-image-upload";
 import {
   Tag, ArrowRight, CheckCircle2, ShoppingBag, Gavel,
   Store, PlusCircle, ExternalLink, Check, Camera,
+  Sparkles, AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -22,6 +23,19 @@ interface CreatedListing {
   price: string | number;
   listingType: string;
   startingBid?: string | number | null;
+}
+
+interface ListingQualityReview {
+  unavailable: boolean;
+  canPublish: boolean;
+  hardIssues: string[];
+  suggestions: string[];
+  disclaimer: string;
+  dimensions: Record<"completeness" | "clarity" | "consistency" | "evidence", {
+    score: number;
+    confidence: number;
+    label: "Strong" | "Needs attention" | "Unclear";
+  }>;
 }
 
 /** Strip the full URL prefix from an originalScanUrl so ImageUploader gets just the objectPath. */
@@ -87,6 +101,7 @@ export default function Sell() {
   const [auctionEndTime, setAuctionEndTime] = useState(addHoursFromNow(72));
   const [listingImages, setListingImages] = useState<string[]>([]);
   const [createdListing, setCreatedListing] = useState<CreatedListing | null>(null);
+  const [qualityReview, setQualityReview] = useState<ListingQualityReview | null>(null);
 
   const { data: allCards, isLoading } = useListCards({});
   const cards = allCards?.filter(c =>
@@ -120,31 +135,53 @@ export default function Sell() {
       setCreatedListing(newListing);
       setStep(3);
     },
-    onError: () => toast.error("Failed to list card"),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to list card"),
   });
+
+  const reviewListing = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
+      const res = await fetch("/api/marketplace/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error ?? "Could not review listing");
+      return payload as ListingQualityReview;
+    },
+    onSuccess: setQualityReview,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not review listing"),
+  });
+
+  const listingDraft = () => {
+    const images = listingImages.length > 0 ? listingImages : undefined;
+    return listingType === "buy_now"
+      ? { cardId: selectedCardId, price: parseFloat(price), description: description || undefined, listingType, listingImages: images }
+      : {
+          cardId: selectedCardId, price: parseFloat(startingBid), startingBid: parseFloat(startingBid),
+          reservePrice: reservePrice ? parseFloat(reservePrice) : undefined,
+          buyNowPrice: buyNowPrice ? parseFloat(buyNowPrice) : undefined,
+          minBidIncrement: parseFloat(minBidIncrement || "1"), auctionEndTime,
+          description: description || undefined, listingType, listingImages: images,
+        };
+  };
+
+  useEffect(() => {
+    setQualityReview(null);
+  }, [selectedCardId, listingType, price, description, startingBid, reservePrice, buyNowPrice, minBidIncrement, auctionEndTime, listingImages]);
 
   const handlePublish = () => {
     if (!selectedCardId) { toast.error("Please select a card"); return; }
-    const images = listingImages.length > 0 ? listingImages : undefined;
     if (listingType === "buy_now") {
       if (!price || parseFloat(price) <= 0) { toast.error("Please enter a valid price"); return; }
-      createListing.mutate({ cardId: selectedCardId, price: parseFloat(price), description: description || undefined, listingType: "buy_now", listingImages: images });
     } else {
       if (!startingBid || parseFloat(startingBid) <= 0) { toast.error("Please enter a valid starting bid"); return; }
       if (!auctionEndTime) { toast.error("Please set an auction end time"); return; }
-      createListing.mutate({
-        cardId: selectedCardId,
-        price: parseFloat(startingBid),
-        startingBid: parseFloat(startingBid),
-        reservePrice: reservePrice ? parseFloat(reservePrice) : undefined,
-        buyNowPrice: buyNowPrice ? parseFloat(buyNowPrice) : undefined,
-        minBidIncrement: parseFloat(minBidIncrement || "1"),
-        auctionEndTime,
-        description: description || undefined,
-        listingType: "auction",
-        listingImages: images,
-      });
     }
+    const draft = listingDraft();
+    if (!qualityReview) { reviewListing.mutate(draft); return; }
+    if (!qualityReview.canPublish) { toast.error("Resolve the factual conflicts before publishing"); return; }
+    createListing.mutate(draft);
   };
 
   const resetForm = () => {
@@ -160,6 +197,7 @@ export default function Sell() {
     setAuctionEndTime(addHoursFromNow(72));
     setListingImages([]);
     setCreatedListing(null);
+    setQualityReview(null);
     seededCardIdRef.current = null;
   };
 
@@ -302,13 +340,54 @@ export default function Sell() {
                   </p>
                   <ListingImageUpload value={listingImages} onChange={setListingImages} />
                 </div>
+
+                {qualityReview && (
+                  <div className={`rounded-xl border p-4 space-y-3 ${qualityReview.canPublish ? "bg-primary/5 border-primary/20" : "bg-destructive/5 border-destructive/30"}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 font-semibold text-sm">
+                        {qualityReview.canPublish ? <Sparkles className="h-4 w-4 text-primary" /> : <AlertTriangle className="h-4 w-4 text-destructive" />}
+                        Listing quality review
+                      </div>
+                      {qualityReview.unavailable && <Badge variant="outline">AI unavailable · safe fallback</Badge>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(qualityReview.dimensions).map(([name, result]) => (
+                        <div key={name} className="rounded-lg bg-background border px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{name}</p>
+                          <p className="text-sm font-bold">{Math.round(result.score * 100)}% · {result.label}</p>
+                          <p className="text-[10px] text-muted-foreground">{Math.round(result.confidence * 100)}% confidence</p>
+                        </div>
+                      ))}
+                    </div>
+                    {qualityReview.hardIssues.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-destructive mb-1">Must fix before publishing</p>
+                        <ul className="text-xs text-destructive list-disc pl-4 space-y-1">
+                          {qualityReview.hardIssues.map((issue) => <li key={issue}>{issue}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {qualityReview.suggestions.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold mb-1">Suggested improvements</p>
+                        <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-1">
+                          {qualityReview.suggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">{qualityReview.disclaimer}</p>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-4 mt-8">
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button className="flex-1 shadow-md" onClick={handlePublish} disabled={createListing.isPending}>
-                  <Tag className="mr-2 w-4 h-4" />
-                  {createListing.isPending ? "Publishing…" : listingType === "auction" ? "Start Auction" : "Publish Listing"}
+                <Button className="flex-1 shadow-md" onClick={handlePublish} disabled={createListing.isPending || reviewListing.isPending}>
+                  {reviewListing.isPending ? <RefreshCw className="mr-2 w-4 h-4 animate-spin" /> : <Tag className="mr-2 w-4 h-4" />}
+                  {reviewListing.isPending ? "Reviewing…" : createListing.isPending ? "Publishing…" :
+                    !qualityReview ? "Review before publishing" :
+                    qualityReview.canPublish ? (qualityReview.suggestions.length ? "Publish with advice" : listingType === "auction" ? "Start Auction" : "Publish Listing") :
+                    "Recheck after fixes"}
                 </Button>
               </div>
             </div>

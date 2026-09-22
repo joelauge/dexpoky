@@ -60,6 +60,7 @@ import type {
   ListListingsParams,
   ListWantedListingsParams,
   Listing,
+  ListingQualityReview,
   PokemonResult,
   PokemonSetDetail,
   PokemonSetSummary,
@@ -2544,6 +2545,92 @@ export const useCreateListing = <
   TContext
 > => {
   return useMutation(getCreateListingMutationOptions(options));
+};
+
+/**
+ * @summary Review a sale or auction draft before publishing
+ */
+export const getReviewListingDraftUrl = () => {
+  return `/api/marketplace/review`;
+};
+
+export const reviewListingDraft = async (
+  createListingBody: CreateListingBody,
+  options?: RequestInit,
+): Promise<ListingQualityReview> => {
+  return customFetch<ListingQualityReview>(getReviewListingDraftUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createListingBody),
+  });
+};
+
+export const getReviewListingDraftMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reviewListingDraft>>,
+    TError,
+    { data: BodyType<CreateListingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reviewListingDraft>>,
+  TError,
+  { data: BodyType<CreateListingBody> },
+  TContext
+> => {
+  const mutationKey = ["reviewListingDraft"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reviewListingDraft>>,
+    { data: BodyType<CreateListingBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reviewListingDraft(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReviewListingDraftMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reviewListingDraft>>
+>;
+export type ReviewListingDraftMutationBody = BodyType<CreateListingBody>;
+export type ReviewListingDraftMutationError = ErrorType<void>;
+
+/**
+ * @summary Review a sale or auction draft before publishing
+ */
+export const useReviewListingDraft = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reviewListingDraft>>,
+    TError,
+    { data: BodyType<CreateListingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reviewListingDraft>>,
+  TError,
+  { data: BodyType<CreateListingBody> },
+  TContext
+> => {
+  return useMutation(getReviewListingDraftMutationOptions(options));
 };
 
 /**

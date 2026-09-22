@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
 import { formatCurrency } from "@/lib/constants";
+import { toast } from "sonner";
 
 interface PricePoint {
   id: number;
@@ -73,11 +74,11 @@ export function PriceHistoryChart({ cardId }: Props) {
   const [history, setHistory] = useState<PricePoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [justRefreshedId, setJustRefreshedId] = useState<number | null>(null);
   const [activeWindow, setActiveWindow] = useState<Window>("1Y");
 
-  const load = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+  const load = async () => {
+    setLoading(true);
     try {
       const res = await fetch(`/api/cards/${cardId}/price-history`, { cache: "no-store" });
       if (res.ok) {
@@ -86,11 +87,37 @@ export function PriceHistoryChart({ cardId }: Props) {
       }
     } catch { /* ignore */ } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
   useEffect(() => { load(); }, [cardId]);
+
+  const refreshPrice = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setJustRefreshedId(null);
+    try {
+      const res = await fetch(`/api/cards/${cardId}/price-history/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const payload = await res.json() as { point?: PricePoint; error?: string };
+      if (!res.ok || !payload.point) throw new Error(payload.error ?? "Could not retrieve the latest price.");
+      setHistory(current => {
+        const withoutDuplicate = current.filter(point => point.id !== payload.point!.id);
+        return [...withoutDuplicate, payload.point!].sort(
+          (a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime(),
+        );
+      });
+      setJustRefreshedId(payload.point.id);
+      window.setTimeout(() => setJustRefreshedId(null), 1400);
+      toast.success(`Latest price retrieved: ${formatCurrency(payload.point.price)}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not retrieve the latest price.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -172,15 +199,26 @@ export function PriceHistoryChart({ cardId }: Props) {
             ))}
           </div>
           <button
-            onClick={() => load(true)}
+            onClick={refreshPrice}
             disabled={refreshing}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-40"
-            title="Refresh price"
+            title={refreshing ? "Retrieving latest price" : "Retrieve latest price"}
+            aria-label={refreshing ? "Retrieving latest price" : "Retrieve latest price"}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
+
+      {refreshing && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+          </span>
+          Retrieving the latest exact-printing price…
+        </div>
+      )}
 
       <ResponsiveContainer width="100%" height={140}>
         <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -237,7 +275,13 @@ export function PriceHistoryChart({ cardId }: Props) {
               const { cx, cy, index } = props as { cx?: number; cy?: number; index?: number };
               const isLast = index === chartData.length - 1;
               if (!isLast || cx == null || cy == null) return <g key={String(props.key ?? index)} />;
-              return <circle key={String(props.key ?? index)} cx={cx} cy={cy} r={5} fill={trendColor} stroke="white" strokeWidth={2} />;
+               const isNew = chartData[index ?? -1]?.id === justRefreshedId;
+               return (
+                 <g key={String(props.key ?? index)}>
+                   {isNew && <circle cx={cx} cy={cy} r={10} fill={trendColor} opacity={0.2} className="animate-ping" />}
+                   <circle cx={cx} cy={cy} r={isNew ? 6 : 5} fill={trendColor} stroke="white" strokeWidth={2} />
+                 </g>
+               );
             }}
             activeDot={{ r: 5, fill: trendColor, stroke: "white", strokeWidth: 2 }}
             animationDuration={400}

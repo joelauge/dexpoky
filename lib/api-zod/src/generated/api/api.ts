@@ -812,6 +812,112 @@ export const CreateListingBody = zod.object({
     .array(zod.string())
     .nullish()
     .describe("Up to 10 seller-uploaded photo URLs"),
+  listingType: zod.enum(["buy_now", "auction"]).optional(),
+  startingBid: zod.number().nullish(),
+  reservePrice: zod.number().nullish(),
+  buyNowPrice: zod.number().nullish(),
+  minBidIncrement: zod.number().nullish(),
+  auctionEndTime: zod.coerce.date().nullish(),
+});
+
+/**
+ * @summary Review a sale or auction draft before publishing
+ */
+export const ReviewListingDraftBody = zod.object({
+  cardId: zod.number(),
+  price: zod.number(),
+  description: zod.string().nullish(),
+  listingImages: zod
+    .array(zod.string())
+    .nullish()
+    .describe("Up to 10 seller-uploaded photo URLs"),
+  listingType: zod.enum(["buy_now", "auction"]).optional(),
+  startingBid: zod.number().nullish(),
+  reservePrice: zod.number().nullish(),
+  buyNowPrice: zod.number().nullish(),
+  minBidIncrement: zod.number().nullish(),
+  auctionEndTime: zod.coerce.date().nullish(),
+});
+
+export const reviewListingDraftResponseDimensionsCompletenessScoreMin = 0;
+export const reviewListingDraftResponseDimensionsCompletenessScoreMax = 1;
+
+export const reviewListingDraftResponseDimensionsCompletenessConfidenceMin = 0;
+export const reviewListingDraftResponseDimensionsCompletenessConfidenceMax = 1;
+
+export const reviewListingDraftResponseDimensionsClarityScoreMin = 0;
+export const reviewListingDraftResponseDimensionsClarityScoreMax = 1;
+
+export const reviewListingDraftResponseDimensionsClarityConfidenceMin = 0;
+export const reviewListingDraftResponseDimensionsClarityConfidenceMax = 1;
+
+export const reviewListingDraftResponseDimensionsConsistencyScoreMin = 0;
+export const reviewListingDraftResponseDimensionsConsistencyScoreMax = 1;
+
+export const reviewListingDraftResponseDimensionsConsistencyConfidenceMin = 0;
+export const reviewListingDraftResponseDimensionsConsistencyConfidenceMax = 1;
+
+export const reviewListingDraftResponseDimensionsEvidenceScoreMin = 0;
+export const reviewListingDraftResponseDimensionsEvidenceScoreMax = 1;
+
+export const reviewListingDraftResponseDimensionsEvidenceConfidenceMin = 0;
+export const reviewListingDraftResponseDimensionsEvidenceConfidenceMax = 1;
+
+export const ReviewListingDraftResponse = zod.object({
+  evidenceHash: zod.string(),
+  reviewedAt: zod.coerce.date(),
+  evaluatorVersion: zod.string(),
+  unavailable: zod.boolean(),
+  canPublish: zod.boolean(),
+  hardIssues: zod.array(zod.string()),
+  dimensions: zod.object({
+    completeness: zod.object({
+      score: zod
+        .number()
+        .min(reviewListingDraftResponseDimensionsCompletenessScoreMin)
+        .max(reviewListingDraftResponseDimensionsCompletenessScoreMax),
+      confidence: zod
+        .number()
+        .min(reviewListingDraftResponseDimensionsCompletenessConfidenceMin)
+        .max(reviewListingDraftResponseDimensionsCompletenessConfidenceMax),
+      label: zod.enum(["Strong", "Needs attention", "Unclear"]),
+    }),
+    clarity: zod.object({
+      score: zod
+        .number()
+        .min(reviewListingDraftResponseDimensionsClarityScoreMin)
+        .max(reviewListingDraftResponseDimensionsClarityScoreMax),
+      confidence: zod
+        .number()
+        .min(reviewListingDraftResponseDimensionsClarityConfidenceMin)
+        .max(reviewListingDraftResponseDimensionsClarityConfidenceMax),
+      label: zod.enum(["Strong", "Needs attention", "Unclear"]),
+    }),
+    consistency: zod.object({
+      score: zod
+        .number()
+        .min(reviewListingDraftResponseDimensionsConsistencyScoreMin)
+        .max(reviewListingDraftResponseDimensionsConsistencyScoreMax),
+      confidence: zod
+        .number()
+        .min(reviewListingDraftResponseDimensionsConsistencyConfidenceMin)
+        .max(reviewListingDraftResponseDimensionsConsistencyConfidenceMax),
+      label: zod.enum(["Strong", "Needs attention", "Unclear"]),
+    }),
+    evidence: zod.object({
+      score: zod
+        .number()
+        .min(reviewListingDraftResponseDimensionsEvidenceScoreMin)
+        .max(reviewListingDraftResponseDimensionsEvidenceScoreMax),
+      confidence: zod
+        .number()
+        .min(reviewListingDraftResponseDimensionsEvidenceConfidenceMin)
+        .max(reviewListingDraftResponseDimensionsEvidenceConfidenceMax),
+      label: zod.enum(["Strong", "Needs attention", "Unclear"]),
+    }),
+  }),
+  suggestions: zod.array(zod.string()),
+  disclaimer: zod.string(),
 });
 
 /**

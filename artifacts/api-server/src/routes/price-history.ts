@@ -269,6 +269,69 @@ router.get("/cards/:id/price-history", requireAuth, async (req, res) => {
   });
 });
 
+// POST /api/cards/:id/price-history/refresh
+// Retrieves an exact-printing price now and records a timestamped snapshot,
+// including when the retrieved value is unchanged.
+router.post("/cards/:id/price-history/refresh", requireAuth, async (req, res) => {
+  const rawCardId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const cardId = parseInt(rawCardId, 10);
+  if (isNaN(cardId)) { res.status(400).json({ error: "Invalid card id" }); return; }
+  const ownerClerkId = (req as AuthRequest).userId;
+
+  const [card] = await db.select({
+    id: cardsTable.id,
+    name: cardsTable.name,
+    pokemonName: cardsTable.pokemonName,
+    cardNumber: cardsTable.cardNumber,
+    setName: cardsTable.setName,
+    setId: cardsTable.setId,
+    catalogCardId: cardsTable.catalogCardId,
+    rarity: cardsTable.rarity,
+    estimatedValue: sql<number | null>`${cardsTable.estimatedValue}::float`,
+  }).from(cardsTable).where(and(
+    eq(cardsTable.id, cardId),
+    eq(cardsTable.ownerClerkId, ownerClerkId),
+  ));
+
+  if (!card) { res.status(404).json({ error: "Card not found" }); return; }
+
+  const pricing = await fetchExactPrice(card);
+  if (pricing.status === "unresolved") {
+    res.status(422).json({ error: "The exact card printing could not be identified. Confirm its set and card number first." });
+    return;
+  }
+  if (pricing.status === "unavailable" || pricing.marketPrice == null) {
+    res.status(503).json({ error: "The latest exact-printing price is temporarily unavailable. Your current value was kept." });
+    return;
+  }
+
+  const recordedAt = new Date();
+  const [point] = await db.transaction(async (tx) => {
+    const [inserted] = await tx.insert(cardPriceHistoryTable).values({
+      cardId,
+      price: String(pricing.marketPrice),
+      source: `refresh:${pricing.source ?? "catalog"}`,
+      recordedAt,
+    }).returning({
+      id: cardPriceHistoryTable.id,
+      price: sql<number>`${cardPriceHistoryTable.price}::float`,
+      source: cardPriceHistoryTable.source,
+      recordedAt: cardPriceHistoryTable.recordedAt,
+    });
+
+    await tx.update(cardsTable).set({
+      estimatedValue: String(pricing.marketPrice),
+      updatedAt: recordedAt,
+      ...(!card.catalogCardId && pricing.identity ? { catalogCardId: pricing.identity } : {}),
+    }).where(and(eq(cardsTable.id, cardId), eq(cardsTable.ownerClerkId, ownerClerkId)));
+
+    return [inserted];
+  });
+
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ point, estimatedValue: pricing.marketPrice });
+});
+
 /**
  * Reconstruct a TCGdex card ID from set name + card number stored in the DB.
  * card.cardNumber may be a full TCGdex ID (e.g. "me03-002") or just the

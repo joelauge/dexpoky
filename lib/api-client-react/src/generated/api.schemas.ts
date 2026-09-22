@@ -316,12 +316,68 @@ export interface Listing {
   updatedAt: string;
 }
 
+export type CreateListingBodyListingType =
+  (typeof CreateListingBodyListingType)[keyof typeof CreateListingBodyListingType];
+
+export const CreateListingBodyListingType = {
+  buy_now: "buy_now",
+  auction: "auction",
+} as const;
+
 export interface CreateListingBody {
   cardId: number;
   price: number;
   description?: string | null;
   /** Up to 10 seller-uploaded photo URLs */
   listingImages?: string[] | null;
+  listingType?: CreateListingBodyListingType;
+  startingBid?: number | null;
+  reservePrice?: number | null;
+  buyNowPrice?: number | null;
+  minBidIncrement?: number | null;
+  auctionEndTime?: string | null;
+}
+
+export type ListingQualityDimensionLabel =
+  (typeof ListingQualityDimensionLabel)[keyof typeof ListingQualityDimensionLabel];
+
+export const ListingQualityDimensionLabel = {
+  Strong: "Strong",
+  Needs_attention: "Needs attention",
+  Unclear: "Unclear",
+} as const;
+
+export interface ListingQualityDimension {
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  score: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  confidence: number;
+  label: ListingQualityDimensionLabel;
+}
+
+export type ListingQualityReviewDimensions = {
+  completeness: ListingQualityDimension;
+  clarity: ListingQualityDimension;
+  consistency: ListingQualityDimension;
+  evidence: ListingQualityDimension;
+};
+
+export interface ListingQualityReview {
+  evidenceHash: string;
+  reviewedAt: string;
+  evaluatorVersion: string;
+  unavailable: boolean;
+  canPublish: boolean;
+  hardIssues: string[];
+  dimensions: ListingQualityReviewDimensions;
+  suggestions: string[];
+  disclaimer: string;
 }
 
 export type UpdateListingBodyStatus =

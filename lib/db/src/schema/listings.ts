@@ -5,6 +5,7 @@ import {
   timestamp,
   numeric,
   integer,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -32,6 +33,9 @@ export const listingsTable = pgTable("listings", {
   description: text("description"),
   listingImages: text("listing_images").array(),
   listingVideo: text("listing_video"),
+  qualityReview: jsonb("quality_review"),
+  qualityReviewEvidenceHash: text("quality_review_evidence_hash"),
+  qualityReviewedAt: timestamp("quality_reviewed_at"),
   viewCount: integer("view_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -618,6 +618,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/Listing"
 
+  /marketplace/review:
+    post:
+      operationId: reviewListingDraft
+      tags: [marketplace]
+      summary: Review a sale or auction draft before publishing
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateListingBody"
+      responses:
+        "200":
+          description: Listing quality review and code-owned publication decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListingQualityReview"
+        "403":
+          description: Card is not owned by current user
+
   /marketplace/{id}:
     get:
       operationId: getListing
@@ -1916,9 +1939,63 @@ components:
             type: string
           nullable: true
           description: Up to 10 seller-uploaded photo URLs
+        listingType:
+          type: string
+          enum: [buy_now, auction]
+        startingBid:
+          type: number
+          nullable: true
+        reservePrice:
+          type: number
+          nullable: true
+        buyNowPrice:
+          type: number
+          nullable: true
+        minBidIncrement:
+          type: number
+          nullable: true
+        auctionEndTime:
+          type: string
+          format: date-time
+          nullable: true
       required:
         - cardId
         - price
+
+    ListingQualityDimension:
+      type: object
+      required: [score, confidence, label]
+      properties:
+        score: { type: number, minimum: 0, maximum: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        label:
+          type: string
+          enum: [Strong, Needs attention, Unclear]
+
+    ListingQualityReview:
+      type: object
+      required: [evidenceHash, reviewedAt, evaluatorVersion, unavailable, canPublish, hardIssues, dimensions, suggestions, disclaimer]
+      properties:
+        evidenceHash: { type: string }
+        reviewedAt: { type: string, format: date-time }
+        evaluatorVersion: { type: string }
+        unavailable: { type: boolean }
+        canPublish: { type: boolean }
+        hardIssues:
+          type: array
+          items: { type: string }
+        dimensions:
+          type: object
+          required: [completeness, clarity, consistency, evidence]
+          properties:
+            completeness: { $ref: "#/components/schemas/ListingQualityDimension" }
+            clarity: { $ref: "#/components/schemas/ListingQualityDimension" }
+            consistency: { $ref: "#/components/schemas/ListingQualityDimension" }
+            evidence: { $ref: "#/components/schemas/ListingQualityDimension" }
+        suggestions:
+          type: array
+          items: { type: string }
+        disclaimer: { type: string }
 
     UpdateListingBody:
       type: object

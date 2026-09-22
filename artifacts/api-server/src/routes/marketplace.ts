@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { listingsTable, cardsTable, categoriesTable, activityEventsTable, sellerPayoutsTable, auctionBidsTable } from "@workspace/db";
+import { listingsTable, cardsTable, categoriesTable, activityEventsTable, sellerPayoutsTable, auctionBidsTable, cardGradingCertsTable } from "@workspace/db";
 import { eq, sql, and, gte, lte, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getAuth } from "@clerk/express";
@@ -15,8 +15,55 @@ import {
 import { getUncachableStripeClient } from "../stripeClient.js";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { notifyWantedListingMatches } from "../lib/notifyWantedMatch.js";
+import { reviewListingQuality, type ListingDraftEvidence, type ListingCardEvidence } from "../lib/listing-quality.js";
 
 const router = Router();
+
+const ListingReviewBody = z.object({
+  cardId: z.number().int().positive(),
+  price: z.number().positive(),
+  description: z.string().max(5000).nullish(),
+  listingType: z.enum(["buy_now", "auction"]).default("buy_now"),
+  listingImages: z.array(z.string()).max(10).nullish(),
+  startingBid: z.number().positive().nullish(),
+  reservePrice: z.number().positive().nullish(),
+  buyNowPrice: z.number().positive().nullish(),
+  minBidIncrement: z.number().positive().nullish(),
+  auctionEndTime: z.string().nullish(),
+});
+
+function draftEvidence(data: z.infer<typeof ListingReviewBody>): ListingDraftEvidence {
+  return {
+    listingType: data.listingType,
+    price: data.price,
+    description: data.description ?? null,
+    listingImages: data.listingImages ?? [],
+    startingBid: data.startingBid ?? null,
+    reservePrice: data.reservePrice ?? null,
+    buyNowPrice: data.buyNowPrice ?? null,
+    minBidIncrement: data.minBidIncrement ?? (data.listingType === "auction" ? 1 : null),
+    auctionEndTime: data.auctionEndTime ?? null,
+  };
+}
+
+async function loadReviewEvidence(cardId: number, ownerClerkId: string) {
+  const [card] = await db.select({
+    id: cardsTable.id, ownerClerkId: cardsTable.ownerClerkId, name: cardsTable.name,
+    pokemonName: cardsTable.pokemonName, setName: cardsTable.setName, setId: cardsTable.setId,
+    cardNumber: cardsTable.cardNumber, catalogCardId: cardsTable.catalogCardId,
+    condition: cardsTable.condition, estimatedValue: sql<number | null>`${cardsTable.estimatedValue}::float`,
+    originalScanUrl: cardsTable.originalScanUrl,
+  }).from(cardsTable).where(eq(cardsTable.id, cardId));
+  if (!card || card.ownerClerkId !== ownerClerkId) return null;
+  const [verifiedGrade] = await db.select({ id: cardGradingCertsTable.id }).from(cardGradingCertsTable)
+    .where(and(
+      eq(cardGradingCertsTable.cardId, cardId),
+      eq(cardGradingCertsTable.ownerClerkId, ownerClerkId),
+      eq(cardGradingCertsTable.status, "verified"),
+    )).limit(1);
+  const { ownerClerkId: _owner, ...evidence } = card;
+  return { card: evidence as ListingCardEvidence, hasVerifiedGrade: !!verifiedGrade };
+}
 
 const cardSelect = {
   id: cardsTable.id,
@@ -88,6 +135,15 @@ router.get("/marketplace", async (req, res) => {
   res.json(enriched);
 });
 
+router.post("/marketplace/review", requireAuth, async (req, res) => {
+  const parsed = ListingReviewBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid listing draft", details: parsed.error.flatten() }); return; }
+  const evidence = await loadReviewEvidence(parsed.data.cardId, (req as AuthRequest).userId);
+  if (!evidence) { res.status(403).json({ error: "You can only review cards you own" }); return; }
+  res.setHeader("Cache-Control", "no-store");
+  res.json(await reviewListingQuality(evidence.card, draftEvidence(parsed.data), evidence.hasVerifiedGrade));
+});
+
 router.post("/marketplace", requireAuth, async (req, res) => {
   const parsed = CreateListingBody.safeParse(req.body);
   if (!parsed.success) {
@@ -96,6 +152,11 @@ router.post("/marketplace", requireAuth, async (req, res) => {
   }
 
   const sellerClerkId = (req as AuthRequest).userId;
+  const reviewBody = ListingReviewBody.safeParse(req.body);
+  if (!reviewBody.success) {
+    res.status(400).json({ error: "Invalid listing draft", details: reviewBody.error.flatten() });
+    return;
+  }
 
   const [card] = await db
     .select({ ownerClerkId: cardsTable.ownerClerkId })
@@ -107,6 +168,17 @@ router.post("/marketplace", requireAuth, async (req, res) => {
   }
   if (card.ownerClerkId !== sellerClerkId) {
     res.status(403).json({ error: "You can only list cards you own" });
+    return;
+  }
+  const reviewEvidence = await loadReviewEvidence(parsed.data.cardId, sellerClerkId);
+  if (!reviewEvidence) { res.status(403).json({ error: "You can only list cards you own" }); return; }
+  const qualityReview = await reviewListingQuality(
+    reviewEvidence.card,
+    draftEvidence(reviewBody.data),
+    reviewEvidence.hasVerifiedGrade,
+  );
+  if (!qualityReview.canPublish) {
+    res.status(409).json({ error: "Resolve listing conflicts before publishing", review: qualityReview });
     return;
   }
 
@@ -126,6 +198,9 @@ router.post("/marketplace", requireAuth, async (req, res) => {
     status: "active",
     listingType,
     sellerClerkId,
+    qualityReview,
+    qualityReviewEvidenceHash: qualityReview.evidenceHash,
+    qualityReviewedAt: new Date(qualityReview.reviewedAt),
   };
 
   if (listingType === "auction") {
