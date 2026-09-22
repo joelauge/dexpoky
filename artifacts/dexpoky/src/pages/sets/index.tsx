@@ -201,7 +201,15 @@ export default function SetsIndex() {
                                 </div>
                                 {set.symbolUrl && (
                                   <div className="h-6 w-6 shrink-0 rounded-full bg-background/50 p-1 flex items-center justify-center shadow-sm">
-                                    <img src={set.symbolUrl} alt="" className="max-h-full max-w-full object-contain" />
+                                    <img
+                                      src={set.symbolUrl}
+                                      alt=""
+                                      className="max-h-full max-w-full object-contain"
+                                      onError={(event) => {
+                                        const badge = event.currentTarget.parentElement;
+                                        if (badge) badge.style.display = "none";
+                                      }}
+                                    />
                                   </div>
                                 )}
                               </div>

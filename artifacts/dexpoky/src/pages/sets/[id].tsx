@@ -203,7 +203,15 @@ export default function SetDetail() {
                 )}
                 {set.symbolUrl && (
                   <div className="absolute bottom-3 right-3 h-8 w-8 bg-background/80 backdrop-blur rounded-full p-1.5 shadow-sm border border-border/50">
-                    <img src={set.symbolUrl} alt="symbol" className="w-full h-full object-contain opacity-70" />
+                    <img
+                      src={set.symbolUrl}
+                      alt=""
+                      className="w-full h-full object-contain opacity-70"
+                      onError={(event) => {
+                        const badge = event.currentTarget.parentElement;
+                        if (badge) badge.style.display = "none";
+                      }}
+                    />
                   </div>
                 )}
               </div>
