@@ -2268,6 +2268,15 @@ components:
         notes:
           type: string
           nullable: true
+        recommendationConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          nullable: true
+        strategicScores:
+          oneOf:
+            - $ref: "#/components/schemas/DeckStrategicScores"
+          nullable: true
         snapshotName:
           type: string
           nullable: true
@@ -2326,8 +2335,15 @@ components:
     DeckCardInput:
       type: object
       properties:
+        source:
+          type: string
+          enum: [owned, wishlist]
         cardId:
           type: integer
+          nullable: true
+        wishlistItemId:
+          type: integer
+          nullable: true
         count:
           type: integer
           minimum: 1
@@ -2337,8 +2353,16 @@ components:
         notes:
           type: string
           nullable: true
+        recommendationConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          nullable: true
+        strategicScores:
+          oneOf:
+            - $ref: "#/components/schemas/DeckStrategicScores"
+          nullable: true
       required:
-        - cardId
         - count
 
     CreateDeckBody:
@@ -2463,11 +2487,38 @@ components:
           nullable: true
         reason:
           type: string
+        recommendationConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        uncertain:
+          type: boolean
+        overallScore:
+          type: number
+          minimum: 0
+          maximum: 1
+        strategicScores:
+          $ref: "#/components/schemas/DeckStrategicScores"
       required:
         - source
         - name
         - count
         - reason
+        - recommendationConfidence
+        - uncertain
+        - overallScore
+        - strategicScores
+
+    DeckStrategicScores:
+      type: object
+      required: [synergy, roleCoverage, energyConsistency, reliability, playStyleFit, purchaseValue]
+      properties:
+        synergy: { type: number, minimum: 0, maximum: 1 }
+        roleCoverage: { type: number, minimum: 0, maximum: 1 }
+        energyConsistency: { type: number, minimum: 0, maximum: 1 }
+        reliability: { type: number, minimum: 0, maximum: 1 }
+        playStyleFit: { type: number, minimum: 0, maximum: 1 }
+        purchaseValue: { type: number, minimum: 0, maximum: 1 }
 
     SuggestDeckResponse:
       type: object
@@ -2483,11 +2534,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SuggestedDeckCard"
+        jevUnavailable:
+          type: boolean
       required:
         - name
         - gameStyle
         - strategy
         - cards
+        - jevUnavailable
 
     RulebookSection:
       type: object

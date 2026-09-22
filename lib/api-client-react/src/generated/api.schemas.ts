@@ -523,6 +523,39 @@ export const DeckCardEntrySource = {
   wishlist: "wishlist",
 } as const;
 
+export interface DeckStrategicScores {
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  synergy: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  roleCoverage: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  energyConsistency: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  reliability: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  playStyleFit: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  purchaseValue: number;
+}
+
 export interface DeckCardEntry {
   entryId: number;
   source: DeckCardEntrySource;
@@ -532,6 +565,12 @@ export interface DeckCardEntry {
   count: number;
   role?: string | null;
   notes?: string | null;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  recommendationConfidence?: number | null;
+  strategicScores?: DeckStrategicScores | null;
   snapshotName?: string | null;
   snapshotImageUrl?: string | null;
   snapshotSetName?: string | null;
@@ -562,12 +601,28 @@ export interface DeckWithCards {
   updatedAt: string;
 }
 
+export type DeckCardInputSource =
+  (typeof DeckCardInputSource)[keyof typeof DeckCardInputSource];
+
+export const DeckCardInputSource = {
+  owned: "owned",
+  wishlist: "wishlist",
+} as const;
+
 export interface DeckCardInput {
-  cardId: number;
+  source?: DeckCardInputSource;
+  cardId?: number | null;
+  wishlistItemId?: number | null;
   /** @minimum 1 */
   count: number;
   role?: string | null;
   notes?: string | null;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  recommendationConfidence?: number | null;
+  strategicScores?: DeckStrategicScores | null;
 }
 
 export type CreateDeckBodyGameStyle =
@@ -668,6 +723,18 @@ export interface SuggestedDeckCard {
   count: number;
   role?: string | null;
   reason: string;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  recommendationConfidence: number;
+  uncertain: boolean;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  overallScore: number;
+  strategicScores: DeckStrategicScores;
 }
 
 export type SuggestDeckResponseGameStyle =
@@ -687,6 +754,7 @@ export interface SuggestDeckResponse {
   gameStyle: SuggestDeckResponseGameStyle;
   strategy: string;
   cards: SuggestedDeckCard[];
+  jevUnavailable: boolean;
 }
 
 export interface RulebookSection {

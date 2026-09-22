@@ -28,7 +28,6 @@ import {
   Layers,
   HeartPulse,
   Heart,
-  ShoppingCart,
   ShoppingBag,
   type LucideIcon,
 } from "lucide-react";
@@ -75,6 +74,63 @@ function suggestionKey(s: SuggestedDeckCard, index: number): string {
   return `shopping:${index}:${s.name}`;
 }
 
+function SuggestionTile({
+  suggestion: s,
+  itemKey,
+  selected,
+  onToggle,
+}: {
+  suggestion: SuggestedDeckCard;
+  itemKey: string;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const optional = s.source === "shopping" || s.source === "catalog" || s.source === "wishlist";
+  const savable = s.source === "owned" || s.source === "wishlist";
+  return (
+    <button
+      key={itemKey}
+      onClick={() => savable && onToggle()}
+      disabled={!savable}
+      className={`text-left rounded-xl border-2 transition-all overflow-hidden ${
+        !savable ? "border-amber-300 bg-amber-50/40 cursor-default" :
+        selected ? "border-primary ring-2 ring-primary/20" : "border-border opacity-60 hover:opacity-100"
+      }`}
+    >
+      <div className="aspect-[3/4] relative bg-muted/30">
+        {s.imageUrl ? (
+          <img src={s.imageUrl} alt={s.name} className="w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            {optional ? <ShoppingBag className="h-8 w-8 text-muted-foreground/40" /> :
+              <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[96px] opacity-[0.12] grayscale select-none pointer-events-none" />}
+          </div>
+        )}
+        {selected && (
+          <div className="absolute top-1.5 right-1.5 bg-primary text-primary-foreground rounded-full p-0.5 shadow-md">
+            <Check className="h-2.5 w-2.5" />
+          </div>
+        )}
+        {s.role && <Badge variant="secondary" className="absolute bottom-1.5 left-1.5 text-[9px] capitalize py-0 px-1">{s.role}</Badge>}
+        {optional && (
+          <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+            {s.source === "wishlist" ? <Heart className="h-2 w-2 fill-rose-500" /> : <ShoppingBag className="h-2 w-2" />}
+            {s.source === "wishlist" ? "Wishlist" : "Optional"}
+          </span>
+        )}
+        {s.count > 1 && <span className="absolute bottom-1.5 right-1.5 text-[9px] font-bold bg-primary/90 text-primary-foreground px-1 py-0.5 rounded-full">×{s.count}</span>}
+      </div>
+      <div className="p-1.5 space-y-1">
+        <p className="text-[10px] font-semibold truncate leading-tight">{s.name}</p>
+        <p className="text-[9px] text-muted-foreground line-clamp-2 leading-tight">{s.reason}</p>
+        <p className={`text-[9px] font-medium ${s.uncertain ? "text-amber-700" : "text-emerald-700"}`}>
+          {s.uncertain ? "Low confidence" : `${Math.round(s.recommendationConfidence * 100)}% confidence`}
+        </p>
+      </div>
+    </button>
+  );
+}
+
 export default function NewDeck() {
   const [, setLocation] = useLocation();
   const params = new URLSearchParams(window.location.search);
@@ -94,6 +150,7 @@ export default function NewDeck() {
   const [suggested, setSuggested] = useState<SuggestedDeckCard[] | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [hasSuggested, setHasSuggested] = useState(false);
+  const [jevUnavailable, setJevUnavailable] = useState(false);
 
   const hasAnyPool =
     (cards && cards.length > 0) || (wishlist && wishlist.length > 0);
@@ -111,6 +168,7 @@ export default function NewDeck() {
           setName(data.name);
           setStrategy(data.strategy);
           setSuggested(data.cards);
+          setJevUnavailable(data.jevUnavailable);
           // Shopping suggestions have no backing card or wishlist id, so they
           // can't be persisted into the deck — pre-select only the actionable
           // owned/wishlist picks.
@@ -118,7 +176,7 @@ export default function NewDeck() {
             new Set(
               data.cards
                 .map((c, i) => ({ c, key: suggestionKey(c, i) }))
-                .filter(({ c }) => c.source !== "shopping")
+                .filter(({ c }) => c.source === "owned" || c.source === "wishlist")
                 .map(({ key }) => key),
             ),
           );
@@ -152,13 +210,15 @@ export default function NewDeck() {
     // wishlist id to attach the deck entry to — they're informational.
     const cardsPayload = (suggested ?? [])
       .map((s, i) => ({ s, key: suggestionKey(s, i) }))
-      .filter(({ s, key }) => s.source !== "shopping" && selectedKeys.has(key))
+      .filter(({ s, key }) => (s.source === "owned" || s.source === "wishlist") && selectedKeys.has(key))
       .map(({ s }) => {
         const base = {
           source: s.source,
           count: s.count,
           role: s.role ?? null,
           notes: s.reason ?? null,
+          recommendationConfidence: s.recommendationConfidence,
+          strategicScores: s.strategicScores,
         };
         if (s.source === "wishlist") {
           return { ...base, wishlistItemId: s.wishlistItemId };
@@ -345,107 +405,39 @@ export default function NewDeck() {
                 </div>
 
                 {!isManual && suggested && suggested.length > 0 && (() => {
-                  const shoppingCount = suggested.filter((s) => s.source === "shopping").length;
-                  const savableCount = suggested.length - shoppingCount;
+                  const ownedSuggestions = suggested.map((s, i) => ({ s, i })).filter(({ s }) => s.source === "owned");
+                  const optionalSuggestions = suggested.map((s, i) => ({ s, i })).filter(({ s }) => s.source !== "owned");
                   return (
-                    <div>
-                      <Label>
-                        Suggested cards{savableCount > 0 ? ` (${selectedKeys.size} selected)` : ""}
-                      </Label>
+                    <div className="space-y-5">
+                      {jevUnavailable && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-900">
+                          Strategic scoring is temporarily unavailable. The legal, source-checked suggestions are still shown with low confidence.
+                        </div>
+                      )}
+                      <div>
+                        <Label>Owned cards ({selectedKeys.size} selected)</Label>
+                        <p className="text-xs text-muted-foreground mb-3">Prioritized from your collection. Tap to include or exclude.</p>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                          {ownedSuggestions.map(({ s, i }) => {
+                            const key = suggestionKey(s, i);
+                            return <SuggestionTile key={key} suggestion={s} itemKey={key} selected={selectedKeys.has(key)} onToggle={() => toggleCard(key)} />;
+                          })}
+                        </div>
+                      </div>
+                      {optionalSuggestions.length > 0 && (
+                        <div className="border-t pt-4">
+                          <Label>Optional shopping improvements</Label>
                       <p className="text-xs text-muted-foreground mb-3">
-                        {shoppingCount === suggested.length ? (
-                          "These are starter-deck recommendations to acquire — they aren't in your collection or wishlist yet, so they can't be saved into a deck. Add them via Scan or Search and they'll be available next time."
-                        ) : (
-                          <>
-                            Tap to include/exclude.{" "}
-                            <span className="text-rose-600">♥ Wishlist</span> = want-to-buy.{" "}
-                            <span className="text-amber-600">🛒 Cart</span> = catalog pick to complete the deck.
-                            {shoppingCount > 0 && (
-                              <>
-                                {" "}<span className="text-amber-700">🛍 Buy</span> = starter shopping suggestion (not saved with the deck).
-                              </>
-                            )}
-                          </>
-                        )}
+                            These are not required for the legal candidate list. Wishlist cards can be saved; catalog and starter suggestions are informational only.
                       </p>
                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                        {suggested.map((s, i) => {
+                            {optionalSuggestions.map(({ s, i }) => {
                           const key = suggestionKey(s, i);
-                          const isShopping = s.source === "shopping";
-                          const isWishlist = s.source === "wishlist";
-                          const isCatalog = s.source === "catalog";
-                          const isSelected = !isShopping && selectedKeys.has(key);
-                          return (
-                            <button
-                              key={key}
-                              onClick={() => !isShopping && toggleCard(key)}
-                              disabled={isShopping}
-                              className={`text-left rounded-xl border-2 transition-all overflow-hidden ${
-                                isShopping
-                                  ? "border-amber-300 bg-amber-50/40 cursor-default"
-                                  : isSelected
-                                    ? "border-primary ring-2 ring-primary/20"
-                                    : "border-border opacity-60 hover:opacity-100"
-                              }`}
-                            >
-                              <div className="aspect-[3/4] relative bg-muted/30">
-                                {s.imageUrl ? (
-                                  <img
-                                    src={s.imageUrl}
-                                    alt={s.name}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    {isShopping ? (
-                                      <ShoppingBag className="h-8 w-8 text-muted-foreground/40" />
-                                    ) : (
-                                      <img src="/logo.png" alt="" aria-hidden className="w-4/5 max-w-[96px] opacity-[0.12] grayscale select-none pointer-events-none" />
-                                    )}
-                                  </div>
-                                )}
-                                {isSelected && (
-                                  <div className="absolute top-1.5 right-1.5 bg-primary text-primary-foreground rounded-full p-0.5 shadow-md">
-                                    <Check className="h-2.5 w-2.5" />
-                                  </div>
-                                )}
-                                {s.role && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="absolute bottom-1.5 left-1.5 text-[9px] capitalize py-0 px-1"
-                                  >
-                                    {s.role}
-                                  </Badge>
-                                )}
-                                {isWishlist && (
-                                  <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                                    <Heart className="h-2 w-2 fill-rose-500" />
-                                  </span>
-                                )}
-                                {isCatalog && (
-                                  <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                                    <ShoppingCart className="h-2 w-2" />
-                                  </span>
-                                )}
-                                {isShopping && (
-                                  <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                                    <ShoppingBag className="h-2 w-2" /> Buy
-                                  </span>
-                                )}
-                                {s.count > 1 && (
-                                  <span className="absolute bottom-1.5 right-1.5 text-[9px] font-bold bg-primary/90 text-primary-foreground px-1 py-0.5 rounded-full">
-                                    ×{s.count}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="p-1.5">
-                                <p className="text-[10px] font-semibold truncate leading-tight">{s.name}</p>
-                              </div>
-                            </button>
-                          );
+                              return <SuggestionTile key={key} suggestion={s} itemKey={key} selected={selectedKeys.has(key)} onToggle={() => toggleCard(key)} />;
                         })}
                       </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}

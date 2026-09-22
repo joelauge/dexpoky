@@ -369,7 +369,22 @@ function CardLightbox({
             {entry.notes && (
               <p className="text-white/40 text-xs mt-1 max-w-xs leading-relaxed">{entry.notes}</p>
             )}
+            {entry.recommendationConfidence != null && (
+              <Badge variant="outline" className={`text-xs ${entry.recommendationConfidence < .55 ? "border-amber-400 text-amber-300" : "border-emerald-400 text-emerald-300"}`}>
+                {entry.recommendationConfidence < .55 ? "Low-confidence AI pick" : `${Math.round(entry.recommendationConfidence * 100)}% AI confidence`}
+              </Badge>
+            )}
           </div>
+          {entry.strategicScores && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-white/60 mt-2">
+              <span>Synergy {Math.round(entry.strategicScores.synergy * 100)}%</span>
+              <span>Role coverage {Math.round(entry.strategicScores.roleCoverage * 100)}%</span>
+              <span>Energy fit {Math.round(entry.strategicScores.energyConsistency * 100)}%</span>
+              <span>Reliability {Math.round(entry.strategicScores.reliability * 100)}%</span>
+              <span>Play-style fit {Math.round(entry.strategicScores.playStyleFit * 100)}%</span>
+              <span>Purchase value {Math.round(entry.strategicScores.purchaseValue * 100)}%</span>
+            </div>
+          )}
         </div>
 
         {/* Dismiss hint */}
@@ -429,6 +444,15 @@ function CardFace({
           <Badge variant="secondary" className="absolute bottom-2 left-2 text-[10px] capitalize">
             {entry.role}
           </Badge>
+        )}
+        {entry.recommendationConfidence != null && (
+          <span className={`absolute top-2 right-2 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${
+            entry.recommendationConfidence < .55
+              ? "bg-amber-100 text-amber-800 border-amber-300"
+              : "bg-emerald-100 text-emerald-800 border-emerald-300"
+          }`}>
+            {entry.recommendationConfidence < .55 ? "Uncertain" : `${Math.round(entry.recommendationConfidence * 100)}%`}
+          </span>
         )}
         {entry.source !== "owned" && sourceBadge && (
           <span className={`absolute bottom-2 right-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${sourceBadge.className}`}>

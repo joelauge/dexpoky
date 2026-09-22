@@ -5,6 +5,8 @@ import {
   integer,
   timestamp,
   uniqueIndex,
+  numeric,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -62,6 +64,8 @@ export const deckCardsTable = pgTable(
     count: integer("count").default(1).notNull(),
     role: text("role"),
     notes: text("notes"),
+    recommendationConfidence: numeric("recommendation_confidence", { precision: 4, scale: 3 }),
+    strategicScores: jsonb("strategic_scores"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => ({

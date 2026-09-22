@@ -1231,6 +1231,27 @@ export const ListDecksResponse = zod.array(ListDecksResponseItem);
  * @summary Create a new deck
  */
 
+export const createDeckBodyCardsItemRecommendationConfidenceMin = 0;
+export const createDeckBodyCardsItemRecommendationConfidenceMax = 1;
+
+export const createDeckBodyCardsItemStrategicScoresOneSynergyMin = 0;
+export const createDeckBodyCardsItemStrategicScoresOneSynergyMax = 1;
+
+export const createDeckBodyCardsItemStrategicScoresOneRoleCoverageMin = 0;
+export const createDeckBodyCardsItemStrategicScoresOneRoleCoverageMax = 1;
+
+export const createDeckBodyCardsItemStrategicScoresOneEnergyConsistencyMin = 0;
+export const createDeckBodyCardsItemStrategicScoresOneEnergyConsistencyMax = 1;
+
+export const createDeckBodyCardsItemStrategicScoresOneReliabilityMin = 0;
+export const createDeckBodyCardsItemStrategicScoresOneReliabilityMax = 1;
+
+export const createDeckBodyCardsItemStrategicScoresOnePlayStyleFitMin = 0;
+export const createDeckBodyCardsItemStrategicScoresOnePlayStyleFitMax = 1;
+
+export const createDeckBodyCardsItemStrategicScoresOnePurchaseValueMin = 0;
+export const createDeckBodyCardsItemStrategicScoresOnePurchaseValueMax = 1;
+
 export const CreateDeckBody = zod.object({
   name: zod.string().min(1),
   description: zod.string().nullish(),
@@ -1252,10 +1273,49 @@ export const CreateDeckBody = zod.object({
   cards: zod
     .array(
       zod.object({
-        cardId: zod.number(),
+        source: zod.enum(["owned", "wishlist"]).optional(),
+        cardId: zod.number().nullish(),
+        wishlistItemId: zod.number().nullish(),
         count: zod.number().min(1),
         role: zod.string().nullish(),
         notes: zod.string().nullish(),
+        recommendationConfidence: zod
+          .number()
+          .min(createDeckBodyCardsItemRecommendationConfidenceMin)
+          .max(createDeckBodyCardsItemRecommendationConfidenceMax)
+          .nullish(),
+        strategicScores: zod
+          .object({
+            synergy: zod
+              .number()
+              .min(createDeckBodyCardsItemStrategicScoresOneSynergyMin)
+              .max(createDeckBodyCardsItemStrategicScoresOneSynergyMax),
+            roleCoverage: zod
+              .number()
+              .min(createDeckBodyCardsItemStrategicScoresOneRoleCoverageMin)
+              .max(createDeckBodyCardsItemStrategicScoresOneRoleCoverageMax),
+            energyConsistency: zod
+              .number()
+              .min(
+                createDeckBodyCardsItemStrategicScoresOneEnergyConsistencyMin,
+              )
+              .max(
+                createDeckBodyCardsItemStrategicScoresOneEnergyConsistencyMax,
+              ),
+            reliability: zod
+              .number()
+              .min(createDeckBodyCardsItemStrategicScoresOneReliabilityMin)
+              .max(createDeckBodyCardsItemStrategicScoresOneReliabilityMax),
+            playStyleFit: zod
+              .number()
+              .min(createDeckBodyCardsItemStrategicScoresOnePlayStyleFitMin)
+              .max(createDeckBodyCardsItemStrategicScoresOnePlayStyleFitMax),
+            purchaseValue: zod
+              .number()
+              .min(createDeckBodyCardsItemStrategicScoresOnePurchaseValueMin)
+              .max(createDeckBodyCardsItemStrategicScoresOnePurchaseValueMax),
+          })
+          .nullish(),
       }),
     )
     .optional(),
@@ -1267,6 +1327,27 @@ export const CreateDeckBody = zod.object({
 export const GetDeckParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const getDeckResponseCardsItemRecommendationConfidenceMin = 0;
+export const getDeckResponseCardsItemRecommendationConfidenceMax = 1;
+
+export const getDeckResponseCardsItemStrategicScoresOneSynergyMin = 0;
+export const getDeckResponseCardsItemStrategicScoresOneSynergyMax = 1;
+
+export const getDeckResponseCardsItemStrategicScoresOneRoleCoverageMin = 0;
+export const getDeckResponseCardsItemStrategicScoresOneRoleCoverageMax = 1;
+
+export const getDeckResponseCardsItemStrategicScoresOneEnergyConsistencyMin = 0;
+export const getDeckResponseCardsItemStrategicScoresOneEnergyConsistencyMax = 1;
+
+export const getDeckResponseCardsItemStrategicScoresOneReliabilityMin = 0;
+export const getDeckResponseCardsItemStrategicScoresOneReliabilityMax = 1;
+
+export const getDeckResponseCardsItemStrategicScoresOnePlayStyleFitMin = 0;
+export const getDeckResponseCardsItemStrategicScoresOnePlayStyleFitMax = 1;
+
+export const getDeckResponseCardsItemStrategicScoresOnePurchaseValueMin = 0;
+export const getDeckResponseCardsItemStrategicScoresOnePurchaseValueMax = 1;
 
 export const GetDeckResponse = zod.object({
   id: zod.number(),
@@ -1291,6 +1372,41 @@ export const GetDeckResponse = zod.object({
       count: zod.number(),
       role: zod.string().nullish(),
       notes: zod.string().nullish(),
+      recommendationConfidence: zod
+        .number()
+        .min(getDeckResponseCardsItemRecommendationConfidenceMin)
+        .max(getDeckResponseCardsItemRecommendationConfidenceMax)
+        .nullish(),
+      strategicScores: zod
+        .object({
+          synergy: zod
+            .number()
+            .min(getDeckResponseCardsItemStrategicScoresOneSynergyMin)
+            .max(getDeckResponseCardsItemStrategicScoresOneSynergyMax),
+          roleCoverage: zod
+            .number()
+            .min(getDeckResponseCardsItemStrategicScoresOneRoleCoverageMin)
+            .max(getDeckResponseCardsItemStrategicScoresOneRoleCoverageMax),
+          energyConsistency: zod
+            .number()
+            .min(getDeckResponseCardsItemStrategicScoresOneEnergyConsistencyMin)
+            .max(
+              getDeckResponseCardsItemStrategicScoresOneEnergyConsistencyMax,
+            ),
+          reliability: zod
+            .number()
+            .min(getDeckResponseCardsItemStrategicScoresOneReliabilityMin)
+            .max(getDeckResponseCardsItemStrategicScoresOneReliabilityMax),
+          playStyleFit: zod
+            .number()
+            .min(getDeckResponseCardsItemStrategicScoresOnePlayStyleFitMin)
+            .max(getDeckResponseCardsItemStrategicScoresOnePlayStyleFitMax),
+          purchaseValue: zod
+            .number()
+            .min(getDeckResponseCardsItemStrategicScoresOnePurchaseValueMin)
+            .max(getDeckResponseCardsItemStrategicScoresOnePurchaseValueMax),
+        })
+        .nullish(),
       snapshotName: zod.string().nullish(),
       snapshotImageUrl: zod.string().nullish(),
       snapshotSetName: zod.string().nullish(),
@@ -1423,6 +1539,30 @@ export const SuggestDeckBody = zod.object({
   notes: zod.string().nullish(),
 });
 
+export const suggestDeckResponseCardsItemRecommendationConfidenceMin = 0;
+export const suggestDeckResponseCardsItemRecommendationConfidenceMax = 1;
+
+export const suggestDeckResponseCardsItemOverallScoreMin = 0;
+export const suggestDeckResponseCardsItemOverallScoreMax = 1;
+
+export const suggestDeckResponseCardsItemStrategicScoresSynergyMin = 0;
+export const suggestDeckResponseCardsItemStrategicScoresSynergyMax = 1;
+
+export const suggestDeckResponseCardsItemStrategicScoresRoleCoverageMin = 0;
+export const suggestDeckResponseCardsItemStrategicScoresRoleCoverageMax = 1;
+
+export const suggestDeckResponseCardsItemStrategicScoresEnergyConsistencyMin = 0;
+export const suggestDeckResponseCardsItemStrategicScoresEnergyConsistencyMax = 1;
+
+export const suggestDeckResponseCardsItemStrategicScoresReliabilityMin = 0;
+export const suggestDeckResponseCardsItemStrategicScoresReliabilityMax = 1;
+
+export const suggestDeckResponseCardsItemStrategicScoresPlayStyleFitMin = 0;
+export const suggestDeckResponseCardsItemStrategicScoresPlayStyleFitMax = 1;
+
+export const suggestDeckResponseCardsItemStrategicScoresPurchaseValueMin = 0;
+export const suggestDeckResponseCardsItemStrategicScoresPurchaseValueMax = 1;
+
 export const SuggestDeckResponse = zod.object({
   name: zod.string(),
   gameStyle: zod.enum([
@@ -1451,8 +1591,44 @@ export const SuggestDeckResponse = zod.object({
       count: zod.number(),
       role: zod.string().nullish(),
       reason: zod.string(),
+      recommendationConfidence: zod
+        .number()
+        .min(suggestDeckResponseCardsItemRecommendationConfidenceMin)
+        .max(suggestDeckResponseCardsItemRecommendationConfidenceMax),
+      uncertain: zod.boolean(),
+      overallScore: zod
+        .number()
+        .min(suggestDeckResponseCardsItemOverallScoreMin)
+        .max(suggestDeckResponseCardsItemOverallScoreMax),
+      strategicScores: zod.object({
+        synergy: zod
+          .number()
+          .min(suggestDeckResponseCardsItemStrategicScoresSynergyMin)
+          .max(suggestDeckResponseCardsItemStrategicScoresSynergyMax),
+        roleCoverage: zod
+          .number()
+          .min(suggestDeckResponseCardsItemStrategicScoresRoleCoverageMin)
+          .max(suggestDeckResponseCardsItemStrategicScoresRoleCoverageMax),
+        energyConsistency: zod
+          .number()
+          .min(suggestDeckResponseCardsItemStrategicScoresEnergyConsistencyMin)
+          .max(suggestDeckResponseCardsItemStrategicScoresEnergyConsistencyMax),
+        reliability: zod
+          .number()
+          .min(suggestDeckResponseCardsItemStrategicScoresReliabilityMin)
+          .max(suggestDeckResponseCardsItemStrategicScoresReliabilityMax),
+        playStyleFit: zod
+          .number()
+          .min(suggestDeckResponseCardsItemStrategicScoresPlayStyleFitMin)
+          .max(suggestDeckResponseCardsItemStrategicScoresPlayStyleFitMax),
+        purchaseValue: zod
+          .number()
+          .min(suggestDeckResponseCardsItemStrategicScoresPurchaseValueMin)
+          .max(suggestDeckResponseCardsItemStrategicScoresPurchaseValueMax),
+      }),
     }),
   ),
+  jevUnavailable: zod.boolean(),
 });
 
 /**

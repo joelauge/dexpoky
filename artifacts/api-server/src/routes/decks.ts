@@ -18,6 +18,11 @@ import {
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { getMultiSectionText } from "./rules.js";
 import { pwGetCard, pwSearch, normalizeCatalogCard, enrichCatalogCardImages } from "../lib/pokewallet.js";
+import {
+  enforceLegalCandidateLimits,
+  rankLegalDeckCandidates,
+  type DeckStrategicScores,
+} from "../lib/deck-reranker.js";
 
 const router = Router();
 
@@ -63,6 +68,8 @@ async function loadDeckWithCards(deckId: number) {
       count: deckCardsTable.count,
       role: deckCardsTable.role,
       notes: deckCardsTable.notes,
+      recommendationConfidence: sql<number | null>`${deckCardsTable.recommendationConfidence}::float`,
+      strategicScores: deckCardsTable.strategicScores,
       // Owned card join (nullable)
       ownedCard: cardSelect,
     })
@@ -91,6 +98,8 @@ async function loadDeckWithCards(deckId: number) {
       count: r.count,
       role: r.role,
       notes: r.notes,
+      recommendationConfidence: r.recommendationConfidence,
+      strategicScores: r.strategicScores,
       // Only owned cards have full Card objects
       card: r.cardId ? r.ownedCard : null,
     };
@@ -187,8 +196,12 @@ router.post("/decks", requireAuth, async (req, res) => {
   //   - `cards: [{source:"owned"|"wishlist", cardId|wishlistItemId, ...}]` (new)
   const rawBody = req.body as { cardIds?: unknown; cards?: unknown };
 
-  type OwnedEntry = { source: "owned"; cardId: number; count: number; role: string | null; notes: string | null };
-  type WishlistEntry = { source: "wishlist"; wishlistItemId: number; count: number; role: string | null; notes: string | null };
+  type RecommendationMeta = {
+    recommendationConfidence: number | null;
+    strategicScores: DeckStrategicScores | null;
+  };
+  type OwnedEntry = RecommendationMeta & { source: "owned"; cardId: number; count: number; role: string | null; notes: string | null };
+  type WishlistEntry = RecommendationMeta & { source: "wishlist"; wishlistItemId: number; count: number; role: string | null; notes: string | null };
   type EntryInput = OwnedEntry | WishlistEntry;
 
   const entries: EntryInput[] = [];
@@ -206,23 +219,29 @@ router.post("/decks", requireAuth, async (req, res) => {
       const count = Math.max(1, Math.min(60, rawCount));
       const role = typeof obj.role === "string" ? obj.role : null;
       const notes = typeof obj.notes === "string" ? obj.notes : null;
+      const recommendationConfidence = typeof obj.recommendationConfidence === "number"
+        ? Math.max(0, Math.min(1, obj.recommendationConfidence))
+        : null;
+      const strategicScores = obj.strategicScores && typeof obj.strategicScores === "object"
+        ? obj.strategicScores as DeckStrategicScores
+        : null;
       const wishlistItemId = typeof obj.wishlistItemId === "number" && Number.isInteger(obj.wishlistItemId) ? obj.wishlistItemId : null;
       const cardId = typeof obj.cardId === "number" && Number.isInteger(obj.cardId) ? obj.cardId : null;
       const explicitSource = typeof obj.source === "string" ? obj.source : null;
 
       if ((explicitSource === "wishlist" || (!explicitSource && wishlistItemId != null)) && wishlistItemId != null && !wishlistIds.has(wishlistItemId)) {
         wishlistIds.add(wishlistItemId);
-        entries.push({ source: "wishlist", wishlistItemId, count, role, notes });
+        entries.push({ source: "wishlist", wishlistItemId, count, role, notes, recommendationConfidence, strategicScores });
       } else if (cardId != null && !ownedIds.has(cardId)) {
         ownedIds.add(cardId);
-        entries.push({ source: "owned", cardId, count, role, notes });
+        entries.push({ source: "owned", cardId, count, role, notes, recommendationConfidence, strategicScores });
       }
     }
   } else if (Array.isArray(rawBody.cardIds)) {
     for (const n of rawBody.cardIds) {
       if (typeof n === "number" && Number.isInteger(n) && !ownedIds.has(n)) {
         ownedIds.add(n);
-        entries.push({ source: "owned", cardId: n, count: 1, role: null, notes: null });
+        entries.push({ source: "owned", cardId: n, count: 1, role: null, notes: null, recommendationConfidence: null, strategicScores: null });
       }
     }
   }
@@ -296,6 +315,8 @@ router.post("/decks", requireAuth, async (req, res) => {
           count: cappedCount,
           role: entry.role,
           notes: entry.notes,
+          recommendationConfidence: entry.recommendationConfidence != null ? String(entry.recommendationConfidence) : null,
+          strategicScores: entry.strategicScores,
         });
       } else {
         const w = wishlistMap.get(entry.wishlistItemId);
@@ -314,6 +335,8 @@ router.post("/decks", requireAuth, async (req, res) => {
           count: Math.min(4, entry.count),
           role: entry.role,
           notes: entry.notes,
+          recommendationConfidence: entry.recommendationConfidence != null ? String(entry.recommendationConfidence) : null,
+          strategicScores: entry.strategicScores,
         });
       }
     }
@@ -729,7 +752,7 @@ ${JSON.stringify(wishlistForAI)}`;
 
   const jsonShapeInstruction = isStarterMode
     ? `Return ONLY valid JSON with the exact shape: { "name": string, "strategy": string, "cards": Array<{ "source": "shopping", "cardId": null, "wishlistItemId": null, "name": string, "setName": string|null, "cardNumber": string|null, "count": number, "role": string, "reason": string }> }`
-    : `Return ONLY valid JSON with the exact shape: { "name": string, "strategy": string, "cards": Array<{ "source": "owned"|"wishlist", "cardId": number|null, "wishlistItemId": number|null, "count": number, "role": string, "reason": string }> }`;
+    : `Return ONLY valid JSON with the exact shape: { "name": string, "strategy": string, "cards": Array<{ "source": "owned"|"wishlist"|"catalog", "cardId": number|null, "wishlistItemId": number|null, "cardName": string|null, "count": number, "role": string, "reason": string }> }`;
 
   let aiResult: AIResponse;
   try {
@@ -780,14 +803,12 @@ ${JSON.stringify(wishlistForAI)}`;
     catalogSearchResults.map(({ name, card }) => [name.toLowerCase(), card]),
   );
 
-  const suggested = (aiResult.cards ?? [])
+  const normalized = (aiResult.cards ?? [])
     .map((c) => {
       if (!c || typeof c.reason !== "string") return null;
-      // Basic Energy has no per-name cap; clamp others to 4.
-      const isEnergy = typeof c.cardName === "string" && /\benergy\b/i.test(c.cardName);
-      const count = isEnergy
-        ? Math.max(1, Math.min(20, Number(c.count) || 1))
-        : Math.max(1, Math.min(4, Number(c.count) || 1));
+      // Preserve the requested count here; authoritative limits are applied
+      // after the source identity and metadata have been resolved.
+      const count = Math.max(1, Math.min(60, Number(c.count) || 1));
       const role = c.role ?? null;
 
       // Owned candidate
@@ -809,6 +830,7 @@ ${JSON.stringify(wishlistForAI)}`;
             imageUrl: owned.imageUrl,
             setName: owned.setName,
             cardNumber: owned.cardNumber,
+            rarity: owned.rarity,
             count,
             role,
             reason: c.reason,
@@ -829,6 +851,7 @@ ${JSON.stringify(wishlistForAI)}`;
             imageUrl: w.imageUrl,
             setName: w.setName,
             cardNumber: w.cardNumber,
+            rarity: w.rarity,
             count,
             role,
             reason: c.reason,
@@ -848,6 +871,7 @@ ${JSON.stringify(wishlistForAI)}`;
           imageUrl: found?.imageUrl ?? null,
           setName: found?.setName ?? null,
           cardNumber: found?.cardNumber ?? null,
+          rarity: found?.rarity ?? null,
           count,
           role,
           reason: c.reason,
@@ -869,6 +893,7 @@ ${JSON.stringify(wishlistForAI)}`;
           imageUrl: null,
           setName: typeof c.setName === "string" ? c.setName : null,
           cardNumber: typeof c.cardNumber === "string" ? c.cardNumber : null,
+          rarity: null,
           count,
           role,
           reason: c.reason,
@@ -879,11 +904,40 @@ ${JSON.stringify(wishlistForAI)}`;
     })
     .filter((x): x is NonNullable<typeof x> => x != null);
 
+  // Code owns deck legality. Jev only sees candidates after source IDs have
+  // been validated and deterministic copy/special/60-card limits applied.
+  const legalCandidates = enforceLegalCandidateLimits(normalized);
+  const rankInput = legalCandidates.map((candidate, originalIndex) => ({
+    key: `${candidate.source}:${candidate.cardId ?? candidate.wishlistItemId ?? candidate.catalogCardId ?? candidate.name}:${originalIndex}`,
+    source: candidate.source,
+    name: candidate.name,
+    count: candidate.count,
+    role: candidate.role,
+    reason: candidate.reason,
+    originalIndex,
+  }));
+  const reranked = await rankLegalDeckCandidates(rankInput, gameStyle, notes);
+  const sourcePriority: Record<string, number> = { owned: 0, wishlist: 1, catalog: 2, shopping: 3 };
+  const suggested = legalCandidates.map((candidate, index) => {
+    const ranking = reranked.rankings.get(rankInput[index].key)!;
+    return {
+      ...candidate,
+      strategicScores: ranking.scores,
+      recommendationConfidence: ranking.confidence,
+      uncertain: ranking.uncertain,
+      overallScore: ranking.overall,
+    };
+  }).sort((a, b) =>
+    (sourcePriority[a.source] - sourcePriority[b.source]) ||
+    (b.overallScore - a.overallScore)
+  );
+
   res.json({
     name: aiResult.name || `${gameStyle} deck`,
     gameStyle,
     strategy: aiResult.strategy || "",
     cards: suggested,
+    jevUnavailable: reranked.unavailable,
   });
 });
 
