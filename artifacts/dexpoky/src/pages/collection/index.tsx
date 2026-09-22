@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useListCards, useListCategories, CardRarity, CardCondition } from "@workspace/api-client-react";
+import { useListCards, CardRarity, CardCondition, useListCollections, getListCollectionsQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CardItem } from "@/components/ui/card-item";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,16 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library, ExternalLink } from "lucide-react";
+import { Search, Plus, SlidersHorizontal, X, Share2, ArrowUpDown, Library, ExternalLink, CheckCircle2, ListChecks, Folder } from "lucide-react";
 import { ShareModal } from "@/components/share-modal";
-import { Link } from "wouter";
+import { Link, useRoute, useLocation } from "wouter";
 import { formatLabel } from "@/lib/constants";
 import { useCardSize } from "@/hooks/useCardSize";
 import { CardSizeSlider } from "@/components/card-size-slider";
 import { motion, AnimatePresence } from "framer-motion";
+import { ManageCollectionsDialog } from "./manage-collections-dialog";
+import { BulkUpdateDialog } from "./bulk-update-dialog";
+import { cn } from "@/lib/utils";
 
 type SortKey =
   | "date_new"
@@ -98,25 +101,42 @@ interface CelebrationCard {
 }
 
 export default function Collection() {
+  const [location, setLocation] = useLocation();
+  const [matchCollection, paramsCollection] = useRoute("/collections/:id");
+  const selectedCollectionId = matchCollection && paramsCollection?.id ? Number(paramsCollection.id) : null;
+
   const [search, setSearch] = useState("");
   const [isShareOpen, setIsShareOpen] = useState(false);
-  const [categoryId, setCategoryId] = useState<string>("all");
   const [rarity, setRarity] = useState<string>("all");
   const [condition, setCondition] = useState<string>("all");
   const [forSale, setForSale] = useState<string>("all");
   const [sort, setSort] = useState<SortKey>("date_new");
   const [cardSize, setCardSize, gridClass] = useCardSize();
   const [celebrationCard, setCelebrationCard] = useState<CelebrationCard | null>(null);
+  
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
+  const [isBulkUpdateOpen, setIsBulkUpdateOpen] = useState(false);
+
   const confetti = useMemo(() => generateConfetti(), []);
 
-  const { data: categories } = useListCategories();
+  const { data: collections } = useListCollections({
+    query: { queryKey: getListCollectionsQueryKey() }
+  });
 
-  const { data: cards, isLoading } = useListCards({
+  const { data: allCards, isLoading } = useListCards({
     search: search || undefined,
-    categoryId: categoryId !== "all" ? parseInt(categoryId) : undefined,
     rarity: rarity !== "all" ? rarity : undefined,
     forSale: forSale === "all" ? undefined : forSale === "yes",
   });
+
+  const cards = useMemo(() => {
+    if (!allCards) return [];
+    if (selectedCollectionId !== null) {
+      return allCards.filter(c => c.collectionId === selectedCollectionId);
+    }
+    return allCards;
+  }, [allCards, selectedCollectionId]);
 
   // Show celebration modal for newly agent-acquired cards not yet celebrated
   useEffect(() => {
@@ -188,161 +208,274 @@ export default function Collection() {
 
   return (
     <Layout>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Library className="h-7 w-7 text-primary" />
-              <h1 className="text-2xl font-bold tracking-tight">My Collection</h1>
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-8">
+        
+        {/* Sidebar for Desktop / Hidden on Mobile (could add mobile drawer later) */}
+        <div className="w-full md:w-64 shrink-0 space-y-6">
+          <div className="flex items-center gap-3">
+            <Library className="h-7 w-7 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight">Collection</h1>
+          </div>
+          
+          <div className="space-y-1">
+            <div 
+              onClick={() => setLocation("/collection")}
+              className={cn(
+                "flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors",
+                !selectedCollectionId ? "bg-primary text-primary-foreground font-medium shadow-sm" : "hover:bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Library className="h-4 w-4" />
+                <span>All Cards</span>
+              </div>
             </div>
-            <p className="text-muted-foreground">Manage and track all your Pokémon cards</p>
+            
+            {collections?.map(col => (
+              <div 
+                key={col.id}
+                onClick={() => setLocation(`/collections/${col.id}`)}
+                className={cn(
+                  "flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors",
+                  selectedCollectionId === col.id ? "bg-primary text-primary-foreground font-medium shadow-sm" : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Folder className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{col.name}</span>
+                </div>
+                <span className="text-xs opacity-70 shrink-0">{col.cardCount}</span>
+              </div>
+            ))}
           </div>
-          <div className="flex gap-2 shrink-0">
-            <Button variant="outline" className="gap-2" onClick={() => setIsShareOpen(true)}>
-              <Share2 className="h-4 w-4" /> Share
+
+          <ManageCollectionsDialog>
+            <Button variant="outline" className="w-full border-dashed">
+              Manage Collections
             </Button>
-            <Link href="/collection/new">
-              <Button className="gap-2 shadow-md hover:shadow-lg transition-all">
-                <Plus className="h-4 w-4" /> Add Card
-              </Button>
-            </Link>
-          </div>
+          </ManageCollectionsDialog>
         </div>
 
-        <div className="bg-card border rounded-xl p-4 shadow-sm mb-8">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search by Pokémon or set name..." 
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-background/50 border-border/50"
-              />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-xl font-bold">
+                {selectedCollectionId 
+                  ? collections?.find(c => c.id === selectedCollectionId)?.name || "Collection" 
+                  : "All Cards"}
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                {filteredCards?.length || 0} cards {search ? "matching search" : ""}
+              </p>
             </div>
-            <div className="flex flex-wrap gap-2 lg:flex-nowrap">
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger className="w-[140px] bg-background/50 border-border/50">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories?.map(c => (
-                    <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={rarity} onValueChange={setRarity}>
-                <SelectTrigger className="w-[140px] bg-background/50 border-border/50">
-                  <SelectValue placeholder="Rarity" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Rarities</SelectItem>
-                  {Object.values(CardRarity).map(r => (
-                    <SelectItem key={r} value={r}>{formatLabel(r)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={condition} onValueChange={setCondition}>
-                <SelectTrigger className="w-[140px] bg-background/50 border-border/50">
-                  <SelectValue placeholder="Condition" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Conditions</SelectItem>
-                  {Object.values(CardCondition).map(c => (
-                    <SelectItem key={c} value={c}>{formatLabel(c)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={forSale} onValueChange={setForSale}>
-                <SelectTrigger className="w-[150px] bg-background/50 border-border/50">
-                  <SelectValue placeholder="For Sale" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Cards</SelectItem>
-                  <SelectItem value="yes">For Sale</SelectItem>
-                  <SelectItem value="no">Not For Sale</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {(search || categoryId !== "all" || rarity !== "all" || condition !== "all" || forSale !== "all") && (
-              <Button
-                variant="ghost"
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <Button 
+                variant={isSelectionMode ? "secondary" : "outline"} 
+                className="gap-2" 
                 onClick={() => {
-                  setSearch("");
-                  setCategoryId("all");
-                  setRarity("all");
-                  setCondition("all");
-                  setForSale("all");
+                  setIsSelectionMode(!isSelectionMode);
+                  setSelectedCardIds(new Set());
                 }}
-                className="text-muted-foreground hover:text-foreground shrink-0"
               >
-                <X className="h-4 w-4 mr-2" /> Clear
+                <ListChecks className="h-4 w-4" /> {isSelectionMode ? "Cancel Selection" : "Select Cards"}
               </Button>
-            )}
+              <Button variant="outline" className="gap-2" onClick={() => setIsShareOpen(true)}>
+                <Share2 className="h-4 w-4" /> Share
+              </Button>
+              <Link href="/collection/new">
+                <Button className="gap-2 shadow-md hover:shadow-lg transition-all">
+                  <Plus className="h-4 w-4" /> Add Card
+                </Button>
+              </Link>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-4 border-t border-border/50">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <ArrowUpDown className="h-4 w-4" />
-              <span>Sort by</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <CardSizeSlider value={cardSize} onChange={setCardSize} />
-              <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-                <SelectTrigger className="w-full sm:w-[220px] bg-background/50 border-border/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {filteredCards && (
-                <span className="text-sm text-muted-foreground whitespace-nowrap hidden sm:inline">
-                  {filteredCards.length} card{filteredCards.length === 1 ? "" : "s"}
-                </span>
+          <div className="bg-card border rounded-xl p-4 shadow-sm mb-6">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search by Pokémon or set name..." 
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 bg-background/50 border-border/50"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 lg:flex-nowrap">
+                <Select value={rarity} onValueChange={setRarity}>
+                  <SelectTrigger className="w-[140px] bg-background/50 border-border/50">
+                    <SelectValue placeholder="Rarity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Rarities</SelectItem>
+                    {Object.values(CardRarity).map(r => (
+                      <SelectItem key={r} value={r}>{formatLabel(r)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={condition} onValueChange={setCondition}>
+                  <SelectTrigger className="w-[140px] bg-background/50 border-border/50">
+                    <SelectValue placeholder="Condition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Conditions</SelectItem>
+                    {Object.values(CardCondition).map(c => (
+                      <SelectItem key={c} value={c}>{formatLabel(c)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={forSale} onValueChange={setForSale}>
+                  <SelectTrigger className="w-[150px] bg-background/50 border-border/50">
+                    <SelectValue placeholder="For Sale" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Cards</SelectItem>
+                    <SelectItem value="yes">For Sale</SelectItem>
+                    <SelectItem value="no">Not For Sale</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {(search || rarity !== "all" || condition !== "all" || forSale !== "all") && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSearch("");
+                    setRarity("all");
+                    setCondition("all");
+                    setForSale("all");
+                  }}
+                  className="text-muted-foreground hover:text-foreground shrink-0"
+                >
+                  <X className="h-4 w-4 mr-2" /> Clear
+                </Button>
               )}
             </div>
-          </div>
-        </div>
 
-        {isLoading ? (
-          <div className={`grid ${gridClass} gap-4`}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
-              <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
-            ))}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-4 border-t border-border/50">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <ArrowUpDown className="h-4 w-4" />
+                <span>Sort by</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <CardSizeSlider value={cardSize} onChange={setCardSize} />
+                <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                  <SelectTrigger className="w-full sm:w-[220px] bg-background/50 border-border/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORT_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
-        ) : filteredCards && filteredCards.length > 0 ? (
-          <div className={`grid ${gridClass} gap-4`}>
-            {filteredCards.map(card => (
-              <CardItem key={card.id} card={card} href={`/collection/${card.id}`} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-20 px-4 border-2 border-dashed rounded-xl bg-muted/5">
-            <SlidersHorizontal className="h-12 w-12 mx-auto text-muted-foreground opacity-50 mb-4" />
-            <h3 className="text-xl font-bold mb-2">No cards found</h3>
-            <p className="text-muted-foreground mb-6">
-              {search || categoryId !== "all" || rarity !== "all" ? 
-                "Try adjusting your filters to find what you're looking for." : 
-                "Your collection is empty. Start adding some cards!"}
-            </p>
-            {!(search || categoryId !== "all" || rarity !== "all") && (
-              <Link href="/collection/new">
-                <Button size="lg" className="shadow-md">Add Your First Card</Button>
-              </Link>
-            )}
-          </div>
-        )}
+
+          {isLoading ? (
+            <div className={`grid ${gridClass} gap-4`}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
+                <Skeleton key={i} className="aspect-[3/4] rounded-xl" />
+              ))}
+            </div>
+          ) : filteredCards && filteredCards.length > 0 ? (
+            <div className={`grid ${gridClass} gap-4 pb-24`}>
+              {filteredCards.map(card => {
+                const isSelected = selectedCardIds.has(card.id);
+                
+                return (
+                  <div 
+                    key={card.id}
+                    onClick={() => {
+                      if (isSelectionMode) {
+                        const next = new Set(selectedCardIds);
+                        if (next.has(card.id)) next.delete(card.id);
+                        else next.add(card.id);
+                        setSelectedCardIds(next);
+                      }
+                    }}
+                    className={cn(
+                      "relative group h-full block",
+                      isSelectionMode ? "cursor-pointer" : ""
+                    )}
+                  >
+                    <CardItem card={card} href={isSelectionMode ? undefined : `/collection/${card.id}`} />
+                    
+                    {isSelectionMode && (
+                      <>
+                        <div className={cn(
+                          "absolute inset-0 border-2 rounded-xl transition-all pointer-events-none z-10",
+                          isSelected ? "border-primary bg-primary/10" : "border-transparent group-hover:border-primary/50 group-hover:bg-primary/5"
+                        )} />
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-0.5 shadow-sm z-20 pointer-events-none">
+                            <CheckCircle2 className="h-5 w-5" />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-20 px-4 border-2 border-dashed rounded-xl bg-muted/5">
+              <SlidersHorizontal className="h-12 w-12 mx-auto text-muted-foreground opacity-50 mb-4" />
+              <h3 className="text-xl font-bold mb-2">No cards found</h3>
+              <p className="text-muted-foreground mb-6">
+                {search || rarity !== "all" || condition !== "all" || forSale !== "all" ? 
+                  "Try adjusting your filters to find what you're looking for." : 
+                  "Your collection is empty. Start adding some cards!"}
+              </p>
+              {!(search || rarity !== "all" || condition !== "all" || forSale !== "all") && (
+                <Link href="/collection/new">
+                  <Button size="lg" className="shadow-md">Add Your First Card</Button>
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Floating Action Bar for Bulk Update */}
+      <AnimatePresence>
+        {isSelectionMode && selectedCardIds.size > 0 && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border rounded-full shadow-2xl p-2 px-6 flex items-center gap-6 z-50"
+          >
+            <div className="font-semibold whitespace-nowrap">
+              {selectedCardIds.size} selected
+            </div>
+            <div className="h-6 w-px bg-border"></div>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setIsBulkUpdateOpen(true)} className="rounded-full shadow-sm">
+                Bulk Update
+              </Button>
+              <Button variant="ghost" onClick={() => setSelectedCardIds(new Set())} className="rounded-full">
+                Clear
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <BulkUpdateDialog 
+        open={isBulkUpdateOpen}
+        onOpenChange={setIsBulkUpdateOpen}
+        selectedIds={Array.from(selectedCardIds)}
+        onSuccess={() => {
+          setSelectedCardIds(new Set());
+          setIsSelectionMode(false);
+        }}
+      />
 
       <ShareModal
         isOpen={isShareOpen}

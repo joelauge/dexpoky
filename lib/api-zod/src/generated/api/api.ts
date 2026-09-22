@@ -148,6 +148,7 @@ export const ListCardsResponseItem = zod.object({
   name: zod.string(),
   pokemonName: zod.string(),
   setName: zod.string().optional(),
+  setId: zod.string().nullish(),
   cardNumber: zod.string().optional(),
   rarity: zod.enum([
     "common",
@@ -173,6 +174,7 @@ export const ListCardsResponseItem = zod.object({
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
   categoryId: zod.number().nullish(),
+  collectionId: zod.number().nullish(),
   categoryName: zod.string().nullish(),
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
@@ -191,6 +193,7 @@ export const CreateCardBody = zod.object({
   name: zod.string(),
   pokemonName: zod.string(),
   setName: zod.string().optional(),
+  setId: zod.string().nullish(),
   cardNumber: zod.string().optional(),
   rarity: zod.enum([
     "common",
@@ -216,6 +219,7 @@ export const CreateCardBody = zod.object({
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
   categoryId: zod.number().nullish(),
+  collectionId: zod.number().nullish(),
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
@@ -234,6 +238,7 @@ export const GetCardResponse = zod.object({
   name: zod.string(),
   pokemonName: zod.string(),
   setName: zod.string().optional(),
+  setId: zod.string().nullish(),
   cardNumber: zod.string().optional(),
   rarity: zod.enum([
     "common",
@@ -259,6 +264,7 @@ export const GetCardResponse = zod.object({
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
   categoryId: zod.number().nullish(),
+  collectionId: zod.number().nullish(),
   categoryName: zod.string().nullish(),
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
@@ -280,6 +286,7 @@ export const UpdateCardBody = zod.object({
   name: zod.string().optional(),
   pokemonName: zod.string().optional(),
   setName: zod.string().optional(),
+  setId: zod.string().nullish(),
   cardNumber: zod.string().optional(),
   rarity: zod
     .enum([
@@ -309,6 +316,7 @@ export const UpdateCardBody = zod.object({
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
   categoryId: zod.number().nullish(),
+  collectionId: zod.number().nullish(),
   forSale: zod.boolean().optional(),
   listingPrice: zod.number().nullish(),
   notes: zod.string().nullish(),
@@ -320,6 +328,7 @@ export const UpdateCardResponse = zod.object({
   name: zod.string(),
   pokemonName: zod.string(),
   setName: zod.string().optional(),
+  setId: zod.string().nullish(),
   cardNumber: zod.string().optional(),
   rarity: zod.enum([
     "common",
@@ -345,6 +354,7 @@ export const UpdateCardResponse = zod.object({
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
   categoryId: zod.number().nullish(),
+  collectionId: zod.number().nullish(),
   categoryName: zod.string().nullish(),
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
@@ -360,6 +370,197 @@ export const UpdateCardResponse = zod.object({
  */
 export const DeleteCardParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary List the current user's collections
+ */
+export const ListCollectionsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  cardCount: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListCollectionsResponse = zod.array(ListCollectionsResponseItem);
+
+/**
+ * @summary Create a collection
+ */
+
+export const CreateCollectionBody = zod.object({
+  name: zod.string().min(1),
+  description: zod.string().nullish(),
+});
+
+/**
+ * @summary Get a collection and its owned-card count
+ */
+export const GetCollectionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetCollectionResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  cardCount: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Update a collection
+ */
+export const UpdateCollectionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateCollectionBody = zod.object({
+  name: zod.string().min(1).optional(),
+  description: zod.string().nullish(),
+});
+
+export const UpdateCollectionResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  cardCount: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a collection without deleting its cards
+ */
+export const DeleteCollectionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Add selected set cards as owned cards atomically
+ */
+export const bulkCreateCardsBodyCardsItemEstimatedValueMin = 0;
+export const bulkCreateCardsBodyCardsItemEstimatedValueMax = 99999999.99;
+
+export const bulkCreateCardsBodyCardsItemConditionDefault = `near_mint`;
+
+export const BulkCreateCardsBody = zod.object({
+  cards: zod
+    .array(
+      zod.object({
+        catalogCardId: zod.string(),
+        name: zod.string(),
+        setName: zod.string(),
+        setId: zod.string(),
+        cardNumber: zod.string(),
+        rarity: zod.enum([
+          "common",
+          "uncommon",
+          "rare",
+          "holo_rare",
+          "ultra_rare",
+          "secret_rare",
+          "promo",
+        ]),
+        imageUrl: zod.string().nullable(),
+        estimatedValue: zod
+          .number()
+          .min(bulkCreateCardsBodyCardsItemEstimatedValueMin)
+          .max(bulkCreateCardsBodyCardsItemEstimatedValueMax)
+          .nullish(),
+        originalScanUrl: zod.string().nullish(),
+        collectionId: zod.number().nullish(),
+        condition: zod
+          .enum([
+            "mint",
+            "near_mint",
+            "excellent",
+            "good",
+            "light_played",
+            "played",
+            "poor",
+          ])
+          .default(bulkCreateCardsBodyCardsItemConditionDefault),
+      }),
+    )
+    .min(1),
+});
+
+/**
+ * @summary Update selected owned cards
+ */
+
+export const bulkUpdateCardsBodyEstimatedValueMin = 0;
+export const bulkUpdateCardsBodyEstimatedValueMax = 99999999.99;
+
+export const BulkUpdateCardsBody = zod.object({
+  cardIds: zod.array(zod.number()).min(1),
+  collectionId: zod.number().nullish(),
+  condition: zod
+    .enum([
+      "mint",
+      "near_mint",
+      "excellent",
+      "good",
+      "light_played",
+      "played",
+      "poor",
+    ])
+    .optional(),
+  estimatedValue: zod
+    .number()
+    .min(bulkUpdateCardsBodyEstimatedValueMin)
+    .max(bulkUpdateCardsBodyEstimatedValueMax)
+    .nullish(),
+});
+
+export const BulkUpdateCardsResponse = zod.object({
+  updated: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      pokemonName: zod.string(),
+      setName: zod.string().optional(),
+      setId: zod.string().nullish(),
+      cardNumber: zod.string().optional(),
+      rarity: zod.enum([
+        "common",
+        "uncommon",
+        "rare",
+        "holo_rare",
+        "ultra_rare",
+        "secret_rare",
+        "promo",
+      ]),
+      condition: zod.enum([
+        "mint",
+        "near_mint",
+        "excellent",
+        "good",
+        "light_played",
+        "played",
+        "poor",
+      ]),
+      imageUrl: zod.string().nullish(),
+      originalScanUrl: zod.string().nullish(),
+      catalogCardId: zod.string().nullish(),
+      estimatedValue: zod.number().nullish(),
+      acquiredDate: zod.coerce.date().nullish(),
+      categoryId: zod.number().nullish(),
+      collectionId: zod.number().nullish(),
+      categoryName: zod.string().nullish(),
+      forSale: zod.boolean(),
+      listingPrice: zod.number().nullish(),
+      notes: zod.string().nullish(),
+      cardStory: zod.string().nullish(),
+      agentAcquiredAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+  count: zod.number(),
 });
 
 /**
@@ -450,6 +651,7 @@ export const ListListingsResponseItem = zod.object({
     name: zod.string(),
     pokemonName: zod.string(),
     setName: zod.string().optional(),
+    setId: zod.string().nullish(),
     cardNumber: zod.string().optional(),
     rarity: zod.enum([
       "common",
@@ -475,6 +677,7 @@ export const ListListingsResponseItem = zod.object({
     estimatedValue: zod.number().nullish(),
     acquiredDate: zod.coerce.date().nullish(),
     categoryId: zod.number().nullish(),
+    collectionId: zod.number().nullish(),
     categoryName: zod.string().nullish(),
     forSale: zod.boolean(),
     listingPrice: zod.number().nullish(),
@@ -525,6 +728,7 @@ export const GetListingResponse = zod.object({
     name: zod.string(),
     pokemonName: zod.string(),
     setName: zod.string().optional(),
+    setId: zod.string().nullish(),
     cardNumber: zod.string().optional(),
     rarity: zod.enum([
       "common",
@@ -550,6 +754,7 @@ export const GetListingResponse = zod.object({
     estimatedValue: zod.number().nullish(),
     acquiredDate: zod.coerce.date().nullish(),
     categoryId: zod.number().nullish(),
+    collectionId: zod.number().nullish(),
     categoryName: zod.string().nullish(),
     forSale: zod.boolean(),
     listingPrice: zod.number().nullish(),
@@ -592,6 +797,7 @@ export const UpdateListingResponse = zod.object({
     name: zod.string(),
     pokemonName: zod.string(),
     setName: zod.string().optional(),
+    setId: zod.string().nullish(),
     cardNumber: zod.string().optional(),
     rarity: zod.enum([
       "common",
@@ -617,6 +823,7 @@ export const UpdateListingResponse = zod.object({
     estimatedValue: zod.number().nullish(),
     acquiredDate: zod.coerce.date().nullish(),
     categoryId: zod.number().nullish(),
+    collectionId: zod.number().nullish(),
     categoryName: zod.string().nullish(),
     forSale: zod.boolean(),
     listingPrice: zod.number().nullish(),
@@ -686,6 +893,7 @@ export const GetRecentActivityResponseItem = zod.object({
   name: zod.string(),
   pokemonName: zod.string(),
   setName: zod.string().optional(),
+  setId: zod.string().nullish(),
   cardNumber: zod.string().optional(),
   rarity: zod.enum([
     "common",
@@ -711,6 +919,7 @@ export const GetRecentActivityResponseItem = zod.object({
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
   categoryId: zod.number().nullish(),
+  collectionId: zod.number().nullish(),
   categoryName: zod.string().nullish(),
   forSale: zod.boolean(),
   listingPrice: zod.number().nullish(),
@@ -885,6 +1094,7 @@ export const GetDeckResponse = zod.object({
           name: zod.string(),
           pokemonName: zod.string(),
           setName: zod.string().optional(),
+          setId: zod.string().nullish(),
           cardNumber: zod.string().optional(),
           rarity: zod.enum([
             "common",
@@ -910,6 +1120,7 @@ export const GetDeckResponse = zod.object({
           estimatedValue: zod.number().nullish(),
           acquiredDate: zod.coerce.date().nullish(),
           categoryId: zod.number().nullish(),
+          collectionId: zod.number().nullish(),
           categoryName: zod.string().nullish(),
           forSale: zod.boolean(),
           listingPrice: zod.number().nullish(),

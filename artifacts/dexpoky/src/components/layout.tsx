@@ -441,7 +441,6 @@ export function Layout({ children }: LayoutProps) {
     { href: "/sets", label: "Sets", icon: Album },
     { href: "/wishlist", label: "Wishlist", icon: Heart },
     { href: "/decks", label: "Decks", icon: Library },
-    { href: "/categories", label: "Categories", icon: FolderTree },
     { href: "/share", label: "Share/Sell", icon: Share2 },
     { href: "/rules", label: "Rules", icon: BookOpen },
   ];

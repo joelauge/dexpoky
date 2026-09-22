@@ -6,10 +6,13 @@ import {
   numeric,
   boolean,
   integer,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
+import { collectionsTable } from "./collections";
 
 export const rarityEnum = [
   "common",
@@ -37,6 +40,7 @@ export const cardsTable = pgTable("cards", {
   name: text("name").notNull(),
   pokemonName: text("pokemon_name").notNull(),
   setName: text("set_name"),
+  setId: text("set_id"),
   cardNumber: text("card_number"),
   rarity: text("rarity").notNull(),
   condition: text("condition").notNull(),
@@ -48,6 +52,9 @@ export const cardsTable = pgTable("cards", {
   categoryId: integer("category_id").references(() => categoriesTable.id, {
     onDelete: "set null",
   }),
+  collectionId: integer("collection_id").references(() => collectionsTable.id, {
+    onDelete: "set null",
+  }),
   forSale: boolean("for_sale").default(false).notNull(),
   listingPrice: numeric("listing_price", { precision: 10, scale: 2 }),
   notes: text("notes"),
@@ -55,7 +62,14 @@ export const cardsTable = pgTable("cards", {
   agentAcquiredAt: timestamp("agent_acquired_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  ownerCatalogUnique: uniqueIndex("cards_owner_catalog_unique")
+    .on(table.ownerClerkId, table.catalogCardId)
+    .where(sql`${table.catalogCardId} is not null`),
+  ownerSetNumberUnique: uniqueIndex("cards_owner_set_number_unique")
+    .on(table.ownerClerkId, table.setId, table.cardNumber)
+    .where(sql`${table.setId} is not null and ${table.cardNumber} is not null`),
+}));
 
 export const insertCardSchema = createInsertSchema(cardsTable).omit({
   id: true,

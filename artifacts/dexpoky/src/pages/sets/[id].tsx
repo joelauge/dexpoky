@@ -14,10 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, CheckCircle2, Circle, AlertCircle, Heart, Loader2 } from "lucide-react";
+import { Search, ChevronLeft, CheckCircle2, Circle, AlertCircle, Heart, Loader2, ListPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getSetCompletion } from "@/lib/set-completion";
+import { BulkAddDialog } from "./bulk-add-dialog";
+import { motion, AnimatePresence } from "framer-motion";
 
 const WISHLIST_KEY = ["/api/wishlist"] as const;
 const RARITY_SECTION_ORDER = [
@@ -43,6 +45,10 @@ export default function SetDetail() {
   const [filter, setFilter] = useState<'all' | 'owned' | 'missing'>('all');
   const [search, setSearch] = useState("");
   const [savingCardId, setSavingCardId] = useState<string | null>(null);
+
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedMissingIds, setSelectedMissingIds] = useState<Set<string>>(new Set());
+  const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
 
   const { data: set, isLoading: setLoad, error: setError } = useGetPokemonSet(setId, {
     query: { enabled: !!setId, queryKey: getGetPokemonSetQueryKey(setId) }
@@ -284,8 +290,8 @@ export default function SetDetail() {
 
         {/* Toolbar */}
         {!isLoading && set && (
-          <div className="sticky top-16 md:top-0 z-20 bg-background/80 backdrop-blur-xl border-y py-4 mb-8 -mx-4 px-4 sm:mx-0 sm:px-0 sm:border-y-0 sm:border-b sm:bg-transparent sm:backdrop-blur-none flex flex-col sm:flex-row gap-4 items-center justify-between">
-            <div className="flex bg-muted/40 p-1 rounded-xl w-full sm:w-auto overflow-x-auto hide-scrollbar">
+          <div className="sticky top-16 md:top-0 z-20 bg-background/80 backdrop-blur-xl border-y py-4 mb-8 -mx-4 px-4 sm:mx-0 sm:px-0 sm:border-y-0 sm:border-b sm:bg-transparent sm:backdrop-blur-none flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="flex bg-muted/40 p-1 rounded-xl w-full md:w-auto overflow-x-auto hide-scrollbar">
               <button
                 onClick={() => setFilter('all')}
                 className={cn(
@@ -319,14 +325,28 @@ export default function SetDetail() {
               </button>
             </div>
 
-            <div className="relative w-full sm:w-64 shrink-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search name or number..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-card border-muted/60 focus-visible:ring-primary/50 rounded-xl shadow-sm"
-              />
+            <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+              <Button 
+                variant={isSelectionMode ? "secondary" : "outline"}
+                className={cn("whitespace-nowrap flex-1 md:flex-none transition-colors", isSelectionMode && "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20")}
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  setSelectedMissingIds(new Set());
+                }}
+              >
+                <ListPlus className="h-4 w-4 mr-2" />
+                {isSelectionMode ? "Cancel Add" : "Bulk Add"}
+              </Button>
+
+              <div className="relative w-full md:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search name or number..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 bg-card border-muted/60 focus-visible:ring-primary/50 rounded-xl shadow-sm w-full"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -375,6 +395,7 @@ export default function SetDetail() {
               const ownedCardId = firstOwnedCardIdMap.get(card.id);
               const isWished = wishedCardIds.has(card.id);
               const isSaving = savingCardId === card.id;
+              const isSelected = selectedMissingIds.has(card.id);
               
               const CardInner = (
                 <>
@@ -382,7 +403,9 @@ export default function SetDetail() {
                     "relative aspect-[63/88] rounded-[4.5%] overflow-hidden bg-muted/30 shadow-sm transition-all duration-300",
                     isOwned 
                       ? "ring-2 ring-primary/20 ring-offset-2 ring-offset-background hover:shadow-xl hover:-translate-y-1.5" 
-                      : "opacity-60 grayscale-[0.6] hover:grayscale-[0.2] hover:opacity-100"
+                      : isSelectionMode 
+                        ? (isSelected ? "ring-4 ring-primary ring-offset-2 opacity-100 grayscale-0 scale-[1.02]" : "opacity-70 grayscale-[0.5] hover:grayscale-[0.2] hover:opacity-100 cursor-pointer")
+                        : "opacity-60 grayscale-[0.6] hover:grayscale-[0.2] hover:opacity-100"
                   )}>
                     {card.imageUrl ? (
                       <img 
@@ -404,13 +427,22 @@ export default function SetDetail() {
                       </div>
                     )}
 
-                    {!isOwned && (
+                    {isSelectionMode && !isOwned && (
+                      <div className={cn("absolute top-2 right-2 rounded-full p-0.5 shadow-sm backdrop-blur-sm transition-colors", isSelected ? "bg-primary text-primary-foreground" : "bg-black/20 text-white/50 border border-white/30")}>
+                        <CheckCircle2 className="h-5 w-5" />
+                      </div>
+                    )}
+
+                    {!isOwned && !isSelectionMode && (
                       <Button
                         type="button"
                         size="sm"
                         variant={isWished ? "secondary" : "default"}
                         disabled={isWished || isSaving || (!!savingCardId && !isSaving)}
-                        onClick={() => addToWishlist(card)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          addToWishlist(card);
+                        }}
                         className={cn(
                           "absolute bottom-2 left-2 right-2 h-9 rounded-lg shadow-md",
                           isWished && "bg-background/95 text-foreground",
@@ -447,11 +479,21 @@ export default function SetDetail() {
               );
 
               return isOwned && ownedCardId ? (
-                <Link key={card.id} href={`/collection/${ownedCardId}`} className="group block focus:outline-none focus-visible:ring-2 ring-primary rounded-xl">
+                <Link key={card.id} href={isSelectionMode ? "#" : `/collection/${ownedCardId}`} onClick={(e) => {
+                  if (isSelectionMode) e.preventDefault();
+                }} className="group block focus:outline-none focus-visible:ring-2 ring-primary rounded-xl">
                   {CardInner}
                 </Link>
               ) : (
-                <div key={card.id} className="group block cursor-default">
+                <div key={card.id} className="group block cursor-default" onClick={(e) => {
+                  if (isSelectionMode) {
+                    e.preventDefault();
+                    const next = new Set(selectedMissingIds);
+                    if (next.has(card.id)) next.delete(card.id);
+                    else next.add(card.id);
+                    setSelectedMissingIds(next);
+                  }
+                }}>
                   {CardInner}
                 </div>
               );
@@ -462,6 +504,52 @@ export default function SetDetail() {
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {isSelectionMode && selectedMissingIds.size > 0 && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border rounded-full shadow-2xl p-2 px-6 flex items-center gap-6 z-50"
+          >
+            <div className="font-semibold whitespace-nowrap">
+              {selectedMissingIds.size} selected
+            </div>
+            <div className="h-6 w-px bg-border"></div>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setIsBulkAddOpen(true)} className="rounded-full shadow-sm">
+                Add to Collection
+              </Button>
+              <Button variant="ghost" onClick={() => setSelectedMissingIds(new Set())} className="rounded-full">
+                Clear
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {set && (
+        <BulkAddDialog 
+          open={isBulkAddOpen}
+          onOpenChange={setIsBulkAddOpen}
+          selectedCards={Array.from(selectedMissingIds).map(id => {
+            const card = set.cards.find(c => c.id === id)!;
+            return {
+              id: card.id,
+              name: card.name,
+              imageUrl: card.imageUrl,
+              rarity: card.rarity,
+              cardNumber: card.localId,
+            };
+          })}
+          set={set}
+          onSuccess={() => {
+            setSelectedMissingIds(new Set());
+            setIsSelectionMode(false);
+          }}
+        />
+      )}
     </Layout>
   );
 }

@@ -301,6 +301,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/sets" component={() => <ProtectedRoute component={SetsIndex} />} />
             <Route path="/sets/:id" component={() => <ProtectedRoute component={SetDetail} />} />
             <Route path="/collection" component={() => <ProtectedRoute component={Collection} />} />
+            <Route path="/collections/:id" component={() => <ProtectedRoute component={Collection} />} />
             <Route path="/collection/new" component={() => <ProtectedRoute component={NewCard} />} />
             <Route path="/collection/:id/edit" component={() => <ProtectedRoute component={EditCard} />} />
             <Route path="/collection/:id" component={() => <ProtectedRoute component={CardDetail} />} />

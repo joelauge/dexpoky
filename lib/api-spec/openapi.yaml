@@ -14,6 +14,8 @@ tags:
     description: Pokemon card operations
   - name: categories
     description: Card category operations
+  - name: collections
+    description: User-owned card collection operations
   - name: marketplace
     description: Marketplace listing operations
   - name: inventory
@@ -307,6 +309,121 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /collections:
+    get:
+      operationId: listCollections
+      tags: [collections]
+      summary: List the current user's collections
+      responses:
+        "200":
+          description: Collections with owned-card counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Collection"
+    post:
+      operationId: createCollection
+      tags: [collections]
+      summary: Create a collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CollectionInput"
+      responses:
+        "201":
+          description: Created collection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+
+  /collections/{id}:
+    get:
+      operationId: getCollection
+      tags: [collections]
+      summary: Get a collection and its owned-card count
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Collection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Collection" }
+        "404": { description: Not found }
+    put:
+      operationId: updateCollection
+      tags: [collections]
+      summary: Update a collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CollectionUpdate" }
+      responses:
+        "200":
+          description: Updated collection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Collection" }
+    delete:
+      operationId: deleteCollection
+      tags: [collections]
+      summary: Delete a collection without deleting its cards
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Deleted }
+
+  /cards/bulk:
+    post:
+      operationId: bulkCreateCards
+      tags: [cards]
+      summary: Add selected set cards as owned cards atomically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BulkCreateCardsInput" }
+      responses:
+        "201":
+          description: Created cards and deterministic skips
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkCreateCardsResponse" }
+
+  /cards/bulk-update:
+    put:
+      operationId: bulkUpdateCards
+      tags: [cards]
+      summary: Update selected owned cards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BulkUpdateCardsInput" }
+      responses:
+        "200":
+          description: Updated cards
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkUpdateCardsResponse" }
 
   /categories:
     get:
@@ -1217,6 +1334,9 @@ components:
           type: string
         setName:
           type: string
+        setId:
+          type: string
+          nullable: true
         cardNumber:
           type: string
         rarity:
@@ -1242,6 +1362,9 @@ components:
           format: date-time
           nullable: true
         categoryId:
+          type: integer
+          nullable: true
+        collectionId:
           type: integer
           nullable: true
         categoryName:
@@ -1287,6 +1410,9 @@ components:
           type: string
         setName:
           type: string
+        setId:
+          type: string
+          nullable: true
         cardNumber:
           type: string
         rarity:
@@ -1312,6 +1438,9 @@ components:
           format: date-time
           nullable: true
         categoryId:
+          type: integer
+          nullable: true
+        collectionId:
           type: integer
           nullable: true
         forSale:
@@ -1341,6 +1470,9 @@ components:
           type: string
         setName:
           type: string
+        setId:
+          type: string
+          nullable: true
         cardNumber:
           type: string
         rarity:
@@ -1368,6 +1500,9 @@ components:
         categoryId:
           type: integer
           nullable: true
+        collectionId:
+          type: integer
+          nullable: true
         forSale:
           type: boolean
         listingPrice:
@@ -1379,6 +1514,100 @@ components:
         cardStory:
           type: string
           nullable: true
+
+    Collection:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        cardCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, cardCount, createdAt, updatedAt]
+
+    CollectionInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string, nullable: true }
+
+    CollectionUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        description: { type: string, nullable: true }
+
+    BulkCreateCardInput:
+      type: object
+      required: [catalogCardId, name, setName, setId, cardNumber, rarity, imageUrl]
+      properties:
+        catalogCardId: { type: string }
+        name: { type: string }
+        setName: { type: string }
+        setId: { type: string }
+        cardNumber: { type: string }
+        rarity:
+          type: string
+          enum: [common, uncommon, rare, holo_rare, ultra_rare, secret_rare, promo]
+        imageUrl: { type: string, nullable: true }
+        estimatedValue: { type: number, minimum: 0, maximum: 99999999.99, nullable: true }
+        originalScanUrl: { type: string, nullable: true }
+        collectionId: { type: integer, nullable: true }
+        condition:
+          type: string
+          enum: [mint, near_mint, excellent, good, light_played, played, poor]
+          default: near_mint
+
+    BulkCreateCardsInput:
+      type: object
+      required: [cards]
+      properties:
+        cards:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/BulkCreateCardInput" }
+
+    BulkCreateCardsResponse:
+      type: object
+      properties:
+        created:
+          type: array
+          items: { $ref: "#/components/schemas/Card" }
+        skipped:
+          type: array
+          items:
+            type: object
+            properties:
+              setId: { type: string }
+              cardNumber: { type: string }
+              reason: { type: string }
+            required: [setId, cardNumber, reason]
+      required: [created, skipped]
+
+    BulkUpdateCardsInput:
+      type: object
+      required: [cardIds]
+      properties:
+        cardIds:
+          type: array
+          minItems: 1
+          items: { type: integer }
+        collectionId: { type: integer, nullable: true }
+        condition:
+          type: string
+          enum: [mint, near_mint, excellent, good, light_played, played, poor]
+        estimatedValue: { type: number, minimum: 0, maximum: 99999999.99, nullable: true }
+
+    BulkUpdateCardsResponse:
+      type: object
+      properties:
+        updated:
+          type: array
+          items: { $ref: "#/components/schemas/Card" }
+        count: { type: integer }
+      required: [updated, count]
 
     Category:
       type: object

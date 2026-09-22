@@ -1,4 +1,5 @@
 export * from "./categories";
+export * from "./collections";
 export * from "./cards";
 export * from "./listings";
 export * from "./users";

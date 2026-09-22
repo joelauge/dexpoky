@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { cardsTable, categoriesTable, activityEventsTable } from "@workspace/db";
+import { cardsTable, categoriesTable, collectionsTable, activityEventsTable } from "@workspace/db";
 import { searchTcgdex, fetchPricingById } from "./detect-helpers.js";
 import {
   pwSearch,
@@ -9,13 +9,15 @@ import {
   buildPricingFromCatalog,
   enrichCatalogCardImages,
 } from "../lib/pokewallet.js";
-import { eq, sql, ilike, and, type SQL } from "drizzle-orm";
+import { eq, sql, ilike, and, inArray, type SQL } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import {
   ListCardsQueryParams,
   CreateCardBody,
   UpdateCardBody,
+  BulkCreateCardsBody,
+  BulkUpdateCardsBody,
   GetCardParams,
   UpdateCardParams,
   DeleteCardParams,
@@ -28,6 +30,7 @@ const cardSelect = {
   name: cardsTable.name,
   pokemonName: cardsTable.pokemonName,
   setName: cardsTable.setName,
+  setId: cardsTable.setId,
   cardNumber: cardsTable.cardNumber,
   rarity: cardsTable.rarity,
   condition: cardsTable.condition,
@@ -38,6 +41,8 @@ const cardSelect = {
   acquiredDate: cardsTable.acquiredDate,
   categoryId: cardsTable.categoryId,
   categoryName: categoriesTable.name,
+  collectionId: cardsTable.collectionId,
+  collectionName: collectionsTable.name,
   forSale: cardsTable.forSale,
   listingPrice: sql<number | null>`${cardsTable.listingPrice}::float`,
   notes: cardsTable.notes,
@@ -47,6 +52,77 @@ const cardSelect = {
   createdAt: cardsTable.createdAt,
   updatedAt: cardsTable.updatedAt,
 };
+
+router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
+  const parsed = BulkCreateCardsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid request body", details: parsed.error }); return; }
+  const userId = (req as AuthRequest).userId;
+  const collectionIds = [...new Set(parsed.data.cards.map((card) => card.collectionId).filter((id): id is number => id != null))];
+  const existingCollections = collectionIds.length
+    ? await db.select({ id: collectionsTable.id }).from(collectionsTable)
+      .where(and(eq(collectionsTable.ownerClerkId, userId), inArray(collectionsTable.id, collectionIds)))
+    : [];
+  if (existingCollections.length !== collectionIds.length) { res.status(400).json({ error: "Invalid collection" }); return; }
+
+  const result = await db.transaction(async (tx) => {
+    const skipped: Array<{ setId: string; cardNumber: string; reason: string }> = [];
+    const createdIds: number[] = [];
+    for (const item of parsed.data.cards) {
+      const [created] = await tx.insert(cardsTable).values({
+        ownerClerkId: userId,
+        name: item.name,
+        pokemonName: item.name,
+        setName: item.setName,
+        setId: item.setId,
+        cardNumber: item.cardNumber,
+        rarity: item.rarity,
+        condition: item.condition ?? "near_mint",
+        imageUrl: item.imageUrl ?? null,
+        catalogCardId: item.catalogCardId,
+        estimatedValue: item.estimatedValue != null ? String(item.estimatedValue) : null,
+        originalScanUrl: item.originalScanUrl ?? null,
+        collectionId: item.collectionId ?? null,
+        forSale: false,
+      }).onConflictDoNothing().returning({ id: cardsTable.id });
+      if (!created) {
+        skipped.push({ setId: item.setId, cardNumber: item.cardNumber, reason: "Already owned" });
+        continue;
+      }
+      createdIds.push(created.id);
+    }
+    return { createdIds, skipped };
+  });
+  const created = result.createdIds.length ? await db.select(cardSelect).from(cardsTable)
+    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
+    .where(inArray(cardsTable.id, result.createdIds)) : [];
+  res.status(201).json({ created, skipped: result.skipped });
+});
+
+router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> => {
+  const parsed = BulkUpdateCardsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid request body", details: parsed.error }); return; }
+  const userId = (req as AuthRequest).userId;
+  const collectionId = parsed.data.collectionId;
+  if (collectionId != null) {
+    const [collection] = await db.select({ id: collectionsTable.id }).from(collectionsTable)
+      .where(and(eq(collectionsTable.id, collectionId), eq(collectionsTable.ownerClerkId, userId)));
+    if (!collection) { res.status(400).json({ error: "Invalid collection" }); return; }
+  }
+  const owned = await db.select({ id: cardsTable.id }).from(cardsTable)
+    .where(and(eq(cardsTable.ownerClerkId, userId), inArray(cardsTable.id, parsed.data.cardIds)));
+  if (owned.length !== parsed.data.cardIds.length) { res.status(403).json({ error: "One or more cards are not owned by you" }); return; }
+  const update: Record<string, unknown> = { updatedAt: new Date() };
+  if (parsed.data.collectionId !== undefined) update.collectionId = parsed.data.collectionId;
+  if (parsed.data.condition !== undefined) update.condition = parsed.data.condition;
+  if (parsed.data.estimatedValue !== undefined) update.estimatedValue = parsed.data.estimatedValue == null ? null : String(parsed.data.estimatedValue);
+  await db.update(cardsTable).set(update).where(and(eq(cardsTable.ownerClerkId, userId), inArray(cardsTable.id, parsed.data.cardIds)));
+  const updated = await db.select(cardSelect).from(cardsTable)
+    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
+    .where(inArray(cardsTable.id, parsed.data.cardIds));
+  res.json({ updated, count: updated.length });
+});
 
 router.get("/cards", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
@@ -66,6 +142,7 @@ router.get("/cards", requireAuth, async (req, res) => {
     .select(cardSelect)
     .from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
     .where(and(...conditions))
     .orderBy(cardsTable.createdAt);
 
@@ -92,6 +169,11 @@ router.post("/cards", requireAuth, async (req, res) => {
       return;
     }
   }
+  if (data.collectionId != null) {
+    const [collection] = await db.select({ id: collectionsTable.id }).from(collectionsTable)
+      .where(and(eq(collectionsTable.id, data.collectionId), eq(collectionsTable.ownerClerkId, userId)));
+    if (!collection) { res.status(400).json({ error: "Invalid collection" }); return; }
+  }
 
   const [card] = await db.insert(cardsTable).values({
     ownerClerkId: userId,
@@ -101,6 +183,7 @@ router.post("/cards", requireAuth, async (req, res) => {
     condition: data.condition,
     forSale: data.forSale,
     setName: data.setName ?? null,
+    setId: data.setId ?? null,
     cardNumber: data.cardNumber ?? null,
     imageUrl: data.imageUrl ?? null,
     originalScanUrl: data.originalScanUrl ?? null,
@@ -108,6 +191,7 @@ router.post("/cards", requireAuth, async (req, res) => {
     estimatedValue: data.estimatedValue != null ? String(data.estimatedValue) : null,
     acquiredDate: data.acquiredDate ?? null,
     categoryId: data.categoryId ?? null,
+    collectionId: data.collectionId ?? null,
     listingPrice: data.listingPrice != null ? String(data.listingPrice) : null,
     notes: data.notes ?? null,
     cardStory: data.cardStory ?? null,
@@ -117,6 +201,7 @@ router.post("/cards", requireAuth, async (req, res) => {
     .select(cardSelect)
     .from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
     .where(eq(cardsTable.id, card.id));
 
   await db.insert(activityEventsTable).values({
@@ -239,6 +324,7 @@ router.get("/cards/:id", async (req, res) => {
     .select(cardSelect)
     .from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
     .where(eq(cardsTable.id, parsed.data.id));
 
   if (!card) {
@@ -282,6 +368,7 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
   if (data.name !== undefined) updateData.name = data.name;
   if (data.pokemonName !== undefined) updateData.pokemonName = data.pokemonName;
   if (data.setName !== undefined) updateData.setName = data.setName;
+  if (data.setId !== undefined) updateData.setId = data.setId;
   if (data.cardNumber !== undefined) updateData.cardNumber = data.cardNumber;
   if (data.rarity !== undefined) updateData.rarity = data.rarity;
   if (data.condition !== undefined) updateData.condition = data.condition;
@@ -291,6 +378,14 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
   if (data.estimatedValue !== undefined) updateData.estimatedValue = data.estimatedValue != null ? String(data.estimatedValue) : null;
   if (data.acquiredDate !== undefined) updateData.acquiredDate = data.acquiredDate;
   if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+  if (data.collectionId !== undefined) {
+    if (data.collectionId != null) {
+      const [collection] = await db.select({ id: collectionsTable.id }).from(collectionsTable)
+        .where(and(eq(collectionsTable.id, data.collectionId), eq(collectionsTable.ownerClerkId, userId)));
+      if (!collection) { res.status(400).json({ error: "Invalid collection" }); return; }
+    }
+    updateData.collectionId = data.collectionId;
+  }
   if (data.forSale !== undefined) updateData.forSale = data.forSale;
   if (data.listingPrice !== undefined) updateData.listingPrice = data.listingPrice != null ? String(data.listingPrice) : null;
   if (data.notes !== undefined) updateData.notes = data.notes;
@@ -305,6 +400,7 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
     .select(cardSelect)
     .from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
     .where(eq(cardsTable.id, paramsParsed.data.id));
 
   await db.insert(activityEventsTable).values({

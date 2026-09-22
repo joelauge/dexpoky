@@ -38,6 +38,7 @@ export interface Card {
   name: string;
   pokemonName: string;
   setName?: string;
+  setId?: string | null;
   cardNumber?: string;
   rarity: CardRarity;
   condition: CardCondition;
@@ -47,6 +48,7 @@ export interface Card {
   estimatedValue?: number | null;
   acquiredDate?: string | null;
   categoryId?: number | null;
+  collectionId?: number | null;
   categoryName?: string | null;
   forSale: boolean;
   listingPrice?: number | null;
@@ -87,6 +89,7 @@ export interface CreateCardBody {
   name: string;
   pokemonName: string;
   setName?: string;
+  setId?: string | null;
   cardNumber?: string;
   rarity: CreateCardBodyRarity;
   condition: CreateCardBodyCondition;
@@ -96,6 +99,7 @@ export interface CreateCardBody {
   estimatedValue?: number | null;
   acquiredDate?: string | null;
   categoryId?: number | null;
+  collectionId?: number | null;
   forSale: boolean;
   listingPrice?: number | null;
   notes?: string | null;
@@ -132,6 +136,7 @@ export interface UpdateCardBody {
   name?: string;
   pokemonName?: string;
   setName?: string;
+  setId?: string | null;
   cardNumber?: string;
   rarity?: UpdateCardBodyRarity;
   condition?: UpdateCardBodyCondition;
@@ -141,10 +146,122 @@ export interface UpdateCardBody {
   estimatedValue?: number | null;
   acquiredDate?: string | null;
   categoryId?: number | null;
+  collectionId?: number | null;
   forSale?: boolean;
   listingPrice?: number | null;
   notes?: string | null;
   cardStory?: string | null;
+}
+
+export interface Collection {
+  id: number;
+  name: string;
+  description?: string | null;
+  cardCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollectionInput {
+  /** @minLength 1 */
+  name: string;
+  description?: string | null;
+}
+
+export interface CollectionUpdate {
+  /** @minLength 1 */
+  name?: string;
+  description?: string | null;
+}
+
+export type BulkCreateCardInputRarity =
+  (typeof BulkCreateCardInputRarity)[keyof typeof BulkCreateCardInputRarity];
+
+export const BulkCreateCardInputRarity = {
+  common: "common",
+  uncommon: "uncommon",
+  rare: "rare",
+  holo_rare: "holo_rare",
+  ultra_rare: "ultra_rare",
+  secret_rare: "secret_rare",
+  promo: "promo",
+} as const;
+
+export type BulkCreateCardInputCondition =
+  (typeof BulkCreateCardInputCondition)[keyof typeof BulkCreateCardInputCondition];
+
+export const BulkCreateCardInputCondition = {
+  mint: "mint",
+  near_mint: "near_mint",
+  excellent: "excellent",
+  good: "good",
+  light_played: "light_played",
+  played: "played",
+  poor: "poor",
+} as const;
+
+export interface BulkCreateCardInput {
+  catalogCardId: string;
+  name: string;
+  setName: string;
+  setId: string;
+  cardNumber: string;
+  rarity: BulkCreateCardInputRarity;
+  imageUrl: string | null;
+  /**
+   * @minimum 0
+   * @maximum 99999999.99
+   */
+  estimatedValue?: number | null;
+  originalScanUrl?: string | null;
+  collectionId?: number | null;
+  condition?: BulkCreateCardInputCondition;
+}
+
+export interface BulkCreateCardsInput {
+  /** @minItems 1 */
+  cards: BulkCreateCardInput[];
+}
+
+export type BulkCreateCardsResponseSkippedItem = {
+  setId: string;
+  cardNumber: string;
+  reason: string;
+};
+
+export interface BulkCreateCardsResponse {
+  created: Card[];
+  skipped: BulkCreateCardsResponseSkippedItem[];
+}
+
+export type BulkUpdateCardsInputCondition =
+  (typeof BulkUpdateCardsInputCondition)[keyof typeof BulkUpdateCardsInputCondition];
+
+export const BulkUpdateCardsInputCondition = {
+  mint: "mint",
+  near_mint: "near_mint",
+  excellent: "excellent",
+  good: "good",
+  light_played: "light_played",
+  played: "played",
+  poor: "poor",
+} as const;
+
+export interface BulkUpdateCardsInput {
+  /** @minItems 1 */
+  cardIds: number[];
+  collectionId?: number | null;
+  condition?: BulkUpdateCardsInputCondition;
+  /**
+   * @minimum 0
+   * @maximum 99999999.99
+   */
+  estimatedValue?: number | null;
+}
+
+export interface BulkUpdateCardsResponse {
+  updated: Card[];
+  count: number;
 }
 
 export interface Category {
