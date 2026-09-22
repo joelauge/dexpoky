@@ -36,6 +36,25 @@ interface TcgDexSet {
 }
 
 const cardRarityCache = new Map<string, string | null>();
+const ASCENDED_HEROES_MEGA_ATTACK_RARE_NUMBERS = new Set([
+  "265",
+  "266",
+  "267",
+  "268",
+  "269",
+  "270",
+  "271",
+]);
+
+function officialRarity(setId: string, localId: string, providerRarity: string | null): string | null {
+  if (
+    setId === "me02.5"
+    && ASCENDED_HEROES_MEGA_ATTACK_RARE_NUMBERS.has(localId)
+  ) {
+    return "Mega Attack Rare";
+  }
+  return providerRarity;
+}
 
 async function loadCardRarities(cards: CardBrief[]): Promise<Map<string, string | null>> {
   const result = new Map<string, string | null>();
@@ -191,7 +210,7 @@ router.get("/pokemon/sets/:id", async (req, res) => {
         localId: card.localId,
         name: card.name,
         imageUrl: card.image ? `${card.image}/high.png` : null,
-        rarity: rarities.get(card.id) ?? null,
+        rarity: officialRarity(set.id, card.localId, rarities.get(card.id) ?? null),
       })),
     });
   } catch (err) {
