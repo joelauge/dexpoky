@@ -13,8 +13,7 @@ describe("recommendCard", () => {
     vi.stubEnv("TYPESAFE_API_KEY", "");
     const result = await recommendCard(input, "collector");
     expect(result.unavailable).toBe(true);
-    expect(result.recommendations).toHaveLength(6);
-    expect(result.recommendations[0].informational).toBe(true);
+    expect(result.recommendations).toHaveLength(0);
   });
   it("validates and uses a single cached Jev response across profiles", async () => {
     vi.stubEnv("TYPESAFE_API_KEY", "test");
@@ -53,5 +52,24 @@ describe("recommendCard", () => {
     expect(fetch).toHaveBeenCalledTimes(10);
     expect(results.at(-1)?.unavailable).toBe(true);
     expect(results.at(-1)?.recommendations.every((item) => item.informational)).toBe(true);
+  });
+
+  it("omits low-confidence actions and ranks the remaining choices", async () => {
+    vi.stubEnv("TYPESAFE_API_KEY", "test");
+    const answers = Object.fromEntries(["keep", "play", "sell", "trade", "grade", "watch"].map((action) => [
+      action,
+      {
+        type: "score",
+        score: action === "keep" ? 2 : action === "sell" ? 1.5 : 1,
+        confidence: action === "keep" ? .9 : action === "sell" ? .7 : .59,
+        probabilities: { "0": 0.1, "1": 0.2, "2": 0.7 },
+      },
+    ]));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ model: "test-model", answers }), { status: 200 })));
+
+    const result = await recommendCard({ ...input, card: { ...input.card, id: 909 } }, "collector");
+
+    expect(result.recommendations.map((item) => item.action)).toEqual(["keep", "sell"]);
+    expect(result.recommendations.every((item) => item.confidence >= .6)).toBe(true);
   });
 });

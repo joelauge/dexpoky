@@ -201,7 +201,7 @@ export default function EditCard() {
                       control={form.control}
                       name="pokemonName"
                       render={({ field }) => (
-                        <FormItem id="condition-field">
+                        <FormItem>
                           <FormLabel>Pokémon Name</FormLabel>
                           <FormControl>
                             <Input placeholder="e.g. Pikachu" {...field} />
@@ -214,7 +214,7 @@ export default function EditCard() {
                       control={form.control}
                       name="name"
                       render={({ field }) => (
-                        <FormItem>
+                        <FormItem id="condition-field">
                           <FormLabel>Card Name</FormLabel>
                           <FormControl>
                             <Input placeholder="e.g. Charizard VMAX" {...field} />

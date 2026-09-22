@@ -64,13 +64,13 @@ export function ProfileSelector({
   );
 }
 
-const ACTION_CONFIG: Record<string, { icon: React.ElementType, color: string, bg: string, label: string, help: string }> = {
-  keep: { icon: Archive, color: "text-slate-600 dark:text-slate-400", bg: "bg-slate-100 dark:bg-slate-900", label: "Keep", help: "Hold on to this card." },
-  play: { icon: Swords, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100 dark:bg-emerald-900/30", label: "Play", help: "Use this card in a deck." },
-  sell: { icon: Tag, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/30", label: "Sell", help: "Offer this card for money." },
-  trade: { icon: ArrowRightLeft, color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-100 dark:bg-indigo-900/30", label: "Trade", help: "Swap it with another collector." },
-  grade: { icon: Award, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-900/30", label: "Grade", help: "Ask an expert to check its condition." },
-  watch: { icon: Eye, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30", label: "Watch", help: "Keep an eye on its value." },
+const ACTION_CONFIG: Record<string, { icon: React.ElementType, color: string, bg: string, label: string, help: string, cta: string, href: (cardId: number) => string }> = {
+  keep: { icon: Archive, color: "text-slate-600 dark:text-slate-400", bg: "bg-slate-100 dark:bg-slate-900", label: "Keep", help: "Hold on to this card.", cta: "View card", href: (id) => `/collection/${id}` },
+  play: { icon: Swords, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100 dark:bg-emerald-900/30", label: "Play", help: "Use this card in a deck.", cta: "Choose a deck", href: () => "/decks" },
+  sell: { icon: Tag, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/30", label: "Sell", help: "Offer this card for money.", cta: "Start listing", href: (id) => `/sell?card=${id}` },
+  trade: { icon: ArrowRightLeft, color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-100 dark:bg-indigo-900/30", label: "Trade", help: "Swap it with another collector.", cta: "Find a trade", href: () => "/marketplace" },
+  grade: { icon: Award, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-900/30", label: "Grade", help: "Ask an expert to check its condition.", cta: "Check grading", href: (id) => `/collection/${id}#grading` },
+  watch: { icon: Eye, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30", label: "Watch", help: "Keep an eye on its value.", cta: "View price history", href: (id) => `/collection/${id}#price-history` },
 };
 
 export interface ExtendedRecommendation {
@@ -177,8 +177,11 @@ export function RecommendationCard({
           </div>
         </div>
 
-        <div className="mt-4 pt-3 border-t flex items-center justify-between">
-          <div className="flex gap-2">
+        <div className="mt-4 pt-3 border-t flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link href={config.href(card.id)}>
+              <Button size="sm" className="h-7 px-3 text-xs">{config.cta}</Button>
+            </Link>
             <Button 
               variant="ghost" 
               size="sm" 
@@ -339,8 +342,8 @@ export function CardRecommendations({ cardId }: { cardId: number }) {
         <ProfileSelector profile={profile} onChange={changeProfile} />
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
-        DexPoky scores six choices for this card. A higher match means the choice may fit your collection better.
-        “Sure” shows how clear the card facts are. You always make the final choice.
+        DexPoky ranks the choices that best fit your {profile} goal. Low-confidence choices are hidden.
+        The strongest choice appears first, and you can take each action here.
       </p>
 
       {isLoading ? (

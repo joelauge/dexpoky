@@ -712,7 +712,7 @@ export default function CardDetail() {
             </div>
 
             {/* Price history chart — directly below the date, no gap */}
-            <div className="w-full min-w-0 overflow-hidden">
+            <div id="price-history" className="w-full min-w-0 overflow-hidden">
               <PriceHistoryChart cardId={id} />
             </div>
 
@@ -722,7 +722,7 @@ export default function CardDetail() {
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Professional Grading
               </h3>
-              <GradingVerification cardId={id} />
+              <div id="grading"><GradingVerification cardId={id} /></div>
             </div>
 
             {/* Other Printings */}

@@ -19,6 +19,7 @@ const FAILURE_TTL_MS = 30 * 1000;
 const MAX_CACHE_ENTRIES = 500;
 const USER_BUDGET_WINDOW_MS = 5 * 60 * 1000;
 const MAX_USER_COLD_CALLS = 10;
+export const MIN_RECOMMENDATION_CONFIDENCE = 0.6;
 const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<RawResult>>();
 const userColdCalls = new Map<string, number[]>();
@@ -145,7 +146,7 @@ async function rawJudgments(input: OwnedCardRecommendationInput, evidenceHash: s
 export function recommendationKey(cardId: number, action: RecommendationAction) { return `card:${cardId}:${action}`; }
 export async function recommendCard(input: OwnedCardRecommendationInput, profile: RecommendationProfile, userId?: string) {
   const evidenceHash = hash(input); const raw = await rawJudgments(input, evidenceHash, userId);
-  const recommendations = raw.judgments.map((judgment) => {
+  const recommendations = raw.judgments.filter((judgment) => judgment.confidence >= MIN_RECOMMENDATION_CONFIDENCE).map((judgment) => {
     const score = clamp(judgment.score + (weights[profile][judgment.action] ?? 0) * .12);
     return { key: recommendationKey(input.card.id, judgment.action), action: judgment.action, score: Math.round(score * 100) / 100, confidence: judgment.confidence, probabilities: judgment.probabilities, reasons: [input.duplicateCount > 1 ? `You own ${input.duplicateCount} copies` : null, input.deckUses ? `You use it in ${input.deckUses} deck${input.deckUses === 1 ? "" : "s"}` : null, input.wishlistMatch ? "It matches a card on your wish list" : null, dexPokyReason(judgment.action, input)].filter(Boolean), informational: true, unavailable: raw.unavailable, evidenceHash };
   }).sort((a, b) => (b.score * b.confidence) - (a.score * a.confidence));
