@@ -1620,6 +1620,9 @@ components:
         imageUrl:
           type: string
           nullable: true
+        rarity:
+          type: string
+          nullable: true
       required:
         - id
         - localId

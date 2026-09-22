@@ -10,6 +10,10 @@ interface CardBrief {
   image?: string;
 }
 
+interface TcgDexCardDetail extends CardBrief {
+  rarity?: string;
+}
+
 interface SetBrief {
   id: string;
   name: string;
@@ -29,6 +33,38 @@ interface TcgDexSet {
     name?: string;
   };
   cards?: CardBrief[];
+}
+
+const cardRarityCache = new Map<string, string | null>();
+
+async function loadCardRarities(cards: CardBrief[]): Promise<Map<string, string | null>> {
+  const result = new Map<string, string | null>();
+  const uncached = cards.filter((card) => {
+    if (!cardRarityCache.has(card.id)) return true;
+    result.set(card.id, cardRarityCache.get(card.id) ?? null);
+    return false;
+  });
+
+  const concurrency = 16;
+  for (let index = 0; index < uncached.length; index += concurrency) {
+    const batch = uncached.slice(index, index + concurrency);
+    await Promise.all(batch.map(async (card) => {
+      let rarity: string | null = null;
+      try {
+        const response = await fetch(`${TCGDEX_BASE}/cards/${encodeURIComponent(card.id)}`);
+        if (response.ok) {
+          const detail = (await response.json()) as TcgDexCardDetail;
+          rarity = detail.rarity ?? null;
+        }
+      } catch {
+        rarity = null;
+      }
+      cardRarityCache.set(card.id, rarity);
+      result.set(card.id, rarity);
+    }));
+  }
+
+  return result;
 }
 
 function assetUrl(value?: string): string | null {
@@ -146,13 +182,16 @@ router.get("/pokemon/sets/:id", async (req, res) => {
     }
 
     const set = (await setRes.json()) as TcgDexSet;
+    const cards = set.cards ?? [];
+    const rarities = await loadCardRarities(cards);
     res.json({
       ...normalizeSet(set),
-      cards: (set.cards ?? []).map((card) => ({
+      cards: cards.map((card) => ({
         id: card.id,
         localId: card.localId,
         name: card.name,
         imageUrl: card.image ? `${card.image}/high.png` : null,
+        rarity: rarities.get(card.id) ?? null,
       })),
     });
   } catch (err) {

@@ -121,6 +121,18 @@ export default function SetDetail() {
     });
   }, [set, filter, search, ownedSetCardIds]);
 
+  const cardsByRarity = useMemo(() => {
+    const groups = new Map<string, typeof filteredCards>();
+    for (const card of filteredCards) {
+      const rawRarity = card.rarity?.trim();
+      const rarity = rawRarity && rawRarity.toLowerCase() !== "none" ? rawRarity : "Other";
+      const group = groups.get(rarity) ?? [];
+      group.push(card);
+      groups.set(rarity, group);
+    }
+    return Array.from(groups.entries());
+  }, [filteredCards]);
+
   if (setError) {
     return (
       <Layout>
@@ -322,8 +334,17 @@ export default function SetDetail() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8 sm:gap-x-6 sm:gap-y-10">
-            {filteredCards.map((card) => {
+          <div className="space-y-14">
+            {cardsByRarity.map(([rarity, cards]) => (
+              <section key={rarity} className="space-y-6">
+                <div className="flex items-center gap-3 border-b pb-3">
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight">{rarity}</h2>
+                  <Badge variant="secondary" className="rounded-full px-2.5">
+                    {cards.length} {cards.length === 1 ? "card" : "cards"}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8 sm:gap-x-6 sm:gap-y-10">
+                  {cards.map((card) => {
               const isOwned = ownedSetCardIds.has(card.id);
               const ownedCardId = firstOwnedCardIdMap.get(card.id);
               const isWished = wishedCardIds.has(card.id);
@@ -408,7 +429,10 @@ export default function SetDetail() {
                   {CardInner}
                 </div>
               );
-            })}
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </div>

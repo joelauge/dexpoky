@@ -261,6 +261,7 @@ export interface PokemonSetCard {
   localId: string;
   name: string;
   imageUrl?: string | null;
+  rarity?: string | null;
 }
 
 export type PokemonSetDetail = PokemonSetSummary & {

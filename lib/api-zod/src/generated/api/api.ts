@@ -781,6 +781,7 @@ export const GetPokemonSetResponse = zod
           localId: zod.string(),
           name: zod.string(),
           imageUrl: zod.string().nullish(),
+          rarity: zod.string().nullish(),
         }),
       ),
     }),
