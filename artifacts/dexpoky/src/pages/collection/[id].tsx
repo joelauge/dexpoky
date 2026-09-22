@@ -47,6 +47,7 @@ interface TcgVariant {
   imageUrl: string;
   setName: string;
   cardNumber: string;
+  setId?: string;
 }
 
 interface EbaySoldPricing {
@@ -120,6 +121,8 @@ export default function CardDetail() {
   const [printingPricing, setPrintingPricing] = useState<PrintingPricing | null>(null);
   const [printingPricingLoading, setPrintingPricingLoading] = useState(false);
   const [confirmPrinting, setConfirmPrinting] = useState<TcgVariant | null>(null);
+  const printingRequestRef = useRef(0);
+  const printingAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const searchName = card?.pokemonName || card?.name;
@@ -144,18 +147,22 @@ export default function CardDetail() {
     setSelectedPrinting(v);
     setPrintingPricing(null);
     setPrintingPricingLoading(true);
+    const requestId = ++printingRequestRef.current;
+    printingAbortRef.current?.abort();
+    const controller = new AbortController();
+    printingAbortRef.current = controller;
     try {
       const p = new URLSearchParams({ cardId: v.id, name: v.name });
       if (card?.rarity) p.set("rarity", card.rarity);
       if (v.setName) p.set("setName", v.setName);
       if (v.cardNumber) p.set("cardNumber", v.cardNumber);
-      const res = await fetch(`/api/cards/pricing?${p}`, { cache: "no-store" });
+      const res = await fetch(`/api/cards/pricing?${p}`, { cache: "no-store", signal: controller.signal });
       if (res.ok) {
         const data = await res.json() as { pricing: PrintingPricing };
-        setPrintingPricing(data.pricing ?? null);
+        if (requestId === printingRequestRef.current) setPrintingPricing(data.pricing ?? null);
       }
     } catch { /* ignore */ } finally {
-      setPrintingPricingLoading(false);
+      if (requestId === printingRequestRef.current) setPrintingPricingLoading(false);
     }
   }, [selectedPrinting?.id, card?.rarity]);
 
@@ -172,15 +179,20 @@ export default function CardDetail() {
 
   const confirmUpdateCard = useCallback(() => {
     if (!confirmPrinting || !card) return;
-    const newValue = printingPricing?.marketPrice ?? printingPricing?.lowPrice ?? null;
+    // Fallback pricing is never safe to persist to a different printing.
+    const newValue = printingPricing?.isFallback
+      ? null
+      : printingPricing?.marketPrice ?? printingPricing?.lowPrice ?? null;
     updateCard.mutate(
       {
         id: card.id,
         data: {
           imageUrl: confirmPrinting.imageUrl || undefined,
+          catalogCardId: confirmPrinting.id,
+          setId: confirmPrinting.setId || undefined,
           setName: confirmPrinting.setName || undefined,
           cardNumber: confirmPrinting.cardNumber || undefined,
-          ...(newValue != null ? { estimatedValue: newValue } : {}),
+          estimatedValue: newValue,
         },
       },
       {
@@ -931,7 +943,7 @@ export default function CardDetail() {
             </Button>
             <Button
               onClick={confirmUpdateCard}
-              disabled={updateCard.isPending}
+              disabled={updateCard.isPending || printingPricingLoading}
               className="gap-1.5"
             >
               {updateCard.isPending

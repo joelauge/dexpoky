@@ -3,15 +3,17 @@ import { db } from "@workspace/db";
 import { cardPriceHistoryTable, cardsTable } from "@workspace/db";
 import { fetchPricingById } from "./detect-helpers.js";
 import { eq, asc, and, sql } from "drizzle-orm";
+import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 
 const router = Router();
 
 // GET /api/cards/:id/price-history
 // Returns stored price snapshots immediately. Triggers a background live-price fetch
 // (at most once per calendar day) so future requests will show the new data point.
-router.get("/cards/:id/price-history", async (req, res) => {
+router.get("/cards/:id/price-history", requireAuth, async (req, res) => {
   const cardId = parseInt(req.params.id, 10);
   if (isNaN(cardId)) { res.status(400).json({ error: "Invalid card id" }); return; }
+  const ownerClerkId = (req as AuthRequest).userId;
 
   const [card] = await db
     .select({
@@ -20,12 +22,14 @@ router.get("/cards/:id/price-history", async (req, res) => {
       pokemonName: cardsTable.pokemonName,
       cardNumber: cardsTable.cardNumber,
       setName: cardsTable.setName,
+      setId: cardsTable.setId,
+      catalogCardId: cardsTable.catalogCardId,
       rarity: cardsTable.rarity,
       estimatedValue: sql<number | null>`${cardsTable.estimatedValue}::float`,
       createdAt: cardsTable.createdAt,
     })
     .from(cardsTable)
-    .where(eq(cardsTable.id, cardId));
+    .where(and(eq(cardsTable.id, cardId), eq(cardsTable.ownerClerkId, ownerClerkId)));
 
   if (!card) { res.status(404).json({ error: "Card not found" }); return; }
 
@@ -56,7 +60,7 @@ router.get("/cards/:id/price-history", async (req, res) => {
   res.json({ history: points });
 
   // ── Background: add today's live snapshot if we haven't yet ──────────────
-  const tcgdexId = buildTcgdexId(card.setName, card.cardNumber);
+  const tcgdexId = buildTcgdexId(card.catalogCardId, card.setId, card.setName, card.cardNumber);
   if (!tcgdexId) return;
 
   const today = new Date();
@@ -74,12 +78,19 @@ router.get("/cards/:id/price-history", async (req, res) => {
         card.pokemonName ?? card.name,
         card.rarity ?? undefined,
       );
-      if (pricing.marketPrice != null) {
+       if (pricing.marketPrice != null) {
         await db.insert(cardPriceHistoryTable).values({
           cardId,
           price: String(pricing.marketPrice),
           source: pricing.source ?? "tcgplayer",
         });
+         const identity: Record<string, unknown> = {
+           estimatedValue: String(pricing.marketPrice),
+           updatedAt: new Date(),
+         };
+         if (!card.catalogCardId && tcgdexId) identity.catalogCardId = tcgdexId;
+         if (!card.setId && tcgdexId) identity.setId = tcgdexId.slice(0, tcgdexId.lastIndexOf("-"));
+         await db.update(cardsTable).set(identity).where(eq(cardsTable.id, cardId));
       }
     } catch {
       // Silently ignore — will retry on next request
@@ -92,10 +103,17 @@ router.get("/cards/:id/price-history", async (req, res) => {
  * card.cardNumber may be a full TCGdex ID (e.g. "me03-002") or just the
  * numeric part (e.g. "002"). card.setName holds the human-readable set name.
  */
-function buildTcgdexId(setName: string | null, cardNumber: string | null): string | null {
+export function buildTcgdexId(
+  catalogCardId: string | null,
+  setId: string | null,
+  setName: string | null,
+  cardNumber: string | null,
+): string | null {
+  if (catalogCardId && /^[a-z][a-z0-9]*-\d+/i.test(catalogCardId)) return catalogCardId;
   if (!cardNumber) return null;
   // Already a full TCGdex ID (contains a dash with letter prefix)
   if (/^[a-z]+\d*-\d+/i.test(cardNumber)) return cardNumber;
+  if (setId && /^[a-z][a-z0-9]*$/i.test(setId)) return `${setId}-${cardNumber}`;
   if (!setName) return null;
   const setAlias = SET_ALIAS_MAP[setName.toLowerCase()];
   if (!setAlias) return null;
@@ -117,6 +135,8 @@ const SET_ALIAS_MAP: Record<string, string> = {
   "silver tempest": "swsh12",
   "swsh12: silver tempest": "swsh12",
   "unseen forces": "ex12",
+  "chaos rising": "me04",
+  "me04: chaos rising": "me04",
   "scarlet & violet": "sv1",
   "sv01: scarlet & violet": "sv1",
   "paldea evolved": "sv2",

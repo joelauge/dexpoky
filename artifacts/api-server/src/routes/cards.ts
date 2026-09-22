@@ -244,11 +244,11 @@ router.get("/cards/lookup", async (req, res) => {
       }));
       const variants = rankTcgResults([...tcg.variants, ...catalogVariants], name, cardNumber, setCode);
       const top = variants[0];
-      const catalogTop = top ? pw.data.results.find((r) => r.id === top.id) : undefined;
+       const catalogTop = top ? pw.data.results.find((r) => r.id === top.id) : undefined;
       res.json({
         card: top ?? null,
         variants,
-        pricing: catalogTop ? buildPricingFromCatalog(catalogTop) : tcg.pricing,
+         pricing: catalogTop ? buildPricingFromCatalog(catalogTop) : tcg.pricing,
       });
       return;
     }
@@ -276,10 +276,10 @@ router.get("/cards/lookup", async (req, res) => {
     // Price from the variant that's actually on top, not always results[0].
     // After sorting, variants[0] may differ from the first PokeWallet result.
     const topId = variants[0]?.id;
-    const topRaw =
-      (topId ? pw.data.results.find((r) => r.id === topId) : null) ??
-      pw.data.results[0];
-    const pricing = buildPricingFromCatalog(topRaw);
+     const topRaw = topId ? pw.data.results.find((r) => r.id === topId) : undefined;
+     const pricing = topRaw ? buildPricingFromCatalog(topRaw) : {
+       marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null,
+     };
     res.json({ card: variants[0] ?? null, variants, pricing });
     return;
   }

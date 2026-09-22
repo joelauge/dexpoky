@@ -157,6 +157,10 @@ export interface PricingData {
   ebay?: EbaySoldPricing | null;
 }
 
+function emptyPricing(): PricingData {
+  return { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
+}
+
 // In-memory cache for eBay sold-listing lookups (1 hour TTL)
 const EBAY_TTL_MS = 60 * 60 * 1000;
 const ebayCache = new Map<string, { expires: number; data: EbaySoldPricing | null }>();
@@ -286,8 +290,9 @@ function extractPricing(card: PtcgCard): PricingData {
   if (!card) return empty;
   const tcgPrices = card.tcgplayer?.prices ?? {};
   const tcgVariants = Object.values(tcgPrices);
-  const tcgMarket = tcgVariants.find((v) => v.market != null)?.market ?? null;
-  const tcgLow = tcgVariants.find((v) => v.low != null)?.low ?? null;
+  const normal = tcgPrices.normal ?? tcgPrices.Normal;
+  const tcgMarket = normal?.market ?? null;
+  const tcgLow = normal?.low ?? null;
   const cm = card.cardmarket?.prices;
   const cmMarket = cm?.trendPrice ?? cm?.averageSellPrice ?? null;
   const cmLow = cm?.lowPrice ?? null;
@@ -350,21 +355,10 @@ async function fetchTCGPlayerPricePoints(productId: number): Promise<PricingData
     if (!Array.isArray(points) || points.length === 0) return null;
 
     const normal = points.find((p) => p.printingType === "Normal");
-    const foil = points.find((p) => p.printingType === "Foil");
-
-    // Pick best available market price: Normal first, then Foil, then any variant
-    const marketPrice =
-      normal?.marketPrice ??
-      foil?.marketPrice ??
-      points.find((p) => p.marketPrice != null)?.marketPrice ??
-      null;
-
-    // Pick best available low/median price from the same priority
-    const lowPrice =
-      normal?.listedMedianPrice ??
-      foil?.listedMedianPrice ??
-      points.find((p) => p.listedMedianPrice != null)?.listedMedianPrice ??
-      null;
+    // Missing Normal is an exact pricing miss; never substitute foil or
+    // another finish's value.
+    const marketPrice = normal?.marketPrice ?? null;
+    const lowPrice = normal?.listedMedianPrice ?? null;
 
     if (marketPrice == null && lowPrice == null) return null;
 
@@ -375,6 +369,82 @@ async function fetchTCGPlayerPricePoints(productId: number): Promise<PricingData
       source: "tcgplayer",
       psaEstimates: buildPsaEstimates(marketPrice),
     };
+  } catch {
+    return null;
+  }
+}
+
+type ExactMarket = {
+  marketPrice?: number | null;
+  lowPrice?: number | null;
+};
+
+/** Parse exact-printing prices from TCGdex's variants_detailed payload. */
+export function extractTcgdexDetailPricing(data: unknown): PricingData | null {
+  if (!data || typeof data !== "object") return null;
+  const raw = (data as { variants_detailed?: unknown }).variants_detailed;
+  if (!raw || typeof raw !== "object") return null;
+
+  const entries = Array.isArray(raw)
+    ? raw
+    : (raw as { normal?: unknown }).normal != null
+      ? [(raw as { normal: unknown }).normal]
+      : [];
+  const entry = entries.find((item) =>
+    item && typeof item === "object" &&
+    String((item as { type?: unknown }).type ?? "").toLowerCase() === "normal"
+  );
+  if (!entry || typeof entry !== "object") return null;
+
+  const pricing = (entry as { pricing?: unknown }).pricing;
+  const priceRoot = pricing && typeof pricing === "object" ? pricing as Record<string, unknown> : {};
+  const tcgplayer = priceRoot.tcgplayer && typeof priceRoot.tcgplayer === "object"
+    ? priceRoot.tcgplayer as Record<string, unknown>
+    : {};
+  const normal = tcgplayer.normal && typeof tcgplayer.normal === "object"
+    ? tcgplayer.normal as ExactMarket
+    : ("marketPrice" in tcgplayer || "lowPrice" in tcgplayer)
+      ? tcgplayer as ExactMarket
+      : undefined;
+
+  const marketPrice = normal?.marketPrice ?? null;
+  const lowPrice = normal?.lowPrice ?? null;
+  if (marketPrice != null || lowPrice != null) {
+    return {
+      marketPrice,
+      lowPrice,
+      trendPrice: null,
+      source: "tcgplayer",
+      psaEstimates: buildPsaEstimates(marketPrice),
+    };
+  }
+
+  const cardmarket = priceRoot.cardmarket && typeof priceRoot.cardmarket === "object"
+    ? priceRoot.cardmarket as {
+        trend?: number | null;
+        trendPrice?: number | null;
+        avg?: number | null;
+        low?: number | null;
+      }
+    : null;
+  const resolvedMarket = cardmarket?.trendPrice ?? cardmarket?.trend ?? cardmarket?.avg ?? null;
+  const resolvedLow = cardmarket?.low ?? null;
+  if (resolvedMarket == null && resolvedLow == null) return null;
+  return {
+    marketPrice: resolvedMarket,
+    lowPrice: resolvedLow,
+    trendPrice: null,
+    source: "cardmarket",
+    psaEstimates: buildPsaEstimates(resolvedMarket),
+  };
+}
+
+/** TCGdex card details expose the current exact-printing prices directly. */
+async function fetchTcgdexDetailPricing(cardId: string): Promise<PricingData | null> {
+  try {
+    const res = await fetch(`${TCGDEX_BASE}/cards/${encodeURIComponent(cardId)}`);
+    if (!res.ok) return null;
+    return extractTcgdexDetailPricing(await res.json());
   } catch {
     return null;
   }
@@ -413,7 +483,7 @@ async function fetchPricing(cardName: string, rarity?: string): Promise<PricingD
  * Priority:
  *  1. TCGPlayer direct via PTCG.io redirect → mpapi.tcgplayer.com pricepoints (most accurate)
  *  2. PTCG.io inline tcgplayer/cardmarket prices (works for many older sets)
- *  3. Fallback name+rarity search (returns isFallback: true)
+ *  3. TCGdex detail variants (when available)
  */
 export async function fetchPricingById(
   tcgdexId: string,
@@ -434,6 +504,11 @@ export async function fetchPricingById(
     const strippedNum = String(parseInt(rawNum, 10));
     // Strip leading zeros from set prefix: "me03" → "me3"
     const setIdNorm = setId.replace(/([a-z]+)0+(\d)/i, "$1$2");
+
+    // TCGdex is the authoritative printing identity and often has fresher
+    // variant pricing than the downstream PTCG.io mirror.
+    const tcgdexPricing = await fetchTcgdexDetailPricing(tcgdexId);
+    if (tcgdexPricing) return { ...tcgdexPricing, ebay: await ebayPromise };
 
     // Build PTCG.io candidate IDs (normalized first, then raw)
     const seen = new Set<string>();
@@ -464,13 +539,7 @@ export async function fetchPricingById(
       }
     }
 
-    // --- Priority 3: Name+rarity fallback ---
-    if (fallbackName) {
-      const namePricing = await fetchPricing(fallbackName, fallbackRarity);
-      if (namePricing.marketPrice != null || namePricing.lowPrice != null) {
-        return { ...namePricing, isFallback: true, ebay: await ebayPromise };
-      }
-    }
+    // Never substitute another printing's name-level price for an exact ID.
     return { ...empty, ebay: await ebayPromise };
   } catch {
     return { ...empty, ebay: await ebayPromise };
@@ -645,16 +714,20 @@ export async function searchTcgdex(
     const mergedCards = [...byId.values()];
     const bestName = mergedCards.find((c) => !c.id.startsWith("tk"))?.name ?? query;
 
-    const [variants, pricing] = await Promise.all([
-      buildResults(mergedCards),
-      fetchPricing(bestName),
-    ]);
+    const variants = await buildResults(mergedCards);
 
     const ranked = rankTcgResults(variants, query, cardNumber, setCode);
     variants.splice(0, variants.length, ...ranked);
+    const top = variants[0];
+    const pricing = top
+      ? await fetchPricingById(top.id, top.name, top.rarity ?? undefined, {
+        name: top.name,
+        setName: top.setName,
+        cardNumber: top.cardNumber,
+      })
+      : emptyPricing();
 
     // Add eBay sold-listing validation against the best matched variant
-    const top = variants[0];
     const ebay = top
       ? await fetchEbaySoldPricing(bestName, top.setName, top.cardNumber)
       : await fetchEbaySoldPricing(bestName);

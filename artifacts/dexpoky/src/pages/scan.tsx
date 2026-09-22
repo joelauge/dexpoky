@@ -98,6 +98,8 @@ export default function ScanPage() {
   const [pricing, setPricing]                 = useState<PricingData | null>(null);
   const [frozenFrame, setFrozenFrame]         = useState<string | null>(null);
   const [pricingLoading, setPricingLoading]   = useState(false);
+  const pricingRequestRef = useRef(0);
+  const pricingAbortRef = useRef<AbortController | null>(null);
   const [correctionOpen, setCorrectionOpen]   = useState(false);
   const [imageFailed, setImageFailed]         = useState(false);
 
@@ -298,18 +300,23 @@ export default function ScanPage() {
   const selectVariant = useCallback(async (v: TcgCard) => {
     setSelectedVariant(v);
     setImageFailed(false);
+    setPricing(null);
     setPricingLoading(true);
+    const requestId = ++pricingRequestRef.current;
+    pricingAbortRef.current?.abort();
+    const controller = new AbortController();
     try {
+      pricingAbortRef.current = controller;
       const res = await fetch(
-        `${BASE}/api/cards/pricing?cardId=${encodeURIComponent(v.id)}&name=${encodeURIComponent(v.name)}`,
-        { cache: "no-store" },
+          `${BASE}/api/cards/pricing?cardId=${encodeURIComponent(v.id)}&name=${encodeURIComponent(v.name)}&setName=${encodeURIComponent(v.setName)}&cardNumber=${encodeURIComponent(v.cardNumber)}${v.rarity ? `&rarity=${encodeURIComponent(v.rarity)}` : ""}`,
+        { cache: "no-store", signal: controller.signal },
       );
       if (res.ok) {
         const data = await res.json() as { pricing: PricingData };
-        setPricing(data.pricing ?? null);
+        if (requestId === pricingRequestRef.current) setPricing(data.pricing ?? null);
       }
     } catch { /* keep existing pricing */ } finally {
-      setPricingLoading(false);
+      if (requestId === pricingRequestRef.current) setPricingLoading(false);
     }
   }, []);
 
@@ -609,6 +616,7 @@ export default function ScanPage() {
                     <Button
                       size="sm"
                       className="mt-3 rounded-lg"
+                      disabled={pricingLoading}
                       onClick={async () => {
                         // If the scan upload is still in flight, wait briefly
                         // (max 4s) so we can attach `originalScanUrl`.

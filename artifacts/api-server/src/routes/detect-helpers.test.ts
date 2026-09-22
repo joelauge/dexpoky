@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildDirectIdentityCandidates, normalizeSetCode, rankTcgResults, type TcgResult } from "./detect-helpers.js";
+import {
+  buildDirectIdentityCandidates,
+  extractTcgdexDetailPricing,
+  normalizeSetCode,
+  rankTcgResults,
+  type TcgResult,
+} from "./detect-helpers.js";
 
 function card(
   id: string,
@@ -111,5 +117,39 @@ describe("card detection result ranking", () => {
     );
 
     expect(results.map((result) => result.id)).toEqual(["sv1-025", "sv1-026"]);
+  });
+});
+
+describe("exact TCGdex pricing", () => {
+  it("uses the exact normal market price and ignores inflated high and mid prices", () => {
+    const pricing = extractTcgdexDetailPricing({
+      variants_detailed: [{
+        type: "normal",
+        pricing: {
+          tcgplayer: {
+            "reverse-holofoil": {
+              lowPrice: 0.03,
+              midPrice: 0.25,
+              highPrice: 6.99,
+              marketPrice: 0.23,
+            },
+            normal: {
+              lowPrice: 0.01,
+              midPrice: 0.15,
+              highPrice: 6.99,
+              marketPrice: 0.08,
+            },
+          },
+        },
+      }],
+    });
+
+    expect(pricing?.marketPrice).toBe(0.08);
+    expect(pricing?.lowPrice).toBe(0.01);
+    expect(pricing?.source).toBe("tcgplayer");
+  });
+
+  it("returns no price when exact-printing data is unavailable", () => {
+    expect(extractTcgdexDetailPricing({ variants_detailed: [] })).toBeNull();
   });
 });
