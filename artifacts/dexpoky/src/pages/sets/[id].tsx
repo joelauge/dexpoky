@@ -1,28 +1,76 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { Layout } from "@/components/layout";
-import { useGetPokemonSet, useListCards, getGetPokemonSetQueryKey } from "@workspace/api-client-react";
+import {
+  useAddWishlistItem,
+  useGetPokemonSet,
+  useListCards,
+  useListWishlist,
+  getGetPokemonSetQueryKey,
+  type WishlistItem,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { Search, ChevronLeft, CheckCircle2, Circle, AlertCircle, Heart, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const normalize = (s?: string | null) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const WISHLIST_KEY = ["/api/wishlist"] as const;
 
 export default function SetDetail() {
   const [, params] = useRoute("/sets/:id");
   const setId = params?.id || "";
+  const queryClient = useQueryClient();
 
   const [filter, setFilter] = useState<'all' | 'owned' | 'missing'>('all');
   const [search, setSearch] = useState("");
+  const [savingCardId, setSavingCardId] = useState<string | null>(null);
 
   const { data: set, isLoading: setLoad, error: setError } = useGetPokemonSet(setId, {
     query: { enabled: !!setId, queryKey: getGetPokemonSetQueryKey(setId) }
   });
 
   const { data: ownedCards, isLoading: cardsLoad } = useListCards();
+  const { data: wishlistItems } = useListWishlist({
+    query: { queryKey: [...WISHLIST_KEY] },
+  });
+  const addWishlistItem = useAddWishlistItem();
+
+  const wishedCardIds = useMemo(
+    () => new Set((wishlistItems ?? []).map((item) => item.catalogCardId)),
+    [wishlistItems],
+  );
+
+  const addToWishlist = (card: { id: string; name: string }) => {
+    if (wishedCardIds.has(card.id) || savingCardId) return;
+
+    setSavingCardId(card.id);
+    addWishlistItem.mutate(
+      {
+        data: {
+          catalogCardId: card.id,
+          priority: "normal",
+        },
+      },
+      {
+        onSuccess: (savedItem) => {
+          queryClient.setQueryData<WishlistItem[]>(WISHLIST_KEY, (current = []) => {
+            const withoutDuplicate = current.filter(
+              (item) => item.catalogCardId !== savedItem.catalogCardId,
+            );
+            return [savedItem, ...withoutDuplicate];
+          });
+          toast.success(`${card.name} added to wishlist`);
+        },
+        onError: () => toast.error(`Couldn't add ${card.name} to your wishlist`),
+        onSettled: () => setSavingCardId(null),
+      },
+    );
+  };
 
   useEffect(() => {
     if (set?.name) {
@@ -297,6 +345,8 @@ export default function SetDetail() {
             {filteredCards.map((card) => {
               const isOwned = ownedSetCardIds.has(card.id);
               const ownedCardId = firstOwnedCardIdMap.get(card.id);
+              const isWished = wishedCardIds.has(card.id);
+              const isSaving = savingCardId === card.id;
               
               const CardInner = (
                 <>
@@ -324,6 +374,28 @@ export default function SetDetail() {
                       <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1 shadow-sm backdrop-blur-sm bg-opacity-90">
                         <CheckCircle2 className="h-4 w-4" />
                       </div>
+                    )}
+
+                    {!isOwned && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isWished ? "secondary" : "default"}
+                        disabled={isWished || isSaving || (!!savingCardId && !isSaving)}
+                        onClick={() => addToWishlist(card)}
+                        className={cn(
+                          "absolute bottom-2 left-2 right-2 h-9 rounded-lg shadow-md",
+                          isWished && "bg-background/95 text-foreground",
+                        )}
+                        aria-label={isWished ? `${card.name} is saved to wishlist` : `Add ${card.name} to wishlist`}
+                      >
+                        {isSaving ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Heart className={cn("h-4 w-4 mr-1.5", isWished && "fill-current text-rose-500")} />
+                        )}
+                        {isSaving ? "Saving..." : isWished ? "Saved" : "Wishlist"}
+                      </Button>
                     )}
                     
                     {/* Holo foil effect overlay for owned cards */}
