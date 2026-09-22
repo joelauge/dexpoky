@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import { WALLET_BALANCE_QUERY_KEY } from "@/hooks/use-payment-sse";
 import { Layout } from "@/components/layout";
+import { DexAssistantPanel } from "@/components/dex-assistant-panel";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,6 +190,8 @@ export default function DexAgentsPage() {
             </p>
           </div>
         </div>
+
+        <DexAssistantPanel />
 
         <InAppWalletPanel />
 

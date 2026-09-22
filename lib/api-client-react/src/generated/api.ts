@@ -19,6 +19,9 @@ import type {
 import type {
   AddDeckCardBody,
   AddWishlistBody,
+  AssistantConfirmBody,
+  AssistantMessageBody,
+  AssistantResponse,
   BuildLinkBody,
   BuiltLink,
   BulkCreateCardsInput,
@@ -6350,4 +6353,178 @@ export const usePostRecommendationsKeyFeedback = <
   TContext
 > => {
   return useMutation(getPostRecommendationsKeyFeedbackMutationOptions(options));
+};
+
+/**
+ * @summary Route one natural-language request to a registered DexPoky action
+ */
+export const getSendAssistantMessageUrl = () => {
+  return `/api/assistant/message`;
+};
+
+export const sendAssistantMessage = async (
+  assistantMessageBody: AssistantMessageBody,
+  options?: RequestInit,
+): Promise<AssistantResponse> => {
+  return customFetch<AssistantResponse>(getSendAssistantMessageUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(assistantMessageBody),
+  });
+};
+
+export const getSendAssistantMessageMutationOptions = <
+  TError = ErrorType<ErrorEnvelope | AssistantResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendAssistantMessage>>,
+    TError,
+    { data: BodyType<AssistantMessageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendAssistantMessage>>,
+  TError,
+  { data: BodyType<AssistantMessageBody> },
+  TContext
+> => {
+  const mutationKey = ["sendAssistantMessage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendAssistantMessage>>,
+    { data: BodyType<AssistantMessageBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendAssistantMessage(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendAssistantMessageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendAssistantMessage>>
+>;
+export type SendAssistantMessageMutationBody = BodyType<AssistantMessageBody>;
+export type SendAssistantMessageMutationError = ErrorType<
+  ErrorEnvelope | AssistantResponse
+>;
+
+/**
+ * @summary Route one natural-language request to a registered DexPoky action
+ */
+export const useSendAssistantMessage = <
+  TError = ErrorType<ErrorEnvelope | AssistantResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendAssistantMessage>>,
+    TError,
+    { data: BodyType<AssistantMessageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendAssistantMessage>>,
+  TError,
+  { data: BodyType<AssistantMessageBody> },
+  TContext
+> => {
+  return useMutation(getSendAssistantMessageMutationOptions(options));
+};
+
+/**
+ * @summary Confirm and execute a short-lived assistant mutation preview
+ */
+export const getConfirmAssistantActionUrl = () => {
+  return `/api/assistant/confirm`;
+};
+
+export const confirmAssistantAction = async (
+  assistantConfirmBody: AssistantConfirmBody,
+  options?: RequestInit,
+): Promise<AssistantResponse> => {
+  return customFetch<AssistantResponse>(getConfirmAssistantActionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(assistantConfirmBody),
+  });
+};
+
+export const getConfirmAssistantActionMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmAssistantAction>>,
+    TError,
+    { data: BodyType<AssistantConfirmBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmAssistantAction>>,
+  TError,
+  { data: BodyType<AssistantConfirmBody> },
+  TContext
+> => {
+  const mutationKey = ["confirmAssistantAction"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmAssistantAction>>,
+    { data: BodyType<AssistantConfirmBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return confirmAssistantAction(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConfirmAssistantActionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof confirmAssistantAction>>
+>;
+export type ConfirmAssistantActionMutationBody = BodyType<AssistantConfirmBody>;
+export type ConfirmAssistantActionMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Confirm and execute a short-lived assistant mutation preview
+ */
+export const useConfirmAssistantAction = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmAssistantAction>>,
+    TError,
+    { data: BodyType<AssistantConfirmBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof confirmAssistantAction>>,
+  TError,
+  { data: BodyType<AssistantConfirmBody> },
+  TContext
+> => {
+  return useMutation(getConfirmAssistantActionMutationOptions(options));
 };

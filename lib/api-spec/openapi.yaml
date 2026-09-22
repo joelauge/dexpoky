@@ -8,6 +8,8 @@ servers:
   - url: /api
     description: Base API path
 tags:
+  - name: assistant
+    description: Typed Jev assistant with closed actions and confirmation-gated changes
   - name: health
     description: Health operations
   - name: cards
@@ -1560,6 +1562,73 @@ paths:
         "201": { description: Feedback saved }
         "400": { description: Invalid feedback }
 
+  /assistant/message:
+    post:
+      operationId: sendAssistantMessage
+      tags: [assistant]
+      summary: Route one natural-language request to a registered DexPoky action
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantMessageBody"
+      responses:
+        "200":
+          description: Read result, focused clarification, or mutation preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "503":
+          description: Jev is temporarily unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssistantResponse" }
+
+  /assistant/confirm:
+    post:
+      operationId: confirmAssistantAction
+      tags: [assistant]
+      summary: Confirm and execute a short-lived assistant mutation preview
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantConfirmBody"
+      responses:
+        "200":
+          description: Confirmed action completed after current-state authorization checks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantResponse"
+        "400":
+          description: Invalid or expired confirmation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "404":
+          description: Target record no longer exists or is no longer owned by the user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "409":
+          description: Target record is no longer in a valid state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1567,6 +1636,66 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    AssistantMessageBody:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 2
+          maxLength: 1000
+        continuationToken:
+          type: string
+
+    AssistantConfirmBody:
+      type: object
+      additionalProperties: false
+      required: [confirmationToken]
+      properties:
+        confirmationToken:
+          type: string
+
+    AssistantResponse:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [result, clarification, confirmation, completed]
+        action:
+          type: string
+          enum:
+            - find_duplicates
+            - search_collection
+            - search_marketplace
+            - find_trade_opportunities
+            - list_wanted
+            - inspect_wanted_matches
+            - list_decks
+            - inspect_deck
+            - update_wanted_budget
+            - close_wanted
+        summary:
+          type: string
+        message:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        unavailable:
+          type: boolean
+        confirmationToken:
+          type: string
+        continuationToken:
+          type: string
+        expiresInSeconds:
+          type: integer
+        data:
+          description: Action-specific, server-validated result data
+
     HealthStatus:
       type: object
       properties:

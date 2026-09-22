@@ -5,6 +5,63 @@
  * DexPoky API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface AssistantMessageBody {
+  /**
+   * @minLength 2
+   * @maxLength 1000
+   */
+  message: string;
+  continuationToken?: string;
+}
+
+export interface AssistantConfirmBody {
+  confirmationToken: string;
+}
+
+export type AssistantResponseKind =
+  (typeof AssistantResponseKind)[keyof typeof AssistantResponseKind];
+
+export const AssistantResponseKind = {
+  result: "result",
+  clarification: "clarification",
+  confirmation: "confirmation",
+  completed: "completed",
+} as const;
+
+export type AssistantResponseAction =
+  (typeof AssistantResponseAction)[keyof typeof AssistantResponseAction];
+
+export const AssistantResponseAction = {
+  find_duplicates: "find_duplicates",
+  search_collection: "search_collection",
+  search_marketplace: "search_marketplace",
+  find_trade_opportunities: "find_trade_opportunities",
+  list_wanted: "list_wanted",
+  inspect_wanted_matches: "inspect_wanted_matches",
+  list_decks: "list_decks",
+  inspect_deck: "inspect_deck",
+  update_wanted_budget: "update_wanted_budget",
+  close_wanted: "close_wanted",
+} as const;
+
+export interface AssistantResponse {
+  kind: AssistantResponseKind;
+  action?: AssistantResponseAction;
+  summary?: string;
+  message?: string;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  confidence?: number;
+  unavailable?: boolean;
+  confirmationToken?: string;
+  continuationToken?: string;
+  expiresInSeconds?: number;
+  /** Action-specific, server-validated result data */
+  data?: unknown;
+}
+
 export interface HealthStatus {
   status: string;
 }

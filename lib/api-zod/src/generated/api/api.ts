@@ -2429,3 +2429,96 @@ export const PostRecommendationsKeyFeedbackParams = zod.object({
 export const PostRecommendationsKeyFeedbackBody = zod.object({
   value: zod.enum(["dismissed", "helpful", "not_helpful"]),
 });
+
+/**
+ * @summary Route one natural-language request to a registered DexPoky action
+ */
+export const sendAssistantMessageBodyMessageMin = 2;
+export const sendAssistantMessageBodyMessageMax = 1000;
+
+export const SendAssistantMessageBody = zod.object({
+  message: zod
+    .string()
+    .min(sendAssistantMessageBodyMessageMin)
+    .max(sendAssistantMessageBodyMessageMax),
+  continuationToken: zod.string().optional(),
+});
+
+export const sendAssistantMessageResponseConfidenceMin = 0;
+export const sendAssistantMessageResponseConfidenceMax = 1;
+
+export const SendAssistantMessageResponse = zod.object({
+  kind: zod.enum(["result", "clarification", "confirmation", "completed"]),
+  action: zod
+    .enum([
+      "find_duplicates",
+      "search_collection",
+      "search_marketplace",
+      "find_trade_opportunities",
+      "list_wanted",
+      "inspect_wanted_matches",
+      "list_decks",
+      "inspect_deck",
+      "update_wanted_budget",
+      "close_wanted",
+    ])
+    .optional(),
+  summary: zod.string().optional(),
+  message: zod.string().optional(),
+  confidence: zod
+    .number()
+    .min(sendAssistantMessageResponseConfidenceMin)
+    .max(sendAssistantMessageResponseConfidenceMax)
+    .optional(),
+  unavailable: zod.boolean().optional(),
+  confirmationToken: zod.string().optional(),
+  continuationToken: zod.string().optional(),
+  expiresInSeconds: zod.number().optional(),
+  data: zod
+    .unknown()
+    .optional()
+    .describe("Action-specific, server-validated result data"),
+});
+
+/**
+ * @summary Confirm and execute a short-lived assistant mutation preview
+ */
+export const ConfirmAssistantActionBody = zod.object({
+  confirmationToken: zod.string(),
+});
+
+export const confirmAssistantActionResponseConfidenceMin = 0;
+export const confirmAssistantActionResponseConfidenceMax = 1;
+
+export const ConfirmAssistantActionResponse = zod.object({
+  kind: zod.enum(["result", "clarification", "confirmation", "completed"]),
+  action: zod
+    .enum([
+      "find_duplicates",
+      "search_collection",
+      "search_marketplace",
+      "find_trade_opportunities",
+      "list_wanted",
+      "inspect_wanted_matches",
+      "list_decks",
+      "inspect_deck",
+      "update_wanted_budget",
+      "close_wanted",
+    ])
+    .optional(),
+  summary: zod.string().optional(),
+  message: zod.string().optional(),
+  confidence: zod
+    .number()
+    .min(confirmAssistantActionResponseConfidenceMin)
+    .max(confirmAssistantActionResponseConfidenceMax)
+    .optional(),
+  unavailable: zod.boolean().optional(),
+  confirmationToken: zod.string().optional(),
+  continuationToken: zod.string().optional(),
+  expiresInSeconds: zod.number().optional(),
+  data: zod
+    .unknown()
+    .optional()
+    .describe("Action-specific, server-validated result data"),
+});
