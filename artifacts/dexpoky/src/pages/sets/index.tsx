@@ -51,8 +51,8 @@ export default function SetsIndex() {
 
   const isLoading = setsLoading || cardsLoading;
 
-  const { groupedSets, seriesList } = useMemo(() => {
-    if (!sets) return { groupedSets: new Map<string, PokemonSetSummary[]>(), seriesList: [] };
+  const sortedSets = useMemo(() => {
+    if (!sets) return [];
 
     // Apply search filter
     const lowerSearch = search.toLowerCase();
@@ -85,28 +85,7 @@ export default function SetsIndex() {
       }
     };
 
-    // Group by series
-    const groups = new Map<string, PokemonSetSummary[]>();
-    for (const set of filteredSets) {
-      const series = set.seriesName || "Other";
-      if (!groups.has(series)) groups.set(series, []);
-      groups.get(series)!.push(set);
-    }
-
-    // Sort sets within each series using the selected order.
-    for (const seriesSets of groups.values()) {
-      seriesSets.sort(compareSets);
-    }
-
-    // Keep the grouped layout while ordering series consistently with the
-    // selected set order. The first sorted set represents each series.
-    const sortedSeries = Array.from(groups.keys()).sort((a, b) => {
-      if (sortOrder === "name-asc") return a.localeCompare(b);
-      if (sortOrder === "name-desc") return b.localeCompare(a);
-      return compareSets(groups.get(a)![0], groups.get(b)![0]);
-    });
-
-    return { groupedSets: groups, seriesList: sortedSeries };
+    return [...filteredSets].sort(compareSets);
   }, [sets, ownedCards, search, sortOrder]);
 
   return (
@@ -173,7 +152,7 @@ export default function SetsIndex() {
               Check your connection and try refreshing this page.
             </p>
           </div>
-        ) : seriesList.length === 0 ? (
+        ) : sortedSets.length === 0 ? (
           <div className="text-center py-24 border-2 border-dashed border-muted/50 rounded-3xl bg-muted/10">
             <Library className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">No sets found</h3>
@@ -182,21 +161,8 @@ export default function SetsIndex() {
             </p>
           </div>
         ) : (
-          <div className="space-y-16">
-            {seriesList.map((series) => {
-              const seriesSets = groupedSets.get(series)!;
-              
-              return (
-                <div key={series} className="space-y-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold tracking-tight text-foreground/90">{series}</h2>
-                    <Badge variant="secondary" className="bg-secondary/50 text-secondary-foreground text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                      {seriesSets.length} Set{seriesSets.length !== 1 && 's'}
-                    </Badge>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                    {seriesSets.map((set) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {sortedSets.map((set) => {
                       const ownedCount = ownedCards ? getSetCompletion(set, ownedCards).ownedCount : 0;
                       const progress = set.totalCards > 0 ? Math.min(100, Math.round((ownedCount / set.totalCards) * 100)) : 0;
                       const isComplete = progress === 100 && set.totalCards > 0;
@@ -241,7 +207,10 @@ export default function SetsIndex() {
                               </div>
 
                               <div className="mt-auto space-y-3">
-                                <div>
+                                  <div>
+                                    <Badge variant="secondary" className="mb-2 max-w-full truncate bg-secondary/50 text-[10px] font-semibold">
+                                      {set.seriesName || "Other"}
+                                    </Badge>
                                   <h3 className="font-semibold text-base line-clamp-1 group-hover:text-primary transition-colors">
                                     {set.name}
                                   </h3>
@@ -276,10 +245,6 @@ export default function SetsIndex() {
                           </Card>
                         </Link>
                       );
-                    })}
-                  </div>
-                </div>
-              );
             })}
           </div>
         )}
