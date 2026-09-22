@@ -19,7 +19,7 @@ interface CardBrief {
   id: string;
   localId: string;
   name: string;
-  image?: string;
+  image?: string | null;
 }
 
 interface SetBrief {
@@ -98,6 +98,44 @@ async function fetchCards(namePattern: string): Promise<CardBrief[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Construct strict TCGdex card IDs from the two identifiers printed on a card.
+ * OCR often returns a language suffix ("MEE EN") or padded numbers, but must
+ * never turn a partial set code into a broad name search.
+ */
+export function buildDirectIdentityCandidates(setCode: string, cardNumber: string): string[] {
+  const set = normalizeSetCode(setCode.replace(/\s+(?:en|jp|fr|de|es|it|pt)$/i, ""));
+  const raw = cardNumber.trim().split("/")[0] ?? "";
+  if (!set || !/^\d+$/.test(raw)) return [];
+  const numeric = String(parseInt(raw, 10));
+  return [...new Set([raw, numeric].map((number) => `${set}-${number}`))];
+}
+
+async function fetchCardsBySetAndLocalId(setCode: string, cardNumber: string): Promise<CardBrief[]> {
+  const candidates = buildDirectIdentityCandidates(setCode, cardNumber);
+  const results = await Promise.all(candidates.map(async (id) => {
+    try {
+      const res = await fetch(`${TCGDEX_BASE}/cards/${encodeURIComponent(id)}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!data || typeof data !== "object" || !data.id) return [];
+      return [{
+        id: String(data.id),
+        localId: String(data.localId ?? ""),
+        name: String(data.name ?? ""),
+        // Detail responses omit `image` when no catalog artwork exists.
+        // Preserve that as an explicit null so buildResults does not
+        // manufacture a URL that returns 404.
+        image: typeof data.image === "string" ? data.image : null,
+      }];
+    } catch {
+      return [];
+    }
+  }));
+  const seen = new Set<string>();
+  return results.flat().filter((card) => !seen.has(card.id) && (seen.add(card.id), true));
 }
 
 export interface EbaySoldPricing {
@@ -451,7 +489,10 @@ export interface TcgResult {
 
 /** Normalizes OCR/API identifiers without conflating unrelated set codes. */
 export function normalizeSetCode(value: string | null | undefined): string {
-  const compact = String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const compact = String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+(?:en|jp|fr|de|es|it|pt)$/i, "")
+    .replace(/[^a-z0-9]/g, "");
   // Set APIs vary between "sv01" and "sv1"; only remove zeroes immediately
   // before a numeric suffix, never zeroes in an otherwise textual code.
   return compact.replace(/^([a-z]+)0+(\d+)$/, "$1$2");
@@ -524,7 +565,9 @@ async function buildResults(cards: CardBrief[]): Promise<TcgResult[]> {
     return {
       id: card.id,
       name: card.name,
-      imageUrl: card.image ? `${card.image}/high.png` : buildTcgdexImageUrl(card.id),
+       // A detail response with image:null is an explicit "no catalog image"
+       // signal. Do not manufacture an assets URL that will 404.
+       imageUrl: card.image === null ? "" : card.image ? `${card.image}/high.png` : buildTcgdexImageUrl(card.id),
       setName: setMap[setId] ?? setId,
       setId,
       cardNumber: card.localId ?? card.id.split("-")[1] ?? "",
@@ -560,7 +603,9 @@ export async function searchTcgdex(
 
     if (cardNumber) {
       [exactCards, broadCards] = await Promise.all([
-        fetchCardsByNameAndLocalId(query, cardNumber),
+        setCode
+          ? fetchCardsBySetAndLocalId(setCode, cardNumber)
+          : fetchCardsByNameAndLocalId(query, cardNumber),
         fetchCards(`*${query}*`),
       ]);
     } else {

@@ -25,6 +25,8 @@ import { useCameraFacing } from "@/hooks/useCameraFacing";
 import { ScanPaywall } from "@/components/scan-paywall";
 import { captureCardCrop, captureBottomCrop } from "@/lib/capture-crop";
 import { uploadScanImage } from "@/lib/upload-scan";
+import { CatalogSearch } from "@/components/catalog-search";
+import type { CatalogCard } from "@workspace/api-client-react";
 
 interface TcgCard {
   id: string;
@@ -96,6 +98,8 @@ export default function ScanPage() {
   const [pricing, setPricing]                 = useState<PricingData | null>(null);
   const [frozenFrame, setFrozenFrame]         = useState<string | null>(null);
   const [pricingLoading, setPricingLoading]   = useState(false);
+  const [correctionOpen, setCorrectionOpen]   = useState(false);
+  const [imageFailed, setImageFailed]         = useState(false);
 
   const [confirmSteps, setConfirmSteps] = useState<ConfirmStep[]>([]);
   const [scanUrl, setScanUrl] = useState<string | null>(null);
@@ -155,6 +159,7 @@ export default function ScanPage() {
       setCard(data.card);
       setVariants(data.variants ?? []);
       setSelectedVariant(data.card);
+       setImageFailed(false);
       setPricing(data.pricing ?? null);
 
       setConfirmSteps([
@@ -242,6 +247,7 @@ export default function ScanPage() {
     const mode = facing ?? facingModeRef.current;
     setPhase("idle");
     setCard(null); setVariants([]); setSelectedVariant(null);
+    setImageFailed(false);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
     setConfirmSteps([]);
     setScanUrl(null);
@@ -282,6 +288,7 @@ export default function ScanPage() {
   const rescan = () => {
     stopCamera();
     setCard(null); setVariants([]); setSelectedVariant(null);
+    setImageFailed(false);
     setPokemonName(null); setFrozenFrame(null); setPricing(null);
     setConfirmSteps([]);
     setScanUrl(null);
@@ -290,6 +297,7 @@ export default function ScanPage() {
 
   const selectVariant = useCallback(async (v: TcgCard) => {
     setSelectedVariant(v);
+    setImageFailed(false);
     setPricingLoading(true);
     try {
       const res = await fetch(
@@ -304,6 +312,25 @@ export default function ScanPage() {
       setPricingLoading(false);
     }
   }, []);
+
+  const selectCatalogCard = useCallback((catalog: CatalogCard) => {
+    const replacement: TcgCard = {
+      id: catalog.id,
+      name: catalog.name,
+      imageUrl: catalog.imageUrl ?? "",
+      setName: catalog.setName ?? "",
+      cardNumber: catalog.cardNumber ?? "",
+      rarity: catalog.rarity ?? null,
+    };
+    setCard(replacement);
+    setImageFailed(false);
+    setVariants((current) => {
+      const without = current.filter((v) => v.id !== replacement.id);
+      return [replacement, ...without];
+    });
+    setCorrectionOpen(false);
+    void selectVariant(replacement);
+  }, [selectVariant]);
 
   // Disable pull-to-refresh for the duration of this page so an accidental
   // downward swipe during scanning doesn't wipe the session.
@@ -332,6 +359,8 @@ export default function ScanPage() {
   }, [billingLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayCard = selectedVariant ?? card;
+  const fallbackImage = scanUrl ?? frozenFrame;
+  const displayImage = !imageFailed && displayCard?.imageUrl ? displayCard.imageUrl : fallbackImage;
   const capturing   = phase === "capturing";
   const analyzing   = phase === "analyzing";
   const confirming  = phase === "confirming";
@@ -533,11 +562,37 @@ export default function ScanPage() {
 
             {displayCard ? (
               <>
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Wrong printing or card?</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => setCorrectionOpen((open) => !open)}
+                  >
+                    {correctionOpen ? "Close search" : "Not your card? Search all cards"}
+                  </Button>
+                </div>
+                {correctionOpen && (
+                  <div className="rounded-2xl border bg-card p-4">
+                    <CatalogSearch
+                      autoFocus
+                      onSelect={selectCatalogCard}
+                      emptyHint="Search the full catalog for the card you have."
+                    />
+                  </div>
+                )}
                 {/* Main card row */}
                 <div className="flex gap-4 bg-card border rounded-2xl overflow-hidden shadow-sm">
                   <div className="w-28 shrink-0 bg-muted">
-                    {displayCard.imageUrl
-                      ? <img src={displayCard.imageUrl} alt={displayCard.name} className="w-full h-full object-cover" />
+                     {displayImage
+                       ? <img
+                           src={displayImage}
+                           alt={displayCard.name}
+                           className="w-full h-full object-cover"
+                           onError={() => setImageFailed(true)}
+                         />
                       : <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground p-2 text-center">No image</div>
                     }
                   </div>
@@ -570,7 +625,7 @@ export default function ScanPage() {
                           `&pokemonName=${encodeURIComponent(pokemonName ?? displayCard.name)}`,
                           `&setName=${encodeURIComponent(displayCard.setName)}`,
                           `&cardNumber=${encodeURIComponent(displayCard.cardNumber)}`,
-                          `&imageUrl=${encodeURIComponent(displayCard.imageUrl)}`,
+                           `&imageUrl=${encodeURIComponent(displayCard.imageUrl || finalScanUrl || "")}`,
                           displayCard.id ? `&catalogCardId=${encodeURIComponent(displayCard.id)}` : "",
                           finalScanUrl ? `&originalScanUrl=${encodeURIComponent(finalScanUrl)}` : "",
                           pricing?.marketPrice != null ? `&estimatedValue=${pricing.marketPrice}` : "",

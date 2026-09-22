@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankTcgResults, type TcgResult } from "./detect-helpers.js";
+import { buildDirectIdentityCandidates, normalizeSetCode, rankTcgResults, type TcgResult } from "./detect-helpers.js";
 
 function card(
   id: string,
@@ -19,6 +19,18 @@ function card(
 }
 
 describe("card detection result ranking", () => {
+  it("builds padded and unpadded strict set identity candidates", () => {
+    expect(buildDirectIdentityCandidates("MEE EN", "005")).toEqual(["mee-005", "mee-5"]);
+    expect(buildDirectIdentityCandidates("SV-01", "5")).toEqual(["sv1-5"]);
+    expect(buildDirectIdentityCandidates("ME", "005/190")).toEqual(["me-005", "me-5"]);
+    expect(buildDirectIdentityCandidates("MEE", "XY5")).toEqual([]);
+  });
+
+  it("normalizes set codes without conflating textual prefixes", () => {
+    expect(normalizeSetCode("SV-01 EN")).toBe("sv1");
+    expect(normalizeSetCode("MEE")).toBe("mee");
+    expect(normalizeSetCode("SVX1")).toBe("svx1");
+  });
   it("puts the matching set and number ahead of the same number in other sets", () => {
     const results = rankTcgResults(
       [

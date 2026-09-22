@@ -231,6 +231,32 @@ router.get("/cards/lookup", async (req, res) => {
   const setCode = String(req.query.setCode ?? "").trim() || undefined;
 
   const pw = await pwSearch(name, 100);
+  // TCGdex is the authoritative source for OCR set/number identity. PokeWallet
+  // name search can otherwise return a similarly named printing while omitting
+  // the exact card (for example Basic Psychic Energy vs mee-005).
+  if (cardNumber && setCode) {
+    const tcg = await searchTcgdex(name, cardNumber, setCode);
+    if (pw.ok && pw.data.results.length > 0) {
+      const catalog = await enrichCatalogCardImages(pw.data.results.map(normalizeCatalogCard));
+      const catalogVariants = catalog.map((v) => ({
+        id: v.id, name: v.name, imageUrl: v.imageUrl, setName: v.setName,
+        setId: v.setCode, cardNumber: v.cardNumber, rarity: v.rarity,
+      }));
+      const variants = rankTcgResults([...tcg.variants, ...catalogVariants], name, cardNumber, setCode);
+      const top = variants[0];
+      const catalogTop = top ? pw.data.results.find((r) => r.id === top.id) : undefined;
+      res.json({
+        card: top ?? null,
+        variants,
+        pricing: catalogTop ? buildPricingFromCatalog(catalogTop) : tcg.pricing,
+      });
+      return;
+    }
+    if (tcg.variants.length > 0) {
+      res.json({ card: tcg.variants[0], variants: tcg.variants, pricing: tcg.pricing });
+      return;
+    }
+  }
   if (pw.ok && pw.data.results.length > 0) {
     const normalized = pw.data.results.map(normalizeCatalogCard);
     const enriched = await enrichCatalogCardImages(normalized);
