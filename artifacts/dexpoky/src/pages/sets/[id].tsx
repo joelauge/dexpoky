@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { getSetCompletion } from "@/lib/set-completion";
 
 const WISHLIST_KEY = ["/api/wishlist"] as const;
+const RARITY_SECTION_ORDER = ["Common", "Uncommon", "Rare", "Double Rare"];
 
 export default function SetDetail() {
   const [, params] = useRoute("/sets/:id");
@@ -130,7 +131,13 @@ export default function SetDetail() {
       group.push(card);
       groups.set(rarity, group);
     }
-    return Array.from(groups.entries());
+    return Array.from(groups.entries()).sort(([rarityA], [rarityB]) => {
+      const indexA = RARITY_SECTION_ORDER.indexOf(rarityA);
+      const indexB = RARITY_SECTION_ORDER.indexOf(rarityB);
+      const rankA = indexA === -1 ? RARITY_SECTION_ORDER.length : indexA;
+      const rankB = indexB === -1 ? RARITY_SECTION_ORDER.length : indexB;
+      return rankA - rankB;
+    });
   }, [filteredCards]);
 
   if (setError) {
