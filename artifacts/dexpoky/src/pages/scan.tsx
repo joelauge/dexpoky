@@ -124,7 +124,7 @@ export default function ScanPage() {
   const lookupCard = useCallback(async (
     name: string,
     conf: "high"|"medium"|"low",
-    extras?: { cardNumber?: string | null },
+    extras?: { cardNumber?: string | null; setCode?: string | null },
   ) => {
     setPhase("confirming");
     setPokemonName(name);
@@ -138,6 +138,7 @@ export default function ScanPage() {
     try {
       const params = new URLSearchParams({ name });
       if (extras?.cardNumber) params.set("cardNumber", extras.cardNumber);
+      if (extras?.setCode) params.set("setCode", extras.setCode);
       const res = await fetch(`${BASE}/api/cards/lookup?${params.toString()}`);
       if (!res.ok) throw new Error("lookup failed");
       const data = await res.json() as { card: TcgCard | null; variants: TcgCard[]; pricing: PricingData };
@@ -176,6 +177,9 @@ export default function ScanPage() {
       toast.error("Couldn't capture photo — please try again.");
       return;
     }
+    // Capture the identifier strip from the same live frame. Once the camera
+    // tracks are stopped, some browsers clear or freeze the video buffer.
+    const cornerImageData = captureCorner() ?? undefined;
     setFrozenFrame(imageData);
     setPhase("analyzing");
     stopStream();
@@ -189,7 +193,6 @@ export default function ScanPage() {
     uploadPromise.then((url) => setScanUrl(url));
 
     try {
-      const cornerImageData = captureCorner() ?? undefined;
       const res = await fetch(`${BASE}/api/cards/identify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -225,7 +228,7 @@ export default function ScanPage() {
           }
         },
       });
-      lookupCard(data.pokemonName, data.confidence, { cardNumber: data.cardNumber });
+      lookupCard(data.pokemonName, data.confidence, { cardNumber: data.cardNumber, setCode: data.setCode });
     } catch {
       toast.error("Couldn't analyze photo — please try again.");
       setPhase("idle");

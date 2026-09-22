@@ -446,7 +446,56 @@ export interface TcgResult {
   setName: string;
   setId: string;
   cardNumber: string;
-  rarity: null;
+  rarity: string | null;
+}
+
+/** Normalizes OCR/API identifiers without conflating unrelated set codes. */
+export function normalizeSetCode(value: string | null | undefined): string {
+  const compact = String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Set APIs vary between "sv01" and "sv1"; only remove zeroes immediately
+  // before a numeric suffix, never zeroes in an otherwise textual code.
+  return compact.replace(/^([a-z]+)0+(\d+)$/, "$1$2");
+}
+
+function normalizeName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function sameCardNumber(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = parseCardNum(String(a ?? ""));
+  const right = parseCardNum(String(b ?? ""));
+  return !isNaN(left) && !isNaN(right) && left === right;
+}
+
+/**
+ * Rank without discarding broad name results. Set+number is strongest, while
+ * a number from a different set must not displace a set/name match.
+ */
+export function rankTcgResults(
+  cards: TcgResult[],
+  query: string,
+  cardNumber?: string,
+  setCode?: string,
+): TcgResult[] {
+  const targetSet = normalizeSetCode(setCode);
+  const targetName = normalizeName(query);
+  const scored = cards.map((card, index) => {
+    const setMatch = !!targetSet && normalizeSetCode(card.setId) === targetSet;
+    const numberMatch = sameCardNumber(card.cardNumber, cardNumber);
+    const cardName = normalizeName(card.name);
+    const nameMatch = cardName === targetName ||
+      cardName.includes(targetName) || targetName.includes(cardName);
+    let rank = 3;
+    if (setMatch && numberMatch) rank = 0;
+    else if (setMatch && nameMatch) rank = 1;
+    else if (numberMatch && nameMatch) rank = 2;
+    return { card, rank, index };
+  });
+  const seen = new Set<string>();
+  return scored
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map(({ card }) => card)
+    .filter((card) => !seen.has(card.id) && (seen.add(card.id), true));
 }
 
 /**
@@ -497,6 +546,7 @@ function parseCardNum(raw: string): number {
 export async function searchTcgdex(
   query: string,
   cardNumber?: string,
+  setCode?: string,
 ): Promise<{ variants: TcgResult[]; pricing: PricingData }> {
   const emptyPricing: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
   try {
@@ -543,43 +593,20 @@ export async function searchTcgdex(
       }
     }
 
-    // Anchor filter: keep only cards whose name contains the same root word
-    const bestMatch = (exactCards[0] ?? broadCards.find((c) => !c.id.startsWith("tk")));
-    const bestName = bestMatch?.name ?? query;
-
-    const bestWords = bestName
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-    const anchorWord = bestWords[0];
-    const filteredBroad = anchorWord
-      ? broadCards.filter((c) => c.name.toLowerCase().includes(anchorWord))
-      : broadCards;
-
-    // Merge: exact matches first (deduped), then broader results
-    const exactIds = new Set(exactCards.map((c) => c.id));
-    const mergedCards: CardBrief[] = [
-      ...exactCards,
-      ...filteredBroad.filter((c) => !exactIds.has(c.id)),
-    ];
+    // Keep all broad name candidates. Card numbers are only unique within a
+    // set, so filtering the broad list by a number can hide the right card.
+    const byId = new Map<string, CardBrief>();
+    for (const card of [...exactCards, ...broadCards]) byId.set(card.id, card);
+    const mergedCards = [...byId.values()];
+    const bestName = mergedCards.find((c) => !c.id.startsWith("tk"))?.name ?? query;
 
     const [variants, pricing] = await Promise.all([
       buildResults(mergedCards),
       fetchPricing(bestName),
     ]);
 
-    // Secondary sort safety net: if no exact lookup was done (or returned
-    // nothing), float the number-matched card to position 0 anyway.
-    if (cardNumber && exactCards.length === 0) {
-      const targetNum = parseCardNum(cardNumber);
-      if (!isNaN(targetNum)) {
-        variants.sort((a, b) => {
-          const aMatch = parseCardNum(a.cardNumber) === targetNum ? 0 : 1;
-          const bMatch = parseCardNum(b.cardNumber) === targetNum ? 0 : 1;
-          return aMatch - bMatch;
-        });
-      }
-    }
+    const ranked = rankTcgResults(variants, query, cardNumber, setCode);
+    variants.splice(0, variants.length, ...ranked);
 
     // Add eBay sold-listing validation against the best matched variant
     const top = variants[0];

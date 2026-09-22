@@ -47,6 +47,7 @@ interface TcgCard {
   name: string;
   imageUrl: string;
   setName: string;
+  setId?: string;
   cardNumber: string;
   rarity: string | null;
 }
@@ -298,6 +299,7 @@ export default function ScanBulkPage() {
       if (isAborted()) return;
       const lookupParams = new URLSearchParams({ name: idData.pokemonName });
       if (idData.cardNumber) lookupParams.set("cardNumber", idData.cardNumber);
+      if (idData.setCode) lookupParams.set("setCode", idData.setCode);
       const lookupRes = await fetch(
         `${BASE}/api/cards/lookup?${lookupParams.toString()}`,
         { signal },
@@ -443,7 +445,7 @@ export default function ScanBulkPage() {
   // Track which entries are currently re-fetching pricing after a variant switch
   const [pricingFetchingIds, setPricingFetchingIds] = useState<Set<string>>(new Set());
 
-  const selectVariantAndRefreshPricing = useCallback(async (entryId: string, variantId: string, variantName: string, variantCardNumber: string) => {
+  const selectVariantAndRefreshPricing = useCallback(async (entryId: string, variantId: string, variantName: string, variantCardNumber: string, variantSetCode?: string) => {
     // Instant selection feedback
     updateEntry(entryId, { selectedVariantId: variantId });
 
@@ -451,6 +453,7 @@ export default function ScanBulkPage() {
     try {
       const params = new URLSearchParams({ name: variantName });
       if (variantCardNumber) params.set("cardNumber", variantCardNumber);
+      if (variantSetCode) params.set("setCode", variantSetCode);
       const res = await fetch(`${BASE}/api/cards/lookup?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json() as { pricing?: PricingData | null };
@@ -892,7 +895,7 @@ export default function ScanBulkPage() {
                                     <button
                                       key={v.id}
                                       type="button"
-                                      onClick={() => void selectVariantAndRefreshPricing(e.id, v.id, v.name, v.cardNumber)}
+                                      onClick={() => void selectVariantAndRefreshPricing(e.id, v.id, v.name, v.cardNumber, v.setId)}
                                       className={`shrink-0 w-20 rounded-lg overflow-hidden border-2 transition-all ${
                                         selected ? "border-primary ring-2 ring-primary/30" : "border-transparent hover:border-border"
                                       }`}

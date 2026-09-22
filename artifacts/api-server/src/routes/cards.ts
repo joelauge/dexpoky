@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { cardsTable, categoriesTable, collectionsTable, activityEventsTable } from "@workspace/db";
-import { searchTcgdex, fetchPricingById } from "./detect-helpers.js";
+import { searchTcgdex, fetchPricingById, rankTcgResults } from "./detect-helpers.js";
 import {
   pwSearch,
   pwGetCard,
@@ -221,16 +221,6 @@ router.post("/cards", requireAuth, async (req, res) => {
  * Primary: PokeWallet (rich pricing, single hit). Falls back to TCGdex if
  * PokeWallet is rate limited or unavailable so the scan flow never breaks.
  */
-/**
- * Parse a raw card number string into a plain integer for exact-printing matching.
- * "002", "002/094", "138/193" → leading integer. Returns NaN on failure.
- */
-function parseCardNumLocal(raw: string | null | undefined): number {
-  if (!raw) return NaN;
-  const m = String(raw).match(/^(\d+)/);
-  return m ? parseInt(m[1], 10) : NaN;
-}
-
 router.get("/cards/lookup", async (req, res) => {
   const name = String(req.query.name ?? "").trim();
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
@@ -238,7 +228,7 @@ router.get("/cards/lookup", async (req, res) => {
   // Optional hint fields extracted from the card image by the vision model.
   // When provided they are used to float the exact printing to position [0].
   const cardNumber = String(req.query.cardNumber ?? "").trim() || undefined;
-  const targetNum = cardNumber ? parseCardNumLocal(cardNumber) : NaN;
+  const setCode = String(req.query.setCode ?? "").trim() || undefined;
 
   const pw = await pwSearch(name, 100);
   if (pw.ok && pw.data.results.length > 0) {
@@ -254,14 +244,8 @@ router.get("/cards/lookup", async (req, res) => {
       rarity: v.rarity,
     }));
 
-    // Float the exact-number match to the top when a card number hint is available
-    if (!isNaN(targetNum)) {
-      variants = variants.sort((a, b) => {
-        const aMatch = parseCardNumLocal(a.cardNumber) === targetNum ? 0 : 1;
-        const bMatch = parseCardNumLocal(b.cardNumber) === targetNum ? 0 : 1;
-        return aMatch - bMatch;
-      });
-    }
+    // Preserve every name candidate, but rank using set + number first.
+    variants = rankTcgResults(variants, name, cardNumber, setCode);
 
     // Price from the variant that's actually on top, not always results[0].
     // After sorting, variants[0] may differ from the first PokeWallet result.
@@ -275,7 +259,7 @@ router.get("/cards/lookup", async (req, res) => {
   }
 
   // Fallback to TCGdex — pass cardNumber so it can sort the results too
-  const { variants, pricing } = await searchTcgdex(name, cardNumber);
+  const { variants, pricing } = await searchTcgdex(name, cardNumber, setCode);
   res.json({ card: variants[0] ?? null, variants, pricing });
 });
 
