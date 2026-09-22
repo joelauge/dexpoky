@@ -1,0 +1,29 @@
+kind = "video"
+videoAspectRatio = "9:16"
+previewPath = "/dexpoky-video/"
+title = "DexPoky Project Video"
+description = "A short vertical animated promotional video showcasing DexPoky's card scanning, collection tracking, set completion, deck building, and trading experience."
+version = "1.0.0"
+id = "artifacts/dexpoky-video"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/dexpoky-video/" ]
+localPort = 20016
+
+[services.development]
+run = "pnpm --filter @workspace/dexpoky-video run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/dexpoky-video", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/dexpoky-video/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20016"
+BASE_PATH = "/dexpoky-video/"

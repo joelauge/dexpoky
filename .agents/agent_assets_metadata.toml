@@ -6,3 +6,11 @@ id = "RyFtBYIziTegd5AyRiLF3"
 uri = "file://FEATURES.md"
 type = "text"
 title = "FEATURES.md — DexPoky Complete Feature Reference"
+logical_id = "39943218-552b-4473-87e3-aa08f97f100e"
+
+[[outputs]]
+id = "SK4JUejtNfY13dUq6rnxI"
+uri = "file://artifacts/dexpoky-video/public/audio/bg_music.mp3"
+type = "audio"
+title = "DexPoky background music"
+description = "Generated music: Driving electronic instrumental background music scoring a vertical social promo for a playful Pokémon card collection and trading app. Punchy synth bass, crisp electronic drums, bri…"
