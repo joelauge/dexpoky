@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
 import Dashboard from "@/pages/dashboard";
+import LandingPage from "@/pages/landing/index";
 import SetsIndex from "@/pages/sets/index";
 import SetDetail from "@/pages/sets/[id]";
 import Collection from "@/pages/collection/index";
@@ -174,14 +175,14 @@ function ProtectedRoute({ component: Component }: { component: ComponentType }) 
 
 function HomeRoute() {
   const { isLoaded, isSignedIn } = useUser();
-  const [, setLocation] = useLocation();
 
-  useEffect(() => {
-    if (isLoaded && !isSignedIn) setLocation("/marketplace");
-  }, [isLoaded, isSignedIn]);
+  if (!isLoaded) return null;
 
-  if (!isLoaded || !isSignedIn) return null;
-  return <Dashboard />;
+  if (isSignedIn) {
+    return <Dashboard />;
+  }
+
+  return <LandingPage />;
 }
 
 function ScrollToTop() {
