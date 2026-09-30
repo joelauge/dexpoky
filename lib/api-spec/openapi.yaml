@@ -1675,6 +1675,7 @@ components:
             - inspect_wanted_matches
             - list_decks
             - inspect_deck
+            - add_card_to_deck
             - update_wanted_budget
             - close_wanted
         summary:

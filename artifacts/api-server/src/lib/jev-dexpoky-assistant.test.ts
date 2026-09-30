@@ -61,6 +61,27 @@ describe("typed assistant routing", () => {
     });
     expect(ambiguous.kind).toBe("clarification");
   });
+
+  it("resolves both owned card and owned deck for a confirmed add", () => {
+    const result = interpretAssistantAnswers("add 2 Charizard cards to Lightning League", context, {
+      action: { choice: "add_card_to_deck", confidence: .98 },
+      card: { choice: "1", confidence: .96 },
+      deck: { choice: "3", confidence: .95 },
+    });
+    expect(result).toMatchObject({
+      kind: "plan",
+      plan: { action: "add_card_to_deck", args: { cardId: 1, deckId: 3, count: 2 } },
+    });
+  });
+
+  it("asks for the missing deck instead of guessing an add target", () => {
+    const result = interpretAssistantAnswers("add Charizard to my deck", context, {
+      action: { choice: "add_card_to_deck", confidence: .98 },
+      card: { choice: "1", confidence: .96 },
+      deck: { choice: "no_match", confidence: .9 },
+    });
+    expect(result).toMatchObject({ kind: "clarification", question: "Which of your decks should I add it to?" });
+  });
 });
 
 describe("confirmation tokens", () => {
@@ -68,7 +89,7 @@ describe("confirmation tokens", () => {
     const token = createConfirmationToken({
       userId: "user-a",
       plan: { action: "close_wanted", args: { wantedListingId: 2 } },
-      baseline: { status: "active", maxPrice: "30", expiresAt: null },
+      baseline: { kind: "wanted", status: "active", maxPrice: "30", expiresAt: null },
       expiresAt: Date.now() + 60_000,
     });
     expect(verifyConfirmationToken(token, "user-a")?.plan.action).toBe("close_wanted");
@@ -84,5 +105,19 @@ describe("confirmation tokens", () => {
     });
     expect(verifyContinuationToken(token, "user-a")?.originalRequest).toContain("$45");
     expect(verifyContinuationToken(token, "user-b")).toBeNull();
+  });
+
+  it("preserves the deck baseline needed for a safe confirmed add", () => {
+    const token = createConfirmationToken({
+      userId: "user-a",
+      plan: { action: "add_card_to_deck", args: { cardId: 1, deckId: 3, count: 2 } },
+      baseline: { kind: "deck", deckTotal: 20, sameNameCount: 1 },
+      expiresAt: Date.now() + 60_000,
+    });
+    expect(verifyConfirmationToken(token, "user-a")?.baseline).toEqual({
+      kind: "deck",
+      deckTotal: 20,
+      sameNameCount: 1,
+    });
   });
 });

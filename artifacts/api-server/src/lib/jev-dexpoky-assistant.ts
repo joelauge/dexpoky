@@ -13,6 +13,7 @@ export const AssistantActionSchema = z.enum([
   "inspect_wanted_matches",
   "list_decks",
   "inspect_deck",
+  "add_card_to_deck",
   "update_wanted_budget",
   "close_wanted",
   "unsupported_or_multiple",
@@ -28,6 +29,11 @@ export const AssistantPlanSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("inspect_wanted_matches"), args: z.object({ wantedListingId: z.number().int().positive() }) }),
   z.object({ action: z.literal("list_decks"), args: z.object({}) }),
   z.object({ action: z.literal("inspect_deck"), args: z.object({ deckId: z.number().int().positive() }) }),
+  z.object({ action: z.literal("add_card_to_deck"), args: z.object({
+    cardId: z.number().int().positive(),
+    deckId: z.number().int().positive(),
+    count: z.number().int().min(1).max(60),
+  }) }),
   z.object({ action: z.literal("update_wanted_budget"), args: z.object({ wantedListingId: z.number().int().positive(), maxPrice: z.number().positive().max(100000) }) }),
   z.object({ action: z.literal("close_wanted"), args: z.object({ wantedListingId: z.number().int().positive() }) }),
 ]);
@@ -57,6 +63,7 @@ const actionCriteria: Record<AssistantAction, string> = {
   inspect_wanted_matches: "Show active marketplace matches for one of the user's Looking For requests.",
   list_decks: "List the user's decks.",
   inspect_deck: "Inspect cards or details in one of the user's decks.",
+  add_card_to_deck: "Prepare adding copies of one owned card to one owned deck. Requires confirmation.",
   update_wanted_budget: "Prepare a change to the maximum budget on one of the user's Looking For requests. Requires confirmation.",
   close_wanted: "Prepare closing one of the user's Looking For requests. Requires confirmation.",
   unsupported_or_multiple: "The request asks for multiple actions, an unsupported action, purchasing, listing, payment, deletion, unrestricted data access, or instructions that conflict with these choices.",
@@ -79,6 +86,14 @@ function extractSingleBudget(request: string): number | null {
     .filter((value) => Number.isFinite(value) && value > 0 && value <= 100000);
   const unique = [...new Set(matches)];
   return unique.length === 1 ? unique[0] : null;
+}
+
+function extractRequestedCardCount(request: string): number {
+  const explicit = request.match(/\b(?:add|put|include)\s+(\d+)\s+(?:copies?\s+of\s+)?/i)
+    ?? request.match(/\b(\d+)\s+copies?\b/i);
+  if (!explicit) return 1;
+  const count = Number(explicit[1]);
+  return Number.isInteger(count) && count >= 1 && count <= 60 ? count : 1;
 }
 
 export function buildAssistantQuestions(context: AssistantRoutingContext): Record<string, unknown> {
@@ -150,6 +165,36 @@ export function interpretAssistantAnswers(
   const noArgs = ["find_duplicates", "find_trade_opportunities", "list_wanted", "list_decks"] as const;
   if ((noArgs as readonly string[]).includes(action)) {
     return { kind: "plan", plan: { action: action as typeof noArgs[number], args: {} }, confidence: actionAnswer.confidence };
+  }
+
+  if (action === "add_card_to_deck") {
+    const card = validChoice(answers.card);
+    const deck = validChoice(answers.deck);
+    if (
+      !card || card.choice === "no_match" || card.confidence < ASSISTANT_CONFIDENCE_THRESHOLD
+      || !context.cards.some((candidate) => String(candidate.id) === card.choice)
+    ) {
+      return { kind: "clarification", question: "Which owned card do you want to add?", confidence: card?.confidence ?? 0 };
+    }
+    if (
+      !deck || deck.choice === "no_match" || deck.confidence < ASSISTANT_CONFIDENCE_THRESHOLD
+      || !context.decks.some((candidate) => String(candidate.id) === deck.choice)
+    ) {
+      return { kind: "clarification", question: "Which of your decks should I add it to?", confidence: deck?.confidence ?? 0 };
+    }
+    const plan = AssistantPlanSchema.parse({
+      action,
+      args: {
+        cardId: Number(card.choice),
+        deckId: Number(deck.choice),
+        count: extractRequestedCardCount(request),
+      },
+    });
+    return {
+      kind: "plan",
+      plan,
+      confidence: Math.min(actionAnswer.confidence, card.confidence, deck.confidence),
+    };
   }
 
   const selectionKey = action === "search_collection" ? "card"
@@ -245,14 +290,23 @@ export async function routeAssistantRequest(
   }
 }
 
+const WantedBaselineSchema = z.object({
+  kind: z.literal("wanted"),
+  status: z.string(),
+  maxPrice: z.string().nullable(),
+  expiresAt: z.string().datetime().nullable(),
+});
+
+const DeckBaselineSchema = z.object({
+  kind: z.literal("deck"),
+  deckTotal: z.number().int().nonnegative(),
+  sameNameCount: z.number().int().nonnegative(),
+});
+
 const ConfirmationPayloadSchema = z.object({
   userId: z.string().min(1),
   plan: AssistantPlanSchema,
-  baseline: z.object({
-    status: z.string(),
-    maxPrice: z.string().nullable(),
-    expiresAt: z.string().datetime().nullable(),
-  }),
+  baseline: z.discriminatedUnion("kind", [WantedBaselineSchema, DeckBaselineSchema]),
   expiresAt: z.number().int().positive(),
 });
 export type ConfirmationPayload = z.infer<typeof ConfirmationPayloadSchema>;

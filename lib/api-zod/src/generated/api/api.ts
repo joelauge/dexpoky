@@ -2459,6 +2459,7 @@ export const SendAssistantMessageResponse = zod.object({
       "inspect_wanted_matches",
       "list_decks",
       "inspect_deck",
+      "add_card_to_deck",
       "update_wanted_budget",
       "close_wanted",
     ])
@@ -2502,6 +2503,7 @@ export const ConfirmAssistantActionResponse = zod.object({
       "inspect_wanted_matches",
       "list_decks",
       "inspect_deck",
+      "add_card_to_deck",
       "update_wanted_budget",
       "close_wanted",
     ])

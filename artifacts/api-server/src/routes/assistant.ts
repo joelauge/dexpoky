@@ -289,6 +289,62 @@ async function executeReadPlan(userId: string, plan: AssistantPlan) {
 }
 
 async function createMutationPreview(userId: string, plan: AssistantPlan) {
+  if (plan.action === "add_card_to_deck") {
+    const [[card], [deck], contents] = await Promise.all([
+      db.select({
+        id: cardsTable.id,
+        name: cardsTable.name,
+        setName: cardsTable.setName,
+        cardNumber: cardsTable.cardNumber,
+        imageUrl: cardsTable.imageUrl,
+      }).from(cardsTable).where(and(
+        eq(cardsTable.id, plan.args.cardId),
+        eq(cardsTable.ownerClerkId, userId),
+      )),
+      db.select({ id: decksTable.id, name: decksTable.name })
+        .from(decksTable)
+        .where(and(eq(decksTable.id, plan.args.deckId), eq(decksTable.ownerClerkId, userId))),
+      db.select({
+        count: deckCardsTable.count,
+        name: sql<string>`coalesce(${cardsTable.name}, ${deckCardsTable.snapshotName}, '')`,
+      }).from(deckCardsTable)
+        .leftJoin(cardsTable, eq(cardsTable.id, deckCardsTable.cardId))
+        .where(eq(deckCardsTable.deckId, plan.args.deckId)),
+    ]);
+    if (!card || !deck) return null;
+    const deckTotal = contents.reduce((sum, entry) => sum + entry.count, 0);
+    const sameNameCount = contents
+      .filter((entry) => entry.name.toLowerCase() === card.name.toLowerCase())
+      .reduce((sum, entry) => sum + entry.count, 0);
+    const resultingDeckTotal = deckTotal + plan.args.count;
+    const resultingSameNameCount = sameNameCount + plan.args.count;
+    const isBasicEnergy = /^basic\s+.+\benergy\b/i.test(card.name.trim());
+    if (resultingDeckTotal > 60 || (!isBasicEnergy && resultingSameNameCount > 4)) return null;
+    const data = {
+      card: {
+        id: card.id,
+        name: card.name,
+        setName: card.setName,
+        cardNumber: card.cardNumber,
+        imageUrl: card.imageUrl,
+      },
+      deck: { id: deck.id, name: deck.name },
+      count: plan.args.count,
+      currentDeckTotal: deckTotal,
+      resultingDeckTotal,
+    };
+    return {
+      summary: `Add ${plan.args.count} ${plan.args.count === 1 ? "copy" : "copies"} of ${card.name} to ${deck.name}. The deck will have ${resultingDeckTotal} cards.`,
+      data,
+      confirmationToken: createConfirmationToken({
+        userId,
+        plan,
+        baseline: { kind: "deck", deckTotal, sameNameCount },
+        expiresAt: Date.now() + 10 * 60_000,
+      }),
+      expiresInSeconds: 600,
+    };
+  }
   if (plan.action !== "update_wanted_budget" && plan.action !== "close_wanted") {
     throw new Error("Unsupported mutation");
   }
@@ -307,6 +363,7 @@ async function createMutationPreview(userId: string, plan: AssistantPlan) {
       userId,
       plan,
       baseline: {
+        kind: "wanted",
         status: wanted.status,
         maxPrice: wanted.maxPrice == null ? null : String(wanted.maxPrice),
         expiresAt: wanted.expiresAt?.toISOString() ?? null,
@@ -350,10 +407,10 @@ router.post("/assistant/message", requireAuth, async (req: Request, res: Respons
     return;
   }
   const { plan } = interpretation;
-  if (plan.action === "update_wanted_budget" || plan.action === "close_wanted") {
+  if (plan.action === "update_wanted_budget" || plan.action === "close_wanted" || plan.action === "add_card_to_deck") {
     const preview = await createMutationPreview(userId, plan);
     if (!preview) {
-      res.status(409).json({ error: "That Looking For request is no longer active" });
+      res.status(409).json({ error: "That change is no longer available or would exceed deck limits" });
       return;
     }
     res.json({ kind: "confirmation", action: plan.action, confidence: interpretation.confidence, ...preview });
@@ -376,8 +433,97 @@ router.post("/assistant/confirm", requireAuth, async (req: Request, res: Respons
     return;
   }
   const { plan } = payload;
+  if (plan.action === "add_card_to_deck") {
+    if (payload.baseline.kind !== "deck") {
+      res.status(400).json({ error: "This confirmation is invalid" });
+      return;
+    }
+    const baseline = payload.baseline;
+    const outcome = await db.transaction(async (tx) => {
+      const locked = await tx.execute(sql`
+        select d.id as deck_id, d.name as deck_name,
+               c.id as card_id, c.name as card_name, c.set_name, c.card_number, c.image_url
+        from decks d
+        cross join cards c
+        where d.id = ${plan.args.deckId}
+          and d.owner_clerk_id = ${userId}
+          and c.id = ${plan.args.cardId}
+          and c.owner_clerk_id = ${userId}
+        for update of d, c
+      `);
+      const target = locked.rows[0] as {
+        deck_id: number; deck_name: string; card_id: number; card_name: string;
+        set_name: string | null; card_number: string | null; image_url: string | null;
+      } | undefined;
+      if (!target) return { error: "missing" as const };
+
+      const contents = await tx.execute(sql`
+        select dc.count, coalesce(c.name, dc.snapshot_name, '') as name
+        from deck_cards dc
+        left join cards c on c.id = dc.card_id
+        where dc.deck_id = ${plan.args.deckId}
+        for update of dc
+      `);
+      const entries = contents.rows as Array<{ count: number; name: string }>;
+      const deckTotal = entries.reduce((sum, entry) => sum + Number(entry.count), 0);
+      const sameNameCount = entries
+        .filter((entry) => entry.name.toLowerCase() === target.card_name.toLowerCase())
+        .reduce((sum, entry) => sum + Number(entry.count), 0);
+      if (deckTotal !== baseline.deckTotal || sameNameCount !== baseline.sameNameCount) {
+        return { error: "stale" as const };
+      }
+      const resultingDeckTotal = deckTotal + plan.args.count;
+      const resultingSameNameCount = sameNameCount + plan.args.count;
+      const isBasicEnergy = /^basic\s+.+\benergy\b/i.test(target.card_name.trim());
+      if (resultingDeckTotal > 60 || (!isBasicEnergy && resultingSameNameCount > 4)) {
+        return { error: "limit" as const };
+      }
+      await tx.insert(deckCardsTable).values({
+        deckId: plan.args.deckId,
+        cardId: plan.args.cardId,
+        count: plan.args.count,
+      }).onConflictDoUpdate({
+        target: [deckCardsTable.deckId, deckCardsTable.cardId],
+        set: { count: sql`${deckCardsTable.count} + ${plan.args.count}` },
+      });
+      await tx.update(decksTable).set({ updatedAt: new Date() }).where(eq(decksTable.id, plan.args.deckId));
+      return {
+        data: {
+          card: {
+            id: target.card_id,
+            name: target.card_name,
+            setName: target.set_name,
+            cardNumber: target.card_number,
+            imageUrl: target.image_url,
+          },
+          deck: { id: target.deck_id, name: target.deck_name },
+          count: plan.args.count,
+          resultingDeckTotal,
+        },
+      };
+    }, { isolationLevel: "serializable" });
+    if ("error" in outcome) {
+      res.status(outcome.error === "missing" ? 404 : 409).json({
+        error: outcome.error === "missing"
+          ? "The card or deck no longer exists or is no longer yours."
+          : "This preview is stale or would exceed deck limits. Ask the assistant to prepare it again.",
+      });
+      return;
+    }
+    res.json({
+      kind: "completed",
+      action: plan.action,
+      summary: `Added ${plan.args.count} ${plan.args.count === 1 ? "copy" : "copies"} of ${outcome.data.card.name} to ${outcome.data.deck.name}. The deck now has ${outcome.data.resultingDeckTotal} cards.`,
+      data: outcome.data,
+    });
+    return;
+  }
   if (plan.action !== "update_wanted_budget" && plan.action !== "close_wanted") {
     res.status(400).json({ error: "This action cannot be confirmed" });
+    return;
+  }
+  if (payload.baseline.kind !== "wanted") {
+    res.status(400).json({ error: "This confirmation is invalid" });
     return;
   }
   const baselineConditions = [

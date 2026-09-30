@@ -11,6 +11,7 @@ const SUGGESTIONS = [
   "Show duplicate cards in my collection",
   "Find Charizard marketplace listings",
   "Show matches for my Pikachu wanted request",
+  "Add my Charizard to my Fire deck",
   "Set my Lugia wanted budget to $45",
 ];
 
@@ -160,6 +161,37 @@ export function DexAssistantPanel() {
     }
     
     if (isRecord(data)) {
+      if (
+        isRecord(data.card)
+        && isRecord(data.deck)
+        && typeof data.count === "number"
+        && typeof data.resultingDeckTotal === "number"
+      ) {
+        const card = data.card;
+        const deck = data.deck;
+        return (
+          <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              {typeof card.imageUrl === "string" && card.imageUrl ? (
+                <img src={card.imageUrl} alt="" className="h-16 w-12 rounded-md object-cover bg-slate-100" />
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-slate-900 truncate">{String(card.name)}</p>
+                <p className="text-xs text-slate-500 truncate">
+                  {[card.setName, card.cardNumber ? `#${card.cardNumber}` : null].filter(Boolean).join(" · ")}
+                </p>
+                <p className="mt-1 text-xs font-medium text-violet-700">
+                  {data.count} {data.count === 1 ? "copy" : "copies"} → {String(deck.name)}
+                </p>
+              </div>
+              <div className="shrink-0 rounded-lg bg-violet-50 px-2.5 py-2 text-center">
+                <p className="text-lg font-bold text-violet-700">{data.resultingDeckTotal}</p>
+                <p className="text-[10px] uppercase tracking-wide text-violet-500">deck total</p>
+              </div>
+            </div>
+          </div>
+        );
+      }
       const nestedCards = Array.isArray(data.cards) ? data.cards : null;
       const primary = isRecord(data.deck) ? data.deck : data;
       return (

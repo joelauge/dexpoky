@@ -40,6 +40,7 @@ export const AssistantResponseAction = {
   inspect_wanted_matches: "inspect_wanted_matches",
   list_decks: "list_decks",
   inspect_deck: "inspect_deck",
+  add_card_to_deck: "add_card_to_deck",
   update_wanted_budget: "update_wanted_budget",
   close_wanted: "close_wanted",
 } as const;
