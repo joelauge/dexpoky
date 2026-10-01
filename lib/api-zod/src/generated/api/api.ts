@@ -256,7 +256,7 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Public legacy lookup requests omit scanner selection and do not make a model request. Setting resolvePrinting=true enables scanner printing selection, requires authentication, and may invoke the selection model. The selection field is only returned for those selection-enabled requests.
+ * Public legacy lookup requests omit scanner selection and do not make a model request. Setting resolvePrinting=true enables scanner printing selection, requires authentication, and may invoke the selection model. The selection field is only returned for those selection-enabled requests. Valid model judgments order available printings best-first without overriding known name or identifier conflicts. An uncertain top preview still requires review and is not a confident recommendation.
  * @summary Look up Pokémon card printings for the scanner
  */
 export const lookupCardsQueryResolvePrintingDefault = false;
@@ -293,17 +293,21 @@ export const LookupCardsResponse = zod.object({
     }),
     zod.null(),
   ]),
-  variants: zod.array(
-    zod.object({
-      id: zod.string(),
-      name: zod.string(),
-      imageUrl: zod.string(),
-      setName: zod.string(),
-      setId: zod.string(),
-      cardNumber: zod.string(),
-      rarity: zod.string().nullable(),
-    }),
-  ),
+  variants: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        name: zod.string(),
+        imageUrl: zod.string(),
+        setName: zod.string(),
+        setId: zod.string(),
+        cardNumber: zod.string(),
+        rarity: zod.string().nullable(),
+      }),
+    )
+    .describe(
+      "Available printings in best-supported-first order for resolved scanner requests. Exact identity evidence takes precedence over model ranking; unavailable analysis preserves the catalog order.",
+    ),
   pricing: zod.object({
     marketPrice: zod.number().nullable(),
     lowPrice: zod.number().nullable(),

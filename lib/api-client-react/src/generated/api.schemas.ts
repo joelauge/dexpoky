@@ -988,6 +988,7 @@ export interface ScanPrintingSelection {
 
 export interface ScanLookupResponse {
   card: ScanLookupCard | null;
+  /** Available printings in best-supported-first order for resolved scanner requests. Exact identity evidence takes precedence over model ranking; unavailable analysis preserves the catalog order. */
   variants: ScanLookupCard[];
   pricing: CatalogPricing;
   freshness: ScanLookupFreshness;

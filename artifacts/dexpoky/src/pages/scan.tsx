@@ -830,11 +830,11 @@ export default function ScanPage() {
                   </div>
                 ) : null}
 
-                {/* Other printings */}
+                {/* Matching printings */}
                 {variants.length > 1 && (
                   <div style={{ width: "100%", maxWidth: "100vw", overflow: "hidden" }}>
-                    <h3 className="font-semibold text-sm mb-1">Other printings</h3>
-                    <p className="text-xs text-muted-foreground mb-3">Tap the one you have.</p>
+                    <h3 className="font-semibold text-sm mb-1">Matching printings</h3>
+                    <p className="text-xs text-muted-foreground mb-3">Best-supported options are shown first. Tap the one you have.</p>
                     <div
                       style={{
                         width: "100%",
@@ -853,7 +853,7 @@ export default function ScanPage() {
                             onClick={() => selectVariant(v)}
                             className={`shrink-0 w-20 rounded-xl overflow-hidden border-2 transition-all ${active ? "border-primary scale-105 shadow-md" : "border-transparent hover:border-border"}`}
                           >
-                            <div className="aspect-[3/4] bg-muted flex items-center justify-center">
+                            <div className="aspect-[3/4] bg-muted flex items-center justify-center relative">
                               <img
                                 src={v.imageUrl || "/logo.png"}
                                 alt={v.imageUrl ? v.name : ""}
@@ -868,6 +868,15 @@ export default function ScanPage() {
                                   event.currentTarget.className = "w-full h-full object-contain p-3 grayscale opacity-20";
                                 }}
                               />
+                              {printingSelection?.recommendedId === v.id &&
+                                (printingSelection.status === "exact" || printingSelection.status === "likely") && (
+                                  <span
+                                    data-testid={`text-best-match-${v.id}`}
+                                    className="absolute top-1 left-1 rounded bg-primary px-1.5 py-0.5 text-[8px] font-semibold leading-tight text-primary-foreground"
+                                  >
+                                    Best match
+                                  </span>
+                                )}
                             </div>
                             <div className="p-1 bg-card border-t">
                               <p className="text-[9px] font-medium truncate leading-tight">{v.setName}</p>

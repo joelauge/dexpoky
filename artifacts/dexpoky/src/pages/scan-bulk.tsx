@@ -894,12 +894,12 @@ export default function ScanBulkPage() {
                           {e.printingSelection?.recommendedId === variant?.id &&
                             (e.printingSelection?.status === "exact" || e.printingSelection?.status === "likely") && (
                             <Badge variant="outline" className="text-[10px] py-0 h-5 text-primary border-primary/30">
-                              {e.printingSelection.status === "exact" ? "OCR match" : "Likely printing"}
+                              Best match
                             </Badge>
                           )}
                           {(e.printingSelection?.status === "review" || e.printingSelection?.status === "unavailable") && (
                             <Badge variant="outline" className="text-[10px] py-0 h-5 text-amber-700 dark:text-amber-400 border-amber-500/30">
-                              Check printing
+                              Check this match
                             </Badge>
                           )}
                         </div>
@@ -951,6 +951,7 @@ export default function ScanBulkPage() {
                           entryId={e.id}
                           variants={e.variants}
                           selectedId={e.selectedVariantId}
+                          recommendedId={e.printingSelection?.recommendedId}
                           onSelect={(v) => void selectVariantAndRefreshPricing(e.id, v)}
                         />
                       )}

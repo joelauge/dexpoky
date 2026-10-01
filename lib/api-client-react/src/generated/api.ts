@@ -862,7 +862,7 @@ export function useHealthCheck<
 }
 
 /**
- * Public legacy lookup requests omit scanner selection and do not make a model request. Setting resolvePrinting=true enables scanner printing selection, requires authentication, and may invoke the selection model. The selection field is only returned for those selection-enabled requests.
+ * Public legacy lookup requests omit scanner selection and do not make a model request. Setting resolvePrinting=true enables scanner printing selection, requires authentication, and may invoke the selection model. The selection field is only returned for those selection-enabled requests. Valid model judgments order available printings best-first without overriding known name or identifier conflicts. An uncertain top preview still requires review and is not a confident recommendation.
  * @summary Look up Pokémon card printings for the scanner
  */
 export const getLookupCardsUrl = (params: LookupCardsParams) => {

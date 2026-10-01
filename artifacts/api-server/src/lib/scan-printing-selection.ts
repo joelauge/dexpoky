@@ -26,6 +26,11 @@ export interface ScanPrintingSelection {
   message: string;
 }
 
+/** Internal ordering, kept separate from a confident recommendation and off the public response. */
+export interface ScanPrintingEvaluation extends ScanPrintingSelection {
+  rankedIds?: string[];
+}
+
 interface ChoiceAnswer {
   type?: unknown;
   choice?: unknown;
@@ -39,7 +44,7 @@ interface JevPayload {
 
 const MODEL = "jev-latest";
 const QUESTION_ID = "printing";
-const EVALUATOR_VERSION = "scan-printing-choice-v1";
+const EVALUATOR_VERSION = "scan-printing-ranking-v2";
 const MAX_CHOICE_OPTIONS = 255;
 const MAX_CANDIDATES = MAX_CHOICE_OPTIONS - 1; // Reserve one explicit no_match option.
 const JEV_TIMEOUT_MS = 7_000;
@@ -52,8 +57,8 @@ const MIN_CONFIDENCE = 0.7;
 const MIN_SELECTED_PROBABILITY = 0.65;
 const MIN_PROBABILITY_MARGIN = 0.15;
 
-const selectionCache = new Map<string, { value: ScanPrintingSelection; expiresAt: number }>();
-const inFlight = new Map<string, Promise<ScanPrintingSelection>>();
+const selectionCache = new Map<string, { value: ScanPrintingEvaluation; expiresAt: number }>();
+const inFlight = new Map<string, Promise<ScanPrintingEvaluation>>();
 
 const unavailable = (): ScanPrintingSelection => ({
   status: "unavailable",
@@ -128,6 +133,33 @@ function hasNameEvidence(candidate: ScanPrintingCandidate, evidence: ScanPrintin
 
 function hasCatalogIdentifiers(candidate: ScanPrintingCandidate): boolean {
   return !!candidate.setId?.trim() || !!candidate.cardNumber?.trim();
+}
+
+function candidateEvidenceTier(candidate: ScanPrintingCandidate, evidence: ScanPrintingEvidence): number {
+  // A semantic score never outweighs a known identity mismatch. Keep alternatives
+  // visible, but below candidates compatible with the observed name and identifiers.
+  if (!hasNameEvidence(candidate, evidence)) return 3;
+  if (contradictsObservedIdentifiers(candidate, evidence)) return 2;
+  return hasCatalogIdentifiers(candidate) ? 0 : 1;
+}
+
+/** Apply only known candidate IDs, preserve every alternative, and never mutate the catalog cache. */
+export function orderScanPrintings<T extends { id: string }>(
+  candidates: T[],
+  evaluation: ScanPrintingEvaluation,
+): T[] {
+  const positions = new Map((evaluation.rankedIds ?? []).map((id, index) => [id, index]));
+  const recommendation = evaluation.status === "exact" || evaluation.status === "likely"
+    ? evaluation.recommendedId
+    : null;
+  return candidates.map((candidate, index) => ({ candidate, index })).sort((a, b) => {
+    if (recommendation && a.candidate.id !== b.candidate.id) {
+      if (a.candidate.id === recommendation) return -1;
+      if (b.candidate.id === recommendation) return 1;
+    }
+    return (positions.get(a.candidate.id) ?? Number.MAX_SAFE_INTEGER) -
+      (positions.get(b.candidate.id) ?? Number.MAX_SAFE_INTEGER) || a.index - b.index;
+  }).map(({ candidate }) => candidate);
 }
 
 function normalizedEvidence(evidence: ScanPrintingEvidence): Record<string, string | number | null> {
@@ -246,7 +278,7 @@ export async function evaluateSelection(
   candidates: ScanPrintingCandidate[],
   evidence: ScanPrintingEvidence,
   fetcher: typeof fetch,
-): Promise<ScanPrintingSelection> {
+): Promise<ScanPrintingEvaluation> {
   const exactResolution = exactObservedPrintingSelection(candidates, evidence);
   if (exactResolution) return exactResolution;
   if (candidates.length === 0) {
@@ -305,11 +337,21 @@ export async function evaluateSelection(
     const allowedOptions = new Set(options.map(({ key }) => key));
     const answer = validChoiceAnswer(answers[QUESTION_ID], allowedOptions);
     if (!answer) return unavailable();
+    // Choice probabilities compare competing identities in this complete candidate
+    // set. Use the whole distribution, not just its winner. Ties retain catalog order.
+    const rankedIds = candidateOptions.map((option, index) => ({
+      ...option,
+      index,
+      tier: candidateEvidenceTier(option.candidate, evidence),
+      probability: answer.probabilities[option.key]!,
+    })).sort((a, b) => a.tier - b.tier || b.probability - a.probability || a.index - b.index)
+      .map(({ candidate }) => candidate.id);
     if (answer.choice === "no_match") {
       return {
         status: "review",
         recommendedId: null,
         confidence: answer.confidence,
+        rankedIds,
         message: "No printing clearly matched the scan. Please review the options.",
       };
     }
@@ -320,6 +362,7 @@ export async function evaluateSelection(
         status: "review",
         recommendedId: null,
         confidence: answer.confidence,
+        rankedIds,
         message: "The suggested printing conflicts with an observed identifier. Please review the options.",
       };
     }
@@ -328,6 +371,7 @@ export async function evaluateSelection(
         status: "review",
         recommendedId: null,
         confidence: answer.confidence,
+        rankedIds,
         message: "The catalog details do not clearly identify this printing. Please review the options.",
       };
     }
@@ -342,6 +386,7 @@ export async function evaluateSelection(
         status: "review",
         recommendedId: null,
         confidence: answer.confidence,
+        rankedIds,
         message: "The scan is not clear enough to recommend one printing. Please review the options.",
       };
     }
@@ -349,6 +394,7 @@ export async function evaluateSelection(
       status: "likely",
       recommendedId: chosen.id,
       confidence: answer.confidence,
+      rankedIds,
       message: "This is the most likely printing from the scan. Please check it against the card.",
     };
   } catch {
@@ -362,7 +408,7 @@ export async function selectScanPrinting(
   candidates: ScanPrintingCandidate[],
   evidence: ScanPrintingEvidence,
   fetcher: typeof fetch = fetch,
-): Promise<ScanPrintingSelection> {
+): Promise<ScanPrintingEvaluation> {
   const exactResolution = exactObservedPrintingSelection(candidates, evidence);
   if (exactResolution) return exactResolution;
   if (candidates.length === 0) {

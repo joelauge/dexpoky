@@ -20,7 +20,8 @@ import { getAuth } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { evaluateCardConfidence, type CardConfidenceInput } from "../lib/card-confidence.js";
 import { BoundedAsyncCache, normalizeLookupKey, recordLookup } from "../lib/lookup-performance.js";
-import { selectScanPrinting, type ScanPrintingCandidate, type ScanPrintingSelection } from "../lib/scan-printing-selection.js";
+import { selectScanPrinting, type ScanPrintingCandidate } from "../lib/scan-printing-selection.js";
+import { resolveRankedScan } from "../lib/scan-lookup-ranking.js";
 import {
   ListCardsQueryParams,
   CreateCardBody,
@@ -448,7 +449,7 @@ router.get("/cards/lookup", (req, res, next) => {
     cardNumber: variant.cardNumber,
     rarity: variant.rarity,
   }));
-  const selection: ScanPrintingSelection = await selectScanPrinting(candidates, {
+  const evaluation = await selectScanPrinting(candidates, {
     name,
     setCode,
     cardNumber,
@@ -456,38 +457,20 @@ router.get("/cards/lookup", (req, res, next) => {
     visualSummary,
     hp,
   });
-  let variants = [...baseResponse.variants];
-  if ((selection.status === "exact" || selection.status === "likely") && selection.recommendedId) {
-    const selectedIndex = variants.findIndex((variant) => variant.id === selection.recommendedId);
-    if (selectedIndex > 0) {
-      const [recommended] = variants.splice(selectedIndex, 1);
-      if (recommended) variants = [recommended, ...variants];
+  const ranked = await resolveRankedScan(baseResponse, evaluation, async (selectedCard) => {
+    if (selectedCard.id.startsWith("pk_")) {
+      const detail = await pwGetCard(selectedCard.id);
+      return detail.ok ? buildPricingFromCatalog(detail.data) : {
+        marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null,
+      };
     }
-  }
-  const selectedCard = variants[0] ?? null;
-  let pricing = baseResponse.pricing;
-  if (selectedCard && selectedCard.id !== baseResponse.card?.id &&
-      (selection.status === "exact" || selection.status === "likely")) {
-    // A printing promoted by evidence must use its own price; a missing price
-    // is null rather than the previous card's price.
-    const emptyPricing: PricingData = {
-      marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null,
-    };
-    try {
-      if (selectedCard.id.startsWith("pk_")) {
-        const detail = await pwGetCard(selectedCard.id);
-        pricing = detail.ok ? buildPricingFromCatalog(detail.data) : emptyPricing;
-      } else {
-        pricing = await fetchPricingById(selectedCard.id, selectedCard.name, selectedCard.rarity ?? undefined, {
-          name: selectedCard.name,
-          setName: selectedCard.setName,
-          cardNumber: selectedCard.cardNumber,
-        });
-      }
-    } catch {
-      pricing = emptyPricing;
-    }
-  }
+    return fetchPricingById(selectedCard.id, selectedCard.name, selectedCard.rarity ?? undefined, {
+      name: selectedCard.name,
+      setName: selectedCard.setName,
+      cardNumber: selectedCard.cardNumber,
+    });
+  });
+  const selection = ranked.selection;
   recordLookup("scan", performance.now() - startedAt, {
     cache: loaded.status,
     externalMs: loaded.status === "miss" ? performance.now() - externalStartedAt : undefined,
@@ -496,11 +479,8 @@ router.get("/cards/lookup", (req, res, next) => {
   });
   res.setHeader("Cache-Control", "no-store");
   res.json({
-    card: selectedCard,
-    variants,
-    pricing,
+    ...ranked,
     freshness: baseResponse.freshness,
-    selection,
   });
 });
 

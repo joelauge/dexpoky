@@ -19,6 +19,12 @@ For scan matching, use Jev to help choose the suggested printing before review, 
 
 **How to apply:** Keep observed details distinct from inferred catalog identity, let contradictory evidence remain a review case, and preserve manual alternatives. Treat suggestion thresholds as initial safety settings until calibrated with labeled physical-card scans; never claim measured scan accuracy from mocked UI tests.
 
+Keep “best available result” separate from “correct printing.” Ranking cannot resolve missing catalog coverage, and a user's manual choice must not inherit the original recommendation's identity claim.
+
+**Why:** The user wants best-first scanner results, but the anniversary MEE printings exposed a catalog-coverage gap. A plausible alternative can rank first without being the scanned card; retaining an exact-match explanation after a manual change misrepresents that choice.
+
+**How to apply:** Rank the available alternatives while retaining explicit uncertainty, attach recommendation labels and explanations only to the recommended identity, and check catalog coverage separately when the correct printing is absent.
+
 For marketplace listing reviews, keep ownership, catalog identity, positive prices, auction timing/price relationships, saved-condition contradictions, and verified grading claims as code-owned publication gates. Jev may score completeness, clarity, consistency, and supporting evidence, but low confidence or provider failure must remain advisory when those gates pass. Persist only a versioned normalized review snapshot, evidence hash, and timestamp; never raw provider output. Never treat the review as authentication, automatic claim rewriting, repricing, delisting, or account enforcement.
 
 For trust and dispute workflows, expose only privacy-safe aggregate transaction and rating facts on public profiles. Keep report descriptions and evidence private. Jev may summarize reliability dimensions and classify issue category, urgency, or missing evidence, but code must verify transaction participation and force serious or low-confidence cases to human review. Jev must never determine fault, issue refunds, suspend accounts, change ratings, or trigger financial actions.

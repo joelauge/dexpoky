@@ -254,7 +254,9 @@ paths:
         model request. Setting resolvePrinting=true enables scanner printing
         selection, requires authentication, and may invoke the selection model.
         The selection field is only returned for those selection-enabled
-        requests.
+        requests. Valid model judgments order available printings best-first
+        without overriding known name or identifier conflicts. An uncertain
+        top preview still requires review and is not a confident recommendation.
       parameters:
         - name: name
           in: query
@@ -3067,6 +3069,10 @@ components:
             - type: "null"
         variants:
           type: array
+          description: >-
+            Available printings in best-supported-first order for resolved
+            scanner requests. Exact identity evidence takes precedence over
+            model ranking; unavailable analysis preserves the catalog order.
           items:
             $ref: "#/components/schemas/ScanLookupCard"
         pricing:

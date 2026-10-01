@@ -30,10 +30,11 @@ interface ScanPrintingPickerProps {
   entryId: string;
   variants: ScanPrinting[];
   selectedId?: string;
+  recommendedId?: string | null;
   onSelect: (variant: ScanPrinting) => void;
 }
 
-export function ScanPrintingPicker({ entryId, variants, selectedId, onSelect }: ScanPrintingPickerProps) {
+export function ScanPrintingPicker({ entryId, variants, selectedId, recommendedId, onSelect }: ScanPrintingPickerProps) {
   const [search, setSearch] = useState("");
   const matches = filterScanPrintings(variants, search);
   const inputId = `printing-search-${entryId}`;
@@ -84,6 +85,7 @@ export function ScanPrintingPicker({ entryId, variants, selectedId, onSelect }: 
               key={variant.id}
               variant={variant}
               selected={variant.id === currentId}
+              recommended={variant.id === recommendedId}
               testId={`button-printing-${entryId}-${variant.id}`}
               onSelect={() => onSelect(variant)}
             />
@@ -101,11 +103,13 @@ export function ScanPrintingPicker({ entryId, variants, selectedId, onSelect }: 
 function PrintingOption({
   variant,
   selected,
+  recommended,
   testId,
   onSelect,
 }: {
   variant: ScanPrinting;
   selected: boolean;
+  recommended: boolean;
   testId: string;
   onSelect: () => void;
 }) {
@@ -120,7 +124,7 @@ function PrintingOption({
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
-      aria-label={`${variant.name}, ${setLabel}, ${numberLabel}`}
+      aria-label={`${variant.name}, ${recommended ? "Best match, " : ""}${setLabel}, ${numberLabel}`}
       data-testid={testId}
       className={`min-w-0 rounded-lg border-2 bg-background text-left overflow-hidden transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
         selected ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/60"
@@ -140,6 +144,14 @@ function PrintingOption({
             <ImageOff aria-hidden="true" className="h-6 w-6" />
             <span className="text-[10px]">Artwork unavailable</span>
           </div>
+        )}
+        {recommended && (
+          <span
+            data-testid={`text-best-match-${variant.id}`}
+            className="absolute top-1 left-1 rounded bg-primary px-1.5 py-0.5 text-[8px] font-semibold leading-tight text-primary-foreground"
+          >
+            Best match
+          </span>
         )}
         {selected && (
           <span className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center">
