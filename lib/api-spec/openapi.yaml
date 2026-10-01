@@ -1079,7 +1079,7 @@ paths:
     get:
       operationId: searchCatalog
       tags: [catalog]
-      summary: Search the PokeWallet card catalog by name
+      summary: Search the manual card catalog by name, including supplemental TCGCSV printings
       parameters:
         - name: q
           in: query
@@ -1107,7 +1107,7 @@ paths:
     get:
       operationId: getCatalogCard
       tags: [catalog]
-      summary: Get a single catalog card by PokeWallet id
+      summary: Get a single catalog card by provider ID, including TCGCSV IDs
       parameters:
         - name: id
           in: path
@@ -2932,7 +2932,7 @@ components:
             $ref: "#/components/schemas/CatalogCard"
         source:
           type: string
-          enum: [pokewallet, tcgdex, empty]
+          enum: [pokewallet, tcgdex, tcgcsv, mixed, empty]
         rateLimited:
           type: boolean
         remainingHour:

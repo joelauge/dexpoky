@@ -5,6 +5,7 @@ import { fetchPricingById } from "./detect-helpers.js";
 import { eq, asc, and, sql, or, isNotNull } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { pwGetCard, buildPricingFromCatalog } from "../lib/pokewallet.js";
+import { getTcgcsvPricing, isTcgcsvId } from "../lib/tcgcsv.js";
 
 const router = Router();
 
@@ -52,12 +53,30 @@ export function buildRepriceAction(
   return { outcome };
 }
 
-async function fetchExactPrice(card: RepriceCandidate): Promise<{
+export async function fetchExactPrice(card: RepriceCandidate): Promise<{
   marketPrice: number | null;
   source: string | null;
   identity: string | null;
   status: "resolved" | "unresolved" | "unavailable";
 }> {
+  if (card.catalogCardId?.startsWith("tcgcsv_")) {
+    if (!isTcgcsvId(card.catalogCardId)) {
+      return {
+        marketPrice: null,
+        source: null,
+        identity: card.catalogCardId,
+        status: "unavailable",
+      };
+    }
+    const pricing = await getTcgcsvPricing(card.catalogCardId);
+    return {
+      marketPrice: pricing.marketPrice,
+      source: pricing.source,
+      identity: card.catalogCardId,
+      status: pricing.marketPrice == null ? "unavailable" : "resolved",
+    };
+  }
+
   if (card.catalogCardId?.startsWith("pk_")) {
     const result = await pwGetCard(card.catalogCardId);
     if (!result.ok) {
@@ -231,8 +250,11 @@ router.get("/cards/:id/price-history", requireAuth, async (req, res) => {
   res.json({ history: points });
 
   // ── Background: add today's live snapshot if we haven't yet ──────────────
-  const tcgdexId = buildTcgdexId(card.catalogCardId, card.setId, card.setName, card.cardNumber);
-  if (!tcgdexId) return;
+  const hasExactIdentity = Boolean(
+    (card.catalogCardId && (isTcgcsvId(card.catalogCardId) || card.catalogCardId.startsWith("pk_")))
+    || buildTcgdexId(card.catalogCardId, card.setId, card.setName, card.cardNumber),
+  );
+  if (!hasExactIdentity) return;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -244,24 +266,22 @@ router.get("/cards/:id/price-history", requireAuth, async (req, res) => {
   // Fire-and-forget: fetch live price and store it
   setImmediate(async () => {
     try {
-      const pricing = await fetchPricingById(
-        tcgdexId,
-        card.pokemonName ?? card.name,
-        card.rarity ?? undefined,
-      );
-       if (pricing.marketPrice != null) {
+      const pricing = await fetchExactPrice(card);
+      if (pricing.marketPrice != null) {
         await db.insert(cardPriceHistoryTable).values({
           cardId,
           price: String(pricing.marketPrice),
-          source: pricing.source ?? "tcgplayer",
+          source: pricing.source ?? "catalog",
         });
-         const identity: Record<string, unknown> = {
-           estimatedValue: String(pricing.marketPrice),
-           updatedAt: new Date(),
-         };
-         if (!card.catalogCardId && tcgdexId) identity.catalogCardId = tcgdexId;
-         if (!card.setId && tcgdexId) identity.setId = tcgdexId.slice(0, tcgdexId.lastIndexOf("-"));
-         await db.update(cardsTable).set(identity).where(eq(cardsTable.id, cardId));
+        const identity: Record<string, unknown> = {
+          estimatedValue: String(pricing.marketPrice),
+          updatedAt: new Date(),
+        };
+        if (!card.catalogCardId && pricing.identity) identity.catalogCardId = pricing.identity;
+        if (!card.setId && pricing.identity && !isTcgcsvId(pricing.identity)) {
+          identity.setId = pricing.identity.slice(0, pricing.identity.lastIndexOf("-"));
+        }
+        await db.update(cardsTable).set(identity).where(eq(cardsTable.id, cardId));
       }
     } catch {
       // Silently ignore — will retry on next request
@@ -343,6 +363,7 @@ export function buildTcgdexId(
   setName: string | null,
   cardNumber: string | null,
 ): string | null {
+  if (catalogCardId?.startsWith("tcgcsv_")) return null;
   if (catalogCardId && /^[a-z][a-z0-9]*-\d+/i.test(catalogCardId)) return catalogCardId;
   if (!cardNumber) return null;
   // Already a full TCGdex ID (contains a dash with letter prefix)

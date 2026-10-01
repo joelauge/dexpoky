@@ -56,6 +56,7 @@ export function CatalogSearch({
   }, [data, excludeIds]);
 
   const showEmpty = enabled && !isFetching && visible.length === 0 && !isError;
+  const source = String(data?.source ?? "");
 
   return (
     <div className="flex flex-col min-h-0">
@@ -76,12 +77,23 @@ export function CatalogSearch({
       {data?.rateLimited && (
         <div className="flex items-center gap-2 mb-3 text-xs px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Catalog limit reached — showing fallback results from TCGdex.
+          Catalog limit reached — showing fallback results
+          {source === "mixed" ? " from TCGdex and TCGCSV." : source === "tcgcsv" ? " from TCGCSV." : " from TCGdex."}
         </div>
       )}
-      {data?.source === "tcgdex" && !data.rateLimited && (
+      {source === "tcgdex" && !data?.rateLimited && (
         <div className="text-[10px] text-muted-foreground mb-2">
           Results from TCGdex
+        </div>
+      )}
+      {source === "tcgcsv" && (
+        <div className="text-[10px] text-muted-foreground mb-2">
+          Results from TCGCSV
+        </div>
+      )}
+      {source === "mixed" && (
+        <div className="text-[10px] text-muted-foreground mb-2">
+          Results from multiple catalogs, including TCGCSV
         </div>
       )}
 

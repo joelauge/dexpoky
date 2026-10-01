@@ -2,6 +2,7 @@ import { Router } from "express";
 import OpenAI from "openai";
 import { openai as integrationOpenai } from "@workspace/integrations-openai-ai-server";
 import { searchTcgdex } from "./detect-helpers.js";
+import { getTcgcsvPricing, searchTcgcsv } from "../lib/tcgcsv.js";
 
 const router = Router();
 
@@ -159,7 +160,29 @@ If no Pokemon card is clearly visible, return detected: false.`,
       res.json({ detected: false, confidence: parsed.confidence ?? "low", variants: [] }); return;
     }
     const searchName = parsed.cardName ?? parsed.pokemonName;
-    const { variants, pricing } = await searchTcgdex(searchName);
+    const [{ variants: tcgdexVariants, pricing: tcgdexPricing }, tcgcsvVariants] = await Promise.all([
+      searchTcgdex(searchName, parsed.cardNumber ?? undefined),
+      searchTcgcsv(searchName, parsed.cardNumber ?? undefined).catch((err) => {
+        req.log?.warn({ err }, "TCGCSV detect supplement failed");
+        return [];
+      }),
+    ]);
+    const seen = new Set<string>();
+    const variants = [...tcgdexVariants, ...tcgcsvVariants].filter((variant) => {
+      if (seen.has(variant.id)) return false;
+      seen.add(variant.id);
+      return true;
+    });
+    const primaryCard = tcgdexVariants[0] ?? null;
+    const card = primaryCard ?? variants[0] ?? null;
+    const pricing = primaryCard
+      ? tcgdexPricing
+      : card?.id.startsWith("tcgcsv_")
+        ? await getTcgcsvPricing(card.id).catch((err) => {
+          req.log?.warn({ err, id: card.id }, "TCGCSV detect pricing failed");
+          return tcgdexPricing;
+        })
+        : tcgdexPricing;
     res.json({
       detected: true,
       confidence: parsed.confidence ?? "medium",
@@ -167,7 +190,7 @@ If no Pokemon card is clearly visible, return detected: false.`,
       cardName: parsed.cardName ?? parsed.pokemonName,
       setName: parsed.setName,
       cardNumber: parsed.cardNumber,
-      card: variants[0] ?? null,
+      card,
       variants,
       pricing,
     });

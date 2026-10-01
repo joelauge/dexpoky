@@ -4335,7 +4335,7 @@ export const useSuggestDeck = <
 };
 
 /**
- * @summary Search the PokeWallet card catalog by name
+ * @summary Search the manual card catalog by name, including supplemental TCGCSV printings
  */
 export const getSearchCatalogUrl = (params: SearchCatalogParams) => {
   const normalizedParams = new URLSearchParams();
@@ -4402,7 +4402,7 @@ export type SearchCatalogQueryResult = NonNullable<
 export type SearchCatalogQueryError = ErrorType<unknown>;
 
 /**
- * @summary Search the PokeWallet card catalog by name
+ * @summary Search the manual card catalog by name, including supplemental TCGCSV printings
  */
 
 export function useSearchCatalog<
@@ -4429,7 +4429,7 @@ export function useSearchCatalog<
 }
 
 /**
- * @summary Get a single catalog card by PokeWallet id
+ * @summary Get a single catalog card by provider ID, including TCGCSV IDs
  */
 export const getGetCatalogCardUrl = (id: string) => {
   return `/api/catalog/cards/${id}`;
@@ -4489,7 +4489,7 @@ export type GetCatalogCardQueryResult = NonNullable<
 export type GetCatalogCardQueryError = ErrorType<ErrorEnvelope>;
 
 /**
- * @summary Get a single catalog card by PokeWallet id
+ * @summary Get a single catalog card by provider ID, including TCGCSV IDs
  */
 
 export function useGetCatalogCard<

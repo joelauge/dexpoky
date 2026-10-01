@@ -1,3 +1,5 @@
+import { getTcgcsvPricing } from "../lib/tcgcsv.js";
+
 const TCGDEX_BASE = "https://api.tcgdex.net/v2/en";
 const PTCGIO_BASE = "https://api.pokemontcg.io/v2";
 const PTCGIO_TCGPLAYER_BASE = "https://prices.pokemontcg.io/tcgplayer";
@@ -491,6 +493,7 @@ export async function fetchPricingById(
   fallbackRarity?: string,
   ebayContext?: { name: string; setName?: string; cardNumber?: string },
 ): Promise<PricingData> {
+  if (tcgdexId.startsWith("tcgcsv_")) return getTcgcsvPricing(tcgdexId);
   const empty: PricingData = { marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null };
   // Fire eBay lookup in parallel with TCG/CardMarket lookups
   const ebayPromise = ebayContext
@@ -725,7 +728,7 @@ export async function searchTcgdex(
         setName: top.setName,
         cardNumber: top.cardNumber,
       })
-      : emptyPricing();
+      : emptyPricing;
 
     // Add eBay sold-listing validation against the best matched variant
     const ebay = top

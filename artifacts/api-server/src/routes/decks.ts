@@ -18,6 +18,7 @@ import {
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { getMultiSectionText } from "./rules.js";
 import { pwGetCard, pwSearch, normalizeCatalogCard, enrichCatalogCardImages } from "../lib/pokewallet.js";
+import { getTcgcsvCard, isTcgcsvId } from "../lib/tcgcsv.js";
 import {
   enforceLegalCandidateLimits,
   rankLegalDeckCandidates,
@@ -506,23 +507,46 @@ router.post("/decks/:id/cards", requireAuth, async (req, res) => {
         set: { count: sql`${deckCardsTable.count} + ${desiredCount}` },
       });
   } else if (parsed.data.catalogCardId != null) {
-    // Pure catalog entry (snapshot from PokeWallet)
-    const lookup = await pwGetCard(parsed.data.catalogCardId);
-    if (!lookup.ok) {
-      res.status(503).json({ error: "Catalog temporarily unavailable" });
-      return;
+    // Pure catalog entry; preserve the provider's exact printing ID.
+    let catalogCard: { id: string; name: string; imageUrl: string; setName: string; cardNumber: string };
+    if (parsed.data.catalogCardId.startsWith("tcgcsv_")) {
+      if (!isTcgcsvId(parsed.data.catalogCardId)) {
+        res.status(404).json({ error: "Catalog card not found" });
+        return;
+      }
+      const lookup = await getTcgcsvCard(parsed.data.catalogCardId);
+      if (!lookup) {
+        res.status(404).json({ error: "Catalog card not found" });
+        return;
+      }
+      catalogCard = {
+        id: lookup.id,
+        name: lookup.name,
+        imageUrl: lookup.imageUrl ?? "",
+        setName: lookup.setName ?? "",
+        cardNumber: lookup.cardNumber ?? "",
+      };
+    } else {
+      const lookup = await pwGetCard(parsed.data.catalogCardId);
+      if (!lookup.ok) {
+        res.status(lookup.reason === "NOT_FOUND" ? 404 : 503).json({
+          error: lookup.reason === "NOT_FOUND" ? "Catalog card not found" : "Catalog temporarily unavailable",
+        });
+        return;
+      }
+      const normalized = normalizeCatalogCard(lookup.data);
+      catalogCard = normalized;
     }
-    const norm = normalizeCatalogCard(lookup.data);
     await db
       .insert(deckCardsTable)
       .values({
         deckId: id,
         cardId: null,
-        catalogCardId: norm.id,
-        snapshotName: norm.name,
-        snapshotImageUrl: norm.imageUrl || null,
-        snapshotSetName: norm.setName || null,
-        snapshotCardNumber: norm.cardNumber || null,
+        catalogCardId: catalogCard.id,
+        snapshotName: catalogCard.name,
+        snapshotImageUrl: catalogCard.imageUrl || null,
+        snapshotSetName: catalogCard.setName || null,
+        snapshotCardNumber: catalogCard.cardNumber || null,
         count: desiredCount,
         role,
         notes,

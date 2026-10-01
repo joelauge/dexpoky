@@ -1842,7 +1842,7 @@ export const SuggestDeckResponse = zod.object({
 });
 
 /**
- * @summary Search the PokeWallet card catalog by name
+ * @summary Search the manual card catalog by name, including supplemental TCGCSV printings
  */
 
 export const searchCatalogQueryLimitDefault = 20;
@@ -1873,7 +1873,7 @@ export const SearchCatalogResponse = zod.object({
       cardmarketUrl: zod.string().nullish(),
     }),
   ),
-  source: zod.enum(["pokewallet", "tcgdex", "empty"]),
+  source: zod.enum(["pokewallet", "tcgdex", "tcgcsv", "mixed", "empty"]),
   rateLimited: zod.boolean(),
   remainingHour: zod.number().nullish(),
   enrichmentPending: zod.boolean(),
@@ -1885,7 +1885,7 @@ export const SearchCatalogResponse = zod.object({
 });
 
 /**
- * @summary Get a single catalog card by PokeWallet id
+ * @summary Get a single catalog card by provider ID, including TCGCSV IDs
  */
 export const GetCatalogCardParams = zod.object({
   id: zod.coerce.string(),

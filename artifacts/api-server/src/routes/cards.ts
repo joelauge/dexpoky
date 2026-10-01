@@ -22,6 +22,8 @@ import { evaluateCardConfidence, type CardConfidenceInput } from "../lib/card-co
 import { BoundedAsyncCache, normalizeLookupKey, recordLookup } from "../lib/lookup-performance.js";
 import { selectScanPrinting, type ScanPrintingCandidate } from "../lib/scan-printing-selection.js";
 import { resolveRankedScan } from "../lib/scan-lookup-ranking.js";
+import { searchTcgcsv } from "../lib/tcgcsv.js";
+import { mergeScanCatalog } from "../lib/scan-catalog-merge.js";
 import {
   ListCardsQueryParams,
   CreateCardBody,
@@ -364,6 +366,7 @@ router.get("/cards/lookup", (req, res, next) => {
   const loaded = cached
     ? { value: cached, status: "hit" as const }
     : await scanLookupCache.getOrLoad(cacheKey, async () => {
+      const primaryLookup = async () => {
       const pw = await pwSearch(name, 100);
       // TCGdex is authoritative for OCR set/number identity. Keep this exact
       // hinted merge inside the identity-keyed catalog cache.
@@ -430,6 +433,15 @@ router.get("/cards/lookup", (req, res, next) => {
         pricing,
         freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." },
       };
+      };
+      const [primary, supplemental] = await Promise.all([
+        primaryLookup(), searchTcgcsv(name, cardNumber, setCode),
+      ]);
+      const merged = await mergeScanCatalog(primary, supplemental, { name, cardNumber, setCode },
+        (card) => fetchPricingById(card.id, card.name, card.rarity ?? undefined, {
+          name: card.name, setName: card.setName, cardNumber: card.cardNumber,
+        }));
+      return { ...primary, ...merged };
     });
   const baseResponse = loaded.value;
   if (!resolvePrinting) {

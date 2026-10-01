@@ -7,9 +7,28 @@ import {
   pwGetCard,
   normalizeCatalogCard,
   enrichCatalogCardImages,
+  extractPokemonName,
+  type NormalizedCatalogCard,
 } from "../lib/pokewallet.js";
+import { getTcgcsvCard, getTcgcsvPricing, isTcgcsvId } from "../lib/tcgcsv.js";
 
 const router = Router();
+
+function normalizeTcgcsvWishlistCard(card: NonNullable<Awaited<ReturnType<typeof getTcgcsvCard>>>, marketPrice: number | null): NormalizedCatalogCard {
+  return {
+    id: card.id,
+    name: card.name,
+    pokemonName: extractPokemonName(card.name),
+    setName: card.setName ?? "",
+    setCode: card.setId ?? "",
+    cardNumber: card.cardNumber ?? "",
+    rarity: card.rarity ?? null,
+    imageUrl: card.imageUrl ?? "",
+    marketPrice,
+    tcgplayerUrl: null,
+    cardmarketUrl: null,
+  };
+}
 
 const wishlistSelect = {
   id: wishlistItemsTable.id,
@@ -40,7 +59,7 @@ router.get("/wishlist", requireAuth, async (req, res) => {
   // Backfill missing images via TCGdex for legacy rows saved before the
   // enrichment was wired in. Healed images are written back so subsequent
   // loads are instant.
-  const missing = items.filter((it) => !it.imageUrl);
+  const missing = items.filter((it) => !it.imageUrl && !it.catalogCardId.startsWith("tcgcsv_"));
   if (missing.length > 0) {
     const enriched = await enrichCatalogCardImages(
       missing.map((it) => ({
@@ -76,6 +95,18 @@ router.get("/wishlist", requireAuth, async (req, res) => {
     }
   }
 
+  const missingTcgcsv = items.filter((it) => !it.imageUrl && it.catalogCardId.startsWith("tcgcsv_"));
+  await Promise.all(missingTcgcsv.map(async (it) => {
+    if (!isTcgcsvId(it.catalogCardId)) return;
+    const card = await getTcgcsvCard(it.catalogCardId);
+    if (!card?.imageUrl) return;
+    await db
+      .update(wishlistItemsTable)
+      .set({ imageUrl: card.imageUrl })
+      .where(eq(wishlistItemsTable.id, it.id));
+    it.imageUrl = card.imageUrl;
+  }));
+
   res.json(items.reverse());
 });
 
@@ -88,20 +119,35 @@ router.post("/wishlist", requireAuth, async (req, res) => {
   }
   const { catalogCardId, priority, notes, categoryId } = parsed.data;
 
-  const lookup = await pwGetCard(catalogCardId);
-  if (!lookup.ok) {
-    res.status(lookup.reason === "NOT_FOUND" ? 404 : 503).json({
-      error:
-        lookup.reason === "NOT_FOUND"
-          ? "Catalog card not found"
-          : "Catalog temporarily unavailable",
-    });
-    return;
+  let normalized: NormalizedCatalogCard;
+  if (catalogCardId.startsWith("tcgcsv_")) {
+    if (!isTcgcsvId(catalogCardId)) {
+      res.status(404).json({ error: "Catalog card not found" });
+      return;
+    }
+    const card = await getTcgcsvCard(catalogCardId);
+    if (!card) {
+      res.status(404).json({ error: "Catalog card not found" });
+      return;
+    }
+    const pricing = await getTcgcsvPricing(catalogCardId);
+    normalized = normalizeTcgcsvWishlistCard(card, pricing.marketPrice ?? null);
+  } else {
+    const lookup = await pwGetCard(catalogCardId);
+    if (!lookup.ok) {
+      res.status(lookup.reason === "NOT_FOUND" ? 404 : 503).json({
+        error:
+          lookup.reason === "NOT_FOUND"
+            ? "Catalog card not found"
+            : "Catalog temporarily unavailable",
+      });
+      return;
+    }
+    const [enriched] = await enrichCatalogCardImages([
+      normalizeCatalogCard(lookup.data),
+    ]);
+    normalized = enriched;
   }
-  const [enriched] = await enrichCatalogCardImages([
-    normalizeCatalogCard(lookup.data),
-  ]);
-  const normalized = enriched;
 
   const [inserted] = await db
     .insert(wishlistItemsTable)

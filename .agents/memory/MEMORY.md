@@ -1,3 +1,4 @@
 - [Set rarity ordering](set-rarity-ordering.md) — use each expansion’s accompanying checklist book as the authority for rarity section order.
 - [TypeSafe integration](typesafe-integration.md) — call Jev through its documented HTTP API and keep deterministic catalog and pricing gates authoritative.
 - [Publish-safe PostgreSQL indexes](publish-safe-postgres-indexes.md) — verify expression indexes in the publish diff; prefer structures Replit can introspect reliably.
+- [TCGCSV contracts](tcgcsv-contracts.md) — static prices and catalogs have different envelopes; daily product/finish pricing does not include condition or graded values.

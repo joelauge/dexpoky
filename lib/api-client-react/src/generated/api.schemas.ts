@@ -906,6 +906,8 @@ export type CatalogSearchResponseSource =
 export const CatalogSearchResponseSource = {
   pokewallet: "pokewallet",
   tcgdex: "tcgdex",
+  tcgcsv: "tcgcsv",
+  mixed: "mixed",
   empty: "empty",
 } as const;
 
