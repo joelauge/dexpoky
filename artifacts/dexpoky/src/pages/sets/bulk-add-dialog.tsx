@@ -181,7 +181,7 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
         normalizeSetCardNumber(detected.cardNumber) === normalizeSetCardNumber(card.cardNumber);
       if (!nameMatches || !numberMatches) {
         const detectedLabel = `${detected.pokemonName}${detected.cardNumber ? ` #${detected.cardNumber}` : ""}`;
-        updateDetection("mismatch", `Photo looks like ${detectedLabel}, not ${card.name}${card.cardNumber ? ` #${card.cardNumber}` : ""}.`);
+        updateDetection("mismatch", `Photo check suggests ${detectedLabel}, rather than ${card.name}${card.cardNumber ? ` #${card.cardNumber}` : ""}. You can still save your photo with the card you selected.`);
       } else if (detected.confidence === "low") {
         updateDetection("uncertain", "Photo appears to match, but detection confidence is low.");
       } else {
@@ -324,7 +324,7 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
                         {detections[card.id] && (
                           <div className={`flex items-start gap-1.5 text-[11px] ${
                             detections[card.id].status === "match" ? "text-emerald-700" :
-                            detections[card.id].status === "mismatch" ? "text-destructive" : "text-amber-700"
+                            "text-amber-700"
                           }`}>
                             {detections[card.id].status === "checking" ? <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" /> :
                               detections[card.id].status === "match" ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> :
@@ -353,10 +353,7 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
             onSuccess();
             setResult(null);
             onOpenChange(false);
-          } : handleSave} disabled={bulkCreate.isPending || Object.values(uploadingPhotos).some(Boolean) || selectedCards.some((card) => {
-            const status = detections[card.id]?.status;
-            return status === "checking" || status === "mismatch";
-          })}>
+          } : handleSave} disabled={bulkCreate.isPending || Object.values(uploadingPhotos).some(Boolean)}>
             {bulkCreate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {result ? "Done" : "Save to Collection"}
           </Button>

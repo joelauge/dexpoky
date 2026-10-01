@@ -4,3 +4,4 @@
 - [TCGCSV contracts](tcgcsv-contracts.md) — static prices and catalogs have different envelopes; daily product/finish pricing does not include condition or graded values.
 - [Elevated button placement](elevated-button-placement.md) — position a wrapper, not a shared Button; elevation CSS can override its absolute positioning.
 - [Set catalog loading](set-catalog-loading.md) — keep cold Sets index enrichment bounded; load matched product catalogs lazily on set detail.
+- [Personal photo authority](personal-photo-authority.md) — photo identity suggestions are advisory; never block saving the human-selected card/photo.
