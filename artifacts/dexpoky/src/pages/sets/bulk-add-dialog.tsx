@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { 
   useBulkCreateCards, 
   useListCollections,
@@ -27,6 +27,7 @@ import {
 import { AlertTriangle, CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { CardImageUpload } from "@/components/card-image-upload";
+import { normalizeSetCardNumber } from "@/lib/set-completion";
 
 function normalizeCatalogRarity(rarity?: string | null): BulkCreateCardInput["rarity"] {
   switch (rarity?.trim().toLowerCase()) {
@@ -63,6 +64,9 @@ interface BulkAddDialogProps {
 export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSuccess }: BulkAddDialogProps) {
   const [collectionId, setCollectionId] = useState<string>("none");
   const [cardValues, setCardValues] = useState<Record<string, { value: string, photo: string | null }>>({});
+  const [uploadingPhotos, setUploadingPhotos] = useState<Record<string, boolean>>({});
+  const photoSession = useRef(0);
+  const detectionRequests = useRef<Record<string, number>>({});
   const [marketData, setMarketData] = useState<Record<string, { marketPrice: number | null; lowPrice: number | null; source: string | null; loading: boolean }>>({});
   const [detections, setDetections] = useState<Record<string, {
     status: "checking" | "match" | "mismatch" | "uncertain" | "error";
@@ -76,6 +80,16 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
   });
 
   const bulkCreate = useBulkCreateCards();
+
+  useEffect(() => {
+    photoSession.current += 1;
+    if (!open) {
+      setCardValues({});
+      setUploadingPhotos({});
+      setDetections({});
+      setResult(null);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open || selectedCards.length === 0) return;
@@ -125,15 +139,25 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
       ...prev,
       [id]: { ...prev[id], photo }
     }));
-    if (!photo) setDetections((current) => {
+    if (!photo) {
+      detectionRequests.current[id] = (detectionRequests.current[id] ?? 0) + 1;
+      setDetections((current) => {
       const next = { ...current };
       delete next[id];
       return next;
-    });
+      });
+    }
   };
 
   const detectUploadedCard = async (card: BulkAddDialogProps["selectedCards"][number], imageData: string) => {
-    setDetections((current) => ({ ...current, [card.id]: { status: "checking", message: "Checking the uploaded card…" } }));
+    const session = photoSession.current;
+    const request = (detectionRequests.current[card.id] ?? 0) + 1;
+    detectionRequests.current[card.id] = request;
+    const updateDetection = (status: "checking" | "match" | "mismatch" | "uncertain" | "error", message: string) => {
+      if (photoSession.current !== session || detectionRequests.current[card.id] !== request) return;
+      setDetections((current) => ({ ...current, [card.id]: { status, message } }));
+    };
+    updateDetection("checking", "Checking the uploaded card…");
     try {
       const response = await fetch("/api/cards/identify", {
         method: "POST",
@@ -148,22 +172,23 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
         cardNumber?: string | null;
       };
       if (!detected.detected || !detected.pokemonName) {
-        setDetections((current) => ({ ...current, [card.id]: { status: "uncertain", message: "Card details could not be confirmed from this photo." } }));
+        updateDetection("uncertain", "Card details could not be confirmed from this photo.");
         return;
       }
       const normalize = (value?: string | null) => (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
       const nameMatches = normalize(detected.pokemonName) === normalize(card.name);
-      const numberMatches = !detected.cardNumber || !card.cardNumber || normalize(detected.cardNumber) === normalize(card.cardNumber);
+      const numberMatches = !detected.cardNumber || !card.cardNumber ||
+        normalizeSetCardNumber(detected.cardNumber) === normalizeSetCardNumber(card.cardNumber);
       if (!nameMatches || !numberMatches) {
         const detectedLabel = `${detected.pokemonName}${detected.cardNumber ? ` #${detected.cardNumber}` : ""}`;
-        setDetections((current) => ({ ...current, [card.id]: { status: "mismatch", message: `Photo looks like ${detectedLabel}, not ${card.name}${card.cardNumber ? ` #${card.cardNumber}` : ""}.` } }));
+        updateDetection("mismatch", `Photo looks like ${detectedLabel}, not ${card.name}${card.cardNumber ? ` #${card.cardNumber}` : ""}.`);
       } else if (detected.confidence === "low") {
-        setDetections((current) => ({ ...current, [card.id]: { status: "uncertain", message: "Photo appears to match, but detection confidence is low." } }));
+        updateDetection("uncertain", "Photo appears to match, but detection confidence is low.");
       } else {
-        setDetections((current) => ({ ...current, [card.id]: { status: "match", message: `Photo matches ${card.name}${card.cardNumber ? ` #${card.cardNumber}` : ""}.` } }));
+        updateDetection("match", `Photo matches ${card.name}${card.cardNumber ? ` #${card.cardNumber}` : ""}.`);
       }
     } catch {
-      setDetections((current) => ({ ...current, [card.id]: { status: "error", message: "Photo detection is temporarily unavailable. You can retry by replacing the photo." } }));
+      updateDetection("error", "Photo detection is temporarily unavailable. You can retry by replacing the photo.");
     }
   };
 
@@ -209,6 +234,7 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
       if (!nextOpen) {
         setResult(null);
         setCardValues({});
+        setUploadingPhotos({});
         setMarketData({});
         setDetections({});
       }
@@ -288,7 +314,9 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
                       <div className="space-y-1.5">
                         <label className="text-xs font-medium text-muted-foreground">Personal Photo (Optional)</label>
                         <CardImageUpload 
+                          allowCamera
                           value={cv.photo} 
+                          onUploadingChange={(uploading) => setUploadingPhotos((current) => ({ ...current, [card.id]: uploading }))}
                           onChange={(url) => handleUpdatePhoto(card.id, url)}
                           onFileSelected={(_file, imageData) => detectUploadedCard(card, imageData)}
                           className="[&_button]:w-full [&_button]:max-w-40 [&>div]:max-w-full"
@@ -318,14 +346,14 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
             if (result) onSuccess();
             setResult(null);
             onOpenChange(false);
-          }} disabled={bulkCreate.isPending}>
+          }} disabled={bulkCreate.isPending || Object.values(uploadingPhotos).some(Boolean)}>
             Cancel
           </Button>
           <Button onClick={result ? () => {
             onSuccess();
             setResult(null);
             onOpenChange(false);
-          } : handleSave} disabled={bulkCreate.isPending || selectedCards.some((card) => {
+          } : handleSave} disabled={bulkCreate.isPending || Object.values(uploadingPhotos).some(Boolean) || selectedCards.some((card) => {
             const status = detections[card.id]?.status;
             return status === "checking" || status === "mismatch";
           })}>

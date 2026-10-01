@@ -1,7 +1,7 @@
 import { pgTable, serial, integer, text, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { cardsTable } from "./cards";
 
-export const gradingCompanyEnum = ["psa", "bgs", "cgc"] as const;
+export const gradingCompanyEnum = ["psa", "bgs", "cgc", "tag"] as const;
 export const gradingStatusEnum = ["pending", "verified", "rejected"] as const;
 
 export const cardGradingCertsTable = pgTable("card_grading_certs", {

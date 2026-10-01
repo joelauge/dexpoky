@@ -6,6 +6,7 @@ import {
   rankTcgResults,
   type TcgResult,
 } from "./detect-helpers.js";
+import { isGradedSlabListingTitle } from "../lib/grading.js";
 
 function card(
   id: string,
@@ -151,5 +152,19 @@ describe("exact TCGdex pricing", () => {
 
   it("returns no price when exact-printing data is unavailable", () => {
     expect(extractTcgdexDetailPricing({ variants_detailed: [] })).toBeNull();
+  });
+});
+
+describe("graded slab listing detection", () => {
+  it.each(["PSA 10", "BGS 9.5", "CGC 9", "TAG 10", "SGC 10", "ACE 9"])(
+    "recognizes %s slabs",
+    (title) => {
+      expect(isGradedSlabListingTitle(title)).toBe(true);
+    },
+  );
+
+  it("does not classify raw listings as graded slabs", () => {
+    expect(isGradedSlabListingTitle("Charizard from Base Set")).toBe(false);
+    expect(isGradedSlabListingTitle("Tag team card")).toBe(false);
   });
 });

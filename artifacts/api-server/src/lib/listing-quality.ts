@@ -79,7 +79,7 @@ export function listingHardIssues(
   if (claimsMint && !["mint", "near mint"].includes(condition)) {
     issues.push(`The description claims mint condition, but the saved condition is ${condition}.`);
   }
-  if (/\b(psa|bgs|cgc)\s*(10|9\.5|9|8\.5|8)\b|\bcertified\b|\bgraded\b/.test(description) && !hasVerifiedGrade) {
+  if (/\b(psa|bgs|cgc|tag)\s*(10|9\.5|9|8\.5|8)\b|\bcertified\b|\bgraded\b/.test(description) && !hasVerifiedGrade) {
     issues.push("Remove the grading/certification claim or verify the grading certificate first.");
   }
   return issues;

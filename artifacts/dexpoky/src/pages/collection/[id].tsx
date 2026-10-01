@@ -9,8 +9,9 @@ import { formatCurrency, formatLabel, CONDITION_COLORS, RARITY_COLORS } from "@/
 import {
   ArrowLeft, Edit2, Trash2, Store, Tag, ImageIcon, ExternalLink,
   ChevronLeft, ChevronRight, LayoutList, FolderOpen, Layers, TrendingUp, Loader2, Calendar, Clock,
-  Share2, Camera, Maximize2, BookOpen, CheckCircle2, ShieldCheck,
+  Share2, BookOpen, CheckCircle2, ShieldCheck,
 } from "lucide-react";
+import { CardMediaGallery } from "@/components/card-media-gallery";
 import { GradingVerification } from "@/components/grading-verification";
 import { CardConfidenceScorecard } from "@/components/card-confidence-scorecard";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,7 +41,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 
 interface TcgVariant {
@@ -375,6 +375,9 @@ export default function CardDetail() {
         <div className="flex flex-col lg:flex-row gap-10 items-start">
           {/* ── LEFT: Card Image + Nav + Sell CTA + Notes ─────────────── */}
           <div className="w-full lg:w-[320px] xl:w-[360px] lg:shrink-0">
+            <CardMediaGallery
+              card={card}
+              catalogPreview={(
             <HoloCard imageUrl={card.imageUrl} name={card.name}>
               {card.forSale && (
                 <div className="absolute top-3 right-3">
@@ -384,6 +387,8 @@ export default function CardDetail() {
                 </div>
               )}
             </HoloCard>
+              )}
+            />
 
             {/* Prev / Next (Duplicate Navigation) */}
             {duplicateCopies.length > 1 && (
@@ -562,50 +567,6 @@ export default function CardDetail() {
                 )}
               </div>
             </div>
-
-            {/* Original Scan */}
-            {card.originalScanUrl && (
-              <div className="mt-6 bg-card border rounded-2xl p-4">
-                <div className="flex items-center gap-1.5 mb-3">
-                  <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Original Scan</p>
-                </div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <button
-                      type="button"
-                      className="relative group block w-full overflow-hidden rounded-xl border bg-muted"
-                      style={{ aspectRatio: "5 / 7" }}
-                    >
-                      <img
-                        src={card.originalScanUrl}
-                        alt={`Original scan of ${card.name}`}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-2">
-                          <Maximize2 className="h-4 w-4 text-foreground" />
-                        </div>
-                      </div>
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl p-2 bg-background">
-                    <DialogHeader className="sr-only">
-                      <DialogTitle>Original scan of {card.name}</DialogTitle>
-                    </DialogHeader>
-                    <img
-                      src={card.originalScanUrl}
-                      alt={`Original scan of ${card.name}`}
-                      className="w-full h-auto rounded-lg"
-                    />
-                  </DialogContent>
-                </Dialog>
-                <p className="text-[11px] text-muted-foreground mt-2">
-                  The photo you took when adding this card.
-                </p>
-              </div>
-            )}
           </div>
 
           {/* ── RIGHT: Identity + Value + Chart + Printings ───────────── */}

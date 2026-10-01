@@ -59,6 +59,115 @@ describe("set completion", () => {
     expect(completion.firstOwnedCardIdMap.get("sv3pt5-001")).toBe(30);
   });
 
+  it("maps exact TCGCSV and TCGDEX catalog aliases to one canonical card", () => {
+    const aliasedSet = {
+      ...set,
+      cards: [
+        {
+          ...set.cards[0],
+          catalogIds: ["tcgcsv_300_1", "tcgdex_sv3pt5-001"],
+        },
+        ...set.cards.slice(1),
+      ],
+    };
+    const completion = getSetCompletion(aliasedSet, [
+      { id: 35, catalogCardId: "tcgcsv_300_1" },
+      { id: 36, catalogCardId: "tcgdex_sv3pt5-001" },
+    ]);
+
+    expect([...completion.ownedCardKeys]).toEqual(["sv3pt5-001"]);
+    expect(completion.ownedCount).toBe(1);
+    expect(completion.totalPhysicalCount).toBe(2);
+    expect(completion.firstOwnedCardIdMap.get("sv3pt5-001")).toBe(35);
+  });
+
+  it("matches source-only CSV set IDs and exact catalog card IDs from a set summary", () => {
+    const summary = {
+      id: "sv09",
+      name: "Journey Together",
+      totalCards: 1,
+      catalogSetIds: ["tcgcsv_300"],
+      cards: [
+        {
+          id: "tcgcsv_300_1",
+          localId: "001",
+          name: "Pokemon",
+        },
+      ],
+    };
+    const completion = getSetCompletion(summary, [
+      { id: 37, catalogCardId: "tcgcsv_300_1" },
+    ]);
+
+    expect([...completion.ownedCardKeys]).toEqual(["tcgcsv_300_1"]);
+    expect(completion.ownedCount).toBe(1);
+  });
+
+  it("normalizes numerator card numbers before matching local IDs", () => {
+    const paddedNumberMatch = getSetCompletion(
+      {
+        id: "numbered",
+        name: "Numbered Set",
+        totalCards: 1,
+        cards: [{ id: "numbered-4", localId: "004", name: "Four" }],
+      },
+      [{ id: 38, setName: "Numbered Set", cardNumber: "4/088" }],
+    );
+    const numeratorMatch = getSetCompletion(
+      {
+        id: "numbered",
+        name: "Numbered Set",
+        totalCards: 1,
+        cards: [{ id: "numbered-4", localId: "0004", name: "Four" }],
+      },
+      [{ id: 39, setName: "Numbered Set", cardNumber: "004/088" }],
+    );
+
+    expect([...paddedNumberMatch.ownedCardKeys]).toEqual(["numbered-4"]);
+    expect([...numeratorMatch.ownedCardKeys]).toEqual(["numbered-4"]);
+  });
+
+  it("does not fall back to matching set name and number for another explicit catalog group", () => {
+    const completion = getSetCompletion(set, [
+      {
+        id: 40,
+        catalogCardId: "other-001",
+        setName: set.name,
+        cardNumber: "001",
+      },
+    ]);
+
+    expect(completion.ownedCardKeys.size).toBe(0);
+    expect(completion.ownedCount).toBe(0);
+  });
+
+  it("counts merged set-index aliases once by printed card number", () => {
+    const completion = getSetCompletion(
+      {
+        id: "merged-set",
+        name: "Merged Set",
+        totalCards: 10,
+        catalogSetIds: ["tcgcsv_300", "tcgcsv_301"],
+      },
+      [
+        {
+          id: 41,
+          catalogCardId: "tcgcsv_300_1",
+          cardNumber: "004/088",
+        },
+        {
+          id: 42,
+          catalogCardId: "tcgcsv_301_1",
+          cardNumber: "4/088",
+        },
+      ],
+    );
+
+    expect([...completion.ownedCardKeys]).toEqual(["4"]);
+    expect(completion.ownedCount).toBe(1);
+    expect(completion.totalPhysicalCount).toBe(2);
+  });
+
   it("keeps owned, missing, search, and completion totals consistent", () => {
     const completion = getSetCompletion(set, [
       { id: 40, catalogCardId: "sv3pt5-001" },

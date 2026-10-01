@@ -132,6 +132,49 @@ router.post("/wishlist", requireAuth, async (req, res) => {
     }
     const pricing = await getTcgcsvPricing(catalogCardId);
     normalized = normalizeTcgcsvWishlistCard(card, pricing.marketPrice ?? null);
+  } else if (/^[a-z][a-z0-9.]*-[a-z0-9]+$/i.test(catalogCardId)) {
+    // Set checklists use TCGdex IDs, not PokeWallet IDs. Never ask another
+    // catalog to interpret this ID and silently save a different printing.
+    try {
+      const response = await fetch(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(catalogCardId)}`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) {
+        res.status(response.status === 404 ? 404 : 503).json({ error: response.status === 404 ? "Catalog card not found" : "Catalog temporarily unavailable" });
+        return;
+      }
+      const card = await response.json() as {
+        id: string; name: string; localId: string; rarity?: string | null;
+        image?: string | null; set: { id: string; name: string };
+        pricing?: { tcgplayer?: {
+          normal?: { marketPrice?: number | null };
+          holofoil?: { marketPrice?: number | null };
+        } };
+      };
+      if (card.id !== catalogCardId || !card.name || !card.localId ||
+          card.set?.id !== catalogCardId.slice(0, catalogCardId.lastIndexOf("-")) || !card.set.name) {
+        res.status(502).json({ error: "Catalog returned a different card" });
+        return;
+      }
+      const quotedPrice = card.pricing?.tcgplayer?.normal?.marketPrice ??
+        card.pricing?.tcgplayer?.holofoil?.marketPrice;
+      normalized = {
+        id: card.id,
+        name: card.name,
+        pokemonName: extractPokemonName(card.name),
+        setName: card.set.name,
+        setCode: card.set.id,
+        cardNumber: card.localId,
+        rarity: card.rarity ?? null,
+        imageUrl: card.image?.startsWith("https://assets.tcgdex.net/") ? `${card.image}/high.png` : "",
+        marketPrice: typeof quotedPrice === "number" && Number.isFinite(quotedPrice) && quotedPrice >= 0 ? quotedPrice : null,
+        tcgplayerUrl: null,
+        cardmarketUrl: null,
+      };
+    } catch {
+      res.status(503).json({ error: "Catalog temporarily unavailable" });
+      return;
+    }
   } else {
     const lookup = await pwGetCard(catalogCardId);
     if (!lookup.ok) {

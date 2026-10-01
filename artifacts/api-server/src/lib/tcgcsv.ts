@@ -11,12 +11,14 @@ const PRICE_TTL_MS = 30 * 60 * 1000;
 const MAX_CACHED_COLLECTIONS = 256;
 const MAX_INFLIGHT_GROUPS = 4;
 
-interface TcgcsvGroup {
+export interface TcgcsvPokemonGroup {
   groupId: number;
   categoryId: number;
   name: string;
   abbreviation: string;
 }
+
+type TcgcsvGroup = TcgcsvPokemonGroup;
 
 interface CatalogProduct {
   productId: number;
@@ -321,9 +323,12 @@ function extendedValue(product: CatalogProduct, wanted: string): string {
 function isNumberedSingle(product: CatalogProduct): boolean {
   const number = extendedValue(product, "number");
   const cardType = extendedValue(product, "cardtype").toLowerCase();
+  const hasPokemonStats = !!extendedValue(product, "hp") && !!extendedValue(product, "stage");
+  const elementalPokemonType = /^(?:grass|fire|water|lightning|electric|psychic|fighting|darkness|dark|metal|steel|colorless|dragon)$/.test(cardType);
   return !!number &&
     !/^(?:n\/?a|none|unknown|-)$/i.test(number) &&
-    /pokemon|pokémon|trainer|ener(?:gy|gies)/.test(cardType);
+    (/pokemon|pokémon|trainer|tool|ener(?:gy|gies)/.test(cardType) ||
+      (elementalPokemonType && hasPokemonStats));
 }
 
 function safeImageUrl(product: CatalogProduct): string {
@@ -392,6 +397,22 @@ async function loadGroupCards(group: TcgcsvGroup): Promise<TcgResult[] | null> {
   return products
     .map((product) => cardFromProduct(product, group))
     .filter((card): card is TcgResult => card !== null);
+}
+
+/**
+ * Returns the complete, validated English Pokemon group index. Product lists
+ * are deliberately loaded separately so callers can select only relevant sets.
+ */
+export async function getTcgcsvPokemonGroups(): Promise<TcgcsvPokemonGroup[] | null> {
+  return await getGroups();
+}
+
+/** Returns only numbered Pokemon, Trainer, and Energy singles from one group. */
+export async function getTcgcsvPokemonGroupCards(groupId: number): Promise<TcgResult[] | null> {
+  const groups = await getGroups();
+  const group = groups?.find((candidate) => candidate.groupId === groupId);
+  if (!group) return groups === null ? null : [];
+  return await loadGroupCards(group);
 }
 
 async function loadCardsBounded(groups: TcgcsvGroup[]): Promise<TcgResult[][] | null> {

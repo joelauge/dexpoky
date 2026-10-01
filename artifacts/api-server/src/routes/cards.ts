@@ -16,6 +16,7 @@ import {
   enrichCatalogCardImages,
 } from "../lib/pokewallet.js";
 import { eq, sql, ilike, and, inArray, type SQL } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { getAuth } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { evaluateCardConfidence, type CardConfidenceInput } from "../lib/card-confidence.js";
@@ -24,6 +25,15 @@ import { selectScanPrinting, type ScanPrintingCandidate } from "../lib/scan-prin
 import { resolveRankedScan } from "../lib/scan-lookup-ranking.js";
 import { searchTcgcsv } from "../lib/tcgcsv.js";
 import { mergeScanCatalog } from "../lib/scan-catalog-merge.js";
+import { ObjectStorageService } from "../lib/objectStorage.js";
+import {
+  canonicalCardMediaObjectPath,
+  CardMediaInspectorUnavailableError,
+  CardMediaValidationError,
+  inspectStoredCardMedia,
+  verifyCardMediaUploadClaim,
+  type CardMediaInput,
+} from "../lib/card-media.js";
 import {
   ListCardsQueryParams,
   CreateCardBody,
@@ -33,9 +43,11 @@ import {
   GetCardParams,
   UpdateCardParams,
   DeleteCardParams,
+  AddCardMediaBody,
 } from "@workspace/api-zod";
 
 const router = Router();
+const objectStorageService = new ObjectStorageService();
 const scanLookupCache = new BoundedAsyncCache<{
   card: TcgResult | null;
   variants: TcgResult[];
@@ -117,6 +129,7 @@ const cardSelect = {
   condition: cardsTable.condition,
   imageUrl: cardsTable.imageUrl,
   originalScanUrl: cardsTable.originalScanUrl,
+  media: cardsTable.media,
   catalogCardId: cardsTable.catalogCardId,
   estimatedValue: sql<number | null>`${cardsTable.estimatedValue}::float`,
   acquiredDate: cardsTable.acquiredDate,
@@ -524,6 +537,136 @@ router.get("/cards/pricing", async (req, res) => {
   const ebayContext = name ? { name, setName, cardNumber } : undefined;
   const pricing = await fetchPricingById(cardId, name, rarity, ebayContext);
   res.json({ pricing });
+});
+
+router.post("/cards/:id/media", requireAuth, async (req, res): Promise<void> => {
+  const cardId = Number(req.params.id);
+  if (!Number.isSafeInteger(cardId) || cardId <= 0) {
+    res.status(400).json({ error: "Invalid card id" });
+    return;
+  }
+  const parsed = AddCardMediaBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid media request", details: parsed.error });
+    return;
+  }
+  if (!Number.isSafeInteger(parsed.data.width) || !Number.isSafeInteger(parsed.data.height)) {
+    res.status(400).json({ error: "Media dimensions must be integers" });
+    return;
+  }
+
+  const userId = (req as AuthRequest).userId;
+  const [card] = await db.select({ ownerClerkId: cardsTable.ownerClerkId })
+    .from(cardsTable).where(eq(cardsTable.id, cardId));
+  if (!card) { res.status(404).json({ error: "Card not found" }); return; }
+  if (card.ownerClerkId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const input = parsed.data as CardMediaInput;
+  const objectPath = canonicalCardMediaObjectPath(input.url);
+  if (!objectPath) {
+    res.status(400).json({ error: "Media URL must be an uploaded /api/storage/objects/... file" });
+    return;
+  }
+  let validClaim: boolean;
+  try {
+    validClaim = verifyCardMediaUploadClaim(input.uploadClaim, userId, objectPath);
+  } catch {
+    res.status(500).json({ error: "Card media upload proof verification is not configured on this server" });
+    return;
+  }
+  if (!validClaim) {
+    res.status(403).json({ error: "Upload proof is invalid, expired, or belongs to another user" });
+    return;
+  }
+
+  let verified: Awaited<ReturnType<typeof inspectStoredCardMedia>>;
+  try {
+    const file = await objectStorageService.getObjectEntityFile(objectPath);
+    verified = await inspectStoredCardMedia(file, input);
+  } catch (error) {
+    if (error instanceof CardMediaInspectorUnavailableError) {
+      res.status(503).json({ error: error.message });
+      return;
+    }
+    if (error instanceof CardMediaValidationError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    const notFound = error instanceof Error && error.name === "ObjectNotFoundError";
+    if (notFound) {
+      res.status(400).json({ error: "Upload is not present in object storage yet" });
+      return;
+    }
+    req.log.error({ err: error }, "Failed to inspect uploaded card media");
+    res.status(500).json({ error: "Unable to verify uploaded media" });
+    return;
+  }
+
+  const media = {
+    id: randomUUID(),
+    url: input.url,
+    kind: input.kind,
+    width: verified.width,
+    height: verified.height,
+    ...(input.kind === "video" ? { durationSeconds: verified.durationSeconds } : {}),
+  };
+  const [updated] = await db.update(cardsTable)
+    .set({
+      media: sql`coalesce(${cardsTable.media}, '[]'::jsonb) || ${JSON.stringify([media])}::jsonb`,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(cardsTable.id, cardId),
+      eq(cardsTable.ownerClerkId, userId),
+      sql`jsonb_array_length(coalesce(${cardsTable.media}, '[]'::jsonb)) < 20`,
+    ))
+    .returning({ id: cardsTable.id });
+  if (!updated) {
+    const [current] = await db.select({
+      ownerClerkId: cardsTable.ownerClerkId,
+      id: cardsTable.id,
+    }).from(cardsTable).where(eq(cardsTable.id, cardId));
+    if (!current) { res.status(404).json({ error: "Card not found" }); return; }
+    if (current.ownerClerkId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+    res.status(409).json({ error: "This card already has the maximum of 20 gallery items" });
+    return;
+  }
+  res.status(201).json(media);
+});
+
+router.delete("/cards/:id/media/:mediaId", requireAuth, async (req, res): Promise<void> => {
+  const cardId = Number(req.params.id);
+  const mediaIdParam = req.params.mediaId;
+  if (!Number.isSafeInteger(cardId) || cardId <= 0 ||
+      typeof mediaIdParam !== "string" || !/^[0-9a-f-]{36}$/i.test(mediaIdParam)) {
+    res.status(400).json({ error: "Invalid card or media id" });
+    return;
+  }
+  const mediaId = mediaIdParam;
+  const userId = (req as AuthRequest).userId;
+  const [card] = await db.select({ ownerClerkId: cardsTable.ownerClerkId })
+    .from(cardsTable).where(eq(cardsTable.id, cardId));
+  if (!card) { res.status(404).json({ error: "Card not found" }); return; }
+  if (card.ownerClerkId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const matchingMedia = sql`EXISTS (
+    SELECT 1 FROM jsonb_array_elements(coalesce(${cardsTable.media}, '[]'::jsonb)) AS entry(value)
+    WHERE entry.value->>'id' = ${mediaId}
+  )`;
+  const [removed] = await db.update(cardsTable)
+    .set({
+      media: sql`coalesce((
+        SELECT jsonb_agg(item.value ORDER BY item.ordinality)
+        FROM jsonb_array_elements(coalesce(${cardsTable.media}, '[]'::jsonb))
+          WITH ORDINALITY AS item(value, ordinality)
+        WHERE item.value->>'id' <> ${mediaId}
+      ), '[]'::jsonb)`,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(cardsTable.id, cardId), eq(cardsTable.ownerClerkId, userId), matchingMedia))
+    .returning({ id: cardsTable.id });
+  if (!removed) { res.status(404).json({ error: "Gallery item not found" }); return; }
+  res.status(204).send();
 });
 
 router.get("/cards/:id", async (req, res) => {

@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AddCardMediaBody,
   AddDeckCardBody,
   AddWishlistBody,
   AssistantConfirmBody,
@@ -31,6 +32,7 @@ import type {
   Card,
   CardConfidenceInput,
   CardConfidenceResult,
+  CardMedia,
   CatalogCardDetail,
   CatalogSearchResponse,
   Category,
@@ -1382,6 +1384,178 @@ export const useDeleteCard = <
   TContext
 > => {
   return useMutation(getDeleteCardMutationOptions(options));
+};
+
+/**
+ * @summary Attach an uploaded photo or short video to an owned card
+ */
+export const getAddCardMediaUrl = (id: number) => {
+  return `/api/cards/${id}/media`;
+};
+
+export const addCardMedia = async (
+  id: number,
+  addCardMediaBody: AddCardMediaBody,
+  options?: RequestInit,
+): Promise<CardMedia> => {
+  return customFetch<CardMedia>(getAddCardMediaUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addCardMediaBody),
+  });
+};
+
+export const getAddCardMediaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addCardMedia>>,
+    TError,
+    { id: number; data: BodyType<AddCardMediaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addCardMedia>>,
+  TError,
+  { id: number; data: BodyType<AddCardMediaBody> },
+  TContext
+> => {
+  const mutationKey = ["addCardMedia"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addCardMedia>>,
+    { id: number; data: BodyType<AddCardMediaBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return addCardMedia(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddCardMediaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addCardMedia>>
+>;
+export type AddCardMediaMutationBody = BodyType<AddCardMediaBody>;
+export type AddCardMediaMutationError = ErrorType<void>;
+
+/**
+ * @summary Attach an uploaded photo or short video to an owned card
+ */
+export const useAddCardMedia = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addCardMedia>>,
+    TError,
+    { id: number; data: BodyType<AddCardMediaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addCardMedia>>,
+  TError,
+  { id: number; data: BodyType<AddCardMediaBody> },
+  TContext
+> => {
+  return useMutation(getAddCardMediaMutationOptions(options));
+};
+
+/**
+ * @summary Remove media from an owned card gallery
+ */
+export const getDeleteCardMediaUrl = (id: number, mediaId: string) => {
+  return `/api/cards/${id}/media/${mediaId}`;
+};
+
+export const deleteCardMedia = async (
+  id: number,
+  mediaId: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteCardMediaUrl(id, mediaId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCardMediaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCardMedia>>,
+    TError,
+    { id: number; mediaId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCardMedia>>,
+  TError,
+  { id: number; mediaId: string },
+  TContext
+> => {
+  const mutationKey = ["deleteCardMedia"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCardMedia>>,
+    { id: number; mediaId: string }
+  > = (props) => {
+    const { id, mediaId } = props ?? {};
+
+    return deleteCardMedia(id, mediaId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCardMediaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCardMedia>>
+>;
+
+export type DeleteCardMediaMutationError = ErrorType<void>;
+
+/**
+ * @summary Remove media from an owned card gallery
+ */
+export const useDeleteCardMedia = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCardMedia>>,
+    TError,
+    { id: number; mediaId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCardMedia>>,
+  TError,
+  { id: number; mediaId: string },
+  TContext
+> => {
+  return useMutation(getDeleteCardMediaMutationOptions(options));
 };
 
 /**

@@ -65,8 +65,8 @@ export default function SetDetail() {
     [wishlistItems],
   );
 
-  const addToWishlist = (card: { id: string; name: string }) => {
-    if (wishedCardIds.has(card.id) || savingCardId) return;
+  const addToWishlist = (card: { id: string; name: string; catalogIds?: string[] }) => {
+    if ([card.id, ...(card.catalogIds ?? [])].some((id) => wishedCardIds.has(id)) || savingCardId) return;
 
     setSavingCardId(card.id);
     addWishlistItem.mutate(
@@ -357,6 +357,12 @@ export default function SetDetail() {
         )}
 
         {/* Grid */}
+        {set?.catalogWarning && (
+          <div role="status" className="mb-6 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>{set.catalogWarning}</p>
+          </div>
+        )}
         {isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
             {[...Array(12)].map((_, i) => (
@@ -400,7 +406,7 @@ export default function SetDetail() {
               const ownedCardId = firstOwnedCardIdMap.get(card.id);
               const ownedCardIds = completion.ownedCardIdsMap.get(card.id) || [];
               const quantity = ownedCardIds.length;
-              const isWished = wishedCardIds.has(card.id);
+              const isWished = [card.id, ...(card.catalogIds ?? [])].some((id) => wishedCardIds.has(id));
               const isSaving = savingCardId === card.id;
               const isSelected = selectedCardIds.has(card.id);
               
@@ -449,31 +455,6 @@ export default function SetDetail() {
                       </div>
                     )}
 
-                    {!isOwned && !isSelectionMode && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={isWished ? "secondary" : "default"}
-                        disabled={isWished || isSaving || (!!savingCardId && !isSaving)}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          addToWishlist(card);
-                        }}
-                        className={cn(
-                          "absolute bottom-2 left-2 right-2 h-9 rounded-lg shadow-md",
-                          isWished && "bg-background/95 text-foreground",
-                        )}
-                        aria-label={isWished ? `${card.name} is saved to wishlist` : `Add ${card.name} to wishlist`}
-                      >
-                        {isSaving ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Heart className={cn("h-4 w-4 mr-1.5", isWished && "fill-current text-rose-500")} />
-                        )}
-                        {isSaving ? "Saving..." : isWished ? "Saved" : "Wishlist"}
-                      </Button>
-                    )}
-                    
                     {/* Holo foil effect overlay for owned cards */}
                     {isOwned && (
                       <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent opacity-0 hover:opacity-100 mix-blend-overlay transition-opacity duration-500 pointer-events-none" />
@@ -496,7 +477,9 @@ export default function SetDetail() {
 
               if (isSelectionMode) {
                 return (
-                  <div key={card.id} className="group block cursor-pointer" onClick={(e) => {
+                  <button key={card.id} type="button" aria-pressed={isSelected}
+                    aria-label={`${isSelected ? "Deselect" : "Select"} ${card.name} #${card.localId}`}
+                    className="group block w-full cursor-pointer focus:outline-none focus-visible:ring-2 ring-primary rounded-xl" onClick={(e) => {
                     e.preventDefault();
                     const next = new Set(selectedCardIds);
                     if (next.has(card.id)) next.delete(card.id);
@@ -504,7 +487,7 @@ export default function SetDetail() {
                     setSelectedCardIds(next);
                   }}>
                     {CardInner}
-                  </div>
+                  </button>
                 );
               }
 
@@ -513,8 +496,37 @@ export default function SetDetail() {
                   {CardInner}
                 </Link>
               ) : (
-                <div key={card.id} className="group block cursor-default">
-                  {CardInner}
+                <div key={card.id} className="group block">
+                  <button
+                    type="button"
+                    aria-label={`Add ${card.name} #${card.localId} to collection`}
+                    className="block w-full cursor-pointer focus:outline-none focus-visible:ring-2 ring-primary rounded-xl"
+                    onClick={() => {
+                      setSelectedCardIds(new Set([card.id]));
+                      setIsBulkAddOpen(true);
+                    }}
+                  >
+                    {CardInner}
+                  </button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={isWished ? "secondary" : "default"}
+                    disabled={isWished || isSaving || (!!savingCardId && !isSaving)}
+                    onClick={() => addToWishlist(card)}
+                    className={cn(
+                      "mt-2 w-full h-9 rounded-lg shadow-md",
+                      isWished && "bg-background/95 text-foreground",
+                    )}
+                    aria-label={isWished ? `${card.name} is saved to wishlist` : `Add ${card.name} to wishlist`}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Heart className={cn("h-4 w-4 mr-1.5", isWished && "fill-current text-rose-500")} />
+                    )}
+                    {isSaving ? "Saving..." : isWished ? "Saved" : "Wishlist"}
+                  </Button>
                 </div>
               );
                   })}

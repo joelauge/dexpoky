@@ -429,6 +429,65 @@ paths:
         "204":
           description: Deleted
 
+  /cards/{id}/media:
+    post:
+      operationId: addCardMedia
+      tags: [cards]
+      summary: Attach an uploaded photo or short video to an owned card
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCardMediaBody"
+      responses:
+        "201":
+          description: Attached media
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CardMedia"
+        "400":
+          description: Invalid media or upload proof
+        "403":
+          description: Not the card or upload owner
+        "404":
+          description: Card or uploaded file not found
+        "409":
+          description: Card media limit reached
+
+  /cards/{id}/media/{mediaId}:
+    delete:
+      operationId: deleteCardMedia
+      tags: [cards]
+      summary: Remove media from an owned card gallery
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: mediaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed from gallery without deleting shared file bytes
+        "404":
+          description: Card or media not found
+
   /cards/confidence:
     post:
       operationId: scoreCardConfidence
@@ -1808,6 +1867,10 @@ components:
         originalScanUrl:
           type: string
           nullable: true
+        media:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardMedia"
         catalogCardId:
           type: string
           nullable: true
@@ -1857,6 +1920,60 @@ components:
         - forSale
         - createdAt
         - updatedAt
+
+    CardMedia:
+      type: object
+      required: [id, url, kind, width, height]
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          description: App Storage serving path
+        kind:
+          type: string
+          enum: [image, video]
+        width:
+          type: integer
+          minimum: 1
+          maximum: 16384
+        height:
+          type: integer
+          minimum: 1
+          maximum: 16384
+        durationSeconds:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 60
+
+    AddCardMediaBody:
+      type: object
+      required: [url, kind, width, height, uploadClaim]
+      properties:
+        url:
+          type: string
+          pattern: "^/api/storage/objects/uploads/"
+        kind:
+          type: string
+          enum: [image, video]
+        width:
+          type: integer
+          minimum: 1
+          maximum: 16384
+        height:
+          type: integer
+          minimum: 1
+          maximum: 16384
+        durationSeconds:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 60
+        uploadClaim:
+          type: string
+          minLength: 1
+          description: Signed upload ownership proof returned by the upload URL request
 
     CreateCardBody:
       type: object
@@ -2353,6 +2470,11 @@ components:
           nullable: true
         totalCards:
           type: integer
+        catalogSetIds:
+          type: array
+          description: Verified equivalent set namespaces for matching owned cards across catalogs
+          items:
+            type: string
       required:
         - id
         - name
@@ -2373,6 +2495,11 @@ components:
         rarity:
           type: string
           nullable: true
+        catalogIds:
+          type: array
+          description: Verified catalog identities for this same checklist card, including its canonical id
+          items:
+            type: string
       required:
         - id
         - localId
@@ -2383,6 +2510,9 @@ components:
         - $ref: "#/components/schemas/PokemonSetSummary"
         - type: object
           properties:
+            catalogWarning:
+              type: string
+              description: Explains when supplemental catalog cards could not be verified
             cards:
               type: array
               items:
@@ -2413,6 +2543,9 @@ components:
           format: uri
         objectPath:
           type: string
+        uploadClaim:
+          type: string
+          description: Signed proof binding this upload path to its uploader for card media attachment
         metadata:
           $ref: '#/components/schemas/UploadUrlRequest'
 

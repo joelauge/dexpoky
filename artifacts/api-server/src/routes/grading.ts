@@ -4,6 +4,7 @@ import { db, cardsTable, cardGradingCertsTable } from "@workspace/db";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { z } from "zod";
 import type { Request, Response } from "express";
+import { submitGradingCertSchema } from "../lib/grading.js";
 
 const router = Router();
 
@@ -40,20 +41,14 @@ async function lookupPSACert(certNumber: string): Promise<{ ok: true; data: PSAC
   }
 }
 
-// BGS and CGC do not have clean public APIs — submit as pending for manual review
+// BGS, CGC, and TAG do not have a verified public API integration — submit as pending for manual review.
 // An admin can approve via PATCH /api/grading/:id/review
 
 // ── Submit cert ───────────────────────────────────────────────────────────────
 
-const submitSchema = z.object({
-  cardId: z.coerce.number().int().positive(),
-  gradingCompany: z.enum(["psa", "bgs", "cgc"]),
-  certNumber: z.string().min(1).max(50).trim(),
-});
-
 router.post("/grading/submit", requireAuth, async (req: Request, res: Response) => {
   const clerkId = (req as AuthRequest).userId;
-  const parsed = submitSchema.safeParse(req.body);
+  const parsed = submitGradingCertSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request", issues: parsed.error.issues });
     return;
@@ -140,7 +135,7 @@ router.post("/grading/submit", requireAuth, async (req: Request, res: Response) 
     return;
   }
 
-  // BGS / CGC — store as pending for admin review
+  // BGS / CGC / TAG — store as pending for admin review; do not claim public lookup verified them.
   const [cert] = await db
     .insert(cardGradingCertsTable)
     .values({
@@ -155,7 +150,9 @@ router.post("/grading/submit", requireAuth, async (req: Request, res: Response) 
   res.status(201).json({
     cert,
     verified: false,
-    message: `${gradingCompany.toUpperCase()} certs are reviewed manually. You'll be notified once approved (typically within 24 hours).`,
+    message: gradingCompany === "tag"
+      ? "TAG cert submitted as unverified and pending manual review. TAG grades are not automatically verified."
+      : `${gradingCompany.toUpperCase()} certs are reviewed manually. You'll be notified once approved (typically within 24 hours).`,
   });
 });
 
@@ -225,7 +222,7 @@ router.delete("/grading/:id", requireAuth, async (req: Request, res: Response) =
   res.status(204).end();
 });
 
-// ── Admin: approve / reject pending BGS/CGC certs ────────────────────────────
+// ── Admin: approve / reject pending BGS/CGC/TAG certs ────────────────────────
 
 router.patch("/grading/:id/review", requireAuth, async (req: Request, res: Response) => {
   const clerkId = (req as AuthRequest).userId;

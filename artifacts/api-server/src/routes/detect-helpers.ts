@@ -1,4 +1,5 @@
 import { getTcgcsvPricing } from "../lib/tcgcsv.js";
+import { isGradedSlabListingTitle } from "../lib/grading.js";
 
 const TCGDEX_BASE = "https://api.tcgdex.net/v2/en";
 const PTCGIO_BASE = "https://api.pokemontcg.io/v2";
@@ -191,7 +192,7 @@ function median(nums: number[]): number | null {
  * Returns null on failure. Cached in-memory for 1 hour per query.
  *
  * Filters out outliers (prices outside [25th-75th percentile ± 2.5×IQR])
- * and graded slabs (PSA/BGS/CGC mentions) so we report raw-card market values.
+ * and graded slabs (grading-company mentions) so we report raw-card market values.
  */
 export async function fetchEbaySoldPricing(
   name: string,
@@ -235,7 +236,7 @@ export async function fetchEbaySoldPricing(
       const title = (titleMatch?.[1] ?? "").replace(/<[^>]+>/g, "").trim();
       // Skip placeholder rows and graded slabs
       if (!title || /shop on ebay/i.test(title)) continue;
-      if (/\b(psa|bgs|cgc|sgc|ace)\s*\d/i.test(title)) continue;
+      if (isGradedSlabListingTitle(title)) continue;
 
       const priceMatch = block.match(/class="s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
       if (!priceMatch) continue;
@@ -755,7 +756,7 @@ const ebayActiveCache = new Map<string, { expires: number; data: EbayActiveListi
 /**
  * Scrape eBay's Buy-It-Now active listings for a card name + optional set name,
  * up to maxPriceUsd. Returns up to 5 results sorted by price ascending.
- * Filters out graded slabs (PSA/BGS/CGC). Cached 15 minutes per query.
+ * Filters out graded slabs (PSA/BGS/CGC/TAG/SGC/ACE). Cached 15 minutes per query.
  */
 export async function fetchEbayActiveListings(
   name: string,
@@ -806,7 +807,7 @@ export async function fetchEbayActiveListings(
       const titleMatch = block.match(/class="s-item__title[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div|h3)>/i);
       const title = (titleMatch?.[1] ?? "").replace(/<[^>]+>/g, "").trim();
       if (!title || /shop on ebay/i.test(title)) continue;
-      if (/\b(psa|bgs|cgc|sgc|ace)\s*\d/i.test(title)) continue;
+      if (isGradedSlabListingTitle(title)) continue;
 
       const priceMatch = block.match(/class="s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
       if (!priceMatch) continue;

@@ -232,6 +232,12 @@ export const RequestUploadUrlBody = zod.object({
 export const RequestUploadUrlResponse = zod.object({
   uploadURL: zod.string().url(),
   objectPath: zod.string(),
+  uploadClaim: zod
+    .string()
+    .optional()
+    .describe(
+      "Signed proof binding this upload path to its uploader for card media attachment",
+    ),
   metadata: zod
     .object({
       name: zod.string().min(1),
@@ -353,6 +359,13 @@ export const ListCardsQueryParams = zod.object({
   rarity: zod.coerce.string().optional(),
 });
 
+export const listCardsResponseMediaItemWidthMax = 16384;
+
+export const listCardsResponseMediaItemHeightMax = 16384;
+
+export const listCardsResponseMediaItemDurationSecondsMin = 0;
+export const listCardsResponseMediaItemDurationSecondsMax = 60;
+
 export const ListCardsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -380,6 +393,22 @@ export const ListCardsResponseItem = zod.object({
   ]),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
+  media: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        url: zod.string().describe("App Storage serving path"),
+        kind: zod.enum(["image", "video"]),
+        width: zod.number().min(1).max(listCardsResponseMediaItemWidthMax),
+        height: zod.number().min(1).max(listCardsResponseMediaItemHeightMax),
+        durationSeconds: zod
+          .number()
+          .min(listCardsResponseMediaItemDurationSecondsMin)
+          .max(listCardsResponseMediaItemDurationSecondsMax)
+          .nullish(),
+      }),
+    )
+    .optional(),
   catalogCardId: zod.string().nullish(),
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
@@ -443,6 +472,13 @@ export const GetCardParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const getCardResponseMediaItemWidthMax = 16384;
+
+export const getCardResponseMediaItemHeightMax = 16384;
+
+export const getCardResponseMediaItemDurationSecondsMin = 0;
+export const getCardResponseMediaItemDurationSecondsMax = 60;
+
 export const GetCardResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -470,6 +506,22 @@ export const GetCardResponse = zod.object({
   ]),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
+  media: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        url: zod.string().describe("App Storage serving path"),
+        kind: zod.enum(["image", "video"]),
+        width: zod.number().min(1).max(getCardResponseMediaItemWidthMax),
+        height: zod.number().min(1).max(getCardResponseMediaItemHeightMax),
+        durationSeconds: zod
+          .number()
+          .min(getCardResponseMediaItemDurationSecondsMin)
+          .max(getCardResponseMediaItemDurationSecondsMax)
+          .nullish(),
+      }),
+    )
+    .optional(),
   catalogCardId: zod.string().nullish(),
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
@@ -533,6 +585,13 @@ export const UpdateCardBody = zod.object({
   cardStory: zod.string().nullish(),
 });
 
+export const updateCardResponseMediaItemWidthMax = 16384;
+
+export const updateCardResponseMediaItemHeightMax = 16384;
+
+export const updateCardResponseMediaItemDurationSecondsMin = 0;
+export const updateCardResponseMediaItemDurationSecondsMax = 60;
+
 export const UpdateCardResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -560,6 +619,22 @@ export const UpdateCardResponse = zod.object({
   ]),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
+  media: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        url: zod.string().describe("App Storage serving path"),
+        kind: zod.enum(["image", "video"]),
+        width: zod.number().min(1).max(updateCardResponseMediaItemWidthMax),
+        height: zod.number().min(1).max(updateCardResponseMediaItemHeightMax),
+        durationSeconds: zod
+          .number()
+          .min(updateCardResponseMediaItemDurationSecondsMin)
+          .max(updateCardResponseMediaItemDurationSecondsMax)
+          .nullish(),
+      }),
+    )
+    .optional(),
   catalogCardId: zod.string().nullish(),
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
@@ -580,6 +655,49 @@ export const UpdateCardResponse = zod.object({
  */
 export const DeleteCardParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Attach an uploaded photo or short video to an owned card
+ */
+export const AddCardMediaParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const addCardMediaBodyUrlRegExp = new RegExp(
+  "^\/api\/storage\/objects\/uploads",
+);
+export const addCardMediaBodyWidthMax = 16384;
+
+export const addCardMediaBodyHeightMax = 16384;
+
+export const addCardMediaBodyDurationSecondsMin = 0;
+export const addCardMediaBodyDurationSecondsMax = 60;
+
+export const AddCardMediaBody = zod.object({
+  url: zod.string().regex(addCardMediaBodyUrlRegExp),
+  kind: zod.enum(["image", "video"]),
+  width: zod.number().min(1).max(addCardMediaBodyWidthMax),
+  height: zod.number().min(1).max(addCardMediaBodyHeightMax),
+  durationSeconds: zod
+    .number()
+    .min(addCardMediaBodyDurationSecondsMin)
+    .max(addCardMediaBodyDurationSecondsMax)
+    .nullish(),
+  uploadClaim: zod
+    .string()
+    .min(1)
+    .describe(
+      "Signed upload ownership proof returned by the upload URL request",
+    ),
+});
+
+/**
+ * @summary Remove media from an owned card gallery
+ */
+export const DeleteCardMediaParams = zod.object({
+  id: zod.coerce.number(),
+  mediaId: zod.coerce.string(),
 });
 
 /**
@@ -816,6 +934,13 @@ export const BulkUpdateCardsBody = zod.object({
     .nullish(),
 });
 
+export const bulkUpdateCardsResponseUpdatedItemMediaItemWidthMax = 16384;
+
+export const bulkUpdateCardsResponseUpdatedItemMediaItemHeightMax = 16384;
+
+export const bulkUpdateCardsResponseUpdatedItemMediaItemDurationSecondsMin = 0;
+export const bulkUpdateCardsResponseUpdatedItemMediaItemDurationSecondsMax = 60;
+
 export const BulkUpdateCardsResponse = zod.object({
   updated: zod.array(
     zod.object({
@@ -845,6 +970,32 @@ export const BulkUpdateCardsResponse = zod.object({
       ]),
       imageUrl: zod.string().nullish(),
       originalScanUrl: zod.string().nullish(),
+      media: zod
+        .array(
+          zod.object({
+            id: zod.string(),
+            url: zod.string().describe("App Storage serving path"),
+            kind: zod.enum(["image", "video"]),
+            width: zod
+              .number()
+              .min(1)
+              .max(bulkUpdateCardsResponseUpdatedItemMediaItemWidthMax),
+            height: zod
+              .number()
+              .min(1)
+              .max(bulkUpdateCardsResponseUpdatedItemMediaItemHeightMax),
+            durationSeconds: zod
+              .number()
+              .min(
+                bulkUpdateCardsResponseUpdatedItemMediaItemDurationSecondsMin,
+              )
+              .max(
+                bulkUpdateCardsResponseUpdatedItemMediaItemDurationSecondsMax,
+              )
+              .nullish(),
+          }),
+        )
+        .optional(),
       catalogCardId: zod.string().nullish(),
       estimatedValue: zod.number().nullish(),
       acquiredDate: zod.coerce.date().nullish(),
@@ -954,6 +1105,13 @@ export const ListListingsQueryParams = zod.object({
   maxPrice: zod.coerce.number().optional(),
 });
 
+export const listListingsResponseCardMediaItemWidthMax = 16384;
+
+export const listListingsResponseCardMediaItemHeightMax = 16384;
+
+export const listListingsResponseCardMediaItemDurationSecondsMin = 0;
+export const listListingsResponseCardMediaItemDurationSecondsMax = 60;
+
 export const ListListingsResponseItem = zod.object({
   id: zod.number(),
   cardId: zod.number(),
@@ -984,6 +1142,28 @@ export const ListListingsResponseItem = zod.object({
     ]),
     imageUrl: zod.string().nullish(),
     originalScanUrl: zod.string().nullish(),
+    media: zod
+      .array(
+        zod.object({
+          id: zod.string(),
+          url: zod.string().describe("App Storage serving path"),
+          kind: zod.enum(["image", "video"]),
+          width: zod
+            .number()
+            .min(1)
+            .max(listListingsResponseCardMediaItemWidthMax),
+          height: zod
+            .number()
+            .min(1)
+            .max(listListingsResponseCardMediaItemHeightMax),
+          durationSeconds: zod
+            .number()
+            .min(listListingsResponseCardMediaItemDurationSecondsMin)
+            .max(listListingsResponseCardMediaItemDurationSecondsMax)
+            .nullish(),
+        }),
+      )
+      .optional(),
     catalogCardId: zod.string().nullish(),
     estimatedValue: zod.number().nullish(),
     acquiredDate: zod.coerce.date().nullish(),
@@ -1137,6 +1317,13 @@ export const GetListingParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const getListingResponseCardMediaItemWidthMax = 16384;
+
+export const getListingResponseCardMediaItemHeightMax = 16384;
+
+export const getListingResponseCardMediaItemDurationSecondsMin = 0;
+export const getListingResponseCardMediaItemDurationSecondsMax = 60;
+
 export const GetListingResponse = zod.object({
   id: zod.number(),
   cardId: zod.number(),
@@ -1167,6 +1354,28 @@ export const GetListingResponse = zod.object({
     ]),
     imageUrl: zod.string().nullish(),
     originalScanUrl: zod.string().nullish(),
+    media: zod
+      .array(
+        zod.object({
+          id: zod.string(),
+          url: zod.string().describe("App Storage serving path"),
+          kind: zod.enum(["image", "video"]),
+          width: zod
+            .number()
+            .min(1)
+            .max(getListingResponseCardMediaItemWidthMax),
+          height: zod
+            .number()
+            .min(1)
+            .max(getListingResponseCardMediaItemHeightMax),
+          durationSeconds: zod
+            .number()
+            .min(getListingResponseCardMediaItemDurationSecondsMin)
+            .max(getListingResponseCardMediaItemDurationSecondsMax)
+            .nullish(),
+        }),
+      )
+      .optional(),
     catalogCardId: zod.string().nullish(),
     estimatedValue: zod.number().nullish(),
     acquiredDate: zod.coerce.date().nullish(),
@@ -1206,6 +1415,13 @@ export const UpdateListingBody = zod.object({
   description: zod.string().nullish(),
 });
 
+export const updateListingResponseCardMediaItemWidthMax = 16384;
+
+export const updateListingResponseCardMediaItemHeightMax = 16384;
+
+export const updateListingResponseCardMediaItemDurationSecondsMin = 0;
+export const updateListingResponseCardMediaItemDurationSecondsMax = 60;
+
 export const UpdateListingResponse = zod.object({
   id: zod.number(),
   cardId: zod.number(),
@@ -1236,6 +1452,28 @@ export const UpdateListingResponse = zod.object({
     ]),
     imageUrl: zod.string().nullish(),
     originalScanUrl: zod.string().nullish(),
+    media: zod
+      .array(
+        zod.object({
+          id: zod.string(),
+          url: zod.string().describe("App Storage serving path"),
+          kind: zod.enum(["image", "video"]),
+          width: zod
+            .number()
+            .min(1)
+            .max(updateListingResponseCardMediaItemWidthMax),
+          height: zod
+            .number()
+            .min(1)
+            .max(updateListingResponseCardMediaItemHeightMax),
+          durationSeconds: zod
+            .number()
+            .min(updateListingResponseCardMediaItemDurationSecondsMin)
+            .max(updateListingResponseCardMediaItemDurationSecondsMax)
+            .nullish(),
+        }),
+      )
+      .optional(),
     catalogCardId: zod.string().nullish(),
     estimatedValue: zod.number().nullish(),
     acquiredDate: zod.coerce.date().nullish(),
@@ -1305,6 +1543,13 @@ export const GetRecentActivityQueryParams = zod.object({
   limit: zod.coerce.number().default(getRecentActivityQueryLimitDefault),
 });
 
+export const getRecentActivityResponseMediaItemWidthMax = 16384;
+
+export const getRecentActivityResponseMediaItemHeightMax = 16384;
+
+export const getRecentActivityResponseMediaItemDurationSecondsMin = 0;
+export const getRecentActivityResponseMediaItemDurationSecondsMax = 60;
+
 export const GetRecentActivityResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -1332,6 +1577,28 @@ export const GetRecentActivityResponseItem = zod.object({
   ]),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
+  media: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        url: zod.string().describe("App Storage serving path"),
+        kind: zod.enum(["image", "video"]),
+        width: zod
+          .number()
+          .min(1)
+          .max(getRecentActivityResponseMediaItemWidthMax),
+        height: zod
+          .number()
+          .min(1)
+          .max(getRecentActivityResponseMediaItemHeightMax),
+        durationSeconds: zod
+          .number()
+          .min(getRecentActivityResponseMediaItemDurationSecondsMin)
+          .max(getRecentActivityResponseMediaItemDurationSecondsMax)
+          .nullish(),
+      }),
+    )
+    .optional(),
   catalogCardId: zod.string().nullish(),
   estimatedValue: zod.number().nullish(),
   acquiredDate: zod.coerce.date().nullish(),
@@ -1379,6 +1646,12 @@ export const ListPokemonSetsResponseItem = zod.object({
   seriesName: zod.string().nullish(),
   releaseDate: zod.string().nullish(),
   totalCards: zod.number(),
+  catalogSetIds: zod
+    .array(zod.string())
+    .optional()
+    .describe(
+      "Verified equivalent set namespaces for matching owned cards across catalogs",
+    ),
 });
 export const ListPokemonSetsResponse = zod.array(ListPokemonSetsResponseItem);
 
@@ -1398,9 +1671,21 @@ export const GetPokemonSetResponse = zod
     seriesName: zod.string().nullish(),
     releaseDate: zod.string().nullish(),
     totalCards: zod.number(),
+    catalogSetIds: zod
+      .array(zod.string())
+      .optional()
+      .describe(
+        "Verified equivalent set namespaces for matching owned cards across catalogs",
+      ),
   })
   .and(
     zod.object({
+      catalogWarning: zod
+        .string()
+        .optional()
+        .describe(
+          "Explains when supplemental catalog cards could not be verified",
+        ),
       cards: zod.array(
         zod.object({
           id: zod.string(),
@@ -1408,6 +1693,12 @@ export const GetPokemonSetResponse = zod
           name: zod.string(),
           imageUrl: zod.string().nullish(),
           rarity: zod.string().nullish(),
+          catalogIds: zod
+            .array(zod.string())
+            .optional()
+            .describe(
+              "Verified catalog identities for this same checklist card, including its canonical id",
+            ),
         }),
       ),
     }),
@@ -1559,6 +1850,13 @@ export const getDeckResponseCardsItemStrategicScoresOnePlayStyleFitMax = 1;
 export const getDeckResponseCardsItemStrategicScoresOnePurchaseValueMin = 0;
 export const getDeckResponseCardsItemStrategicScoresOnePurchaseValueMax = 1;
 
+export const getDeckResponseCardsItemCardOneMediaItemWidthMax = 16384;
+
+export const getDeckResponseCardsItemCardOneMediaItemHeightMax = 16384;
+
+export const getDeckResponseCardsItemCardOneMediaItemDurationSecondsMin = 0;
+export const getDeckResponseCardsItemCardOneMediaItemDurationSecondsMax = 60;
+
 export const GetDeckResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
@@ -1649,6 +1947,32 @@ export const GetDeckResponse = zod.object({
           ]),
           imageUrl: zod.string().nullish(),
           originalScanUrl: zod.string().nullish(),
+          media: zod
+            .array(
+              zod.object({
+                id: zod.string(),
+                url: zod.string().describe("App Storage serving path"),
+                kind: zod.enum(["image", "video"]),
+                width: zod
+                  .number()
+                  .min(1)
+                  .max(getDeckResponseCardsItemCardOneMediaItemWidthMax),
+                height: zod
+                  .number()
+                  .min(1)
+                  .max(getDeckResponseCardsItemCardOneMediaItemHeightMax),
+                durationSeconds: zod
+                  .number()
+                  .min(
+                    getDeckResponseCardsItemCardOneMediaItemDurationSecondsMin,
+                  )
+                  .max(
+                    getDeckResponseCardsItemCardOneMediaItemDurationSecondsMax,
+                  )
+                  .nullish(),
+              }),
+            )
+            .optional(),
           catalogCardId: zod.string().nullish(),
           estimatedValue: zod.number().nullish(),
           acquiredDate: zod.coerce.date().nullish(),

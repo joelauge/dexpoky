@@ -91,6 +91,35 @@ export const CardCondition = {
   poor: "poor",
 } as const;
 
+export type CardMediaKind = (typeof CardMediaKind)[keyof typeof CardMediaKind];
+
+export const CardMediaKind = {
+  image: "image",
+  video: "video",
+} as const;
+
+export interface CardMedia {
+  id: string;
+  /** App Storage serving path */
+  url: string;
+  kind: CardMediaKind;
+  /**
+   * @minimum 1
+   * @maximum 16384
+   */
+  width: number;
+  /**
+   * @minimum 1
+   * @maximum 16384
+   */
+  height: number;
+  /**
+   * @minimum 0
+   * @maximum 60
+   */
+  durationSeconds?: number | null;
+}
+
 export interface Card {
   id: number;
   name: string;
@@ -102,6 +131,7 @@ export interface Card {
   condition: CardCondition;
   imageUrl?: string | null;
   originalScanUrl?: string | null;
+  media?: CardMedia[];
   catalogCardId?: string | null;
   estimatedValue?: number | null;
   acquiredDate?: string | null;
@@ -115,6 +145,40 @@ export interface Card {
   agentAcquiredAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type AddCardMediaBodyKind =
+  (typeof AddCardMediaBodyKind)[keyof typeof AddCardMediaBodyKind];
+
+export const AddCardMediaBodyKind = {
+  image: "image",
+  video: "video",
+} as const;
+
+export interface AddCardMediaBody {
+  /** @pattern ^/api/storage/objects/uploads/ */
+  url: string;
+  kind: AddCardMediaBodyKind;
+  /**
+   * @minimum 1
+   * @maximum 16384
+   */
+  width: number;
+  /**
+   * @minimum 1
+   * @maximum 16384
+   */
+  height: number;
+  /**
+   * @minimum 0
+   * @maximum 60
+   */
+  durationSeconds?: number | null;
+  /**
+   * Signed upload ownership proof returned by the upload URL request
+   * @minLength 1
+   */
+  uploadClaim: string;
 }
 
 export type CreateCardBodyRarity =
@@ -493,6 +557,8 @@ export interface PokemonSetSummary {
   seriesName?: string | null;
   releaseDate?: string | null;
   totalCards: number;
+  /** Verified equivalent set namespaces for matching owned cards across catalogs */
+  catalogSetIds?: string[];
 }
 
 export interface PokemonSetCard {
@@ -501,9 +567,13 @@ export interface PokemonSetCard {
   name: string;
   imageUrl?: string | null;
   rarity?: string | null;
+  /** Verified catalog identities for this same checklist card, including its canonical id */
+  catalogIds?: string[];
 }
 
 export type PokemonSetDetail = PokemonSetSummary & {
+  /** Explains when supplemental catalog cards could not be verified */
+  catalogWarning?: string;
   cards: PokemonSetCard[];
 };
 
@@ -519,6 +589,8 @@ export interface UploadUrlRequest {
 export interface UploadUrlResponse {
   uploadURL: string;
   objectPath: string;
+  /** Signed proof binding this upload path to its uploader for card media attachment */
+  uploadClaim?: string;
   metadata?: UploadUrlRequest;
 }
 

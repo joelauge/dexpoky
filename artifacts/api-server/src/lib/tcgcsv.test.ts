@@ -13,7 +13,7 @@ function product(
   productId: number,
   name: string,
   number: string | undefined,
-  options: { groupId?: number; categoryId?: number; imageCount?: number; imageUrl?: string; cardType?: string } = {},
+  options: { groupId?: number; categoryId?: number; imageCount?: number; imageUrl?: string; cardType?: string; pokemonStats?: boolean } = {},
 ) {
   const extendedData = [
     ...(number === undefined ? [] : [{ name: "Number", displayName: "Card Number", value: number }]),
@@ -23,6 +23,10 @@ function product(
       displayName: "Card Type",
       value: options.cardType ?? "Basic Energy",
     }]),
+    ...(options.pokemonStats ? [
+      { name: "HP", value: "60" },
+      { name: "Stage", value: "Basic" },
+    ] : []),
   ];
   return {
     productId,
@@ -162,6 +166,36 @@ describe("TCGCSV Pokemon provider", () => {
     const artResults = await tcgcsv.searchTcgcsv("Card", undefined, "MEE");
     expect(artResults.find((card) => card.name === "Card without artwork")?.imageUrl).toBe("");
     expect(artResults.find((card) => card.name === "Card with insecure artwork")?.imageUrl).toBe("");
+  });
+
+  it("includes numbered Trainer and Tool cards alongside Energy cards", async () => {
+    installCatalog({
+      groups: [{ groupId: 90, name: "TST: Test Set", abbreviation: "TST", categoryId: 3 }],
+      products: {
+        90: [
+          product(901, "Pokemon Supporter - 001", "001", { groupId: 90, cardType: "Trainer" }),
+          product(902, "Pokemon Tool - 002", "002", { groupId: 90, cardType: "Tool" }),
+          product(903, "Deck Box - 003", "003", { groupId: 90, cardType: "Accessory" }),
+        ],
+      },
+    });
+    const cards = await tcgcsv.searchTcgcsv("Pokemon", undefined, "TST");
+    expect(cards.map((card) => card.id)).toEqual(["tcgcsv_90_901", "tcgcsv_90_902"]);
+  });
+
+  it("includes numbered Pokemon with verified type/stage/HP metadata but not color-coded merchandise", async () => {
+    installCatalog({
+      groups: [{ groupId: 91, name: "MON: Test Monsters", abbreviation: "MON", categoryId: 3 }],
+      products: {
+        91: [
+          product(911, "Spinarak", "001/088", { groupId: 91, cardType: "Grass", pokemonStats: true }),
+          product(912, "Green Card Sleeve - 002", "002", { groupId: 91, cardType: "Grass" }),
+        ],
+      },
+    });
+    const cards = await tcgcsv.searchTcgcsv("Spinarak", undefined, "MON");
+    expect(cards.map((card) => card.id)).toEqual(["tcgcsv_91_911"]);
+    expect(cards[0]?.cardNumber).toBe("001/088");
   });
 
   it("uses explicit aliases only and does not merge Base, Shadowless, or unrelated promos", async () => {

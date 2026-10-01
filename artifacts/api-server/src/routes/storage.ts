@@ -7,6 +7,7 @@ import {
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
 import { requireAuth } from "../middlewares/requireAuth.js";
+import { createCardMediaUploadClaim } from "../lib/card-media.js";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -30,14 +31,16 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    const userId = (req as Request & { userId: string }).userId;
+    const uploadClaim = createCardMediaUploadClaim(userId, objectPath);
 
-    res.json(
-      RequestUploadUrlResponse.parse({
-        uploadURL,
-        objectPath,
-        metadata: { name, size, contentType },
-      }),
-    );
+    const response = RequestUploadUrlResponse.parse({
+      uploadURL,
+      objectPath,
+      uploadClaim,
+      metadata: { name, size, contentType },
+    });
+    res.json(response);
   } catch (error) {
     req.log.error({ err: error }, "Error generating upload URL");
     res.status(500).json({ error: "Failed to generate upload URL" });

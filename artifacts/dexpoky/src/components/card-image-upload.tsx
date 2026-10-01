@@ -1,24 +1,34 @@
-import { useRef, useState } from "react";
-import { ImagePlus, X, Loader2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, ImagePlus, X, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CardPhotoCamera } from "@/components/card-photo-camera";
 import { cn } from "@/lib/utils";
 
 interface CardImageUploadProps {
   value: string | null | undefined;
   onChange: (url: string | null) => void;
   onFileSelected?: (file: File, imageData: string) => void | Promise<void>;
+  allowCamera?: boolean;
+  onUploadingChange?: (uploading: boolean) => void;
   className?: string;
 }
 
-export function CardImageUpload({ value, onChange, onFileSelected, className }: CardImageUploadProps) {
+export function CardImageUpload({ value, onChange, onFileSelected, allowCamera = false, onUploadingChange, className }: CardImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const mounted = useRef(true);
+  const inFlight = useRef(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const uploadFile = async (file: File) => {
+    if (inFlight.current) return;
 
     if (!file.type.startsWith("image/")) {
       setError("Please select an image file.");
@@ -31,7 +41,9 @@ export function CardImageUpload({ value, onChange, onFileSelected, className }: 
     }
 
     setError(null);
+    inFlight.current = true;
     setUploading(true);
+    onUploadingChange?.(true);
     setProgress(0);
 
     try {
@@ -41,6 +53,7 @@ export function CardImageUpload({ value, onChange, onFileSelected, className }: 
         reader.onerror = () => reject(new Error("Could not read image"));
         reader.readAsDataURL(file);
       });
+      if (!mounted.current) return;
       void onFileSelected?.(file, imageData);
 
       const metaRes = await fetch("/api/storage/uploads/request-url", {
@@ -64,7 +77,7 @@ export function CardImageUpload({ value, onChange, onFileSelected, className }: 
         xhr.open("PUT", uploadURL);
         xhr.setRequestHeader("Content-Type", file.type);
         xhr.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) setProgress(Math.round((ev.loaded / ev.total) * 100));
+          if (mounted.current && ev.lengthComputable) setProgress(Math.round((ev.loaded / ev.total) * 100));
         };
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) resolve();
@@ -74,14 +87,23 @@ export function CardImageUpload({ value, onChange, onFileSelected, className }: 
         xhr.send(file);
       });
 
-      onChange(`/api/storage${objectPath}`);
+      if (mounted.current) onChange(`/api/storage${objectPath}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      if (mounted.current) setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      setUploading(false);
-      setProgress(0);
-      if (inputRef.current) inputRef.current.value = "";
+      inFlight.current = false;
+      if (mounted.current) {
+        setUploading(false);
+        onUploadingChange?.(false);
+        setProgress(0);
+        if (inputRef.current) inputRef.current.value = "";
+      }
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) void uploadFile(file);
   };
 
   const handleRemove = () => {
@@ -101,7 +123,15 @@ export function CardImageUpload({ value, onChange, onFileSelected, className }: 
         disabled={uploading}
       />
 
-      {value ? (
+      {cameraOpen ? (
+        <CardPhotoCamera
+          onCancel={() => setCameraOpen(false)}
+          onCapture={(file) => {
+            setCameraOpen(false);
+            void uploadFile(file);
+          }}
+        />
+      ) : value ? (
         <div className="relative group w-full max-w-xs">
           <div className="rounded-xl overflow-hidden border bg-muted aspect-[2.5/3.5] w-40">
             <img
@@ -159,6 +189,16 @@ export function CardImageUpload({ value, onChange, onFileSelected, className }: 
             </>
           )}
         </button>
+      )}
+
+      {allowCamera && !cameraOpen && (
+        <Button type="button" size="sm" variant="outline" className="w-40" disabled={uploading} onClick={() => {
+          setError(null);
+          setCameraOpen(true);
+        }}>
+          <Camera className="mr-1.5 h-4 w-4" />
+          {value ? "Retake photo" : "Take photo"}
+        </Button>
       )}
 
       {uploading && value === null && (

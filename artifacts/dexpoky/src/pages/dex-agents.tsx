@@ -1524,11 +1524,12 @@ function CreateBuyerAgentDialog({ onCreated }: { onCreated: () => void }) {
 
 // ── Create Seller Agent Dialog ────────────────────────────────────────────────
 
-const CERT_COMPANY_LABELS: Record<string, string> = { psa: "PSA", bgs: "BGS", cgc: "CGC" };
+const CERT_COMPANY_LABELS: Record<string, string> = { psa: "PSA", bgs: "BGS", cgc: "CGC", tag: "TAG" };
 const CERT_COMPANY_COLORS: Record<string, string> = {
   psa: "bg-blue-100 text-blue-700 border-blue-200",
   bgs: "bg-red-100 text-red-700 border-red-200",
   cgc: "bg-purple-100 text-purple-700 border-purple-200",
+  tag: "bg-amber-100 text-amber-700 border-amber-200",
 };
 
 function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
@@ -1624,7 +1625,7 @@ function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
               <Skeleton className="h-10 w-full rounded-lg" />
             ) : visibleCards.length === 0 ? (
               <p className="text-sm text-slate-400 py-2">
-                {verifiedOnly ? "No verified cards yet. Submit a PSA/BGS/CGC cert on a card first." : "No cards in your inventory yet."}
+                {verifiedOnly ? "No verified cards yet. Submit a PSA/BGS/CGC/TAG cert on a card first." : "No cards in your inventory yet."}
               </p>
             ) : (
               <Select
@@ -1705,7 +1706,7 @@ function CreateSellerAgentDialog({ onCreated }: { onCreated: () => void }) {
             <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5">
               <ShieldQuestion className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
-                <strong>Unverified card.</strong> In production, only PSA/BGS/CGC-verified cards are eligible for agent transactions.
+                <strong>Unverified card.</strong> In production, only PSA/BGS/CGC/TAG-verified cards are eligible for agent transactions.
                 You can still create this agent now, but submit a grading cert on the card detail page to enable production-ready selling.
               </span>
             </div>

@@ -7,7 +7,9 @@ import {
   boolean,
   integer,
   index,
+  jsonb,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { categoriesTable } from "./categories";
@@ -33,6 +35,15 @@ export const conditionEnum = [
   "poor",
 ] as const;
 
+export interface CardMedia {
+  id: string;
+  url: string;
+  kind: "image" | "video";
+  width: number;
+  height: number;
+  durationSeconds?: number | null;
+}
+
 export const cardsTable = pgTable("cards", {
   id: serial("id").primaryKey(),
   ownerClerkId: text("owner_clerk_id").notNull(),
@@ -45,6 +56,7 @@ export const cardsTable = pgTable("cards", {
   condition: text("condition").notNull(),
   imageUrl: text("image_url"),
   originalScanUrl: text("original_scan_url"),
+  media: jsonb("media").$type<CardMedia[]>().default(sql`'[]'::jsonb`).notNull(),
   catalogCardId: text("catalog_card_id"),
   estimatedValue: numeric("estimated_value", { precision: 10, scale: 2 }),
   acquiredDate: timestamp("acquired_date"),

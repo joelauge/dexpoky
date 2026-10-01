@@ -2,12 +2,14 @@ export interface SetCardLike {
   id: string;
   localId: string;
   name: string;
+  catalogIds?: string[];
 }
 
 export interface PokemonSetLike {
   id: string;
   name: string;
   totalCards: number;
+  catalogSetIds?: string[];
   cards?: SetCardLike[];
 }
 
@@ -33,6 +35,9 @@ export interface SetCompletion {
 export const normalizeSetCardValue = (value?: string | null) =>
   (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
+export const normalizeSetCardNumber = (value?: string | null) =>
+  normalizeSetCardValue(value?.split("/")[0]).replace(/^([a-z]*)0+(\d)/, "$1$2");
+
 export function getCardIdentity(card: OwnedCardLike): string {
   if (card.setId && card.cardNumber) {
     return `${normalizeSetCardValue(card.setId)}-${normalizeSetCardValue(card.cardNumber)}`;
@@ -51,10 +56,15 @@ export function getSetCompletion(
   ownedCards: OwnedCardLike[],
 ): SetCompletion {
   const normalizedSetName = normalizeSetCardValue(set.name);
-  const setCardsById = new Map(set.cards?.map((card) => [card.id, card]) ?? []);
-  const setCardsByLocalId = new Map(
-    set.cards?.map((card) => [normalizeSetCardValue(card.localId), card]) ?? [],
+  const setCardsById = new Map(
+    set.cards?.flatMap((card) =>
+      [card.id, ...(card.catalogIds ?? [])].map((id) => [id, card] as const),
+    ) ?? [],
   );
+  const setCardsByLocalId = new Map(
+    set.cards?.map((card) => [normalizeSetCardNumber(card.localId), card]) ?? [],
+  );
+  const setIds = new Set([set.id, ...(set.catalogSetIds ?? [])]);
   const ownedCardKeys = new Set<string>();
   const firstOwnedCardIdMap = new Map<string, number>();
   const ownedCardIdsMap = new Map<string, number[]>();
@@ -63,16 +73,25 @@ export function getSetCompletion(
   for (const card of ownedCards) {
     let matchedKey: string | undefined;
 
-    if (card.catalogCardId?.startsWith(`${set.id}-`)) {
-      if (set.cards) {
-        matchedKey = setCardsById.get(card.catalogCardId)?.id;
-      } else {
-        matchedKey = normalizeSetCardValue(
-          card.catalogCardId.slice(set.id.length + 1),
-        );
-      }
-    } else if (normalizeSetCardValue(card.setName) === normalizedSetName) {
-      const normalizedCardNumber = normalizeSetCardValue(card.cardNumber);
+    const catalogMatch = card.catalogCardId
+      ? setCardsById.get(card.catalogCardId)
+      : undefined;
+    const matchedSetId = [...setIds].find((id) =>
+      card.catalogCardId?.startsWith(`${id}${id.startsWith("tcgcsv_") ? "_" : "-"}`),
+    );
+    const hasExplicitCatalogId = !!card.catalogCardId &&
+      (/^tcgcsv_/.test(card.catalogCardId) || /^[a-z][a-z0-9.]*-[a-z0-9]+$/i.test(card.catalogCardId));
+
+    if (catalogMatch) {
+      matchedKey = catalogMatch.id;
+    } else if (!set.cards && matchedSetId) {
+      matchedKey = normalizeSetCardNumber(card.cardNumber) ||
+        normalizeSetCardNumber(card.catalogCardId?.slice(matchedSetId.length + 1));
+    } else if (!hasExplicitCatalogId && (
+      (card.setId && setIds.has(card.setId)) ||
+      normalizeSetCardValue(card.setName) === normalizedSetName
+    )) {
+      const normalizedCardNumber = normalizeSetCardNumber(card.cardNumber);
       if (set.cards) {
         matchedKey = setCardsByLocalId.get(normalizedCardNumber)?.id;
       } else {

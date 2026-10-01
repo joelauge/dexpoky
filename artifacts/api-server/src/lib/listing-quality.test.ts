@@ -44,10 +44,13 @@ describe("listingHardIssues", () => {
     )).toContain("The description claims mint condition, but the saved condition is played.");
   });
 
-  it("blocks unsupported grading claims", () => {
-    expect(listingHardIssues(card, { ...sale, description: "PSA 10 graded card." }, false))
-      .toContain("Remove the grading/certification claim or verify the grading certificate first.");
-  });
+  it.each(["PSA 10", "BGS 9.5", "CGC 9", "TAG 10"])(
+    "blocks unsupported %s grading claims",
+    (companyGrade) => {
+      expect(listingHardIssues(card, { ...sale, description: `${companyGrade} graded card.` }, false))
+        .toContain("Remove the grading/certification claim or verify the grading certificate first.");
+    },
+  );
 
   it("blocks inconsistent auction terms", () => {
     const issues = listingHardIssues(card, {
