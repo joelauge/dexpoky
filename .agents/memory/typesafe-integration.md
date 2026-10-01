@@ -13,6 +13,12 @@ For trade reviews, calculate each party's cash and card totals in code and keep 
 
 For semantic reranking, build and filter the complete eligible candidate set in code before calling Jev. With no semantic intent, preserve exact deterministic behavior. If semantic evaluation is unavailable or malformed, show low-confidence fallback results and suppress urgent notifications rather than treating fallback confidence as high.
 
+For scan matching, use Jev to help choose the suggested printing before review, not only to score an already-selected card. Jev currently accepts text only; image evidence must first become an observation-only vision description alongside OCR. An OCR/catalog match is not proof the OCR was correct, and a model's concentrated distribution is not a measured real-world accuracy rate.
+
+**Why:** The user requested most-likely selection from both image and OCR evidence. Live TypeSafe documentation confirmed the text-only modality. Incorrect catalog choices can otherwise look authoritative and carry another printing's price.
+
+**How to apply:** Keep observed details distinct from inferred catalog identity, let contradictory evidence remain a review case, and preserve manual alternatives. Treat suggestion thresholds as initial safety settings until calibrated with labeled physical-card scans; never claim measured scan accuracy from mocked UI tests.
+
 For marketplace listing reviews, keep ownership, catalog identity, positive prices, auction timing/price relationships, saved-condition contradictions, and verified grading claims as code-owned publication gates. Jev may score completeness, clarity, consistency, and supporting evidence, but low confidence or provider failure must remain advisory when those gates pass. Persist only a versioned normalized review snapshot, evidence hash, and timestamp; never raw provider output. Never treat the review as authentication, automatic claim rewriting, repricing, delisting, or account enforcement.
 
 For trust and dispute workflows, expose only privacy-safe aggregate transaction and rating facts on public profiles. Keep report descriptions and evidence private. Jev may summarize reliability dimensions and classify issue category, urgency, or missing evidence, but code must verify transaction participation and force serious or low-confidence cases to human review. Jev must never determine fault, issue refunds, suspend accounts, change ratings, or trigger financial actions.

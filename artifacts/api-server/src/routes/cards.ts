@@ -20,6 +20,7 @@ import { getAuth } from "@clerk/express";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { evaluateCardConfidence, type CardConfidenceInput } from "../lib/card-confidence.js";
 import { BoundedAsyncCache, normalizeLookupKey, recordLookup } from "../lib/lookup-performance.js";
+import { selectScanPrinting, type ScanPrintingCandidate, type ScanPrintingSelection } from "../lib/scan-printing-selection.js";
 import {
   ListCardsQueryParams,
   CreateCardBody,
@@ -305,89 +306,202 @@ router.post("/cards", requireAuth, async (req, res) => {
  * Primary: PokeWallet (rich pricing, single hit). Falls back to TCGdex if
  * PokeWallet is rate limited or unavailable so the scan flow never breaks.
  */
-router.get("/cards/lookup", async (req, res) => {
+router.get("/cards/lookup", (req, res, next) => {
+  if (req.query.resolvePrinting === "true") return requireAuth(req, res, next);
+  return next();
+}, async (req, res) => {
   const startedAt = performance.now();
   const name = String(req.query.name ?? "").trim();
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
+
+  const resolveParam = req.query.resolvePrinting;
+  if (resolveParam !== undefined && resolveParam !== "true" && resolveParam !== "false") {
+    res.status(400).json({ error: "resolvePrinting must be true or false" });
+    return;
+  }
+  const resolvePrinting = resolveParam === "true";
 
   // Optional hint fields extracted from the card image by the vision model.
   // When provided they are used to float the exact printing to position [0].
   const cardNumber = String(req.query.cardNumber ?? "").trim() || undefined;
   const setCode = String(req.query.setCode ?? "").trim() || undefined;
 
+  let visionConfidence: "high" | "medium" | "low" | undefined;
+  let visualSummary: string | undefined;
+  let hp: number | undefined;
+  if (resolvePrinting) {
+    const confidenceParam = req.query.visionConfidence;
+    if (confidenceParam !== undefined && confidenceParam !== "high" &&
+        confidenceParam !== "medium" && confidenceParam !== "low") {
+      res.status(400).json({ error: "visionConfidence must be high, medium, or low" });
+      return;
+    }
+    visionConfidence = confidenceParam as "high" | "medium" | "low" | undefined;
+    const summaryParam = req.query.visualSummary;
+    if (summaryParam !== undefined && (typeof summaryParam !== "string" || summaryParam.length > 1000)) {
+      res.status(400).json({ error: "visualSummary must be at most 1000 characters" });
+      return;
+    }
+    visualSummary = typeof summaryParam === "string" ? summaryParam.trim() || undefined : undefined;
+    const hpParam = req.query.hp;
+    if (hpParam !== undefined) {
+      if (typeof hpParam !== "string" || !/^\d+$/.test(hpParam.trim())) {
+        res.status(400).json({ error: "hp must be an integer from 0 to 10000" });
+        return;
+      }
+      const parsedHp = Number(hpParam.trim());
+      if (!Number.isSafeInteger(parsedHp) || parsedHp < 0 || parsedHp > 10_000) {
+        res.status(400).json({ error: "hp must be an integer from 0 to 10000" });
+        return;
+      }
+      hp = parsedHp;
+    }
+  }
   const cacheKey = normalizeLookupKey(name, cardNumber, setCode);
+  const externalStartedAt = performance.now();
   const cached = scanLookupCache.get(cacheKey);
-  if (cached) {
-    recordLookup("scan", performance.now() - startedAt, { cache: "hit" });
-    res.json(cached);
+  const loaded = cached
+    ? { value: cached, status: "hit" as const }
+    : await scanLookupCache.getOrLoad(cacheKey, async () => {
+      const pw = await pwSearch(name, 100);
+      // TCGdex is authoritative for OCR set/number identity. Keep this exact
+      // hinted merge inside the identity-keyed catalog cache.
+      if (cardNumber && setCode) {
+        const tcg = await searchTcgdex(name, cardNumber, setCode);
+        if (pw.ok && pw.data.results.length > 0) {
+          const catalog = await enrichCatalogCardImages(pw.data.results.map(normalizeCatalogCard));
+          const catalogVariants = catalog.map((v) => ({
+            id: v.id, name: v.name, imageUrl: v.imageUrl, setName: v.setName,
+            setId: v.setCode, cardNumber: v.cardNumber, rarity: v.rarity,
+          }));
+          const variants = rankTcgResults([...tcg.variants, ...catalogVariants], name, cardNumber, setCode);
+          const top = variants[0];
+          const catalogTop = top ? pw.data.results.find((r) => r.id === top.id) : undefined;
+          return {
+            card: top ?? null,
+            variants,
+            pricing: catalogTop ? buildPricingFromCatalog(catalogTop) : tcg.pricing,
+            freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." },
+          };
+        }
+        if (tcg.variants.length > 0) {
+          return {
+            card: tcg.variants[0],
+            variants: tcg.variants,
+            pricing: tcg.pricing,
+            freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." },
+          };
+        }
+      }
+      if (pw.ok && pw.data.results.length > 0) {
+        const normalized = pw.data.results.map(normalizeCatalogCard);
+        const enriched = await enrichCatalogCardImages(normalized);
+        const variants = enriched.map((v) => ({
+          id: v.id,
+          name: v.name,
+          imageUrl: v.imageUrl,
+          setName: v.setName,
+          setId: v.setCode,
+          cardNumber: v.cardNumber,
+          rarity: v.rarity,
+        }));
+
+        // Preserve every name candidate, but rank using set + number first.
+        const ranked = rankTcgResults(variants, name, cardNumber, setCode);
+        const topId = ranked[0]?.id;
+        const topRaw = topId ? pw.data.results.find((r) => r.id === topId) : undefined;
+        const pricing = topRaw ? buildPricingFromCatalog(topRaw) : {
+          marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null,
+        };
+        return {
+          card: ranked[0] ?? null,
+          variants: ranked,
+          pricing,
+          freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." },
+        };
+      }
+
+      // Fallback to TCGdex using the original identifier hints and ranking.
+      const { variants, pricing } = await searchTcgdex(name, cardNumber, setCode);
+      return {
+        card: variants[0] ?? null,
+        variants,
+        pricing,
+        freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." },
+      };
+    });
+  const baseResponse = loaded.value;
+  if (!resolvePrinting) {
+    recordLookup("scan", performance.now() - startedAt, {
+      cache: loaded.status,
+      externalMs: loaded.status === "miss" ? performance.now() - externalStartedAt : undefined,
+    });
+    res.json(baseResponse);
     return;
   }
-  const externalStartedAt = performance.now();
-  const loaded = await scanLookupCache.getOrLoad(cacheKey, async () => {
-  const pw = await pwSearch(name, 100);
-  // TCGdex is the authoritative source for OCR set/number identity. PokeWallet
-  // name search can otherwise return a similarly named printing while omitting
-  // the exact card (for example Basic Psychic Energy vs mee-005).
-  if (cardNumber && setCode) {
-    const tcg = await searchTcgdex(name, cardNumber, setCode);
-    if (pw.ok && pw.data.results.length > 0) {
-      const catalog = await enrichCatalogCardImages(pw.data.results.map(normalizeCatalogCard));
-      const catalogVariants = catalog.map((v) => ({
-        id: v.id, name: v.name, imageUrl: v.imageUrl, setName: v.setName,
-        setId: v.setCode, cardNumber: v.cardNumber, rarity: v.rarity,
-      }));
-      const variants = rankTcgResults([...tcg.variants, ...catalogVariants], name, cardNumber, setCode);
-      const top = variants[0];
-       const catalogTop = top ? pw.data.results.find((r) => r.id === top.id) : undefined;
-       return {
-        card: top ?? null,
-        variants,
-         pricing: catalogTop ? buildPricingFromCatalog(catalogTop) : tcg.pricing,
-         freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." },
-       };
-    }
-    if (tcg.variants.length > 0) {
-      return { card: tcg.variants[0], variants: tcg.variants, pricing: tcg.pricing,
-        freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." } };
-    }
-  }
-  if (pw.ok && pw.data.results.length > 0) {
-    const normalized = pw.data.results.map(normalizeCatalogCard);
-    const enriched = await enrichCatalogCardImages(normalized);
-    let variants = enriched.map((v) => ({
-      id: v.id,
-      name: v.name,
-      imageUrl: v.imageUrl,
-      setName: v.setName,
-      setId: v.setCode,
-      cardNumber: v.cardNumber,
-      rarity: v.rarity,
-    }));
 
-    // Preserve every name candidate, but rank using set + number first.
-    variants = rankTcgResults(variants, name, cardNumber, setCode);
-
-    // Price from the variant that's actually on top, not always results[0].
-    // After sorting, variants[0] may differ from the first PokeWallet result.
-    const topId = variants[0]?.id;
-     const topRaw = topId ? pw.data.results.find((r) => r.id === topId) : undefined;
-     const pricing = topRaw ? buildPricingFromCatalog(topRaw) : {
-       marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null,
-     };
-    return { card: variants[0] ?? null, variants, pricing,
-      freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." } };
-  }
-
-  // Fallback to TCGdex — pass cardNumber so it can sort the results too
-  const { variants, pricing } = await searchTcgdex(name, cardNumber, setCode);
-  return { card: variants[0] ?? null, variants, pricing,
-    freshness: { identityTtlSeconds: 900, pricingPolicy: "Pricing freshness policy is unchanged; values reflect the upstream catalog response." } };
+  const candidates: ScanPrintingCandidate[] = baseResponse.variants.map((variant) => ({
+    id: variant.id,
+    name: variant.name,
+    setId: variant.setId,
+    setName: variant.setName,
+    cardNumber: variant.cardNumber,
+    rarity: variant.rarity,
+  }));
+  const selection: ScanPrintingSelection = await selectScanPrinting(candidates, {
+    name,
+    setCode,
+    cardNumber,
+    visionConfidence,
+    visualSummary,
+    hp,
   });
+  let variants = [...baseResponse.variants];
+  if ((selection.status === "exact" || selection.status === "likely") && selection.recommendedId) {
+    const selectedIndex = variants.findIndex((variant) => variant.id === selection.recommendedId);
+    if (selectedIndex > 0) {
+      const [recommended] = variants.splice(selectedIndex, 1);
+      if (recommended) variants = [recommended, ...variants];
+    }
+  }
+  const selectedCard = variants[0] ?? null;
+  let pricing = baseResponse.pricing;
+  if (selectedCard && selectedCard.id !== baseResponse.card?.id &&
+      (selection.status === "exact" || selection.status === "likely")) {
+    // A printing promoted by evidence must use its own price; a missing price
+    // is null rather than the previous card's price.
+    const emptyPricing: PricingData = {
+      marketPrice: null, lowPrice: null, trendPrice: null, source: null, psaEstimates: null,
+    };
+    try {
+      if (selectedCard.id.startsWith("pk_")) {
+        const detail = await pwGetCard(selectedCard.id);
+        pricing = detail.ok ? buildPricingFromCatalog(detail.data) : emptyPricing;
+      } else {
+        pricing = await fetchPricingById(selectedCard.id, selectedCard.name, selectedCard.rarity ?? undefined, {
+          name: selectedCard.name,
+          setName: selectedCard.setName,
+          cardNumber: selectedCard.cardNumber,
+        });
+      }
+    } catch {
+      pricing = emptyPricing;
+    }
+  }
   recordLookup("scan", performance.now() - startedAt, {
     cache: loaded.status,
     externalMs: loaded.status === "miss" ? performance.now() - externalStartedAt : undefined,
+    jev: candidates.length === 0 || selection.status === "exact" ? "skipped" :
+      selection.status === "unavailable" ? "fallback" : "invoked",
   });
-  res.json(loaded.value);
+  res.setHeader("Cache-Control", "no-store");
+  res.json({
+    card: selectedCard,
+    variants,
+    pricing,
+    freshness: baseResponse.freshness,
+    selection,
+  });
 });
 
 /**

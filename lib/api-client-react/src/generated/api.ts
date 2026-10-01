@@ -66,6 +66,7 @@ import type {
   ListWantedListingsParams,
   Listing,
   ListingQualityReview,
+  LookupCardsParams,
   PokemonResult,
   PokemonSetDetail,
   PokemonSetSummary,
@@ -73,6 +74,7 @@ import type {
   RepriceOwnedCardsResponse,
   RulebookResponse,
   RulebookSearchResult,
+  ScanLookupResponse,
   SearchCatalogParams,
   SearchPokemonParams,
   SearchRulebookParams,
@@ -851,6 +853,101 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Public legacy lookup requests omit scanner selection and do not make a model request. Setting resolvePrinting=true enables scanner printing selection, requires authentication, and may invoke the selection model. The selection field is only returned for those selection-enabled requests.
+ * @summary Look up Pokémon card printings for the scanner
+ */
+export const getLookupCardsUrl = (params: LookupCardsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/cards/lookup?${stringifiedParams}`
+    : `/api/cards/lookup`;
+};
+
+export const lookupCards = async (
+  params: LookupCardsParams,
+  options?: RequestInit,
+): Promise<ScanLookupResponse> => {
+  return customFetch<ScanLookupResponse>(getLookupCardsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getLookupCardsQueryKey = (params?: LookupCardsParams) => {
+  return [`/api/cards/lookup`, ...(params ? [params] : [])] as const;
+};
+
+export const getLookupCardsQueryOptions = <
+  TData = Awaited<ReturnType<typeof lookupCards>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  params: LookupCardsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof lookupCards>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getLookupCardsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof lookupCards>>> = ({
+    signal,
+  }) => lookupCards(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof lookupCards>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type LookupCardsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof lookupCards>>
+>;
+export type LookupCardsQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Look up Pokémon card printings for the scanner
+ */
+
+export function useLookupCards<
+  TData = Awaited<ReturnType<typeof lookupCards>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  params: LookupCardsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof lookupCards>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getLookupCardsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

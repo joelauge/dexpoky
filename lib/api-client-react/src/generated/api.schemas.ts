@@ -935,12 +935,63 @@ export const CatalogPricingSource = {
 
 export type CatalogPricingPsaEstimates = { [key: string]: number } | null;
 
+export interface EbaySoldPricing {
+  median: number | null;
+  average: number | null;
+  low: number | null;
+  high: number | null;
+  count: number;
+  searchUrl: string;
+}
+
 export interface CatalogPricing {
   marketPrice: number | null;
   lowPrice: number | null;
   trendPrice: number | null;
-  source?: CatalogPricingSource;
-  psaEstimates?: CatalogPricingPsaEstimates;
+  source: CatalogPricingSource;
+  psaEstimates: CatalogPricingPsaEstimates;
+  isFallback?: boolean;
+  ebay?: EbaySoldPricing | null;
+}
+
+export interface ScanLookupCard {
+  id: string;
+  name: string;
+  imageUrl: string;
+  setName: string;
+  setId: string;
+  cardNumber: string;
+  rarity: string | null;
+}
+
+export interface ScanLookupFreshness {
+  identityTtlSeconds: number;
+  pricingPolicy: string;
+}
+
+export type ScanPrintingSelectionStatus =
+  (typeof ScanPrintingSelectionStatus)[keyof typeof ScanPrintingSelectionStatus];
+
+export const ScanPrintingSelectionStatus = {
+  exact: "exact",
+  likely: "likely",
+  review: "review",
+  unavailable: "unavailable",
+} as const;
+
+export interface ScanPrintingSelection {
+  status: ScanPrintingSelectionStatus;
+  recommendedId: string | null;
+  confidence: number | null;
+  message: string;
+}
+
+export interface ScanLookupResponse {
+  card: ScanLookupCard | null;
+  variants: ScanLookupCard[];
+  pricing: CatalogPricing;
+  freshness: ScanLookupFreshness;
+  selection?: ScanPrintingSelection;
 }
 
 export interface CatalogCardDetail {
@@ -1530,6 +1581,31 @@ export interface BuiltLink {
   url: string;
   shortUrl: string;
 }
+
+export type LookupCardsParams = {
+  name: string;
+  cardNumber?: string;
+  setCode?: string;
+  /**
+   * Set to true to request authenticated scanner printing selection.
+   */
+  resolvePrinting?: boolean;
+  visionConfidence?: LookupCardsVisionConfidence;
+  /**
+   * @maxLength 1000
+   */
+  visualSummary?: string;
+  hp?: number;
+};
+
+export type LookupCardsVisionConfidence =
+  (typeof LookupCardsVisionConfidence)[keyof typeof LookupCardsVisionConfidence];
+
+export const LookupCardsVisionConfidence = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
 
 export type ListCardsParams = {
   categoryId?: number;

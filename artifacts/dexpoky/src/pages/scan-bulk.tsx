@@ -34,6 +34,10 @@ import { captureCardCrop, captureBottomCrop } from "@/lib/capture-crop";
 import { uploadScanImage } from "@/lib/upload-scan";
 import { Input } from "@/components/ui/input";
 import { CardConfidenceScorecard } from "@/components/card-confidence-scorecard";
+import { ScanPrintingPicker, type ScanPrinting } from "@/components/scan-printing-picker";
+import { ScanPrintingAssessment } from "@/components/scan-printing-assessment";
+import type { ScanPrintingSelection } from "@/lib/scan-printing-selection";
+import { useAuthFetch } from "@/lib/use-auth-fetch";
 import {
   useCreateCard,
   useListCategories,
@@ -80,6 +84,7 @@ interface BulkEntry {
   observedSetCode?: string | null;
   observedCardNumber?: string | null;
   visionConfidence?: "high" | "medium" | "low";
+  printingSelection?: ScanPrintingSelection;
   variants: TcgCard[];
   selectedVariantId?: string;
   pricing?: PricingData | null;
@@ -156,8 +161,15 @@ export default function ScanBulkPage() {
   const inflightCountRef = useRef(0);
   const haltedRef = useRef(false);
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const pricingRequestsRef = useRef<Map<string, { variantId: string; controller: AbortController }>>(new Map());
+
+  useEffect(() => () => {
+    for (const request of pricingRequestsRef.current.values()) request.controller.abort();
+    pricingRequestsRef.current.clear();
+  }, []);
 
   const { data: billing, isLoading: billingLoading } = useBillingStatus();
+  const authFetch = useAuthFetch();
   const recordScan = useRecordScan();
   const createCard = useCreateCard();
   const { data: categories } = useListCategories();
@@ -264,6 +276,7 @@ export default function ScanBulkPage() {
         setCode?: string | null;
         cardNumber?: string | null;
         hp?: number | null;
+        visualSummary?: string | null;
       };
       if (isAborted()) return;
       if (!idData.detected || !idData.pokemonName) {
@@ -304,13 +317,17 @@ export default function ScanBulkPage() {
       const lookupParams = new URLSearchParams({ name: idData.pokemonName });
       if (idData.cardNumber) lookupParams.set("cardNumber", idData.cardNumber);
       if (idData.setCode) lookupParams.set("setCode", idData.setCode);
-      const lookupRes = await fetch(
+      lookupParams.set("resolvePrinting", "true");
+      lookupParams.set("visionConfidence", idData.confidence);
+      if (idData.visualSummary) lookupParams.set("visualSummary", idData.visualSummary);
+      if (idData.hp != null) lookupParams.set("hp", String(idData.hp));
+      const lookupRes = await authFetch(
         `${BASE}/api/cards/lookup?${lookupParams.toString()}`,
         { signal },
       );
       if (!lookupRes.ok) throw new Error("lookup failed");
       const lookupData = await lookupRes.json() as {
-        card: TcgCard | null; variants: TcgCard[]; pricing: PricingData;
+        card: TcgCard | null; variants: TcgCard[]; pricing: PricingData; selection?: ScanPrintingSelection;
       };
       if (isAborted()) return;
 
@@ -331,6 +348,7 @@ export default function ScanBulkPage() {
               observedSetCode: idData.setCode ?? null,
               observedCardNumber: idData.cardNumber ?? null,
               visionConfidence: idData.confidence,
+              printingSelection: lookupData.selection,
               variants,
               selectedVariantId: lookupData.card?.id ?? variants[0]?.id,
               pricing: lookupData.pricing ?? null,
@@ -347,7 +365,7 @@ export default function ScanBulkPage() {
     } finally {
       abortControllersRef.current.delete(entryId);
     }
-  }, [recordScan]);
+  }, [recordScan, authFetch]);
 
   // ── Capture button ────────────────────────────────────────────────────────
   const takePhoto = useCallback(() => {
@@ -440,6 +458,9 @@ export default function ScanBulkPage() {
       ctrl.abort();
       abortControllersRef.current.delete(id);
     }
+    pricingRequestsRef.current.get(id)?.controller.abort();
+    pricingRequestsRef.current.delete(id);
+    setPricingFetchingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
     inflightCountRef.current = Math.max(0, inflightCountRef.current - 1);
     setEntries((prev) => prev.filter((e) => e.id !== id));
     setExpanded((cur) => (cur === id ? null : cur));
@@ -452,23 +473,36 @@ export default function ScanBulkPage() {
   // Track which entries are currently re-fetching pricing after a variant switch
   const [pricingFetchingIds, setPricingFetchingIds] = useState<Set<string>>(new Set());
 
-  const selectVariantAndRefreshPricing = useCallback(async (entryId: string, variantId: string, variantName: string, variantCardNumber: string, variantSetCode?: string) => {
-    // Instant selection feedback
-    updateEntry(entryId, { selectedVariantId: variantId });
+  const selectVariantAndRefreshPricing = useCallback(async (entryId: string, variant: ScanPrinting) => {
+    // Clear the previous printing's price before showing this selection.
+    pricingRequestsRef.current.get(entryId)?.controller.abort();
+    const request = { variantId: variant.id, controller: new AbortController() };
+    pricingRequestsRef.current.set(entryId, request);
+    updateEntry(entryId, { selectedVariantId: variant.id, pricing: null });
 
     setPricingFetchingIds((prev) => new Set(prev).add(entryId));
     try {
-      const params = new URLSearchParams({ name: variantName });
-      if (variantCardNumber) params.set("cardNumber", variantCardNumber);
-      if (variantSetCode) params.set("setCode", variantSetCode);
-      const res = await fetch(`${BASE}/api/cards/lookup?${params.toString()}`);
+      const params = new URLSearchParams({
+        cardId: variant.id,
+        name: variant.name,
+        setName: variant.setName,
+        cardNumber: variant.cardNumber,
+      });
+      if (variant.rarity) params.set("rarity", variant.rarity);
+      const res = await fetch(`${BASE}/api/cards/pricing?${params.toString()}`, {
+        cache: "no-store",
+        signal: request.controller.signal,
+      });
       if (!res.ok) return;
       const data = await res.json() as { pricing?: PricingData | null };
-      if (data.pricing) {
-        updateEntry(entryId, { pricing: data.pricing });
+      if (pricingRequestsRef.current.get(entryId) === request && !request.controller.signal.aborted) {
+        updateEntry(entryId, { pricing: data.pricing ?? null });
       }
-    } catch { /* silently ignore — old pricing stays */ } finally {
-      setPricingFetchingIds((prev) => { const s = new Set(prev); s.delete(entryId); return s; });
+    } catch { /* Keep this printing's price unavailable, never the previous printing's price. */ } finally {
+      if (pricingRequestsRef.current.get(entryId) === request) {
+        pricingRequestsRef.current.delete(entryId);
+        setPricingFetchingIds((prev) => { const next = new Set(prev); next.delete(entryId); return next; });
+      }
     }
   }, [updateEntry]);
 
@@ -479,6 +513,9 @@ export default function ScanBulkPage() {
     }
     const entry = entries.find((e) => e.id === id);
     if (!entry) return;
+    pricingRequestsRef.current.get(id)?.controller.abort();
+    pricingRequestsRef.current.delete(id);
+    setPricingFetchingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
     // Abort any still-running detection for this entry
     const ctrl = abortControllersRef.current.get(id);
     if (ctrl) {
@@ -488,7 +525,7 @@ export default function ScanBulkPage() {
     // Reset to analyzing state, clear prior results
     setEntries((prev) => prev.map((e) =>
       e.id === id
-        ? { ...e, status: "analyzing", variants: [], selectedVariantId: undefined, pokemonName: undefined, errorMsg: undefined }
+        ? { ...e, status: "analyzing", variants: [], selectedVariantId: undefined, pokemonName: undefined, errorMsg: undefined, printingSelection: undefined, pricing: null }
         : e
     ));
     void processEntry(id, entry.imageData);
@@ -496,6 +533,10 @@ export default function ScanBulkPage() {
 
   // ── Save All ──────────────────────────────────────────────────────────────
   const saveAll = useCallback(async () => {
+    if (entries.some((entry) => entry.include && entry.status === "ready" && pricingRequestsRef.current.has(entry.id))) {
+      toast.info("Please wait for the selected printings' prices to finish loading.");
+      return;
+    }
     // Snapshot the entries to save at the moment Save is pressed, so any
     // mid-save edits to `entries` (e.g. user removes a row) don't shift the loop.
     const toSave = entries.filter((e) => e.include && e.status === "ready");
@@ -850,6 +891,17 @@ export default function ScanBulkPage() {
                               {e.variants.length} printings
                             </Badge>
                           )}
+                          {e.printingSelection?.recommendedId === variant?.id &&
+                            (e.printingSelection?.status === "exact" || e.printingSelection?.status === "likely") && (
+                            <Badge variant="outline" className="text-[10px] py-0 h-5 text-primary border-primary/30">
+                              {e.printingSelection.status === "exact" ? "OCR match" : "Likely printing"}
+                            </Badge>
+                          )}
+                          {(e.printingSelection?.status === "review" || e.printingSelection?.status === "unavailable") && (
+                            <Badge variant="outline" className="text-[10px] py-0 h-5 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                              Check printing
+                            </Badge>
+                          )}
                         </div>
                       )}
                       {e.status === "saved" && (
@@ -869,7 +921,7 @@ export default function ScanBulkPage() {
                           className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 rounded hover:bg-muted"
                         >
                           {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                          Edit
+                          {e.printingSelection?.status === "review" || e.printingSelection?.status === "unavailable" ? "Review printing" : "Edit"}
                         </button>
                       )}
                     </div>
@@ -887,55 +939,20 @@ export default function ScanBulkPage() {
                   {/* Expanded editor */}
                   {isOpen && e.status === "ready" && (
                     <div className="border-t bg-muted/30 p-3 space-y-4">
+                      <ScanPrintingAssessment
+                        selection={e.printingSelection}
+                        selectedId={variant?.id}
+                        setCode={e.observedSetCode}
+                        cardNumber={e.observedCardNumber}
+                      />
                       {/* Other Printings */}
                       {e.variants.length > 1 && (
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                            Other Printings
-                          </p>
-                          <div style={{ maxWidth: "100vw", overflow: "hidden" }}>
-                            <div className="overflow-x-auto -mx-3 px-3 pb-1" style={{ overflowX: "auto" }}>
-                              <div className="flex gap-2">
-                                {e.variants.slice(0, 20).map((v) => {
-                                  const selected = v.id === (e.selectedVariantId ?? e.variants[0]?.id);
-                                  return (
-                                    <button
-                                      key={v.id}
-                                      type="button"
-                                      onClick={() => void selectVariantAndRefreshPricing(e.id, v.id, v.name, v.cardNumber, v.setId)}
-                                      className={`shrink-0 w-20 rounded-lg overflow-hidden border-2 transition-all ${
-                                        selected ? "border-primary ring-2 ring-primary/30" : "border-transparent hover:border-border"
-                                      }`}
-                                    >
-                                      <div className="aspect-[5/7] bg-muted relative">
-                                         <img
-                                           src={v.imageUrl || "/logo.png"}
-                                           alt={v.imageUrl ? v.name : ""}
-                                           aria-hidden={!v.imageUrl}
-                                           className={v.imageUrl
-                                             ? "w-full h-full object-contain"
-                                             : "w-full h-full object-contain p-3 grayscale opacity-20"}
-                                           onError={(event) => {
-                                             event.currentTarget.onerror = null;
-                                             event.currentTarget.src = "/logo.png";
-                                             event.currentTarget.alt = "";
-                                             event.currentTarget.className = "w-full h-full object-contain p-3 grayscale opacity-20";
-                                           }}
-                                         />
-                                        {selected && (
-                                          <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center">
-                                            <Check className="h-2.5 w-2.5" />
-                                          </div>
-                                        )}
-                                      </div>
-                                      <p className="text-[9px] px-1 py-0.5 truncate text-center">{v.setName}</p>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <ScanPrintingPicker
+                          entryId={e.id}
+                          variants={e.variants}
+                          selectedId={e.selectedVariantId}
+                          onSelect={(v) => void selectVariantAndRefreshPricing(e.id, v)}
+                        />
                       )}
 
                       {/* Condition */}
@@ -1149,7 +1166,8 @@ export default function ScanBulkPage() {
               </Button>
               <Button
                 onClick={saveAll}
-                disabled={reviewableCount === 0 || createCard.isPending}
+                disabled={reviewableCount === 0 || createCard.isPending ||
+                  entries.some((entry) => entry.include && entry.status === "ready" && pricingFetchingIds.has(entry.id))}
                 className="flex-1 gap-1 h-11 font-bold"
               >
                 <Check className="h-4 w-4" />

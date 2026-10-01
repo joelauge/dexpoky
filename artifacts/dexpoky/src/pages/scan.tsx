@@ -28,6 +28,9 @@ import { uploadScanImage } from "@/lib/upload-scan";
 import { CatalogSearch } from "@/components/catalog-search";
 import type { CatalogCard } from "@workspace/api-client-react";
 import { CardConfidenceScorecard } from "@/components/card-confidence-scorecard";
+import { ScanPrintingAssessment } from "@/components/scan-printing-assessment";
+import type { ScanPrintingSelection } from "@/lib/scan-printing-selection";
+import { useAuthFetch } from "@/lib/use-auth-fetch";
 
 interface TcgCard {
   id: string;
@@ -96,6 +99,7 @@ export default function ScanPage() {
   const [observedSetCode, setObservedSetCode] = useState<string | null>(null);
   const [observedCardNumber, setObservedCardNumber] = useState<string | null>(null);
   const [confidence, setConfidence]           = useState<"high"|"medium"|"low">("low");
+  const [printingSelection, setPrintingSelection] = useState<ScanPrintingSelection | null>(null);
   const [card, setCard]                       = useState<TcgCard | null>(null);
   const [variants, setVariants]               = useState<TcgCard[]>([]);
   const [selectedVariant, setSelectedVariant] = useState<TcgCard | null>(null);
@@ -115,6 +119,7 @@ export default function ScanPage() {
   const recordScan = useRecordScan();
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] = useState<"trial_not_activated" | "trial_exhausted" | "monthly_limit_reached" | null>(null);
+  const authFetch = useAuthFetch();
 
   // Crop to the on-screen card guide (88% of viewport height).
   const captureFrame = useCallback((): string | null => {
@@ -134,24 +139,29 @@ export default function ScanPage() {
   const lookupCard = useCallback(async (
     name: string,
     conf: "high"|"medium"|"low",
-    extras?: { cardNumber?: string | null; setCode?: string | null },
+    extras?: { cardNumber?: string | null; setCode?: string | null; visualSummary?: string | null; hp?: number | null },
   ) => {
     setPhase("confirming");
     setPokemonName(name);
     setConfidence(conf);
+    setPrintingSelection(null);
 
     setConfirmSteps([
       { text: `Identified: ${name}`, done: true },
-      { text: "Searching TCG database…", done: false },
+      { text: "Comparing printings with your scan…", done: false },
     ]);
 
     try {
       const params = new URLSearchParams({ name });
       if (extras?.cardNumber) params.set("cardNumber", extras.cardNumber);
       if (extras?.setCode) params.set("setCode", extras.setCode);
-      const res = await fetch(`${BASE}/api/cards/lookup?${params.toString()}`);
+      params.set("resolvePrinting", "true");
+      params.set("visionConfidence", conf);
+      if (extras?.visualSummary) params.set("visualSummary", extras.visualSummary);
+      if (extras?.hp != null) params.set("hp", String(extras.hp));
+      const res = await authFetch(`${BASE}/api/cards/lookup?${params.toString()}`);
       if (!res.ok) throw new Error("lookup failed");
-      const data = await res.json() as { card: TcgCard | null; variants: TcgCard[]; pricing: PricingData };
+      const data = await res.json() as { card: TcgCard | null; variants: TcgCard[]; pricing: PricingData; selection?: ScanPrintingSelection };
 
       const variantCount = data.variants?.length ?? (data.card ? 1 : 0);
       setConfirmSteps([
@@ -165,6 +175,7 @@ export default function ScanPage() {
       setCard(data.card);
       setVariants(data.variants ?? []);
       setSelectedVariant(data.card);
+      setPrintingSelection(data.selection ?? null);
        setImageFailed(false);
       setPricing(data.pricing ?? null);
 
@@ -180,7 +191,7 @@ export default function ScanPage() {
       toast.error("Couldn't confirm card — please try again.");
       setPhase("idle");
     }
-  }, []);
+  }, [authFetch]);
 
   const takePhoto = useCallback(async () => {
     const imageData = captureFrame();
@@ -217,6 +228,7 @@ export default function ScanPage() {
         setCode?: string | null;
         cardNumber?: string | null;
         hp?: number | null;
+        visualSummary?: string | null;
       };
       if (!data.detected || !data.pokemonName) {
         toast.error("No card detected — try again with better lighting and the card centered in the frame.");
@@ -241,7 +253,10 @@ export default function ScanPage() {
           }
         },
       });
-      lookupCard(data.pokemonName, data.confidence, { cardNumber: data.cardNumber, setCode: data.setCode });
+      lookupCard(data.pokemonName, data.confidence, {
+        cardNumber: data.cardNumber, setCode: data.setCode,
+        visualSummary: data.visualSummary, hp: data.hp,
+      });
     } catch {
       toast.error("Couldn't analyze photo — please try again.");
       setPhase("idle");
@@ -583,6 +598,12 @@ export default function ScanPage() {
 
             {displayCard ? (
               <>
+                <ScanPrintingAssessment
+                  selection={printingSelection}
+                  selectedId={displayCard.id}
+                  setCode={observedSetCode}
+                  cardNumber={observedCardNumber}
+                />
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed px-3 py-2">
                   <p className="text-xs text-muted-foreground">Wrong printing or card?</p>
                   <Button

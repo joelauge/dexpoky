@@ -256,6 +256,90 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * Public legacy lookup requests omit scanner selection and do not make a model request. Setting resolvePrinting=true enables scanner printing selection, requires authentication, and may invoke the selection model. The selection field is only returned for those selection-enabled requests.
+ * @summary Look up Pokémon card printings for the scanner
+ */
+export const lookupCardsQueryResolvePrintingDefault = false;
+export const lookupCardsQueryVisualSummaryMax = 1000;
+
+export const LookupCardsQueryParams = zod.object({
+  name: zod.coerce.string(),
+  cardNumber: zod.coerce.string().optional(),
+  setCode: zod.coerce.string().optional(),
+  resolvePrinting: zod.coerce
+    .boolean()
+    .default(lookupCardsQueryResolvePrintingDefault)
+    .describe(
+      "Set to true to request authenticated scanner printing selection.",
+    ),
+  visionConfidence: zod.enum(["high", "medium", "low"]).optional(),
+  visualSummary: zod.coerce
+    .string()
+    .max(lookupCardsQueryVisualSummaryMax)
+    .optional(),
+  hp: zod.coerce.number().optional(),
+});
+
+export const LookupCardsResponse = zod.object({
+  card: zod.union([
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      imageUrl: zod.string(),
+      setName: zod.string(),
+      setId: zod.string(),
+      cardNumber: zod.string(),
+      rarity: zod.string().nullable(),
+    }),
+    zod.null(),
+  ]),
+  variants: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      imageUrl: zod.string(),
+      setName: zod.string(),
+      setId: zod.string(),
+      cardNumber: zod.string(),
+      rarity: zod.string().nullable(),
+    }),
+  ),
+  pricing: zod.object({
+    marketPrice: zod.number().nullable(),
+    lowPrice: zod.number().nullable(),
+    trendPrice: zod.number().nullable(),
+    source: zod.enum(["tcgplayer", "cardmarket"]).nullable(),
+    psaEstimates: zod.record(zod.string(), zod.number()).nullable(),
+    isFallback: zod.boolean().optional(),
+    ebay: zod
+      .union([
+        zod.object({
+          median: zod.number().nullable(),
+          average: zod.number().nullable(),
+          low: zod.number().nullable(),
+          high: zod.number().nullable(),
+          count: zod.number(),
+          searchUrl: zod.string(),
+        }),
+        zod.null(),
+      ])
+      .optional(),
+  }),
+  freshness: zod.object({
+    identityTtlSeconds: zod.number(),
+    pricingPolicy: zod.string(),
+  }),
+  selection: zod
+    .object({
+      status: zod.enum(["exact", "likely", "review", "unavailable"]),
+      recommendedId: zod.string().nullable(),
+      confidence: zod.number().nullable(),
+      message: zod.string(),
+    })
+    .optional(),
+});
+
+/**
  * @summary List all cards in the collection
  */
 export const ListCardsQueryParams = zod.object({
@@ -1821,8 +1905,22 @@ export const GetCatalogCardResponse = zod.object({
     marketPrice: zod.number().nullable(),
     lowPrice: zod.number().nullable(),
     trendPrice: zod.number().nullable(),
-    source: zod.enum(["tcgplayer", "cardmarket"]).nullish(),
-    psaEstimates: zod.record(zod.string(), zod.number()).nullish(),
+    source: zod.enum(["tcgplayer", "cardmarket"]).nullable(),
+    psaEstimates: zod.record(zod.string(), zod.number()).nullable(),
+    isFallback: zod.boolean().optional(),
+    ebay: zod
+      .union([
+        zod.object({
+          median: zod.number().nullable(),
+          average: zod.number().nullable(),
+          low: zod.number().nullable(),
+          high: zod.number().nullable(),
+          count: zod.number(),
+          searchUrl: zod.string(),
+        }),
+        zod.null(),
+      ])
+      .optional(),
   }),
 });
 

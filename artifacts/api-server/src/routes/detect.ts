@@ -37,37 +37,39 @@ You have been given TWO images:
 Respond with ONLY valid JSON — no markdown, no explanation, nothing else.
 
 If a Pokémon trading card IS visible (even partially):
-{"detected":true,"confidence":"high","pokemonName":"Gloom","setCode":"PFL","cardNumber":"002","hp":70}
+{"detected":true,"confidence":"high","pokemonName":"Gloom","setCode":"PFL","cardNumber":"002","hp":70,"visualSummary":"Describe only visible artwork and markings here."}
 
 Fields:
-- confidence: "high" if card clearly visible, "medium" if partially visible
-- pokemonName: the Pokémon's name printed at the top of the card (REQUIRED, never null when detected)
-- setCode: the abbreviated set code in the bottom strip, usually 2-5 capital letters in a box (e.g. "PFL", "SVI", "PAF", "SVP", "SV5", "SWSH") — read it from the zoomed image
-- cardNumber: only the digits before the slash in the card number (e.g. "002" from "002/094") — read it from the zoomed image
+ - confidence: "high" only if the name AND identifiers are clearly readable; "medium" if some identifying details are uncertain; "low" if mostly unclear
+ - pokemonName: the card's printed title, including "Basic Fire Energy" or a Trainer title (REQUIRED, never null when detected)
+ - setCode: the abbreviated set code in the bottom strip, usually 2-6 letters or digits (e.g. "30C", "MEE", "PFL", "SVI", "PAF", "SVP", "SV5", "SWSH") — read it from the zoomed image; do not include the language suffix
+ - cardNumber: the collector identifier before the slash (e.g. "002" from "002/094", or "FIR", "TG01") — read it from the zoomed image, not an illustrator/copyright code
 - hp: the HP value as a plain integer from the top-right of the card (e.g. 70)
+ - visualSummary: up to two short sentences describing OBSERVED artwork, borders, readable illustrator/copyright text, language and distinctive stamps/logos (especially anniversary markings). Say when these details are not legible. Never invent a set, printing, foil finish, stamp or absent marking. This text will help compare catalog printings; it is not a catalog identification.
 
 All fields except pokemonName may be null if not legible.
 
 If NO Pokémon trading card is visible at all:
-{"detected":false,"confidence":"low","pokemonName":null,"setCode":null,"cardNumber":null,"hp":null}`
+{"detected":false,"confidence":"low","pokemonName":null,"setCode":null,"cardNumber":null,"hp":null,"visualSummary":null}`
       : `You are a Pokémon TCG card expert with perfect OCR ability. Examine every part of this image carefully, including small text at the bottom of the card.
 
 Respond with ONLY valid JSON — no markdown, no explanation, nothing else.
 
 If a Pokémon trading card IS visible (even partially):
-{"detected":true,"confidence":"high","pokemonName":"Gloom","setCode":"PFL","cardNumber":"002","hp":70}
+{"detected":true,"confidence":"high","pokemonName":"Gloom","setCode":"PFL","cardNumber":"002","hp":70,"visualSummary":"Describe only visible artwork and markings here."}
 
 Fields:
-- confidence: "high" if card clearly visible, "medium" if partially visible
-- pokemonName: the Pokémon's name printed at the top of the card (REQUIRED, never null when detected)
-- setCode: the abbreviated set code printed at the bottom of the card, usually 2-5 capital letters directly before or after the card number (e.g. "PFL", "SVI", "PAF", "SVP", "SV5", "SWSH") — read it carefully from the bottom-left area
-- cardNumber: only the digits before the slash in the card number printed at the bottom (e.g. "002" from "002/094", "138" from "138/193") — if no slash found, use the full number
+ - confidence: "high" only if the name AND identifiers are clearly readable; "medium" if some identifying details are uncertain; "low" if mostly unclear
+ - pokemonName: the card's printed title, including "Basic Fire Energy" or a Trainer title (REQUIRED, never null when detected)
+ - setCode: the abbreviated set code printed at the bottom, usually 2-6 letters or digits (e.g. "30C", "MEE", "PFL", "SVI", "PAF", "SVP", "SV5", "SWSH") — read it carefully; do not include the language suffix
+ - cardNumber: the collector identifier before the slash (e.g. "002" from "002/094", or "FIR", "TG01") — if no slash is found, use the full identifier; do not mistake an illustrator/copyright code for the collector number
 - hp: the HP value as a plain integer from the top-right of the card (e.g. 70)
+ - visualSummary: up to two short sentences describing OBSERVED artwork, borders, readable illustrator/copyright text, language and distinctive stamps/logos (especially anniversary markings). Say when these details are not legible. Never invent a set, printing, foil finish, stamp or absent marking. This text will help compare catalog printings; it is not a catalog identification.
 
 All fields except pokemonName may be null if not legible.
 
 If NO Pokémon trading card is visible at all:
-{"detected":false,"confidence":"low","pokemonName":null,"setCode":null,"cardNumber":null,"hp":null}`;
+{"detected":false,"confidence":"low","pokemonName":null,"setCode":null,"cardNumber":null,"hp":null,"visualSummary":null}`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-5-mini",
@@ -92,15 +94,17 @@ If NO Pokémon trading card is visible at all:
       setCode?: string | null;
       cardNumber?: string | null;
       hp?: number | null;
+      visualSummary?: string | null;
     } = {};
     try { parsed = JSON.parse(cleaned); } catch { /* ignore */ }
     res.json({
       detected: !!parsed.detected && !!parsed.pokemonName,
-      confidence: (parsed.confidence ?? "low") as "high" | "medium" | "low",
+      confidence: parsed.confidence === "high" || parsed.confidence === "medium" ? parsed.confidence : "low",
       pokemonName: parsed.pokemonName ?? null,
       setCode: parsed.setCode ?? null,
       cardNumber: parsed.cardNumber ?? null,
       hp: parsed.hp ?? null,
+      visualSummary: typeof parsed.visualSummary === "string" ? parsed.visualSummary.slice(0, 1000) : null,
     });
   } catch (err) {
     req.log?.error({ err }, "Card identify failed");

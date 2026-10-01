@@ -244,6 +244,79 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /cards/lookup:
+    get:
+      operationId: lookupCards
+      tags: [cards]
+      summary: Look up Pokémon card printings for the scanner
+      description: >-
+        Public legacy lookup requests omit scanner selection and do not make a
+        model request. Setting resolvePrinting=true enables scanner printing
+        selection, requires authentication, and may invoke the selection model.
+        The selection field is only returned for those selection-enabled
+        requests.
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: cardNumber
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: setCode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: resolvePrinting
+          in: query
+          required: false
+          description: Set to true to request authenticated scanner printing selection.
+          schema:
+            type: boolean
+            default: false
+        - name: visionConfidence
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [high, medium, low]
+        - name: visualSummary
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 1000
+        - name: hp
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        "200":
+          description: >-
+            Matching card, variants, pricing, and freshness. When
+            resolvePrinting=true, also includes scanner selection assessment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanLookupResponse"
+        "400":
+          description: Invalid or missing lookup query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Authentication is required only when resolvePrinting=true.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
   /cards:
     get:
       operationId: listCards
@@ -2906,10 +2979,103 @@ components:
           additionalProperties:
             type: number
           nullable: true
+        isFallback:
+          type: boolean
+        ebay:
+          oneOf:
+            - $ref: "#/components/schemas/EbaySoldPricing"
+            - type: "null"
       required:
         - marketPrice
         - lowPrice
         - trendPrice
+        - source
+        - psaEstimates
+
+    EbaySoldPricing:
+      type: object
+      properties:
+        median:
+          type: number
+          nullable: true
+        average:
+          type: number
+          nullable: true
+        low:
+          type: number
+          nullable: true
+        high:
+          type: number
+          nullable: true
+        count:
+          type: integer
+        searchUrl:
+          type: string
+      required: [median, average, low, high, count, searchUrl]
+
+    ScanLookupCard:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        imageUrl:
+          type: string
+        setName:
+          type: string
+        setId:
+          type: string
+        cardNumber:
+          type: string
+        rarity:
+          type: string
+          nullable: true
+      required: [id, name, imageUrl, setName, setId, cardNumber, rarity]
+
+    ScanLookupFreshness:
+      type: object
+      properties:
+        identityTtlSeconds:
+          type: integer
+        pricingPolicy:
+          type: string
+      required: [identityTtlSeconds, pricingPolicy]
+
+    ScanPrintingSelection:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [exact, likely, review, unavailable]
+        recommendedId:
+          type: string
+          nullable: true
+        confidence:
+          type: number
+          nullable: true
+        message:
+          type: string
+      required: [status, recommendedId, confidence, message]
+
+    ScanLookupResponse:
+      type: object
+      properties:
+        card:
+          oneOf:
+            - $ref: "#/components/schemas/ScanLookupCard"
+            - type: "null"
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScanLookupCard"
+        pricing:
+          $ref: "#/components/schemas/CatalogPricing"
+        freshness:
+          $ref: "#/components/schemas/ScanLookupFreshness"
+        selection:
+          $ref: "#/components/schemas/ScanPrintingSelection"
+      required: [card, variants, pricing, freshness]
 
     CatalogCardDetail:
       type: object
