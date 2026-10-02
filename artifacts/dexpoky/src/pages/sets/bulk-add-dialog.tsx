@@ -24,10 +24,11 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { AlertTriangle, CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Minus, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { CardImageUpload } from "@/components/card-image-upload";
 import { normalizeSetCardNumber } from "@/lib/set-completion";
+import { expandBulkCardCopies, parseBulkCardQuantity } from "@/lib/bulk-card-quantity";
 
 function normalizeCatalogRarity(rarity?: string | null): BulkCreateCardInput["rarity"] {
   switch (rarity?.trim().toLowerCase()) {
@@ -56,6 +57,7 @@ interface BulkAddDialogProps {
     imageUrl?: string | null;
     rarity?: string | null;
     cardNumber?: string | null;
+    ownedQuantity?: number;
   }>;
   set: PokemonSetDetail;
   onSuccess: () => void;
@@ -63,6 +65,7 @@ interface BulkAddDialogProps {
 
 export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSuccess }: BulkAddDialogProps) {
   const [collectionId, setCollectionId] = useState<string>("none");
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [cardValues, setCardValues] = useState<Record<string, { value: string, photo: string | null }>>({});
   const [uploadingPhotos, setUploadingPhotos] = useState<Record<string, boolean>>({});
   const photoSession = useRef(0);
@@ -84,6 +87,7 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
   useEffect(() => {
     photoSession.current += 1;
     if (!open) {
+      setQuantities({});
       setCardValues({});
       setUploadingPhotos({});
       setDetections({});
@@ -193,7 +197,8 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
   };
 
   const handleSave = () => {
-    const cards: BulkCreateCardInput[] = selectedCards.map(c => {
+    if (hasInvalidQuantity || selectedCards.length === 0) return;
+    const inputs: BulkCreateCardInput[] = selectedCards.map(c => {
       const cv = cardValues[c.id];
       const estimatedValue = cv?.value && !isNaN(parseFloat(cv.value)) ? parseFloat(cv.value) : undefined;
       return {
@@ -210,6 +215,7 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
         condition: "near_mint" // default
       };
     });
+    const cards = expandBulkCardCopies(inputs, selectedCards.map(card => quantities[card.id]));
 
     bulkCreate.mutate({ data: { cards } }, {
       onSuccess: (res) => {
@@ -228,10 +234,14 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
     });
   };
 
+  const hasInvalidQuantity = selectedCards.some(card => parseBulkCardQuantity(quantities[card.id]) === null);
+  const totalCopies = selectedCards.reduce((total, card) => total + (parseBulkCardQuantity(quantities[card.id]) ?? 0), 0);
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
       if (!nextOpen && result) onSuccess();
       if (!nextOpen) {
+          setQuantities({});
         setResult(null);
         setCardValues({});
         setUploadingPhotos({});
@@ -242,9 +252,9 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
     }}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Add {selectedCards.length} Cards</DialogTitle>
+          <DialogTitle>Add {totalCopies} Card {totalCopies === 1 ? "Copy" : "Copies"}</DialogTitle>
           <DialogDescription>
-            Review and add missing cards to your collection.
+            Choose how many copies of each card to add. These are added to any copies you already own.
           </DialogDescription>
         </DialogHeader>
 
@@ -286,10 +296,39 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
                   </div>
                   <div className="flex-1 space-y-3">
                     <div className="font-semibold text-sm">{card.name} <span className="text-muted-foreground font-normal ml-1">#{card.cardNumber || card.id}</span></div>
+                    <div className="space-y-1.5">
+                      <label htmlFor={`copies-${card.id}`} className="text-xs font-medium text-muted-foreground">Copies to add</label>
+                      <div className="flex items-center gap-2">
+                        <Button type="button" size="icon" variant="outline"
+                          aria-label={`Decrease copies of ${card.name} #${card.cardNumber || card.id}`}
+                          disabled={bulkCreate.isPending || (parseBulkCardQuantity(quantities[card.id]) ?? 1) <= 1}
+                          onClick={() => setQuantities(current => ({ ...current, [card.id]: String((parseBulkCardQuantity(current[card.id]) ?? 1) - 1) }))}>
+                          <Minus className="h-4 w-4" />
+                        </Button>
+                        <Input id={`copies-${card.id}`} type="number" min="1" max="999" step="1"
+                          inputMode="numeric" className="w-20 text-center"
+                          value={quantities[card.id] ?? "1"}
+                          disabled={bulkCreate.isPending}
+                          aria-invalid={parseBulkCardQuantity(quantities[card.id]) === null}
+                          aria-describedby={`copies-help-${card.id}`}
+                          onChange={event => setQuantities(current => ({ ...current, [card.id]: event.target.value }))} />
+                        <Button type="button" size="icon" variant="outline"
+                          aria-label={`Increase copies of ${card.name} #${card.cardNumber || card.id}`}
+                          disabled={bulkCreate.isPending || (parseBulkCardQuantity(quantities[card.id]) ?? 1) >= 999}
+                          onClick={() => setQuantities(current => ({ ...current, [card.id]: String((parseBulkCardQuantity(current[card.id]) ?? 0) + 1) }))}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p id={`copies-help-${card.id}`} className="text-[11px] text-muted-foreground">
+                        {parseBulkCardQuantity(quantities[card.id]) === null
+                          ? "Enter a whole number from 1 to 999."
+                          : `${card.ownedQuantity ?? 0} owned · ${(card.ownedQuantity ?? 0) + (parseBulkCardQuantity(quantities[card.id]) ?? 0)} after adding`}
+                      </p>
+                    </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-muted-foreground">Estimated Value ($)</label>
+                        <label className="text-xs font-medium text-muted-foreground">Estimated Value per Copy ($)</label>
                         <Input 
                           type="number" 
                           step="0.01" 
@@ -353,7 +392,7 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
             onSuccess();
             setResult(null);
             onOpenChange(false);
-          } : handleSave} disabled={bulkCreate.isPending || Object.values(uploadingPhotos).some(Boolean)}>
+          } : handleSave} disabled={bulkCreate.isPending || Object.values(uploadingPhotos).some(Boolean) || (!result && (hasInvalidQuantity || selectedCards.length === 0))}>
             {bulkCreate.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {result ? "Done" : "Save to Collection"}
           </Button>

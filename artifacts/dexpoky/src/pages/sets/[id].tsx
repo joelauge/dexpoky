@@ -573,6 +573,7 @@ export default function SetDetail() {
               imageUrl: card.imageUrl,
               rarity: card.rarity,
               cardNumber: card.localId,
+              ownedQuantity: completion.ownedCardIdsMap.get(card.id)?.length ?? 0,
             };
           })}
           set={set}
