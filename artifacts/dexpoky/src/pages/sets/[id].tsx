@@ -454,15 +454,9 @@ export default function SetDetail() {
                       </div>
                     )}
 
-                    {isOwned && !isSelectionMode && (
-                      <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1 shadow-sm backdrop-blur-sm bg-opacity-90 z-10">
+                    {isOwned && (
+                      <div role="img" aria-label="Already collected" className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1 shadow-sm z-20">
                         <CheckCircle2 className="h-4 w-4" />
-                      </div>
-                    )}
-
-                    {isSelectionMode && (
-                      <div className={cn("absolute top-2 right-2 rounded-full p-0.5 shadow-sm backdrop-blur-sm transition-colors z-20", isSelected ? "bg-primary text-primary-foreground" : "bg-black/20 text-white/50 border border-white/30")}>
-                        <CheckCircle2 className="h-5 w-5" />
                       </div>
                     )}
 
