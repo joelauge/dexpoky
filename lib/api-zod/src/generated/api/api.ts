@@ -8,6 +8,355 @@
 import * as zod from "zod";
 
 /**
+ * @summary List the authenticated owner's saved 3D binders
+ */
+export const ListBindersResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  style: zod.enum(["ring", "zip", "folio"]),
+  coverColor: zod.string(),
+  revision: zod.number(),
+  pageCount: zod.number(),
+  cardCount: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListBindersResponse = zod.array(ListBindersResponseItem);
+
+/**
+ * @summary Create an owned binder with empty holder pages
+ */
+export const createBinderBodyNameMax = 80;
+
+export const createBinderBodyCoverColorRegExp = new RegExp("^#[0-9a-fA-F]{6}$");
+export const createBinderBodyRowsMax = 5;
+
+export const createBinderBodyColumnsMax = 5;
+
+export const createBinderBodyWidthMmMin = 150;
+export const createBinderBodyWidthMmMax = 400;
+
+export const createBinderBodyHeightMmMin = 180;
+export const createBinderBodyHeightMmMax = 500;
+
+export const createBinderBodyPageCountMax = 20;
+
+export const CreateBinderBody = zod.object({
+  name: zod.string().min(1).max(createBinderBodyNameMax),
+  style: zod.enum(["ring", "zip", "folio"]),
+  coverColor: zod.string().regex(createBinderBodyCoverColorRegExp),
+  rows: zod.number().min(1).max(createBinderBodyRowsMax),
+  columns: zod.number().min(1).max(createBinderBodyColumnsMax),
+  widthMm: zod
+    .number()
+    .min(createBinderBodyWidthMmMin)
+    .max(createBinderBodyWidthMmMax),
+  heightMm: zod
+    .number()
+    .min(createBinderBodyHeightMmMin)
+    .max(createBinderBodyHeightMmMax),
+  pageCount: zod.number().min(1).max(createBinderBodyPageCountMax),
+});
+
+/**
+ * @summary Load one owned binder and its occupied pocket layout
+ */
+
+export const GetBinderParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const getBinderResponsePagesItemIdMax = 64;
+
+export const getBinderResponsePagesItemIdRegExp = new RegExp(
+  "^[a-zA-Z0-9_-]+$",
+);
+export const getBinderResponsePagesItemRowsMax = 5;
+
+export const getBinderResponsePagesItemColumnsMax = 5;
+
+export const getBinderResponsePagesItemWidthMmMin = 150;
+export const getBinderResponsePagesItemWidthMmMax = 400;
+
+export const getBinderResponsePagesItemHeightMmMin = 180;
+export const getBinderResponsePagesItemHeightMmMax = 500;
+
+export const getBinderResponsePagesItemSlotsItemSlotMin = 0;
+export const getBinderResponsePagesItemSlotsItemSlotMax = 24;
+
+export const getBinderResponsePagesItemSlotsMax = 25;
+
+export const GetBinderResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  style: zod.enum(["ring", "zip", "folio"]),
+  coverColor: zod.string(),
+  revision: zod.number(),
+  pages: zod.array(
+    zod.object({
+      id: zod
+        .string()
+        .min(1)
+        .max(getBinderResponsePagesItemIdMax)
+        .regex(getBinderResponsePagesItemIdRegExp),
+      rows: zod.number().min(1).max(getBinderResponsePagesItemRowsMax),
+      columns: zod.number().min(1).max(getBinderResponsePagesItemColumnsMax),
+      widthMm: zod
+        .number()
+        .min(getBinderResponsePagesItemWidthMmMin)
+        .max(getBinderResponsePagesItemWidthMmMax),
+      heightMm: zod
+        .number()
+        .min(getBinderResponsePagesItemHeightMmMin)
+        .max(getBinderResponsePagesItemHeightMmMax),
+      slots: zod
+        .array(
+          zod.object({
+            slot: zod
+              .number()
+              .min(getBinderResponsePagesItemSlotsItemSlotMin)
+              .max(getBinderResponsePagesItemSlotsItemSlotMax),
+            cardId: zod.number().min(1),
+          }),
+        )
+        .max(getBinderResponsePagesItemSlotsMax),
+    }),
+  ),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Save a layout atomically with ownership and revision checks
+ */
+
+export const UpdateBinderParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const updateBinderBodyNameMax = 80;
+
+export const updateBinderBodyCoverColorRegExp = new RegExp("^#[0-9a-fA-F]{6}$");
+
+export const updateBinderBodyPagesItemIdMax = 64;
+
+export const updateBinderBodyPagesItemIdRegExp = new RegExp("^[a-zA-Z0-9_-]+$");
+export const updateBinderBodyPagesItemRowsMax = 5;
+
+export const updateBinderBodyPagesItemColumnsMax = 5;
+
+export const updateBinderBodyPagesItemWidthMmMin = 150;
+export const updateBinderBodyPagesItemWidthMmMax = 400;
+
+export const updateBinderBodyPagesItemHeightMmMin = 180;
+export const updateBinderBodyPagesItemHeightMmMax = 500;
+
+export const updateBinderBodyPagesItemSlotsItemSlotMin = 0;
+export const updateBinderBodyPagesItemSlotsItemSlotMax = 24;
+
+export const updateBinderBodyPagesItemSlotsMax = 25;
+
+export const updateBinderBodyPagesMax = 60;
+
+export const UpdateBinderBody = zod.object({
+  name: zod.string().min(1).max(updateBinderBodyNameMax),
+  style: zod.enum(["ring", "zip", "folio"]),
+  coverColor: zod.string().regex(updateBinderBodyCoverColorRegExp),
+  revision: zod.number().min(1),
+  pages: zod
+    .array(
+      zod.object({
+        id: zod
+          .string()
+          .min(1)
+          .max(updateBinderBodyPagesItemIdMax)
+          .regex(updateBinderBodyPagesItemIdRegExp),
+        rows: zod.number().min(1).max(updateBinderBodyPagesItemRowsMax),
+        columns: zod.number().min(1).max(updateBinderBodyPagesItemColumnsMax),
+        widthMm: zod
+          .number()
+          .min(updateBinderBodyPagesItemWidthMmMin)
+          .max(updateBinderBodyPagesItemWidthMmMax),
+        heightMm: zod
+          .number()
+          .min(updateBinderBodyPagesItemHeightMmMin)
+          .max(updateBinderBodyPagesItemHeightMmMax),
+        slots: zod
+          .array(
+            zod.object({
+              slot: zod
+                .number()
+                .min(updateBinderBodyPagesItemSlotsItemSlotMin)
+                .max(updateBinderBodyPagesItemSlotsItemSlotMax),
+              cardId: zod.number().min(1),
+            }),
+          )
+          .max(updateBinderBodyPagesItemSlotsMax),
+      }),
+    )
+    .min(1)
+    .max(updateBinderBodyPagesMax),
+});
+
+export const updateBinderResponsePagesItemIdMax = 64;
+
+export const updateBinderResponsePagesItemIdRegExp = new RegExp(
+  "^[a-zA-Z0-9_-]+$",
+);
+export const updateBinderResponsePagesItemRowsMax = 5;
+
+export const updateBinderResponsePagesItemColumnsMax = 5;
+
+export const updateBinderResponsePagesItemWidthMmMin = 150;
+export const updateBinderResponsePagesItemWidthMmMax = 400;
+
+export const updateBinderResponsePagesItemHeightMmMin = 180;
+export const updateBinderResponsePagesItemHeightMmMax = 500;
+
+export const updateBinderResponsePagesItemSlotsItemSlotMin = 0;
+export const updateBinderResponsePagesItemSlotsItemSlotMax = 24;
+
+export const updateBinderResponsePagesItemSlotsMax = 25;
+
+export const UpdateBinderResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  style: zod.enum(["ring", "zip", "folio"]),
+  coverColor: zod.string(),
+  revision: zod.number(),
+  pages: zod.array(
+    zod.object({
+      id: zod
+        .string()
+        .min(1)
+        .max(updateBinderResponsePagesItemIdMax)
+        .regex(updateBinderResponsePagesItemIdRegExp),
+      rows: zod.number().min(1).max(updateBinderResponsePagesItemRowsMax),
+      columns: zod.number().min(1).max(updateBinderResponsePagesItemColumnsMax),
+      widthMm: zod
+        .number()
+        .min(updateBinderResponsePagesItemWidthMmMin)
+        .max(updateBinderResponsePagesItemWidthMmMax),
+      heightMm: zod
+        .number()
+        .min(updateBinderResponsePagesItemHeightMmMin)
+        .max(updateBinderResponsePagesItemHeightMmMax),
+      slots: zod
+        .array(
+          zod.object({
+            slot: zod
+              .number()
+              .min(updateBinderResponsePagesItemSlotsItemSlotMin)
+              .max(updateBinderResponsePagesItemSlotsItemSlotMax),
+            cardId: zod.number().min(1),
+          }),
+        )
+        .max(updateBinderResponsePagesItemSlotsMax),
+    }),
+  ),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete the binder layout without deleting any collection cards
+ */
+
+export const DeleteBinderParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+/**
+ * @summary Compare platform quotes for one exact card printing and finish
+ */
+export const getPricingLookupQueryCatalogCardIdMax = 120;
+
+export const getPricingLookupQueryFinishDefault = `normal`;
+
+export const GetPricingLookupQueryParams = zod.object({
+  catalogCardId: zod.coerce
+    .string()
+    .min(1)
+    .max(getPricingLookupQueryCatalogCardIdMax),
+  finish: zod
+    .enum(["normal", "holofoil", "reverse_holofoil"])
+    .default(getPricingLookupQueryFinishDefault),
+});
+
+export const getPricingLookupResponseFinishDefault = `normal`;
+
+export const GetPricingLookupResponse = zod.object({
+  lookupId: zod.string(),
+  observedAt: zod.coerce.date(),
+  expiresAt: zod.coerce.date(),
+  card: zod.object({
+    id: zod.string(),
+    name: zod.string(),
+    setName: zod.string().nullable(),
+    cardNumber: zod.string().nullable(),
+    imageUrl: zod.string().nullable(),
+  }),
+  finish: zod
+    .enum(["normal", "holofoil", "reverse_holofoil"])
+    .default(getPricingLookupResponseFinishDefault),
+  quotes: zod.array(
+    zod.object({
+      source: zod.enum(["tcgplayer", "cardmarket", "ebay"]),
+      label: zod.string(),
+      status: zod.enum(["available", "unavailable", "reference_only"]),
+      amount: zod.number().nullable(),
+      currency: zod.enum(["USD", "EUR"]),
+      valueUsd: zod.number().nullable(),
+      basis: zod.string(),
+      finish: zod.string().nullable(),
+      updatedAt: zod.string().nullable(),
+      url: zod.string().nullable(),
+      reason: zod.string().nullable(),
+      eligible: zod.boolean(),
+    }),
+  ),
+  averageUsd: zod.number().nullable(),
+  averageSourceCount: zod.number(),
+  fx: zod.union([
+    zod.object({
+      eurToUsd: zod.number(),
+      date: zod.string(),
+      source: zod.string(),
+    }),
+    zod.null(),
+  ]),
+  advice: zod.object({
+    status: zod.enum(["ready", "unavailable", "skipped"]),
+    recommendedOption: zod.enum(["tcgplayer", "cardmarket", "average", "none"]),
+    message: zod.string(),
+  }),
+});
+
+/**
+ * @summary Save a lookup price to one owned card without changing future refresh rules
+ */
+
+export const SaveCardValueSnapshotParams = zod.object({
+  cardId: zod.coerce.number().min(1),
+});
+
+export const saveCardValueSnapshotBodyLookupIdMax = 100;
+
+export const SaveCardValueSnapshotBody = zod.object({
+  lookupId: zod.string().min(1).max(saveCardValueSnapshotBodyLookupIdMax),
+  method: zod.enum(["tcgplayer", "cardmarket", "average"]),
+});
+
+export const SaveCardValueSnapshotResponse = zod.object({
+  cardId: zod.number(),
+  value: zod.number(),
+  currency: zod.enum(["USD"]),
+  method: zod.enum(["tcgplayer", "cardmarket", "average"]),
+  source: zod.string(),
+  recordedAt: zod.coerce.date(),
+});
+
+/**
  * @summary Get privacy-safe aggregate reliability signals for a profile
  */
 export const GetUserTrustSignalsParams = zod.object({
@@ -2250,6 +2599,27 @@ export const GetCatalogCardResponse = zod.object({
       ])
       .optional(),
   }),
+});
+
+/**
+ * Resolves the exact provider identity and adds only a verified missing checklist entry. It never creates an owned card.
+ * @summary Ensure a verified catalog printing appears in its canonical set checklist
+ */
+export const ensureSetCatalogCardBodyCatalogCardIdMax = 120;
+
+export const EnsureSetCatalogCardBody = zod.object({
+  catalogCardId: zod
+    .string()
+    .min(1)
+    .max(ensureSetCatalogCardBodyCatalogCardIdMax),
+});
+
+export const EnsureSetCatalogCardResponse = zod.object({
+  status: zod.enum(["already_present", "added", "unmatched"]),
+  setId: zod.string().optional(),
+  setName: zod.string().optional(),
+  cardId: zod.string().optional(),
+  message: zod.string(),
 });
 
 /**

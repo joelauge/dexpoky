@@ -6,3 +6,7 @@
 - [Set catalog loading](set-catalog-loading.md) — keep cold Sets index enrichment bounded; load matched product catalogs lazily on set detail.
 - [Personal photo authority](personal-photo-authority.md) — photo identity suggestions are advisory; never block saving the human-selected card/photo.
 - [Bulk-entry quantity placement](bulk-entry-quantity-placement.md) — adjust pending copy counts with +/− directly on selected cards in the Sets grid, not only in a dialog.
+- [Card lookup snapshots](value-snapshot-intent.md) — save today’s chosen value only, not a recurring rule; mirrors and unverified sold results are not independent compatible prices.
+- [Binder performance intent](binder-performance-intent.md) — keep binders highly performant and reuse the images already loaded for card sets.
+- [Component review expectations](component-review-expectations.md) — the user requests a harsh visual critic for changed DexPoky components; report rendered-verification limits.
+- [Persisted identity keys](persisted-identity-keys.md) — use PostgreSQL-safe identity tuple encoding and verify it with real storage, not only mocked inserts.

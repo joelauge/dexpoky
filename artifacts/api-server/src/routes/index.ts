@@ -11,6 +11,7 @@ import detectRouter from "./detect";
 import usersRouter from "./users";
 import ratingsRouter from "./ratings";
 import priceHistoryRouter from "./price-history";
+import priceLookupRouter from "./price-lookup";
 import storageRouter from "./storage";
 import shortenRouter from "./shorten";
 import billingRouter from "./billing";
@@ -37,6 +38,7 @@ import emailRouter from "./email";
 import backupRouter from "./backup";
 import recommendationsRouter from "./recommendations";
 import assistantRouter from "./assistant";
+import bindersRouter from "./binders";
 
 const router: IRouter = Router();
 
@@ -52,6 +54,7 @@ router.use(detectRouter);
 router.use(usersRouter);
 router.use(ratingsRouter);
 router.use(priceHistoryRouter);
+router.use(priceLookupRouter);
 router.use(storageRouter);
 router.use(shortenRouter);
 router.use(billingRouter);
@@ -78,5 +81,6 @@ router.use(emailRouter);
 router.use(backupRouter);
 router.use(recommendationsRouter);
 router.use(assistantRouter);
+router.use(bindersRouter);
 
 export default router;

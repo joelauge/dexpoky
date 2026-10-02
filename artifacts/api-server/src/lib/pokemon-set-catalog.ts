@@ -66,11 +66,15 @@ function normalizedCollectorNumber(value: string): string {
 
 function productIdentityName(name: string, number: string): string {
   const rawNumber = number.trim();
+  const finishQualifier = "(?:normal|non[- ]?holo|holo(?:foil)?|reverse[- ]holo(?:foil)?|cosmos[- ]holo(?:foil)?|cracked[- ]ice[- ]holo(?:foil)?|stamped?|team rocket|pok[eé] ball|master ball|pok[eé]mon center)";
   const suffixNumber = /^\d+$/.test(rawNumber)
     ? `0*${String(Number(rawNumber))}`
     : rawNumber.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const suffix = new RegExp(`\\s*[-–—]\\s*${suffixNumber}(?:\\s*\\([^)]*\\))?\\s*$`, "i");
-  const normalized = normalizedText(name.replace(suffix, ""));
+  // Metadata after the exact printed number is a product qualifier; meaningful
+  // parentheses within the card name remain intact.
+  const suffix = new RegExp(`\\s*[-–—]\\s*${suffixNumber}(?:\\s*\\([^)]*\\))*\\s*$`, "i");
+  const withoutProductSuffix = name.replace(suffix, "").replace(new RegExp(`\\s*\\(${finishQualifier}\\)\\s*$`, "i"), "");
+  const normalized = normalizedText(withoutProductSuffix);
   return normalized.replace(/^basic (?=(?:grass|fire|water|lightning|psychic|fighting|darkness|metal|colorless|dragon) energy$)/, "");
 }
 
@@ -95,6 +99,7 @@ export function mergeTcgcsvSetCards(
     catalogIds: uniqueAliases([card.id, ...(card.catalogIds ?? [])]),
   }));
   const dexByIdentity = new Map<string, number[]>();
+  const nativeNumbers = new Set(set.cards.map((card) => normalizedCollectorNumber(card.localId)));
   cards.forEach((card, index) => {
     const key = identityKey(card.name, card.localId);
     const matched = dexByIdentity.get(key) ?? [];
@@ -122,6 +127,9 @@ export function mergeTcgcsvSetCards(
     }
 
     const first = providerCards[0]!;
+    // A core checklist has one identity per number. Conflicting names must not
+    // create a second entry or gain an unverified alias.
+    if (nativeNumbers.has(normalizedCollectorNumber(first.cardNumber))) continue;
     cards.push({
       id: first.id,
       localId: first.cardNumber,

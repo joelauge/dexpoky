@@ -27,6 +27,8 @@ import {
   Code2,
   Bot,
   Album,
+  BadgeDollarSign,
+  BookMarked,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -439,6 +441,8 @@ export function Layout({ children }: LayoutProps) {
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/collection", label: "Collection", icon: Layers },
     { href: "/sets", label: "Sets", icon: Album },
+    { href: "/binders", label: "Binders", icon: BookMarked },
+    { href: "/card-lookup", label: "Card Lookup", icon: BadgeDollarSign },
     { href: "/wishlist", label: "Wishlist", icon: Heart },
     { href: "/decks", label: "Decks", icon: Library },
     { href: "/share", label: "Share/Sell", icon: Share2 },

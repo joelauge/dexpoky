@@ -48,6 +48,139 @@ tags:
     description: Privacy-safe trust signals and private transaction report triage
 
 paths:
+  /binders:
+    get:
+      operationId: listBinders
+      tags: [collections]
+      summary: List the authenticated owner's saved 3D binders
+      responses:
+        "200":
+          description: Binder summaries without loading every layout
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BinderSummary" }
+        "401": { description: Sign in required }
+    post:
+      operationId: createBinder
+      tags: [collections]
+      summary: Create an owned binder with empty holder pages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BinderInput" }
+      responses:
+        "201":
+          description: Created binder layout
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Binder" }
+        "400": { description: Invalid page dimensions or binder settings }
+        "401": { description: Sign in required }
+  /binders/{id}:
+    get:
+      operationId: getBinder
+      tags: [collections]
+      summary: Load one owned binder and its occupied pocket layout
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Owned binder layout
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Binder" }
+        "401": { description: Sign in required }
+        "404": { description: Owned binder not found }
+    put:
+      operationId: updateBinder
+      tags: [collections]
+      summary: Save a layout atomically with ownership and revision checks
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BinderUpdate" }
+      responses:
+        "200":
+          description: Saved binder with incremented revision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Binder" }
+        "400": { description: "Invalid slots, missing owned cards, or too many copies" }
+        "401": { description: Sign in required }
+        "404": { description: Owned binder not found }
+        "409": { description: Binder changed in another session; reload before saving }
+    delete:
+      operationId: deleteBinder
+      tags: [collections]
+      summary: Delete the binder layout without deleting any collection cards
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "204": { description: Binder layout deleted; collection cards preserved }
+        "401": { description: Sign in required }
+        "404": { description: Owned binder not found }
+  /pricing/lookup:
+    get:
+      operationId: getPricingLookup
+      tags: [cards]
+      summary: Compare platform quotes for one exact card printing and finish
+      parameters:
+        - in: query
+          name: catalogCardId
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 120 }
+        - in: query
+          name: finish
+          schema: { $ref: "#/components/schemas/PriceLookupFinish" }
+      responses:
+        "200":
+          description: Platform prices and comparable average
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PriceLookup" }
+        "401": { description: Sign in required }
+        "404": { description: Exact printing unavailable }
+        "503": { description: Catalog temporarily unavailable }
+  /cards/{cardId}/value-snapshot:
+    post:
+      operationId: saveCardValueSnapshot
+      tags: [cards]
+      summary: Save a lookup price to one owned card without changing future refresh rules
+      parameters:
+        - in: path
+          name: cardId
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CardValueSnapshotInput" }
+      responses:
+        "200":
+          description: Updated owned card value and history snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CardValueSnapshot" }
+        "400": { description: Invalid or non-comparable option }
+        "401": { description: Sign in required }
+        "404": { description: Owned card not found }
+        "409": { description: Lookup expired or printing does not match }
   /ratings/user/{clerkId}/trust:
     get:
       operationId: getUserTrustSignals
@@ -1187,6 +1320,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
 
+  /catalog/ensure-set-card:
+    post:
+      operationId: ensureSetCatalogCard
+      tags: [catalog]
+      summary: Ensure a verified catalog printing appears in its canonical set checklist
+      description: Resolves the exact provider identity and adds only a verified missing checklist entry. It never creates an owned card.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnsureSetCatalogCardInput"
+      responses:
+        "200":
+          description: Presence or safely verified supplement outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnsureSetCatalogCardResult"
+        "400":
+          description: Invalid request
+        "401":
+          description: Sign in required
+        "503":
+          description: Provider catalog could not be safely verified
+
   /wishlist:
     get:
       operationId: listWishlist
@@ -1770,6 +1931,162 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    BinderStyle:
+      type: string
+      enum: [ring, zip, folio]
+    BinderSlot:
+      type: object
+      additionalProperties: false
+      required: [slot, cardId]
+      properties:
+        slot: { type: integer, minimum: 0, maximum: 24 }
+        cardId: { type: integer, minimum: 1 }
+    BinderPage:
+      type: object
+      additionalProperties: false
+      required: [id, rows, columns, widthMm, heightMm, slots]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 64, pattern: "^[a-zA-Z0-9_-]+$" }
+        rows: { type: integer, minimum: 1, maximum: 5 }
+        columns: { type: integer, minimum: 1, maximum: 5 }
+        widthMm: { type: integer, minimum: 150, maximum: 400 }
+        heightMm: { type: integer, minimum: 180, maximum: 500 }
+        slots:
+          type: array
+          maxItems: 25
+          items: { $ref: "#/components/schemas/BinderSlot" }
+    BinderInput:
+      type: object
+      additionalProperties: false
+      required: [name, style, coverColor, rows, columns, widthMm, heightMm, pageCount]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        style: { $ref: "#/components/schemas/BinderStyle" }
+        coverColor: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        rows: { type: integer, minimum: 1, maximum: 5 }
+        columns: { type: integer, minimum: 1, maximum: 5 }
+        widthMm: { type: integer, minimum: 150, maximum: 400 }
+        heightMm: { type: integer, minimum: 180, maximum: 500 }
+        pageCount: { type: integer, minimum: 1, maximum: 20 }
+    BinderUpdate:
+      type: object
+      additionalProperties: false
+      required: [name, style, coverColor, revision, pages]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        style: { $ref: "#/components/schemas/BinderStyle" }
+        coverColor: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        revision: { type: integer, minimum: 1 }
+        pages:
+          type: array
+          minItems: 1
+          maxItems: 60
+          items: { $ref: "#/components/schemas/BinderPage" }
+    Binder:
+      type: object
+      required: [id, name, style, coverColor, revision, pages, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        style: { $ref: "#/components/schemas/BinderStyle" }
+        coverColor: { type: string }
+        revision: { type: integer }
+        pages:
+          type: array
+          items: { $ref: "#/components/schemas/BinderPage" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BinderSummary:
+      type: object
+      required: [id, name, style, coverColor, revision, pageCount, cardCount, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        style: { $ref: "#/components/schemas/BinderStyle" }
+        coverColor: { type: string }
+        revision: { type: integer }
+        pageCount: { type: integer }
+        cardCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PriceLookupFinish:
+      type: string
+      enum: [normal, holofoil, reverse_holofoil]
+      default: normal
+    PriceLookupCard:
+      type: object
+      required: [id, name, setName, cardNumber, imageUrl]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        setName: { type: [string, "null"] }
+        cardNumber: { type: [string, "null"] }
+        imageUrl: { type: [string, "null"] }
+    PlatformPriceQuote:
+      type: object
+      required: [source, label, status, amount, currency, valueUsd, basis, finish, updatedAt, url, reason, eligible]
+      properties:
+        source: { type: string, enum: [tcgplayer, cardmarket, ebay] }
+        label: { type: string }
+        status: { type: string, enum: [available, unavailable, reference_only] }
+        amount: { type: [number, "null"] }
+        currency: { type: string, enum: [USD, EUR] }
+        valueUsd: { type: [number, "null"] }
+        basis: { type: string }
+        finish: { type: [string, "null"] }
+        updatedAt: { type: [string, "null"] }
+        url: { type: [string, "null"] }
+        reason: { type: [string, "null"] }
+        eligible: { type: boolean }
+    PriceLookupFx:
+      type: object
+      required: [eurToUsd, date, source]
+      properties:
+        eurToUsd: { type: number }
+        date: { type: string }
+        source: { type: string }
+    PriceLookupAdvice:
+      type: object
+      required: [status, recommendedOption, message]
+      properties:
+        status: { type: string, enum: [ready, unavailable, skipped] }
+        recommendedOption: { type: string, enum: [tcgplayer, cardmarket, average, none] }
+        message: { type: string }
+    PriceLookup:
+      type: object
+      required: [lookupId, observedAt, expiresAt, card, finish, quotes, averageUsd, averageSourceCount, fx, advice]
+      properties:
+        lookupId: { type: string }
+        observedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        card: { $ref: "#/components/schemas/PriceLookupCard" }
+        finish: { $ref: "#/components/schemas/PriceLookupFinish" }
+        quotes:
+          type: array
+          items: { $ref: "#/components/schemas/PlatformPriceQuote" }
+        averageUsd: { type: [number, "null"] }
+        averageSourceCount: { type: integer }
+        fx:
+          anyOf:
+            - { $ref: "#/components/schemas/PriceLookupFx" }
+            - { type: "null" }
+        advice: { $ref: "#/components/schemas/PriceLookupAdvice" }
+    CardValueSnapshotInput:
+      type: object
+      required: [lookupId, method]
+      properties:
+        lookupId: { type: string, minLength: 1, maxLength: 100 }
+        method: { type: string, enum: [tcgplayer, cardmarket, average] }
+    CardValueSnapshot:
+      type: object
+      required: [cardId, value, currency, method, source, recordedAt]
+      properties:
+        cardId: { type: integer }
+        value: { type: number }
+        currency: { type: string, enum: [USD] }
+        method: { type: string, enum: [tcgplayer, cardmarket, average] }
+        source: { type: string }
+        recordedAt: { type: string, format: date-time }
     AssistantMessageBody:
       type: object
       additionalProperties: false
@@ -3226,6 +3543,33 @@ components:
       required:
         - card
         - pricing
+
+    EnsureSetCatalogCardInput:
+      type: object
+      additionalProperties: false
+      properties:
+        catalogCardId:
+          type: string
+          minLength: 1
+          maxLength: 120
+      required: [catalogCardId]
+
+    EnsureSetCatalogCardResult:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [already_present, added, unmatched]
+        setId:
+          type: string
+        setName:
+          type: string
+        cardId:
+          type: string
+        message:
+          type: string
+      required: [status, message]
 
     WishlistItem:
       type: object

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ComponentType } from "react";
+import { Suspense, lazy, useEffect, useRef, type ComponentType } from "react";
 import { ClerkProvider, SignIn, SignUp, useClerk, useUser, useAuth } from "@clerk/react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { shadcn } from "@clerk/themes";
@@ -8,6 +8,7 @@ import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
+const BindersPage = lazy(() => import("@/pages/binders/index"));
 import Dashboard from "@/pages/dashboard";
 import LandingPage from "@/pages/landing/index";
 import SetsIndex from "@/pages/sets/index";
@@ -40,6 +41,7 @@ import SubscriptionPage from "@/pages/subscription";
 import AdminPayouts from "@/pages/admin/payouts";
 import RulesPage from "@/pages/rules";
 import Wishlist from "@/pages/wishlist";
+import CardLookup from "@/pages/card-lookup";
 import InboxPage from "@/pages/inbox/index";
 import WalletPage from "@/pages/wallet/index";
 import DeveloperPage from "@/pages/developer";
@@ -299,6 +301,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/" component={HomeRoute} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
+            <Route path="/binders" component={() => <ProtectedRoute component={() => <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading binders</div>}><BindersPage /></Suspense>} />} />
             <Route path="/sets" component={() => <ProtectedRoute component={SetsIndex} />} />
             <Route path="/sets/:id" component={() => <ProtectedRoute component={SetDetail} />} />
             <Route path="/collection" component={() => <ProtectedRoute component={Collection} />} />
@@ -310,6 +313,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/decks" component={() => <ProtectedRoute component={Decks} />} />
             <Route path="/decks/new" component={() => <ProtectedRoute component={NewDeck} />} />
             <Route path="/decks/:id" component={() => <ProtectedRoute component={DeckDetail} />} />
+            <Route path="/card-lookup" component={() => <ProtectedRoute component={CardLookup} />} />
             <Route path="/rules" component={() => <ProtectedRoute component={RulesPage} />} />
             <Route path="/wishlist" component={() => <ProtectedRoute component={Wishlist} />} />
             <Route path="/inbox" component={() => <ProtectedRoute component={InboxPage} />} />

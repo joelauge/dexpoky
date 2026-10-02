@@ -20,6 +20,8 @@ import { toast } from "sonner";
 import { getSetCompletion } from "@/lib/set-completion";
 import { BulkAddDialog } from "./bulk-add-dialog";
 import { motion, AnimatePresence } from "framer-motion";
+import { useUser } from "@clerk/react";
+import { recordSetVisit } from "@/hooks/use-recent-set-visits";
 
 const WISHLIST_KEY = ["/api/wishlist"] as const;
 const RARITY_SECTION_ORDER = [
@@ -41,6 +43,7 @@ export default function SetDetail() {
   const [, params] = useRoute("/sets/:id");
   const setId = params?.id || "";
   const queryClient = useQueryClient();
+  const { user } = useUser();
 
   const [filter, setFilter] = useState<'all' | 'owned' | 'missing'>('all');
   const [search, setSearch] = useState("");
@@ -110,6 +113,14 @@ export default function SetDetail() {
       document.title = "Set Details | DexPoky";
     }
   }, [set?.name]);
+
+  useEffect(() => {
+    if (user?.id && set?.id && !setLoad && !setError) {
+      if (!recordSetVisit(user.id, set.id)) {
+        toast.warning("This browser couldn't save your recently opened sets.");
+      }
+    }
+  }, [user?.id, set?.id, setLoad, setError]);
 
   const isLoading = setLoad || cardsLoad;
 

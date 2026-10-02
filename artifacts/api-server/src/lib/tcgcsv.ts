@@ -548,3 +548,38 @@ export async function getTcgcsvPricing(id: string): Promise<PricingData> {
     return { ...EMPTY_PRICING };
   }
 }
+
+/**
+ * Return every finish row belonging to one exact TCGCSV product. Unlike the
+ * legacy pricing helper above, this intentionally does not choose a default
+ * finish. Callers must request an exact subtype before using a row.
+ */
+export async function getTcgcsvPriceVariants(id: string): Promise<Array<{
+  finish: string;
+  marketPrice: number | null;
+  lowPrice: number | null;
+  midPrice: number | null;
+}>> {
+  try {
+    const parsedId = parseTcgcsvId(id);
+    if (!parsedId || !(await getTcgcsvCard(id))) return [];
+    const rows = await getPrices(parsedId.groupId);
+    if (!rows) return [];
+    return rows
+      .map(parsePriceRow)
+      .filter((row): row is PriceRow => row !== null)
+      .filter((row) =>
+        row.productId === parsedId.productId &&
+        (row.groupId === undefined || row.groupId === parsedId.groupId) &&
+        (row.categoryId === undefined || row.categoryId === POKEMON_CATEGORY_ID),
+      )
+      .map((row) => ({
+        finish: row.subTypeName,
+        marketPrice: validPriceNumber(row.marketPrice),
+        lowPrice: validPriceNumber(row.lowPrice),
+        midPrice: validPriceNumber(row.midPrice),
+      }));
+  } catch {
+    return [];
+  }
+}

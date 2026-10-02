@@ -5,6 +5,287 @@
  * DexPoky API specification
  * OpenAPI spec version: 0.1.0
  */
+export type BinderStyle = (typeof BinderStyle)[keyof typeof BinderStyle];
+
+export const BinderStyle = {
+  ring: "ring",
+  zip: "zip",
+  folio: "folio",
+} as const;
+
+export interface BinderSlot {
+  /**
+   * @minimum 0
+   * @maximum 24
+   */
+  slot: number;
+  /** @minimum 1 */
+  cardId: number;
+}
+
+export interface BinderPage {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   * @pattern ^[a-zA-Z0-9_-]+$
+   */
+  id: string;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  rows: number;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  columns: number;
+  /**
+   * @minimum 150
+   * @maximum 400
+   */
+  widthMm: number;
+  /**
+   * @minimum 180
+   * @maximum 500
+   */
+  heightMm: number;
+  /** @maxItems 25 */
+  slots: BinderSlot[];
+}
+
+export interface BinderInput {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  name: string;
+  style: BinderStyle;
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  coverColor: string;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  rows: number;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  columns: number;
+  /**
+   * @minimum 150
+   * @maximum 400
+   */
+  widthMm: number;
+  /**
+   * @minimum 180
+   * @maximum 500
+   */
+  heightMm: number;
+  /**
+   * @minimum 1
+   * @maximum 20
+   */
+  pageCount: number;
+}
+
+export interface BinderUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  name: string;
+  style: BinderStyle;
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  coverColor: string;
+  /** @minimum 1 */
+  revision: number;
+  /**
+   * @minItems 1
+   * @maxItems 60
+   */
+  pages: BinderPage[];
+}
+
+export interface Binder {
+  id: number;
+  name: string;
+  style: BinderStyle;
+  coverColor: string;
+  revision: number;
+  pages: BinderPage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BinderSummary {
+  id: number;
+  name: string;
+  style: BinderStyle;
+  coverColor: string;
+  revision: number;
+  pageCount: number;
+  cardCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PriceLookupFinish =
+  (typeof PriceLookupFinish)[keyof typeof PriceLookupFinish];
+
+export const PriceLookupFinish = {
+  normal: "normal",
+  holofoil: "holofoil",
+  reverse_holofoil: "reverse_holofoil",
+} as const;
+
+export interface PriceLookupCard {
+  id: string;
+  name: string;
+  /** @nullable */
+  setName: string | null;
+  /** @nullable */
+  cardNumber: string | null;
+  /** @nullable */
+  imageUrl: string | null;
+}
+
+export type PlatformPriceQuoteSource =
+  (typeof PlatformPriceQuoteSource)[keyof typeof PlatformPriceQuoteSource];
+
+export const PlatformPriceQuoteSource = {
+  tcgplayer: "tcgplayer",
+  cardmarket: "cardmarket",
+  ebay: "ebay",
+} as const;
+
+export type PlatformPriceQuoteStatus =
+  (typeof PlatformPriceQuoteStatus)[keyof typeof PlatformPriceQuoteStatus];
+
+export const PlatformPriceQuoteStatus = {
+  available: "available",
+  unavailable: "unavailable",
+  reference_only: "reference_only",
+} as const;
+
+export type PlatformPriceQuoteCurrency =
+  (typeof PlatformPriceQuoteCurrency)[keyof typeof PlatformPriceQuoteCurrency];
+
+export const PlatformPriceQuoteCurrency = {
+  USD: "USD",
+  EUR: "EUR",
+} as const;
+
+export interface PlatformPriceQuote {
+  source: PlatformPriceQuoteSource;
+  label: string;
+  status: PlatformPriceQuoteStatus;
+  /** @nullable */
+  amount: number | null;
+  currency: PlatformPriceQuoteCurrency;
+  /** @nullable */
+  valueUsd: number | null;
+  basis: string;
+  /** @nullable */
+  finish: string | null;
+  /** @nullable */
+  updatedAt: string | null;
+  /** @nullable */
+  url: string | null;
+  /** @nullable */
+  reason: string | null;
+  eligible: boolean;
+}
+
+export interface PriceLookupFx {
+  eurToUsd: number;
+  date: string;
+  source: string;
+}
+
+export type PriceLookupAdviceStatus =
+  (typeof PriceLookupAdviceStatus)[keyof typeof PriceLookupAdviceStatus];
+
+export const PriceLookupAdviceStatus = {
+  ready: "ready",
+  unavailable: "unavailable",
+  skipped: "skipped",
+} as const;
+
+export type PriceLookupAdviceRecommendedOption =
+  (typeof PriceLookupAdviceRecommendedOption)[keyof typeof PriceLookupAdviceRecommendedOption];
+
+export const PriceLookupAdviceRecommendedOption = {
+  tcgplayer: "tcgplayer",
+  cardmarket: "cardmarket",
+  average: "average",
+  none: "none",
+} as const;
+
+export interface PriceLookupAdvice {
+  status: PriceLookupAdviceStatus;
+  recommendedOption: PriceLookupAdviceRecommendedOption;
+  message: string;
+}
+
+export interface PriceLookup {
+  lookupId: string;
+  observedAt: string;
+  expiresAt: string;
+  card: PriceLookupCard;
+  finish: PriceLookupFinish;
+  quotes: PlatformPriceQuote[];
+  /** @nullable */
+  averageUsd: number | null;
+  averageSourceCount: number;
+  fx: PriceLookupFx | null;
+  advice: PriceLookupAdvice;
+}
+
+export type CardValueSnapshotInputMethod =
+  (typeof CardValueSnapshotInputMethod)[keyof typeof CardValueSnapshotInputMethod];
+
+export const CardValueSnapshotInputMethod = {
+  tcgplayer: "tcgplayer",
+  cardmarket: "cardmarket",
+  average: "average",
+} as const;
+
+export interface CardValueSnapshotInput {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  lookupId: string;
+  method: CardValueSnapshotInputMethod;
+}
+
+export type CardValueSnapshotCurrency =
+  (typeof CardValueSnapshotCurrency)[keyof typeof CardValueSnapshotCurrency];
+
+export const CardValueSnapshotCurrency = {
+  USD: "USD",
+} as const;
+
+export type CardValueSnapshotMethod =
+  (typeof CardValueSnapshotMethod)[keyof typeof CardValueSnapshotMethod];
+
+export const CardValueSnapshotMethod = {
+  tcgplayer: "tcgplayer",
+  cardmarket: "cardmarket",
+  average: "average",
+} as const;
+
+export interface CardValueSnapshot {
+  cardId: number;
+  value: number;
+  currency: CardValueSnapshotCurrency;
+  method: CardValueSnapshotMethod;
+  source: string;
+  recordedAt: string;
+}
+
 export interface AssistantMessageBody {
   /**
    * @minLength 2
@@ -1074,6 +1355,31 @@ export interface CatalogCardDetail {
   pricing: CatalogPricing;
 }
 
+export interface EnsureSetCatalogCardInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  catalogCardId: string;
+}
+
+export type EnsureSetCatalogCardResultStatus =
+  (typeof EnsureSetCatalogCardResultStatus)[keyof typeof EnsureSetCatalogCardResultStatus];
+
+export const EnsureSetCatalogCardResultStatus = {
+  already_present: "already_present",
+  added: "added",
+  unmatched: "unmatched",
+} as const;
+
+export interface EnsureSetCatalogCardResult {
+  status: EnsureSetCatalogCardResultStatus;
+  setId?: string;
+  setName?: string;
+  cardId?: string;
+  message: string;
+}
+
 export type WishlistItemPriority =
   (typeof WishlistItemPriority)[keyof typeof WishlistItemPriority];
 
@@ -1656,6 +1962,15 @@ export interface BuiltLink {
   url: string;
   shortUrl: string;
 }
+
+export type GetPricingLookupParams = {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  catalogCardId: string;
+  finish?: PriceLookupFinish;
+};
 
 export type LookupCardsParams = {
   name: string;

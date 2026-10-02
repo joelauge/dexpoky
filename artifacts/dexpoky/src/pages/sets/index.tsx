@@ -1,15 +1,15 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { useListPokemonSets, useListCards } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Library, CheckCircle2, AlertCircle, ArrowUpDown } from "lucide-react";
-import type { PokemonSetSummary, Card as OwnedCard } from "@workspace/api-client-react";
+import { Search, Library, Clock3, AlertCircle, ArrowUpDown } from "lucide-react";
+import type { PokemonSetSummary } from "@workspace/api-client-react";
 import { getSetCompletion } from "@/lib/set-completion";
+import { ExpansionCard } from "@/components/sets/expansion-card";
+import { getRecentSetActivity } from "@/lib/recent-set-activity";
+import { useRecentSetVisits } from "@/hooks/use-recent-set-visits";
 
 type SetSortOrder =
   | "release-desc"
@@ -48,8 +48,13 @@ export default function SetsIndex() {
   
   const { data: sets, isLoading: setsLoading, error: setsError } = useListPokemonSets();
   const { data: ownedCards, isLoading: cardsLoading, error: cardsError } = useListCards();
+  const { visits, storageAvailable } = useRecentSetVisits();
 
   const isLoading = setsLoading || cardsLoading;
+  const recentSets = useMemo(
+    () => getRecentSetActivity(sets ?? [], ownedCards ?? [], visits),
+    [sets, ownedCards, visits],
+  );
 
   const sortedSets = useMemo(() => {
     if (!sets) return [];
@@ -131,6 +136,32 @@ export default function SetsIndex() {
           </div>
         </div>
 
+        {!isLoading && !setsError && !cardsError && !search.trim() && (
+          <section aria-labelledby="recent-sets-heading" className="mb-8 min-w-0" data-testid="recent-sets-section">
+            <div className="mb-4">
+              <h2 id="recent-sets-heading" className="flex items-center gap-2 text-lg font-semibold">
+                <Clock3 className="h-5 w-5 text-primary" aria-hidden /> Recently active
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">Sets you’ve opened or changed cards in, latest first.</p>
+              {!storageAvailable && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Visit history is unavailable in this browser. Card activity is still shown.</p>}
+            </div>
+            {recentSets.length ? (
+              <ul className="flex gap-4 overflow-x-auto overscroll-x-contain snap-x snap-proximity pb-3 pt-1"
+                aria-label="Recently active expansions" tabIndex={0} data-testid="recent-sets-row">
+                {recentSets.map((activity) => (
+                  <li key={activity.set.id} className="w-60 max-w-[80vw] shrink-0 snap-start">
+                    <ExpansionCard set={activity.set} ownedCount={ownedCards ? getSetCompletion(activity.set, ownedCards).ownedCount : 0} activity={activity} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-2xl border border-dashed bg-muted/10 p-5 text-sm text-muted-foreground" data-testid="recent-sets-empty">
+                Open an expansion or add cards to a set to find it here next time.
+              </p>
+            )}
+          </section>
+        )}
+
         {isLoading ? (
           <div className="space-y-12">
             {[1, 2].map((i) => (
@@ -162,98 +193,9 @@ export default function SetsIndex() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {sortedSets.map((set) => {
-                      const ownedCount = ownedCards ? getSetCompletion(set, ownedCards).ownedCount : 0;
-                      const progress = set.totalCards > 0 ? Math.min(100, Math.round((ownedCount / set.totalCards) * 100)) : 0;
-                      const isComplete = progress === 100 && set.totalCards > 0;
-                      const hasStarted = ownedCount > 0;
-
-                      return (
-                        <Link key={set.id} href={`/sets/${set.id}`}>
-                          <Card className={`group relative overflow-hidden h-full rounded-2xl cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1 border ${
-                            isComplete 
-                              ? "border-amber-200 bg-gradient-to-b from-amber-50/50 to-white dark:from-amber-950/20 dark:to-card dark:border-amber-900/50" 
-                              : hasStarted
-                              ? "border-primary/20 bg-gradient-to-b from-primary/5 to-card hover:border-primary/40"
-                              : "border-border/50 bg-card/50 hover:bg-card hover:border-border"
-                          }`}>
-                            
-                            {/* Decorative background blur for logo */}
-                            {set.logoUrl && (
-                              <div className="absolute right-0 top-0 w-32 h-32 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500 pointer-events-none translate-x-4 -translate-y-4">
-                                <img src={set.logoUrl} alt="" className="w-full h-full object-contain" />
-                              </div>
-                            )}
-
-                            <CardContent className="p-5 flex flex-col h-full">
-                              <div className="flex justify-between items-start gap-3 mb-4">
-                                <div className="h-12 w-24 shrink-0 flex items-center justify-start">
-                                  {set.logoUrl ? (
-                                    <img 
-                                      src={set.logoUrl} 
-                                      alt={`${set.name} logo`} 
-                                      className="max-h-full max-w-full object-contain filter drop-shadow-sm group-hover:scale-105 transition-transform duration-300"
-                                      loading="lazy"
-                                    />
-                                  ) : (
-                                    <div className="text-sm font-semibold text-muted-foreground line-clamp-2">{set.name}</div>
-                                  )}
-                                </div>
-                                {set.symbolUrl && (
-                                  <div className="h-6 w-6 shrink-0 rounded-full bg-background/50 p-1 flex items-center justify-center shadow-sm">
-                                    <img
-                                      src={set.symbolUrl}
-                                      alt=""
-                                      className="max-h-full max-w-full object-contain"
-                                      onError={(event) => {
-                                        const badge = event.currentTarget.parentElement;
-                                        if (badge) badge.style.display = "none";
-                                      }}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="mt-auto space-y-3">
-                                  <div>
-                                    <Badge variant="secondary" className="mb-2 max-w-full truncate bg-secondary/50 text-[10px] font-semibold">
-                                      {set.seriesName || "Other"}
-                                    </Badge>
-                                  <h3 className="font-semibold text-base line-clamp-1 group-hover:text-primary transition-colors">
-                                    {set.name}
-                                  </h3>
-                                  <div className="flex items-center text-xs text-muted-foreground mt-1">
-                                    <span>{set.releaseDate ? new Date(set.releaseDate).getFullYear() : "Unknown"}</span>
-                                    <span className="mx-1.5">•</span>
-                                    <span>{set.totalCards} cards</span>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-1.5 pt-2">
-                                  <div className="flex items-center justify-between text-xs font-medium">
-                                    <span className={isComplete ? "text-amber-600 dark:text-amber-500 flex items-center gap-1" : hasStarted ? "text-primary" : "text-muted-foreground"}>
-                                      {isComplete && <CheckCircle2 className="h-3.5 w-3.5" />}
-                                      {ownedCount} / {set.totalCards}
-                                    </span>
-                                    <span className={isComplete ? "text-amber-600 dark:text-amber-500" : "text-muted-foreground"}>
-                                      {progress}%
-                                    </span>
-                                  </div>
-                                  <div className="h-2 w-full bg-secondary overflow-hidden rounded-full">
-                                    <div 
-                                      className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                                        isComplete ? "bg-amber-400 dark:bg-amber-500" : hasStarted ? "bg-primary" : "bg-transparent"
-                                      }`}
-                                      style={{ width: `${progress}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </Link>
-                      );
-            })}
+            {sortedSets.map((set) => (
+              <ExpansionCard key={set.id} set={set} ownedCount={ownedCards ? getSetCompletion(set, ownedCards).ownedCount : 0} />
+            ))}
           </div>
         )}
       </div>

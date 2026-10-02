@@ -23,6 +23,10 @@ import type {
   AssistantConfirmBody,
   AssistantMessageBody,
   AssistantResponse,
+  Binder,
+  BinderInput,
+  BinderSummary,
+  BinderUpdate,
   BuildLinkBody,
   BuiltLink,
   BulkCreateCardsInput,
@@ -33,6 +37,8 @@ import type {
   CardConfidenceInput,
   CardConfidenceResult,
   CardMedia,
+  CardValueSnapshot,
+  CardValueSnapshotInput,
   CatalogCardDetail,
   CatalogSearchResponse,
   Category,
@@ -53,9 +59,12 @@ import type {
   DmMessage,
   DmThread,
   DmThreadSummary,
+  EnsureSetCatalogCardInput,
+  EnsureSetCatalogCardResult,
   ErrorEnvelope,
   GetCardsIdRecommendations200,
   GetCardsIdRecommendationsParams,
+  GetPricingLookupParams,
   GetRecentActivityParams,
   GetRecommendationsOpportunities200,
   GetRecommendationsOpportunitiesParams,
@@ -73,6 +82,7 @@ import type {
   PokemonSetDetail,
   PokemonSetSummary,
   PostRecommendationsKeyFeedbackBody,
+  PriceLookup,
   RepriceOwnedCardsResponse,
   RulebookResponse,
   RulebookSearchResult,
@@ -109,6 +119,608 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary List the authenticated owner's saved 3D binders
+ */
+export const getListBindersUrl = () => {
+  return `/api/binders`;
+};
+
+export const listBinders = async (
+  options?: RequestInit,
+): Promise<BinderSummary[]> => {
+  return customFetch<BinderSummary[]>(getListBindersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBindersQueryKey = () => {
+  return [`/api/binders`] as const;
+};
+
+export const getListBindersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBinders>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBinders>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBindersQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listBinders>>> = ({
+    signal,
+  }) => listBinders({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBinders>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBindersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBinders>>
+>;
+export type ListBindersQueryError = ErrorType<void>;
+
+/**
+ * @summary List the authenticated owner's saved 3D binders
+ */
+
+export function useListBinders<
+  TData = Awaited<ReturnType<typeof listBinders>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBinders>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBindersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create an owned binder with empty holder pages
+ */
+export const getCreateBinderUrl = () => {
+  return `/api/binders`;
+};
+
+export const createBinder = async (
+  binderInput: BinderInput,
+  options?: RequestInit,
+): Promise<Binder> => {
+  return customFetch<Binder>(getCreateBinderUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(binderInput),
+  });
+};
+
+export const getCreateBinderMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBinder>>,
+    TError,
+    { data: BodyType<BinderInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBinder>>,
+  TError,
+  { data: BodyType<BinderInput> },
+  TContext
+> => {
+  const mutationKey = ["createBinder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBinder>>,
+    { data: BodyType<BinderInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createBinder(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBinderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBinder>>
+>;
+export type CreateBinderMutationBody = BodyType<BinderInput>;
+export type CreateBinderMutationError = ErrorType<void>;
+
+/**
+ * @summary Create an owned binder with empty holder pages
+ */
+export const useCreateBinder = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBinder>>,
+    TError,
+    { data: BodyType<BinderInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBinder>>,
+  TError,
+  { data: BodyType<BinderInput> },
+  TContext
+> => {
+  return useMutation(getCreateBinderMutationOptions(options));
+};
+
+/**
+ * @summary Load one owned binder and its occupied pocket layout
+ */
+export const getGetBinderUrl = (id: number) => {
+  return `/api/binders/${id}`;
+};
+
+export const getBinder = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Binder> => {
+  return customFetch<Binder>(getGetBinderUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBinderQueryKey = (id: number) => {
+  return [`/api/binders/${id}`] as const;
+};
+
+export const getGetBinderQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBinder>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBinder>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBinderQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBinder>>> = ({
+    signal,
+  }) => getBinder(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getBinder>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetBinderQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBinder>>
+>;
+export type GetBinderQueryError = ErrorType<void>;
+
+/**
+ * @summary Load one owned binder and its occupied pocket layout
+ */
+
+export function useGetBinder<
+  TData = Awaited<ReturnType<typeof getBinder>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBinder>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBinderQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save a layout atomically with ownership and revision checks
+ */
+export const getUpdateBinderUrl = (id: number) => {
+  return `/api/binders/${id}`;
+};
+
+export const updateBinder = async (
+  id: number,
+  binderUpdate: BinderUpdate,
+  options?: RequestInit,
+): Promise<Binder> => {
+  return customFetch<Binder>(getUpdateBinderUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(binderUpdate),
+  });
+};
+
+export const getUpdateBinderMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBinder>>,
+    TError,
+    { id: number; data: BodyType<BinderUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBinder>>,
+  TError,
+  { id: number; data: BodyType<BinderUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateBinder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBinder>>,
+    { id: number; data: BodyType<BinderUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateBinder(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBinderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBinder>>
+>;
+export type UpdateBinderMutationBody = BodyType<BinderUpdate>;
+export type UpdateBinderMutationError = ErrorType<void>;
+
+/**
+ * @summary Save a layout atomically with ownership and revision checks
+ */
+export const useUpdateBinder = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBinder>>,
+    TError,
+    { id: number; data: BodyType<BinderUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBinder>>,
+  TError,
+  { id: number; data: BodyType<BinderUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateBinderMutationOptions(options));
+};
+
+/**
+ * @summary Delete the binder layout without deleting any collection cards
+ */
+export const getDeleteBinderUrl = (id: number) => {
+  return `/api/binders/${id}`;
+};
+
+export const deleteBinder = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteBinderUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBinderMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBinder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBinder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteBinder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBinder>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteBinder(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBinderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBinder>>
+>;
+
+export type DeleteBinderMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete the binder layout without deleting any collection cards
+ */
+export const useDeleteBinder = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBinder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBinder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteBinderMutationOptions(options));
+};
+
+/**
+ * @summary Compare platform quotes for one exact card printing and finish
+ */
+export const getGetPricingLookupUrl = (params: GetPricingLookupParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/pricing/lookup?${stringifiedParams}`
+    : `/api/pricing/lookup`;
+};
+
+export const getPricingLookup = async (
+  params: GetPricingLookupParams,
+  options?: RequestInit,
+): Promise<PriceLookup> => {
+  return customFetch<PriceLookup>(getGetPricingLookupUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPricingLookupQueryKey = (
+  params?: GetPricingLookupParams,
+) => {
+  return [`/api/pricing/lookup`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetPricingLookupQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPricingLookup>>,
+  TError = ErrorType<void>,
+>(
+  params: GetPricingLookupParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPricingLookup>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPricingLookupQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPricingLookup>>
+  > = ({ signal }) => getPricingLookup(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPricingLookup>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPricingLookupQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPricingLookup>>
+>;
+export type GetPricingLookupQueryError = ErrorType<void>;
+
+/**
+ * @summary Compare platform quotes for one exact card printing and finish
+ */
+
+export function useGetPricingLookup<
+  TData = Awaited<ReturnType<typeof getPricingLookup>>,
+  TError = ErrorType<void>,
+>(
+  params: GetPricingLookupParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPricingLookup>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPricingLookupQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save a lookup price to one owned card without changing future refresh rules
+ */
+export const getSaveCardValueSnapshotUrl = (cardId: number) => {
+  return `/api/cards/${cardId}/value-snapshot`;
+};
+
+export const saveCardValueSnapshot = async (
+  cardId: number,
+  cardValueSnapshotInput: CardValueSnapshotInput,
+  options?: RequestInit,
+): Promise<CardValueSnapshot> => {
+  return customFetch<CardValueSnapshot>(getSaveCardValueSnapshotUrl(cardId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(cardValueSnapshotInput),
+  });
+};
+
+export const getSaveCardValueSnapshotMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveCardValueSnapshot>>,
+    TError,
+    { cardId: number; data: BodyType<CardValueSnapshotInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveCardValueSnapshot>>,
+  TError,
+  { cardId: number; data: BodyType<CardValueSnapshotInput> },
+  TContext
+> => {
+  const mutationKey = ["saveCardValueSnapshot"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveCardValueSnapshot>>,
+    { cardId: number; data: BodyType<CardValueSnapshotInput> }
+  > = (props) => {
+    const { cardId, data } = props ?? {};
+
+    return saveCardValueSnapshot(cardId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveCardValueSnapshotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveCardValueSnapshot>>
+>;
+export type SaveCardValueSnapshotMutationBody =
+  BodyType<CardValueSnapshotInput>;
+export type SaveCardValueSnapshotMutationError = ErrorType<void>;
+
+/**
+ * @summary Save a lookup price to one owned card without changing future refresh rules
+ */
+export const useSaveCardValueSnapshot = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveCardValueSnapshot>>,
+    TError,
+    { cardId: number; data: BodyType<CardValueSnapshotInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof saveCardValueSnapshot>>,
+  TError,
+  { cardId: number; data: BodyType<CardValueSnapshotInput> },
+  TContext
+> => {
+  return useMutation(getSaveCardValueSnapshotMutationOptions(options));
+};
 
 /**
  * @summary Get privacy-safe aggregate reliability signals for a profile
@@ -4688,6 +5300,94 @@ export function useGetCatalogCard<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Resolves the exact provider identity and adds only a verified missing checklist entry. It never creates an owned card.
+ * @summary Ensure a verified catalog printing appears in its canonical set checklist
+ */
+export const getEnsureSetCatalogCardUrl = () => {
+  return `/api/catalog/ensure-set-card`;
+};
+
+export const ensureSetCatalogCard = async (
+  ensureSetCatalogCardInput: EnsureSetCatalogCardInput,
+  options?: RequestInit,
+): Promise<EnsureSetCatalogCardResult> => {
+  return customFetch<EnsureSetCatalogCardResult>(getEnsureSetCatalogCardUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(ensureSetCatalogCardInput),
+  });
+};
+
+export const getEnsureSetCatalogCardMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ensureSetCatalogCard>>,
+    TError,
+    { data: BodyType<EnsureSetCatalogCardInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ensureSetCatalogCard>>,
+  TError,
+  { data: BodyType<EnsureSetCatalogCardInput> },
+  TContext
+> => {
+  const mutationKey = ["ensureSetCatalogCard"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ensureSetCatalogCard>>,
+    { data: BodyType<EnsureSetCatalogCardInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return ensureSetCatalogCard(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type EnsureSetCatalogCardMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ensureSetCatalogCard>>
+>;
+export type EnsureSetCatalogCardMutationBody =
+  BodyType<EnsureSetCatalogCardInput>;
+export type EnsureSetCatalogCardMutationError = ErrorType<void>;
+
+/**
+ * @summary Ensure a verified catalog printing appears in its canonical set checklist
+ */
+export const useEnsureSetCatalogCard = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ensureSetCatalogCard>>,
+    TError,
+    { data: BodyType<EnsureSetCatalogCardInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ensureSetCatalogCard>>,
+  TError,
+  { data: BodyType<EnsureSetCatalogCardInput> },
+  TContext
+> => {
+  return useMutation(getEnsureSetCatalogCardMutationOptions(options));
+};
 
 /**
  * @summary List the signed-in user's wishlist items

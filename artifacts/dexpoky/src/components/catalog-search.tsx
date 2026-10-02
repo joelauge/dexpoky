@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchCatalog, type CatalogCard } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, AlertTriangle } from "lucide-react";
@@ -22,6 +22,12 @@ interface CatalogSearchProps {
   autoFocus?: boolean;
   emptyHint?: string;
   limit?: number;
+  /** Stops enrichment polling while preserving this search's query and results. */
+  pausePolling?: boolean;
+  /** Keep a lookup's result snapshot fresh until the user changes the search. */
+  preserveResults?: boolean;
+  /** Use larger tiles in a narrow lookup panel without changing other consumers. */
+  resultColumns?: 2 | 3;
 }
 
 export function CatalogSearch({
@@ -32,8 +38,15 @@ export function CatalogSearch({
   autoFocus,
   emptyHint = "Type a Pokémon, set name, or card number to begin.",
   limit = 24,
+  pausePolling = false,
+  preserveResults = false,
+  resultColumns = 3,
 }: CatalogSearchProps) {
   const [q, setQ] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (autoFocus && !pausePolling) inputRef.current?.focus({ preventScroll: true });
+  }, [autoFocus, pausePolling]);
   const debounced = useDebounced(q.trim(), 350);
   const enabled = debounced.length >= 2;
 
@@ -41,10 +54,12 @@ export function CatalogSearch({
     { q: debounced || "x", limit },
     {
       query: {
-        enabled,
-        staleTime: 60_000,
+        enabled: enabled && !pausePolling,
+        staleTime: preserveResults ? Infinity : 60_000,
         queryKey: ["/api/catalog/search", debounced, limit] as const,
-        refetchInterval: (query) => query.state.data?.enrichmentPending ? 750 : false,
+        refetchInterval: (query) => !pausePolling && query.state.data?.enrichmentPending ? 750 : false,
+        refetchOnWindowFocus: pausePolling || preserveResults ? false : undefined,
+        refetchOnReconnect: pausePolling || preserveResults ? false : undefined,
       },
     },
   );
@@ -63,9 +78,11 @@ export function CatalogSearch({
       <div className="relative mb-3">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
+          ref={inputRef}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={placeholder}
+          aria-label="Search card printings"
           className="pl-9"
           autoFocus={autoFocus}
         />
@@ -114,13 +131,14 @@ export function CatalogSearch({
           </p>
         )}
         {visible.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className={`grid grid-cols-2 ${resultColumns === 3 ? "sm:grid-cols-3" : ""} gap-3`}>
             {visible.map((c) => {
               const selected = selectedIds?.has(c.id);
               return (
                 <button
                   key={c.id}
                   type="button"
+                  title={`${c.name} · ${c.setName ?? "Unknown set"}${c.cardNumber ? ` · #${c.cardNumber}` : ""}`}
                   onClick={() => onSelect(c)}
                   className={`text-left rounded-lg border-2 transition-all overflow-hidden ${
                     selected
@@ -133,7 +151,7 @@ export function CatalogSearch({
                       <img
                         src={c.imageUrl}
                         alt={c.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         loading="lazy"
                       />
                     ) : (
@@ -143,16 +161,16 @@ export function CatalogSearch({
                     )}
                   </div>
                   <div className="p-2">
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs font-semibold truncate">{c.name}</p>
+                    <div className={resultColumns === 2 ? "space-y-1" : "flex items-center justify-between gap-1"}>
+                      <p className={`text-xs font-semibold ${resultColumns === 2 ? "leading-snug break-words" : "truncate"}`}>{c.name}</p>
                       {c.marketPrice != null && (
                         <span className="text-[10px] font-bold text-foreground shrink-0">Market value <span className="text-emerald-600">${c.marketPrice.toFixed(2)}</span></span>
                       )}
                     </div>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      {c.setName || "—"}
-                      {c.cardNumber ? ` · #${c.cardNumber}` : ""}
-                    </p>
+                    <div className="mt-1 flex gap-1 text-[10px] text-muted-foreground">
+                      <p className="min-w-0 truncate">{c.setName || "—"}</p>
+                      {c.cardNumber && <span className="shrink-0 font-semibold">#{c.cardNumber}</span>}
+                    </div>
                   </div>
                 </button>
               );

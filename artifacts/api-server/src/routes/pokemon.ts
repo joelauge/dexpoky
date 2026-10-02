@@ -5,6 +5,7 @@ import {
   type TcgcsvPokemonGroup,
 } from "../lib/tcgcsv.js";
 import type { TcgResult } from "./detect-helpers.js";
+import { cachedMergedSetCount, rememberMergedSetCount } from "../lib/pokemon-set-count-cache.js";
 import {
   mergeTcgcsvSetCards,
   sourceOnlyTcgcsvGroup,
@@ -12,6 +13,10 @@ import {
   type PokemonSetForMerge,
   type TcgcsvSetCard,
 } from "../lib/pokemon-set-catalog.js";
+import {
+  getSetCardSupplements,
+  mergeSetCardSupplements,
+} from "../lib/pokemon-set-card-supplements.js";
 
 const router = Router();
 const TCGDEX_BASE = "https://api.tcgdex.net/v2/en";
@@ -49,9 +54,6 @@ interface TcgDexSet {
 }
 
 const cardRarityCache = new Map<string, string | null>();
-const mergedSetCountCache = new Map<string, { count: number; expiresAt: number }>();
-const MERGED_SET_COUNT_TTL_MS = 30 * 60 * 1000;
-const MAX_CACHED_MERGED_SET_COUNTS = 256;
 const ASCENDED_HEROES_MEGA_ATTACK_RARE_NUMBERS = new Set([
   "265",
   "266",
@@ -61,28 +63,6 @@ const ASCENDED_HEROES_MEGA_ATTACK_RARE_NUMBERS = new Set([
   "270",
   "271",
 ]);
-
-function cachedMergedSetCount(setId: string): number | null {
-  const cached = mergedSetCountCache.get(setId);
-  if (!cached) return null;
-  if (cached.expiresAt <= Date.now()) {
-    mergedSetCountCache.delete(setId);
-    return null;
-  }
-  mergedSetCountCache.delete(setId);
-  mergedSetCountCache.set(setId, cached);
-  return cached.count;
-}
-
-function rememberMergedSetCount(setId: string, count: number): void {
-  mergedSetCountCache.delete(setId);
-  mergedSetCountCache.set(setId, { count, expiresAt: Date.now() + MERGED_SET_COUNT_TTL_MS });
-  while (mergedSetCountCache.size > MAX_CACHED_MERGED_SET_COUNTS) {
-    const oldest = mergedSetCountCache.keys().next().value as string | undefined;
-    if (oldest === undefined) break;
-    mergedSetCountCache.delete(oldest);
-  }
-}
 
 function officialRarity(setId: string, localId: string, providerRarity: string | null): string | null {
   if (
@@ -238,6 +218,13 @@ async function tcgDexSetDetail(
       catalogVerified = true;
     }
   }
+  let supplementalWarning: string | undefined;
+  try {
+    const supplements = await getSetCardSupplements(set.id);
+    mergedCards = mergeSetCardSupplements(mergedCards, supplements);
+  } catch {
+    supplementalWarning = "Supplemental checklist entries are temporarily unavailable.";
+  }
   if (catalogVerified) rememberMergedSetCount(set.id, mergedCards.length);
 
   const rarities = await loadCardRarities(cards);
@@ -247,7 +234,9 @@ async function tcgDexSetDetail(
     ...normalizeSet(set),
     totalCards: mergedCards.length,
     catalogSetIds,
-    ...(catalogWarning ? { catalogWarning } : {}),
+    ...(catalogWarning || supplementalWarning
+      ? { catalogWarning: [catalogWarning, supplementalWarning].filter(Boolean).join(" ") }
+      : {}),
     cards: [
       ...dexCards.map((card) => ({
         id: card.id,

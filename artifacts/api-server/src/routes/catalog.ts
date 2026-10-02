@@ -12,6 +12,12 @@ import { getTcgcsvCard, getTcgcsvPricing, isTcgcsvId, searchTcgcsv } from "../li
 import { BoundedAsyncCache, normalizeLookupKey, recordLookup } from "../lib/lookup-performance.js";
 import { rerankCatalogCandidates } from "../lib/catalog-reranker.js";
 import type { NormalizedCatalogCard } from "../lib/pokewallet.js";
+import { EnsureSetCatalogCardBody, EnsureSetCatalogCardResponse } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth.js";
+import {
+  CatalogVerificationUnavailable,
+  ensureSetCatalogCard,
+} from "../lib/pokemon-set-card-supplements.js";
 
 const router = Router();
 type CatalogPayload = {
@@ -333,6 +339,27 @@ router.get("/catalog/cards/:id", async (req, res) => {
   // PokeWallet rate limited / missing key → return 503 so the client can
   // gracefully fall back to its scan-pricing path.
   res.status(503).json({ error: "Catalog temporarily unavailable" });
+});
+
+router.post("/catalog/ensure-set-card", requireAuth, async (req, res) => {
+  const parsed = EnsureSetCatalogCardBody.strict().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Provide only a valid catalogCardId." });
+    return;
+  }
+  try {
+    const outcome = await ensureSetCatalogCard(parsed.data.catalogCardId);
+    res.json(EnsureSetCatalogCardResponse.parse(outcome));
+  } catch (error) {
+    if (error instanceof CatalogVerificationUnavailable) {
+      req.log?.warn({ err: error }, "Set checklist catalog verification unavailable");
+    } else {
+      req.log?.error({ err: error }, "Set checklist supplement failed");
+    }
+    res.status(503).json({
+      error: "This catalog printing could not be verified safely. The checklist was not changed; try again later.",
+    });
+  }
 });
 
 export default router;

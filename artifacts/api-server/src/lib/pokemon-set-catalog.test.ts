@@ -61,6 +61,33 @@ describe("Pokemon set provider merging", () => {
     });
   });
 
+  it("collapses only known finish and stamp product qualifiers while retaining meaningful parentheses", () => {
+    const qualifierSet: PokemonSetForMerge = {
+      id: "me02.5",
+      name: "Ascended Heroes",
+      cards: [
+        { id: "me02.5-101", localId: "101", name: "Dugtrio" },
+        { id: "me02.5-102", localId: "102", name: "Meowth (Rocket's Hideout)" },
+      ],
+    };
+    const merged = mergeTcgcsvSetCards(qualifierSet, [
+      catalogCard("tcgcsv_24541_1", "101", "Dugtrio (Holofoil) - 101"),
+      catalogCard("tcgcsv_24541_2", "101", "Dugtrio - 101 (Stamped)"),
+      catalogCard("tcgcsv_24541_3", "102", "Meowth (Rocket's Hideout) - 102"),
+    ]);
+
+    expect(merged).toHaveLength(2);
+    expect(merged.find((card) => card.id === "me02.5-101")?.catalogIds).toEqual([
+      "me02.5-101",
+      "tcgcsv_24541_1",
+      "tcgcsv_24541_2",
+    ]);
+    expect(merged.find((card) => card.id === "me02.5-102")?.catalogIds).toEqual([
+      "me02.5-102",
+      "tcgcsv_24541_3",
+    ]);
+  });
+
   it("treats a TCGCSV numerator/denominator as the same printed collector number", () => {
     const orderSet: PokemonSetForMerge = {
       id: "me03",
@@ -82,18 +109,48 @@ describe("Pokemon set provider merging", () => {
     });
   });
 
-  it("does not merge a different name, collector number, or set into TCGdex identity", () => {
+  it("attaches Ascended Heroes stamped Dugtrio printings to the existing numbered card", () => {
+    const ascended: PokemonSetForMerge = {
+      id: "me02.5",
+      name: "Ascended Heroes",
+      cards: [{ id: "me02.5-101", localId: "101", name: "Team Rocket's Dugtrio" }],
+    };
+    const merged = mergeTcgcsvSetCards(ascended, [
+      catalogCard("tcgcsv_24541_676933", "101/217", "Team Rocket's Dugtrio - 101/217 (Team Rocket)"),
+      catalogCard("tcgcsv_24541_677073", "101/217", "Team Rocket's Dugtrio - 101/217 (Master Ball)"),
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.catalogIds).toEqual([
+      "me02.5-101",
+      "tcgcsv_24541_676933",
+      "tcgcsv_24541_677073",
+    ]);
+  });
+
+  it("does not inflate a core checklist or invent aliases for conflicting same-number products", () => {
+    const native: PokemonSetForMerge = {
+      id: "me02.5",
+      name: "Ascended Heroes",
+      cards: [{ id: "me02.5-101", localId: "101", name: "Team Rocket's Dugtrio" }],
+    };
+    const merged = mergeTcgcsvSetCards(native, [
+      catalogCard("tcgcsv_24541_999", "101/217", "Unverified alternative name - 101/217"),
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.catalogIds).toEqual(["me02.5-101"]);
+  });
+
+  it("rejects a conflicting same-number name and keeps a genuinely different collector number separate", () => {
     const merged = mergeTcgcsvSetCards(set, [
       catalogCard("tcgcsv_20_200", "008", "Raichu - 008"),
       catalogCard("tcgcsv_20_201", "016", "Pikachu - 016"),
     ]);
     expect(merged.map((card) => card.id)).toEqual([
       "sv09-008",
-      "tcgcsv_20_200",
       "tcgcsv_20_201",
     ]);
     expect(merged[1]?.imageUrl).toBe("https://tcgcsv.test/card.jpg");
-    expect(merged[2]?.localId).toBe("016");
+    expect(merged[1]?.localId).toBe("016");
   });
 
   it("keeps separately numbered MEE anniversary energies as 16 distinct cards", () => {

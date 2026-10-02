@@ -633,6 +633,13 @@ export default function CardDetail() {
                 </span>
               )}
             </div>
+            <button
+              onClick={() => setLocation(`/card-lookup?cardId=${id}`)}
+              className="mb-4 text-sm font-semibold text-primary hover:underline"
+              data-testid="link-card-lookup"
+            >
+              Compare prices in Card Lookup
+            </button>
             <CardRecommendations cardId={id} />
 
             <CardConfidenceScorecard
