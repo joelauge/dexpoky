@@ -34,6 +34,20 @@ function Row({ q, selected, onSelect }: { q: PlatformPriceQuote; selected: boole
         </div>
       </div>
       {q.reason && <p className="text-xs text-muted-foreground mt-2">{q.reason}</p>}
+      {!!q.verifiedSales?.length && (
+        <details className="mt-3 text-xs" data-testid="evidence-ebay">
+          <summary className="cursor-pointer font-semibold text-primary">Review {q.verifiedSales.length} verified sales · {q.condition?.replace(/_/g, " ")}</summary>
+          <ul className="mt-2 space-y-3">
+            {q.verifiedSales.map(s => (
+              <li key={s.itemId} className="rounded-lg bg-muted/40 p-2">
+                <a href={s.url} target="_blank" rel="noreferrer" className="text-primary underline">{s.title} <ExternalLink className="inline h-3 w-3" /></a>
+                <p className="font-semibold mt-1">Sold {s.soldAt} · {usd(s.amount)} USD · {s.condition.replace(/_/g, " ")} · {s.finish.replace(/_/g, " ")}</p>
+                <p className="text-muted-foreground mt-1">{s.evidence}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
           {q.status === "reference_only" && <span className="px-2 py-0.5 rounded-full bg-secondary font-semibold">Reference only, not saved or averaged</span>}
@@ -93,7 +107,7 @@ export function QuoteTable({ lookup, selected, onSelect }: Props) {
           </button>
         </div>
       </div>
-      {ebay.map((q) => <Row key={q.source} q={q} selected={false} />)}
+      {ebay.map((q) => <Row key={q.source} q={q} selected={selected === "ebay"} onSelect={() => onSelect("ebay")} />)}
       <div className="flex gap-2 text-[11px] text-muted-foreground leading-relaxed">
         <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
         <p>

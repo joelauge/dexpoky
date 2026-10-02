@@ -3,7 +3,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import { ArrowLeft, RefreshCw, Sparkles, Search, X } from "lucide-react";
 import {
   useGetPricingLookup, getGetPricingLookupQueryKey, useListCards, getListCardsQueryKey,
-  type CatalogCard, type PriceLookupFinish,
+  type CatalogCard, type PriceLookupFinish, type ComparableSaleCondition,
 } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CatalogSearch } from "@/components/catalog-search";
@@ -56,6 +56,7 @@ export default function CardLookup() {
 
   const { data: owned } = useListCards(undefined, { query: { queryKey: getListCardsQueryKey() } });
   const [finish, setFinish] = useState<PriceLookupFinish>("normal");
+  const [condition, setCondition] = useState<ComparableSaleCondition>("near_mint");
   const [method, setMethod] = useState<Method | null>(null);
   const [targetId, setTargetId] = useState<number | null>(qCard ? Number(qCard) : null);
   const [now, setNow] = useState(Date.now());
@@ -81,7 +82,7 @@ export default function CardLookup() {
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(t); }, []);
   useEffect(() => { document.title = "Card Lookup | DexPoky"; }, []);
 
-  const params = { catalogCardId: catalogId ?? "", ...(finish ? { finish } : {}) };
+  const params = { catalogCardId: catalogId ?? "", finish, condition };
   const q = useGetPricingLookup(params, {
     query: { enabled: !!catalogId, queryKey: getGetPricingLookupQueryKey(params), staleTime: Infinity, gcTime: 0 },
   });
@@ -159,6 +160,19 @@ export default function CardLookup() {
                 <img src="/logo.png" alt="" className="w-16 mx-auto opacity-20 grayscale mb-3" />
                 <p className="font-bold">No card selected</p>
                 <p className="text-sm text-muted-foreground">Pick a printing to see TCGplayer, Cardmarket and eBay side by side.</p>
+              </div>
+            )}
+
+            {catalogId && (
+              <div className="text-xs space-y-1">
+                <label className="font-semibold" htmlFor="lookup-condition">eBay comparable condition</label>
+                <select id="lookup-condition" data-testid="select-lookup-condition" className="block rounded-lg border bg-card p-2" value={condition}
+                  onChange={e => setCondition(e.target.value as ComparableSaleCondition)}>
+                  <option value="mint">Mint</option>
+                  <option value="near_mint">Near mint</option>
+                  <option value="light_played">Light played</option>
+                </select>
+                <p className="text-muted-foreground">Only explicitly documented raw English sales qualify. Saving eBay values requires this condition on your owned copy. Other conditions remain available through platform quotes.</p>
               </div>
             )}
 

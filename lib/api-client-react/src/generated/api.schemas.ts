@@ -177,6 +177,35 @@ export const PlatformPriceQuoteCurrency = {
   EUR: "EUR",
 } as const;
 
+export type ComparableSaleCondition =
+  (typeof ComparableSaleCondition)[keyof typeof ComparableSaleCondition];
+
+export const ComparableSaleCondition = {
+  mint: "mint",
+  near_mint: "near_mint",
+  light_played: "light_played",
+} as const;
+
+export type VerifiedEbaySaleCurrency =
+  (typeof VerifiedEbaySaleCurrency)[keyof typeof VerifiedEbaySaleCurrency];
+
+export const VerifiedEbaySaleCurrency = {
+  USD: "USD",
+} as const;
+
+export interface VerifiedEbaySale {
+  itemId: string;
+  title: string;
+  url: string;
+  soldAt: string;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  currency: VerifiedEbaySaleCurrency;
+  finish: string;
+  condition: ComparableSaleCondition;
+  evidence: string;
+}
+
 export interface PlatformPriceQuote {
   source: PlatformPriceQuoteSource;
   label: string;
@@ -196,6 +225,8 @@ export interface PlatformPriceQuote {
   /** @nullable */
   reason: string | null;
   eligible: boolean;
+  condition?: ComparableSaleCondition;
+  verifiedSales?: VerifiedEbaySale[];
 }
 
 export interface PriceLookupFx {
@@ -219,6 +250,7 @@ export type PriceLookupAdviceRecommendedOption =
 export const PriceLookupAdviceRecommendedOption = {
   tcgplayer: "tcgplayer",
   cardmarket: "cardmarket",
+  ebay: "ebay",
   average: "average",
   none: "none",
 } as const;
@@ -235,6 +267,7 @@ export interface PriceLookup {
   expiresAt: string;
   card: PriceLookupCard;
   finish: PriceLookupFinish;
+  condition?: ComparableSaleCondition;
   quotes: PlatformPriceQuote[];
   /** @nullable */
   averageUsd: number | null;
@@ -249,6 +282,7 @@ export type CardValueSnapshotInputMethod =
 export const CardValueSnapshotInputMethod = {
   tcgplayer: "tcgplayer",
   cardmarket: "cardmarket",
+  ebay: "ebay",
   average: "average",
 } as const;
 
@@ -274,6 +308,7 @@ export type CardValueSnapshotMethod =
 export const CardValueSnapshotMethod = {
   tcgplayer: "tcgplayer",
   cardmarket: "cardmarket",
+  ebay: "ebay",
   average: "average",
 } as const;
 
@@ -1970,6 +2005,10 @@ export type GetPricingLookupParams = {
    */
   catalogCardId: string;
   finish?: PriceLookupFinish;
+  /**
+   * Raw-card condition required for verified eBay sales. Platform market/trend quotes are not condition-specific.
+   */
+  condition?: ComparableSaleCondition;
 };
 
 export type LookupCardsParams = {

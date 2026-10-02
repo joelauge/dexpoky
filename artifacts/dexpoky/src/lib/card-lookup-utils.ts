@@ -1,6 +1,6 @@
 import type { Card, PlatformPriceQuote, PriceLookup } from "@workspace/api-client-react";
 
-export type Method = "tcgplayer" | "cardmarket" | "average";
+export type Method = "tcgplayer" | "cardmarket" | "ebay" | "average";
 
 export function normText(s?: string | null): string {
   return (s ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -50,7 +50,7 @@ export function methodValue(l: PriceLookup, m: Method): number | null {
   return q && q.status === "available" && q.eligible ? q.valueUsd : null;
 }
 export const methodLabel = (m: Method) =>
-  m === "tcgplayer" ? "TCGplayer" : m === "cardmarket" ? "Cardmarket" : "Compatible average";
+  m === "tcgplayer" ? "TCGplayer" : m === "cardmarket" ? "Cardmarket" : m === "ebay" ? "Verified eBay sales" : "Compatible average";
 
 export function errMessage(e: unknown): string {
   const x = e as { message?: string; data?: { error?: string } | null };

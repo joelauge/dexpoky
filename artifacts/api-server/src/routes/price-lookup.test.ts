@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   lookup: vi.fn(),
   selectCard: vi.fn(),
+  selectCerts: vi.fn(),
   updateValue: vi.fn(),
   insertHistory: vi.fn(),
 }));
@@ -17,16 +18,19 @@ vi.mock("../middlewares/requireAuth.js", () => ({
     Object.assign(req, { userId: ownerId }); next();
   },
 }));
-vi.mock("@workspace/db", async importOriginal => ({
-  ...await importOriginal<typeof import("@workspace/db")>(),
+vi.mock("@workspace/db", async importOriginal => {
+  const originals = await importOriginal<typeof import("@workspace/db")>();
+  return {
+  ...originals,
   db: {
     transaction: async (callback: (tx: unknown) => unknown) => callback({
-      select: () => ({ from: () => ({ where: () => ({ for: mocks.selectCard }) }) }),
+      select: () => ({ from: (table: unknown) => ({ where: () => ({ for: table === originals.cardsTable ? mocks.selectCard : mocks.selectCerts }) }) }),
       update: () => ({ set: (value: unknown) => { mocks.updateValue(value); return { where: async () => [] }; } }),
       insert: () => ({ values: mocks.insertHistory }),
     }),
   },
-}));
+  };
+});
 
 import router, { matchesLookupCard, snapshotValue } from "./price-lookup.js";
 import type { PriceComparison } from "../lib/price-lookup-service.js";
@@ -58,6 +62,7 @@ beforeEach(() => {
   mocks.lookup.mockResolvedValue(comparison());
   mocks.selectCard.mockResolvedValue([{ id: 1, catalogCardId: "base1-4", name: "Charizard", setName: "Base Set", cardNumber: "004" }]);
   mocks.insertHistory.mockResolvedValue([]);
+  mocks.selectCerts.mockResolvedValue([]);
 });
 
 describe("price snapshot identity and arithmetic", () => {
@@ -82,6 +87,62 @@ describe("price snapshot identity and arithmetic", () => {
 });
 
 describe("price lookup and snapshot endpoints", () => {
+  function verifiedComparison(): PriceComparison {
+    const result = comparison();
+    result.condition = "near_mint";
+    result.quotes[2] = {
+      ...result.quotes[2], status: "available", eligible: true, finish: "holofoil", condition: "near_mint",
+      amount: 999, valueUsd: 999,
+      verifiedSales: [{
+        itemId: "123456789012", title: "Charizard Base Set Unlimited 004/102 English Holo NM",
+        url: "https://www.ebay.com/itm/123456789012", soldAt: "2026-10-01", amount: 20,
+        currency: "USD", finish: "holofoil", condition: "near_mint", evidence: "Seller-stated exact raw printing and dated USD sale.",
+      }],
+    };
+    return result;
+  }
+  it("saves only the documented sale median, never the search median, with sale provenance", async () => {
+    mocks.lookup.mockResolvedValue(verifiedComparison());
+    mocks.selectCard.mockResolvedValue([{ catalogCardId: "base1-4", name: "Charizard", condition: "near_mint" }]);
+    const lookup = await getLookup();
+    const res = await request(app).post("/cards/1/value-snapshot").set("x-test-user", "owner")
+      .send({ lookupId: lookup.body.lookupId, method: "ebay" });
+    expect(res.status).toBe(200);
+    expect(res.body.value).toBe(20);
+    expect(res.body.source).toContain("ebay-sales=123456789012@2026-10-01=$20");
+    expect(mocks.insertHistory).toHaveBeenCalledWith(expect.objectContaining({ price: "20.00" }));
+  });
+  it("averages verified eBay once alongside independent platform prices", async () => {
+    mocks.lookup.mockResolvedValue(verifiedComparison());
+    mocks.selectCard.mockResolvedValue([{ catalogCardId: "base1-4", name: "Charizard", condition: "near_mint" }]);
+    const lookup = await getLookup();
+    const res = await request(app).post("/cards/1/value-snapshot").set("x-test-user", "owner")
+      .send({ lookupId: lookup.body.lookupId, method: "average" });
+    expect(res.status).toBe(200);
+    expect(res.body.value).toBe(14);
+    expect(res.body.source).toContain("tcgplayer+cardmarket+ebay");
+  });
+  it.each(["ebay", "average"])("rejects condition-incompatible and graded owned copies for %s", async method => {
+    mocks.lookup.mockResolvedValue(verifiedComparison());
+    mocks.selectCard.mockResolvedValue([{ catalogCardId: "base1-4", name: "Charizard", condition: "light_played" }]);
+    const lookup = await getLookup();
+    expect((await request(app).post("/cards/1/value-snapshot").set("x-test-user", "owner")
+      .send({ lookupId: lookup.body.lookupId, method })).status).toBe(409);
+    mocks.selectCard.mockResolvedValue([{ catalogCardId: "base1-4", name: "Charizard", condition: "near_mint" }]);
+    mocks.selectCerts.mockResolvedValue([{ status: "verified", grade: "10" }]);
+    expect((await request(app).post("/cards/1/value-snapshot").set("x-test-user", "owner")
+      .send({ lookupId: lookup.body.lookupId, method })).status).toBe(409);
+    expect(mocks.updateValue).not.toHaveBeenCalled();
+  });
+  it("rejects reference-only eBay and incomplete verified evidence without writes", async () => {
+    const lookup = await getLookup();
+    expect((await request(app).post("/cards/1/value-snapshot").set("x-test-user", "owner")
+      .send({ lookupId: lookup.body.lookupId, method: "ebay" })).status).toBe(400);
+    const result = verifiedComparison();
+    result.quotes[2].verifiedSales![0]!.evidence = "";
+    expect(snapshotValue(result, "ebay")).toBeNull();
+    expect(mocks.updateValue).not.toHaveBeenCalled();
+  });
   it("requires sign-in and validates finish", async () => {
     expect((await request(app).get("/pricing/lookup?catalogCardId=base1-4")).status).toBe(401);
     expect((await request(app).get("/pricing/lookup?catalogCardId=base1-4&finish=graded").set("x-test-user", "owner")).status).toBe(400);

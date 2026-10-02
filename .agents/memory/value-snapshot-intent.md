@@ -13,4 +13,4 @@ Do not present mirrored TCGPlayer feeds as separate platforms, or count unverifi
 
 **Why:** The connected catalog feeds can represent the same market, while the sold-listing scraper cannot prove finish and condition for each sale. An average of those feeds would imply independent, compatible evidence that is not available.
 
-**How to apply:** Keep native currencies and dates visible; average distinct platforms only after currency and finish compatibility pass. Allow eBay into saved values only if later work establishes verified matching evidence.
+**How to apply:** Keep native currencies and dates visible; average distinct platforms only after currency and finish compatibility pass. An eBay search median is never a saved-price fallback. Only individually documented, seller-stated compatible sales qualify; do not imply authentication or fill missing attributes from the search query.

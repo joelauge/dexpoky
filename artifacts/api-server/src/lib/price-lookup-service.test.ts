@@ -354,4 +354,24 @@ describe("lookupCardPrices", () => {
     expect(result.advice).toMatchObject({ status: "unavailable", recommendedOption: "none" });
     expect(result.advice.message).toContain("temporarily unavailable");
   });
+  it("builds the verified median from individual sales, not the contextual search median", async () => {
+    installFetch();
+    providers.ebay = {
+      median: 999, searchUrl: "https://www.ebay.com/sch/i.html",
+      verifiedSales: [10, 20, 30].map((amount, i) => ({
+        itemId: `12345678901${i}`, title: "Pikachu Sample Set 001/010 English Non-Holo NM",
+        url: `https://www.ebay.com/itm/12345678901${i}`, soldAt: "2026-10-01", amount, currency: "USD",
+        finish: "normal", condition: "near_mint", evidence: "Explicit attributes in seller title and dated USD sold row.",
+      })),
+    };
+    const result = await lookupCardPrices("pk_pikachu", "normal");
+    expect(result.quotes[2]).toMatchObject({ status: "available", amount: 20, eligible: true, condition: "near_mint", updatedAt: "2026-10-01" });
+    expect(result.quotes[2].verifiedSales).toHaveLength(3);
+    expect(result.averageSourceCount).toBe(3);
+    expect(result.averageUsd).toBe(13.33);
+    const incompatible = await lookupCardPrices("pk_pikachu", "holofoil");
+    expect(incompatible.quotes[2]).toMatchObject({ status: "reference_only", eligible: false, amount: 999 });
+    const wrongCondition = await lookupCardPrices("pk_pikachu", "normal", "mint");
+    expect(wrongCondition.quotes[2].eligible).toBe(false);
+  });
 });

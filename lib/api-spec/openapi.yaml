@@ -147,6 +147,10 @@ paths:
         - in: query
           name: finish
           schema: { $ref: "#/components/schemas/PriceLookupFinish" }
+        - in: query
+          name: condition
+          description: Raw-card condition required for verified eBay sales. Platform market/trend quotes are not condition-specific.
+          schema: { $ref: "#/components/schemas/ComparableSaleCondition" }
       responses:
         "200":
           description: Platform prices and comparable average
@@ -2038,6 +2042,27 @@ components:
         url: { type: [string, "null"] }
         reason: { type: [string, "null"] }
         eligible: { type: boolean }
+        condition: { $ref: "#/components/schemas/ComparableSaleCondition" }
+        verifiedSales:
+          type: array
+          items: { $ref: "#/components/schemas/VerifiedEbaySale" }
+    ComparableSaleCondition:
+      type: string
+      default: near_mint
+      enum: [mint, near_mint, light_played]
+    VerifiedEbaySale:
+      type: object
+      required: [itemId, title, url, soldAt, amount, currency, finish, condition, evidence]
+      properties:
+        itemId: { type: string }
+        title: { type: string }
+        url: { type: string }
+        soldAt: { type: string, format: date }
+        amount: { type: number, exclusiveMinimum: 0 }
+        currency: { type: string, enum: [USD] }
+        finish: { type: string }
+        condition: { $ref: "#/components/schemas/ComparableSaleCondition" }
+        evidence: { type: string }
     PriceLookupFx:
       type: object
       required: [eurToUsd, date, source]
@@ -2050,7 +2075,7 @@ components:
       required: [status, recommendedOption, message]
       properties:
         status: { type: string, enum: [ready, unavailable, skipped] }
-        recommendedOption: { type: string, enum: [tcgplayer, cardmarket, average, none] }
+        recommendedOption: { type: string, enum: [tcgplayer, cardmarket, ebay, average, none] }
         message: { type: string }
     PriceLookup:
       type: object
@@ -2061,6 +2086,7 @@ components:
         expiresAt: { type: string, format: date-time }
         card: { $ref: "#/components/schemas/PriceLookupCard" }
         finish: { $ref: "#/components/schemas/PriceLookupFinish" }
+        condition: { $ref: "#/components/schemas/ComparableSaleCondition" }
         quotes:
           type: array
           items: { $ref: "#/components/schemas/PlatformPriceQuote" }
@@ -2076,7 +2102,7 @@ components:
       required: [lookupId, method]
       properties:
         lookupId: { type: string, minLength: 1, maxLength: 100 }
-        method: { type: string, enum: [tcgplayer, cardmarket, average] }
+        method: { type: string, enum: [tcgplayer, cardmarket, ebay, average] }
     CardValueSnapshot:
       type: object
       required: [cardId, value, currency, method, source, recordedAt]
@@ -2084,7 +2110,7 @@ components:
         cardId: { type: integer }
         value: { type: number }
         currency: { type: string, enum: [USD] }
-        method: { type: string, enum: [tcgplayer, cardmarket, average] }
+        method: { type: string, enum: [tcgplayer, cardmarket, ebay, average] }
         source: { type: string }
         recordedAt: { type: string, format: date-time }
     AssistantMessageBody:

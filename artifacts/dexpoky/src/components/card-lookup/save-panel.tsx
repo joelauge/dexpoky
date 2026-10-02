@@ -30,11 +30,13 @@ export function SavePanel({ lookup, expired, method, targets, targetId, onTarget
 
   const target = targets.find((t) => t.card.id === targetId)?.card ?? null;
   const value = method ? methodValue(lookup, method) : null;
+  const usesEbay = method === "ebay" || (method === "average" && lookup.quotes.some(q => q.source === "ebay" && q.eligible));
+  const conditionMismatch = usesEbay && !!target && target.condition !== lookup.condition;
   const dup = targets.length > 1;
   const copyLabel = (c: Card, i: number) => `${dup ? `Copy ${i + 1} of ${targets.length} · ` : ""}ID ${c.id} · ${c.condition.replace(/_/g, " ")}`;
 
   const confirm = () => {
-    if (!target || !method || value == null || refreshing || save.isPending || Date.parse(lookup.expiresAt) <= Date.now()) return;
+    if (!target || !method || value == null || conditionMismatch || refreshing || save.isPending || Date.parse(lookup.expiresAt) <= Date.now()) return;
     setError(null);
     save.mutate(
       { cardId: target.id, data: { lookupId: lookup.lookupId, method } },
@@ -85,7 +87,8 @@ export function SavePanel({ lookup, expired, method, targets, targetId, onTarget
         </div>
       )}
 
-      <Button className="w-full" disabled={!target || !method || value == null || expired || refreshing || save.isPending} onClick={() => { setError(null); setOpen(true); }} data-testid="button-review-save">
+      {conditionMismatch && <p className="text-xs text-destructive">This copy is {target?.condition.replace(/_/g, " ")}; eBay sales are {lookup.condition?.replace(/_/g, " ")}. Change the lookup condition or choose another source.</p>}
+      <Button className="w-full" disabled={!target || !method || value == null || conditionMismatch || expired || refreshing || save.isPending} onClick={() => { setError(null); setOpen(true); }} data-testid="button-review-save">
         Review and save today's value
       </Button>
       {!method && <p className="text-xs text-muted-foreground">Choose a source or the compatible average above. Nothing is chosen for you.</p>}
@@ -130,7 +133,8 @@ export function SavePanel({ lookup, expired, method, targets, targetId, onTarget
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={save.isPending}>Cancel</Button>
-            <Button onClick={confirm} disabled={save.isPending || refreshing || expired || value == null} data-testid="button-confirm-save">
+            {conditionMismatch && <p className="text-xs text-destructive">Your copy's condition must match {lookup.condition?.replace(/_/g, " ")} to save eBay sales. Change the lookup condition or choose another source.</p>}
+            <Button onClick={confirm} disabled={save.isPending || refreshing || expired || value == null || conditionMismatch} data-testid="button-confirm-save">
               {save.isPending ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Saving</> : "Save value"}
             </Button>
           </DialogFooter>

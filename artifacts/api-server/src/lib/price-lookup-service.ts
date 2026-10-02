@@ -1,4 +1,5 @@
 import { fetchEbaySoldPricing } from "../routes/detect-helpers.js";
+import type { EbaySale, SaleCondition } from "./ebay-comparables.js";
 import {
   normalizeCatalogCard,
   pwGetCard,
@@ -14,6 +15,8 @@ export type LookupFinish = "normal" | "holofoil" | "reverse_holofoil";
 export type PriceSource = "tcgplayer" | "cardmarket" | "ebay";
 
 export interface PriceQuote {
+  condition?: SaleCondition;
+  verifiedSales?: EbaySale[];
   source: PriceSource;
   label: string;
   status: "available" | "unavailable" | "reference_only";
@@ -29,6 +32,7 @@ export interface PriceQuote {
 }
 
 export interface PriceComparison {
+  condition?: SaleCondition;
   card: {
     id: string;
     name: string;
@@ -43,7 +47,7 @@ export interface PriceComparison {
   fx: null | { eurToUsd: number; date: string; source: string };
   advice: {
     status: "ready" | "unavailable" | "skipped";
-    recommendedOption: "tcgplayer" | "cardmarket" | "average" | "none";
+    recommendedOption: "tcgplayer" | "cardmarket" | "ebay" | "average" | "none";
     message: string;
   };
 }
@@ -431,7 +435,23 @@ function priceQuote(
 
 function eBayQuote(
   result: Awaited<ReturnType<typeof fetchEbaySoldPricing>>,
+  finish: LookupFinish,
+  condition: SaleCondition,
 ): PriceQuote {
+  const sales = result?.verifiedSales ?? [];
+  if (sales.length && sales.every(s => s.finish === finish && s.condition === condition && s.currency === "USD")) {
+    const sorted = sales.map(s => s.amount).sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const amount = Math.round((sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2) * 100) / 100;
+    return {
+      source: "ebay", label: "eBay verified comparable sales", status: "available",
+      amount, currency: "USD", valueUsd: amount, finish, condition, verifiedSales: sales,
+      basis: `Median of ${sales.length} individually verified English raw-card sales in ${condition.replace(/_/g, " ")} condition, within 90 days. Item price only; shipping/tax excluded.`,
+      updatedAt: sales.map(s => s.soldAt).sort().at(-1)!, url: result!.searchUrl,
+      reason: "Attributes verified from seller-stated listing evidence, not card authentication. Platform market/trend quotes are not condition-specific.",
+      eligible: true,
+    };
+  }
   const basis = "Median of completed eBay listing prices; unverified contextual reference, not a platform market quote.";
   if (!result || positivePrice(result.median) == null) {
     return unavailableQuote("ebay", null, "USD", "No usable completed-sale median was returned.", basis);
@@ -447,7 +467,7 @@ function eBayQuote(
     finish: null,
     updatedAt: null,
     url: result.searchUrl,
-    reason: "Sold listings are unverified contextual evidence and are excluded from the comparison average and savings advice.",
+    reason: "No individual sales passed all printing, English language, finish, condition, USD price and date checks. This search median is reference-only and cannot be saved or averaged.",
     eligible: false,
   };
 }
@@ -462,7 +482,7 @@ type JevAnswer = {
 const MIN_ADVICE_CONFIDENCE = 0.65;
 
 function adviceMessage(
-  option: "tcgplayer" | "cardmarket" | "average" | "none",
+  option: "tcgplayer" | "cardmarket" | "ebay" | "average" | "none",
   quotes: PriceQuote[],
   averageUsd: number | null,
   fx: FxRate | null,
@@ -479,6 +499,8 @@ function adviceMessage(
       : `The two USD figures differ by $${spread.toFixed(2)}.`;
 
   switch (option) {
+    case "ebay":
+      return "Use the median of the documented matching raw-card sales. Review each sale's date and seller-stated evidence; these checks do not authenticate the card.";
     case "tcgplayer":
       return tcgplayer
         ? `TCGPlayer's market price is $${tcgplayer.valueUsd!.toFixed(2)} for this finish. Cardmarket's EUR trend is a different measure; ${spreadNote}`
@@ -488,8 +510,8 @@ function adviceMessage(
         ? `Cardmarket's recent trend is €${cardmarket.amount!.toFixed(2)} (about $${cardmarket.valueUsd!.toFixed(2)} using the EUR/USD rate dated ${fx?.date ?? "unknown"}). A recent trend is not the same measure as a marketplace market price; ${spreadNote}`
         : "The available marketplace figures do not support a Cardmarket reference.";
     case "average":
-      return averageUsd != null && tcgplayer && cardmarket
-        ? `The two comparable platform figures average $${averageUsd.toFixed(2)}. They differ by $${spread!.toFixed(2)}, so the average hides some market spread.`
+      return averageUsd != null && quotes.filter(q => q.eligible).length >= 2
+        ? `The compatible figures average $${averageUsd.toFixed(2)}. This mixes market/trend measures with any verified sold-price median, and can hide their spread. Platform quotes are not condition-specific.`
         : "An average needs at least two comparable platform prices.";
     case "none":
       return spread == null
@@ -504,13 +526,13 @@ async function advise(
   fx: FxRate | null,
 ): Promise<PriceComparison["advice"]> {
   const eligibleQuotes = quotes.filter((quote) =>
-    quote.eligible && quote.valueUsd !== null &&
-    (quote.source === "tcgplayer" || quote.source === "cardmarket"),
+    quote.eligible && quote.valueUsd !== null,
   );
   const independentSourceCount = new Set(eligibleQuotes.map((quote) => quote.source)).size;
   const options = ["none"];
   if (eligibleQuotes.some((quote) => quote.source === "tcgplayer")) options.push("tcgplayer");
   if (eligibleQuotes.some((quote) => quote.source === "cardmarket")) options.push("cardmarket");
+  if (eligibleQuotes.some((quote) => quote.source === "ebay")) options.push("ebay");
   if (averageUsd !== null && independentSourceCount >= 2) options.push("average");
   if (options.length === 1) {
     return { status: "skipped", recommendedOption: "none", message: "No exact-finish platform prices can be compared in USD yet." };
@@ -528,6 +550,7 @@ async function advise(
   const descriptions: Record<string, string> = {
     tcgplayer: "Use the exact-finish TCGPlayer USD market price as a single-platform reference.",
     cardmarket: "Use the exact-finish Cardmarket trend, converted to USD with a recent dated rate.",
+    ebay: "Use only the individually verified raw-card comparable sold-price median for the selected condition; seller-stated evidence does not authenticate cards.",
     average: "Use the arithmetic mean of at least two distinct eligible platform prices; this summarizes but can hide their spread.",
     none: "Do not favor one option; explain the available measures without implying they are interchangeable.",
   };
@@ -598,6 +621,7 @@ async function advise(
 export async function lookupCardPrices(
   catalogCardId: string,
   finish: LookupFinish,
+  condition: SaleCondition = "near_mint",
 ): Promise<PriceComparison> {
   if (!["normal", "holofoil", "reverse_holofoil"].includes(finish)) {
     throw new Error(`Unsupported finish "${String(finish)}"; expected normal, holofoil, or reverse_holofoil.`);
@@ -607,7 +631,9 @@ export async function lookupCardPrices(
     enrichPokeWallet(identity),
     isTcgcsvId(catalogCardId) ? getTcgcsvCard(catalogCardId) : Promise.resolve(null),
     enrichTcgDex(identity),
-    fetchEbaySoldPricing(identity.name, identity.setName ?? undefined, identity.cardNumber ?? undefined),
+    fetchEbaySoldPricing(identity.name, identity.setName ?? undefined, identity.cardNumber ?? undefined, {
+      name: identity.name, setName: identity.setName, cardNumber: identity.cardNumber, finish, condition,
+    }),
   ]);
 
   const resolvedCsv = csvCard as TcgcsvCard | null;
@@ -630,7 +656,7 @@ export async function lookupCardPrices(
   const quotes = [
     priceQuote("tcgplayer", tcgRaw, finish, fx, tcgBasis),
     priceQuote("cardmarket", cmRaw, finish, fx, cmBasis),
-    eBayQuote(ebayResult),
+    eBayQuote(ebayResult, finish, condition),
   ];
   const comparable = quotes.filter((quote) => quote.eligible && quote.valueUsd !== null);
   const averageUsd = comparable.length
@@ -647,6 +673,7 @@ export async function lookupCardPrices(
   return {
     card,
     finish,
+    condition,
     quotes,
     averageUsd,
     averageSourceCount: comparable.length,

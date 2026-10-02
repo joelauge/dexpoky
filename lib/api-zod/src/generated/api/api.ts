@@ -272,6 +272,7 @@ export const DeleteBinderParams = zod.object({
 export const getPricingLookupQueryCatalogCardIdMax = 120;
 
 export const getPricingLookupQueryFinishDefault = `normal`;
+export const getPricingLookupQueryConditionDefault = `near_mint`;
 
 export const GetPricingLookupQueryParams = zod.object({
   catalogCardId: zod.coerce
@@ -281,9 +282,20 @@ export const GetPricingLookupQueryParams = zod.object({
   finish: zod
     .enum(["normal", "holofoil", "reverse_holofoil"])
     .default(getPricingLookupQueryFinishDefault),
+  condition: zod
+    .enum(["mint", "near_mint", "light_played"])
+    .default(getPricingLookupQueryConditionDefault)
+    .describe(
+      "Raw-card condition required for verified eBay sales. Platform market\/trend quotes are not condition-specific.",
+    ),
 });
 
 export const getPricingLookupResponseFinishDefault = `normal`;
+export const getPricingLookupResponseConditionDefault = `near_mint`;
+export const getPricingLookupResponseQuotesItemConditionDefault = `near_mint`;
+export const getPricingLookupResponseQuotesItemVerifiedSalesItemAmountExclusiveMin = 0;
+
+export const getPricingLookupResponseQuotesItemVerifiedSalesItemConditionDefault = `near_mint`;
 
 export const GetPricingLookupResponse = zod.object({
   lookupId: zod.string(),
@@ -299,6 +311,9 @@ export const GetPricingLookupResponse = zod.object({
   finish: zod
     .enum(["normal", "holofoil", "reverse_holofoil"])
     .default(getPricingLookupResponseFinishDefault),
+  condition: zod
+    .enum(["mint", "near_mint", "light_played"])
+    .default(getPricingLookupResponseConditionDefault),
   quotes: zod.array(
     zod.object({
       source: zod.enum(["tcgplayer", "cardmarket", "ebay"]),
@@ -313,6 +328,32 @@ export const GetPricingLookupResponse = zod.object({
       url: zod.string().nullable(),
       reason: zod.string().nullable(),
       eligible: zod.boolean(),
+      condition: zod
+        .enum(["mint", "near_mint", "light_played"])
+        .default(getPricingLookupResponseQuotesItemConditionDefault),
+      verifiedSales: zod
+        .array(
+          zod.object({
+            itemId: zod.string(),
+            title: zod.string(),
+            url: zod.string(),
+            soldAt: zod.coerce.date(),
+            amount: zod
+              .number()
+              .gt(
+                getPricingLookupResponseQuotesItemVerifiedSalesItemAmountExclusiveMin,
+              ),
+            currency: zod.enum(["USD"]),
+            finish: zod.string(),
+            condition: zod
+              .enum(["mint", "near_mint", "light_played"])
+              .default(
+                getPricingLookupResponseQuotesItemVerifiedSalesItemConditionDefault,
+              ),
+            evidence: zod.string(),
+          }),
+        )
+        .optional(),
     }),
   ),
   averageUsd: zod.number().nullable(),
@@ -327,7 +368,13 @@ export const GetPricingLookupResponse = zod.object({
   ]),
   advice: zod.object({
     status: zod.enum(["ready", "unavailable", "skipped"]),
-    recommendedOption: zod.enum(["tcgplayer", "cardmarket", "average", "none"]),
+    recommendedOption: zod.enum([
+      "tcgplayer",
+      "cardmarket",
+      "ebay",
+      "average",
+      "none",
+    ]),
     message: zod.string(),
   }),
 });
@@ -344,14 +391,14 @@ export const saveCardValueSnapshotBodyLookupIdMax = 100;
 
 export const SaveCardValueSnapshotBody = zod.object({
   lookupId: zod.string().min(1).max(saveCardValueSnapshotBodyLookupIdMax),
-  method: zod.enum(["tcgplayer", "cardmarket", "average"]),
+  method: zod.enum(["tcgplayer", "cardmarket", "ebay", "average"]),
 });
 
 export const SaveCardValueSnapshotResponse = zod.object({
   cardId: zod.number(),
   value: zod.number(),
   currency: zod.enum(["USD"]),
-  method: zod.enum(["tcgplayer", "cardmarket", "average"]),
+  method: zod.enum(["tcgplayer", "cardmarket", "ebay", "average"]),
   source: zod.string(),
   recordedAt: zod.coerce.date(),
 });

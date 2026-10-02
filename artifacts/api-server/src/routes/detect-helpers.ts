@@ -1,5 +1,6 @@
 import { getTcgcsvPricing } from "../lib/tcgcsv.js";
 import { isGradedSlabListingTitle } from "../lib/grading.js";
+import { verifiedEbaySales, type EbaySale, type EbayTarget } from "../lib/ebay-comparables.js";
 
 const TCGDEX_BASE = "https://api.tcgdex.net/v2/en";
 const PTCGIO_BASE = "https://api.pokemontcg.io/v2";
@@ -142,6 +143,7 @@ async function fetchCardsBySetAndLocalId(setCode: string, cardNumber: string): P
 }
 
 export interface EbaySoldPricing {
+  verifiedSales?: EbaySale[];
   median: number | null;
   average: number | null;
   low: number | null;
@@ -198,9 +200,10 @@ export async function fetchEbaySoldPricing(
   name: string,
   setName?: string,
   cardNumber?: string,
+  target?: EbayTarget,
 ): Promise<EbaySoldPricing | null> {
   const query = buildEbayQuery(name, setName, cardNumber);
-  const cacheKey = query.toLowerCase();
+  const cacheKey = `${query.toLowerCase()}:${target ? JSON.stringify(target) : "reference"}`;
   const cached = ebayCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return cached.data;
 
@@ -212,20 +215,26 @@ export async function fetchEbaySoldPricing(
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(searchUrl, {
-      headers: {
-        "User-Agent": EBAY_UA,
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    let res: Response;
+    let html: string;
+    try {
+      res = await fetch(searchUrl, {
+        headers: {
+          "User-Agent": EBAY_UA,
+          "Accept": "text/html,application/xhtml+xml",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+        signal: controller.signal,
+      });
+      html = await res.text();
+    } finally {
+      clearTimeout(timer);
+    }
     if (!res.ok) {
       ebayCache.set(cacheKey, { expires: Date.now() + 5 * 60 * 1000, data: null });
       return null;
     }
-    const html = await res.text();
+    const verifiedSales = target ? verifiedEbaySales(html, target) : [];
 
     // Extract each result item block; each contains a price + title.
     // s-item__price spans hold the actual listed/sold price.
@@ -249,7 +258,7 @@ export async function fetchEbaySoldPricing(
       samples.push(value);
     }
 
-    if (samples.length < 3) {
+    if (samples.length < 3 && verifiedSales.length === 0) {
       ebayCache.set(cacheKey, { expires: Date.now() + 5 * 60 * 1000, data: null });
       return null;
     }
@@ -263,6 +272,7 @@ export async function fetchEbaySoldPricing(
     const avg = trimmed.length > 0 ? sum / trimmed.length : null;
 
     const data: EbaySoldPricing = {
+      verifiedSales,
       median: median(trimmed),
       average: avg != null ? Math.round(avg * 100) / 100 : null,
       low: trimmed[0] ?? null,
