@@ -1,11 +1,47 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { cardsTable, categoriesTable, listingsTable, activityEventsTable, shortLinksTable, dmThreadsTable } from "@workspace/db";
+import { cardsTable, categoriesTable, listingsTable, activityEventsTable, shortLinksTable, dmThreadsTable, wishlistItemsTable, bindersTable, binderPagesTable, binderSlotsTable } from "@workspace/db";
+import { GetPortfolioBreakdownsQueryParams, GetPortfolioBreakdownsResponse } from "@workspace/api-zod";
 import { eq, sql, desc, and, inArray } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { visibleActivityTypes } from "../lib/activity-visibility.js";
+import { buildPortfolioBreakdowns } from "../lib/portfolio-breakdowns.js";
+import { loadPortfolioMetadata } from "../lib/portfolio-catalog-metadata.js";
 
 const router = Router();
+
+router.get("/inventory/portfolio-breakdowns", requireAuth, async (req, res) => {
+  const parsed = GetPortfolioBreakdownsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid portfolio dimension" });
+    return;
+  }
+  const userId = (req as AuthRequest).userId;
+  const [cards, wishlist, memberships] = await Promise.all([
+    db.select({
+      id: cardsTable.id, pokemonName: cardsTable.pokemonName,
+      setId: cardsTable.setId, setName: cardsTable.setName, catalogCardId: cardsTable.catalogCardId,
+      categoryId: cardsTable.categoryId, categoryName: categoriesTable.name,
+      estimatedValue: cardsTable.estimatedValue, forSale: cardsTable.forSale,
+      rarity: cardsTable.rarity, condition: cardsTable.condition,
+    }).from(cardsTable)
+      .leftJoin(categoriesTable, and(eq(categoriesTable.id, cardsTable.categoryId), eq(categoriesTable.ownerClerkId, userId)))
+      .where(eq(cardsTable.ownerClerkId, userId)),
+    db.select({
+      id: wishlistItemsTable.id, setName: wishlistItemsTable.setName,
+      setCode: wishlistItemsTable.setCode, lastSeenPrice: wishlistItemsTable.lastSeenPrice,
+    }).from(wishlistItemsTable).where(eq(wishlistItemsTable.ownerClerkId, userId)),
+    db.selectDistinct({
+      cardId: binderSlotsTable.cardId, binderId: bindersTable.id, binderName: bindersTable.name,
+    }).from(binderSlotsTable)
+      .innerJoin(binderPagesTable, eq(binderPagesTable.id, binderSlotsTable.pageId))
+      .innerJoin(bindersTable, eq(bindersTable.id, binderPagesTable.binderId))
+      .innerJoin(cardsTable, eq(cardsTable.id, binderSlotsTable.cardId))
+      .where(and(eq(bindersTable.ownerClerkId, userId), eq(cardsTable.ownerClerkId, userId))),
+  ]);
+  const metadata = await loadPortfolioMetadata(cards, parsed.data.dimension ?? "category");
+  res.json(GetPortfolioBreakdownsResponse.parse(buildPortfolioBreakdowns(cards, wishlist, memberships, metadata)));
+});
 
 router.get("/inventory/stats", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;

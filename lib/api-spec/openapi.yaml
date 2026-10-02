@@ -1024,6 +1024,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/InventoryStats"
 
+  /inventory/portfolio-breakdowns:
+    get:
+      operationId: getPortfolioBreakdowns
+      tags: [inventory]
+      summary: Get owned portfolio and separate wishlist value breakdowns
+      parameters:
+        - name: dimension
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [category, set, year, card_type, binder, sale_status, wishlist, rarity, condition, pokemon]
+            default: category
+      responses:
+        "200":
+          description: Saved value breakdowns with pricing coverage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioBreakdowns"
+        "401":
+          description: Authentication required
+
   /inventory/value-by-category:
     get:
       operationId: getValueByCategory
@@ -2715,6 +2738,48 @@ components:
         description:
           type: string
           nullable: true
+
+    PortfolioValueGroup:
+      type: object
+      required: [key, label, totalValue, cardCount, unvaluedCount]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        totalValue: { type: number }
+        cardCount: { type: integer }
+        unvaluedCount: { type: integer }
+
+    PortfolioDimension:
+      type: object
+      required: [key, label, scope, totalValue, cardCount, unvaluedCount, groups, note]
+      properties:
+        key:
+          type: string
+          enum: [category, set, year, card_type, binder, sale_status, wishlist, rarity, condition, pokemon]
+        label: { type: string }
+        scope: { type: string, enum: [owned, wishlist] }
+        totalValue: { type: number }
+        cardCount: { type: integer }
+        unvaluedCount: { type: integer }
+        note: { type: string }
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioValueGroup"
+
+    PortfolioBreakdowns:
+      type: object
+      required: [ownedValue, ownedCount, wishlistValue, wishlistCount, metadataPending, dimensions]
+      properties:
+        ownedValue: { type: number }
+        ownedCount: { type: integer }
+        wishlistValue: { type: number }
+        wishlistCount: { type: integer }
+        metadataPending: { type: boolean }
+        dimensions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioDimension"
 
     InventoryStats:
       type: object

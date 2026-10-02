@@ -9,6 +9,12 @@ description: The user's requirement for strict visual criticism of DexPoky compo
 
 **How to apply:** Have changed DexPoky components critically reviewed, fix substantive findings, and distinguish code-based review from actual rendered visual inspection. Do not claim visual perfection when WebGL cannot be inspected.
 
+Testing screenshot IDs may be viewable by the main agent but unavailable to a separate critic.
+
+**Why:** A critic received “image not found” for the same tester screenshot IDs that the main agent could successfully view.
+
+**How to apply:** Share accessible image files when available. Otherwise inspect the screenshots directly and report the critic's source-only limitation; passing source review is not rendered visual proof.
+
 Preserved image URLs or flat-view DOM nodes do not prove that the 3D page turn has no redraw.
 
 **Why:** The user still observed a forward-turn left-page redraw after flat-view image reuse had passed. Animation-face and landing handoffs can visibly change without any image reload.

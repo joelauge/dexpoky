@@ -1,10 +1,10 @@
-import { useGetInventoryStats, useGetValueByCategory, useGetRecentActivity, useListCards } from "@workspace/api-client-react";
+import { useGetInventoryStats, useGetRecentActivity, useListCards } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
 import { Layout } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/constants";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
+import { PortfolioValueChart } from "@/components/dashboard/portfolio-value-chart";
 import {
   Activity, CreditCard, DollarSign, TrendingUp, Layers, ArrowRight,
   PackagePlus, Edit3, ScanLine, Tag, ShoppingCart, XCircle, Gavel, Bell,
@@ -185,7 +185,6 @@ function TradeStatCard({ icon: Icon, label, value, sub, accent, iconBg, loading,
 export default function Dashboard() {
   const { user } = useUser();
   const { data: stats, isLoading: statsLoading } = useGetInventoryStats();
-  const { data: categoryData, isLoading: categoryLoading } = useGetValueByCategory();
   const { data: recentActivityRaw, isLoading: activityLoading } = useGetRecentActivity({ limit: 10 });
   const { data: recentCards, isLoading: cardsLoading } = useListCards({ categoryId: undefined });
   const { data: tradingStats, isLoading: tradingLoading } = useQuery<TradingStats>({
@@ -199,14 +198,6 @@ export default function Dashboard() {
     .slice()
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 4);
-
-  const CHART_COLORS = [
-    "hsl(var(--primary))",
-    "hsl(var(--chart-2))",
-    "hsl(var(--chart-3))",
-    "hsl(var(--chart-4))",
-    "hsl(var(--chart-5))",
-  ];
 
   const username = user?.firstName || user?.username || null;
 
@@ -340,47 +331,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Charts + Recent */}
             <div className="lg:col-span-2 space-y-8">
-              <Card className="shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle>Portfolio Value by Category</CardTitle>
-                  <CardDescription>Value distribution across your collection categories</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {categoryLoading ? (
-                    <div className="h-[260px] flex items-center justify-center">
-                      <Skeleton className="h-full w-full rounded-lg" />
-                    </div>
-                  ) : categoryData && categoryData.length > 0 ? (
-                    <div className="h-[260px] w-full mt-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={categoryData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <XAxis dataKey="categoryName" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `$${v}`} />
-                          <Tooltip
-                            cursor={{ fill: "hsl(var(--muted)/0.5)" }}
-                            contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
-                            formatter={(value: number) => [formatCurrency(value), "Value"]}
-                          />
-                          <Bar dataKey="totalValue" radius={[4, 4, 0, 0]}>
-                            {categoryData.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : (
-                    <div className="h-[260px] flex flex-col items-center justify-center text-center p-6 border-2 border-dashed rounded-lg bg-muted/10">
-                      <Layers className="h-10 w-10 text-muted-foreground mb-4 opacity-50" />
-                      <h4 className="text-lg font-medium mb-1">No Category Data</h4>
-                      <p className="text-sm text-muted-foreground mb-4">Add cards to categories to see your portfolio distribution.</p>
-                      <Link href="/collection/new">
-                        <Button variant="outline">Add Your First Card</Button>
-                      </Link>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <PortfolioValueChart />
 
               <div>
                 <div className="flex items-center justify-between mb-4">

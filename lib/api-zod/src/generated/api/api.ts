@@ -1918,6 +1918,67 @@ export const GetInventoryStatsResponse = zod.object({
 });
 
 /**
+ * @summary Get owned portfolio and separate wishlist value breakdowns
+ */
+export const getPortfolioBreakdownsQueryDimensionDefault = `category`;
+
+export const GetPortfolioBreakdownsQueryParams = zod.object({
+  dimension: zod
+    .enum([
+      "category",
+      "set",
+      "year",
+      "card_type",
+      "binder",
+      "sale_status",
+      "wishlist",
+      "rarity",
+      "condition",
+      "pokemon",
+    ])
+    .default(getPortfolioBreakdownsQueryDimensionDefault),
+});
+
+export const GetPortfolioBreakdownsResponse = zod.object({
+  ownedValue: zod.number(),
+  ownedCount: zod.number(),
+  wishlistValue: zod.number(),
+  wishlistCount: zod.number(),
+  metadataPending: zod.boolean(),
+  dimensions: zod.array(
+    zod.object({
+      key: zod.enum([
+        "category",
+        "set",
+        "year",
+        "card_type",
+        "binder",
+        "sale_status",
+        "wishlist",
+        "rarity",
+        "condition",
+        "pokemon",
+      ]),
+      label: zod.string(),
+      scope: zod.enum(["owned", "wishlist"]),
+      totalValue: zod.number(),
+      cardCount: zod.number(),
+      unvaluedCount: zod.number(),
+      note: zod.string(),
+      groups: zod.array(
+        zod.object({
+          key: zod.string(),
+          label: zod.string(),
+          totalValue: zod.number(),
+          cardCount: zod.number(),
+          unvaluedCount: zod.number(),
+        }),
+      ),
+    }),
+  ),
+});
+
+/**
  * @summary Get total estimated value grouped by category
  */
 export const GetValueByCategoryResponseItem = zod.object({

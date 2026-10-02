@@ -833,6 +833,58 @@ export interface UpdateListingBody {
   description?: string | null;
 }
 
+export interface PortfolioValueGroup {
+  key: string;
+  label: string;
+  totalValue: number;
+  cardCount: number;
+  unvaluedCount: number;
+}
+
+export type PortfolioDimensionKey =
+  (typeof PortfolioDimensionKey)[keyof typeof PortfolioDimensionKey];
+
+export const PortfolioDimensionKey = {
+  category: "category",
+  set: "set",
+  year: "year",
+  card_type: "card_type",
+  binder: "binder",
+  sale_status: "sale_status",
+  wishlist: "wishlist",
+  rarity: "rarity",
+  condition: "condition",
+  pokemon: "pokemon",
+} as const;
+
+export type PortfolioDimensionScope =
+  (typeof PortfolioDimensionScope)[keyof typeof PortfolioDimensionScope];
+
+export const PortfolioDimensionScope = {
+  owned: "owned",
+  wishlist: "wishlist",
+} as const;
+
+export interface PortfolioDimension {
+  key: PortfolioDimensionKey;
+  label: string;
+  scope: PortfolioDimensionScope;
+  totalValue: number;
+  cardCount: number;
+  unvaluedCount: number;
+  note: string;
+  groups: PortfolioValueGroup[];
+}
+
+export interface PortfolioBreakdowns {
+  ownedValue: number;
+  ownedCount: number;
+  wishlistValue: number;
+  wishlistCount: number;
+  metadataPending: boolean;
+  dimensions: PortfolioDimension[];
+}
+
 export type InventoryStatsRarityBreakdown = { [key: string]: number };
 
 export type InventoryStatsConditionBreakdown = { [key: string]: number };
@@ -2057,6 +2109,26 @@ export const ListListingsStatus = {
   active: "active",
   sold: "sold",
   cancelled: "cancelled",
+} as const;
+
+export type GetPortfolioBreakdownsParams = {
+  dimension?: GetPortfolioBreakdownsDimension;
+};
+
+export type GetPortfolioBreakdownsDimension =
+  (typeof GetPortfolioBreakdownsDimension)[keyof typeof GetPortfolioBreakdownsDimension];
+
+export const GetPortfolioBreakdownsDimension = {
+  category: "category",
+  set: "set",
+  year: "year",
+  card_type: "card_type",
+  binder: "binder",
+  sale_status: "sale_status",
+  wishlist: "wishlist",
+  rarity: "rarity",
+  condition: "condition",
+  pokemon: "pokemon",
 } as const;
 
 export type GetRecentActivityParams = {

@@ -413,4 +413,33 @@ describe("TCGCSV Pokemon provider", () => {
     await expect(tcgcsv.getTcgcsvCard("tcgcsv_2374_713249")).resolves.toBeNull();
     await expect(tcgcsv.getTcgcsvCard("tcgcsv_24461_999999")).resolves.toBeNull();
   });
+
+  it("classifies only exact TCGCSV Card Type values and structured elemental Pokemon", async () => {
+    installCatalog({
+      products: {
+        24461: [
+          product(900001, "Basic Fire Energy", "001", { cardType: "Basic Energy" }),
+          product(900002, "Energy", "002", { cardType: "Energies" }),
+          product(900003, "Professor's Research", "003", { cardType: "Trainer" }),
+          product(900004, "Tool", "004", { cardType: "Tool" }),
+          product(900005, "Supporter", "005", { cardType: "Supporter" }),
+          product(900006, "Card", "006", { cardType: "Grass", pokemonStats: true }),
+          product(900007, "Card", "007", { cardType: "Grass" }),
+          product(900008, "Basic Fire Energy", "008", { cardType: "" }),
+          product(900009, "Card", "009", { cardType: "Pokemon Supporter" }),
+        ],
+      },
+    });
+
+    await expect(tcgcsv.getTcgcsvCardCategory("tcgcsv_24461_900001")).resolves.toBe("Energy");
+    await expect(tcgcsv.getTcgcsvCardCategory("tcgcsv_24461_900002")).resolves.toBe("Energy");
+    await expect(tcgcsv.getTcgcsvCardCategory("tcgcsv_24461_900003")).resolves.toBe("Trainer");
+    await expect(tcgcsv.getTcgcsvCardCategory("tcgcsv_24461_900004")).resolves.toBe("Trainer");
+    await expect(tcgcsv.getTcgcsvCardCategory("tcgcsv_24461_900005")).resolves.toBe("Trainer");
+    await expect(tcgcsv.getTcgcsvCardCategory("tcgcsv_24461_900006")).resolves.toBe("Pokemon");
+    await expect(tcgcsv.getTcgcsvCardCategory("tcgcsv_24461_900007")).resolves.toBe("Unknown");
+    await expect(tcgcsv.getTcgcsvCardCategory("tcgcsv_24461_900008")).resolves.toBe("Unknown");
+    await expect(tcgcsv.getTcgcsvCardCategory("tcgcsv_24461_900009")).resolves.toBe("Unknown");
+    await expect(tcgcsv.getTcgcsvCardCategory("invalid-id")).resolves.toBeNull();
+  });
 });

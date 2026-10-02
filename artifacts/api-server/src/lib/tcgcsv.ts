@@ -20,6 +20,8 @@ export interface TcgcsvPokemonGroup {
 
 type TcgcsvGroup = TcgcsvPokemonGroup;
 
+export type TcgcsvCardCategory = "Pokemon" | "Trainer" | "Energy" | "Unknown";
+
 interface CatalogProduct {
   productId: number;
   groupId: number;
@@ -320,6 +322,11 @@ function extendedValue(product: CatalogProduct, wanted: string): string {
   return "";
 }
 
+function hasValidCardNumber(product: CatalogProduct): boolean {
+  const number = extendedValue(product, "number");
+  return !!number && !/^(?:n\/?a|none|unknown|-)$/i.test(number);
+}
+
 function isNumberedSingle(product: CatalogProduct): boolean {
   const number = extendedValue(product, "number");
   const cardType = extendedValue(product, "cardtype").toLowerCase();
@@ -329,6 +336,27 @@ function isNumberedSingle(product: CatalogProduct): boolean {
     !/^(?:n\/?a|none|unknown|-)$/i.test(number) &&
     (/pokemon|pokémon|trainer|tool|ener(?:gy|gies)/.test(cardType) ||
       (elementalPokemonType && hasPokemonStats));
+}
+
+function tcgcsvProductCategory(product: CatalogProduct): TcgcsvCardCategory {
+  if (!hasValidCardNumber(product)) return "Unknown";
+  const cardType = extendedValue(product, "cardtype")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  if (["pokemon", "pokémon"].includes(cardType)) return "Pokemon";
+  if (["trainer", "tool", "pokemon tool", "pokémon tool", "supporter", "item", "stadium"].includes(cardType)) {
+    return "Trainer";
+  }
+  if (["energy", "energies", "basic energy", "basic energies", "special energy", "special energies"].includes(cardType)) {
+    return "Energy";
+  }
+  const elementalType = /^(?:grass|fire|water|lightning|electric|psychic|fighting|darkness|dark|metal|steel|colorless|dragon)$/.test(cardType);
+  if (elementalType && isNumberedSingle(product)) return "Pokemon";
+  return "Unknown";
 }
 
 function safeImageUrl(product: CatalogProduct): string {
@@ -476,6 +504,22 @@ export async function getTcgcsvCard(id: string): Promise<TcgResult | null> {
     const products = await getProducts(parsedId.groupId);
     const product = products?.find((candidate) => candidate.productId === parsedId.productId);
     return product ? cardFromProduct(product, group) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve a card's authoritative TCGCSV Card Type without changing card/pricing output. */
+export async function getTcgcsvCardCategory(id: string): Promise<TcgcsvCardCategory | null> {
+  try {
+    const parsedId = parseTcgcsvId(id);
+    if (!parsedId) return null;
+    const groups = await getGroups();
+    const group = groups?.find((candidate) => candidate.groupId === parsedId.groupId);
+    if (!group) return null;
+    const products = await getProducts(parsedId.groupId);
+    const product = products?.find((candidate) => candidate.productId === parsedId.productId);
+    return product ? tcgcsvProductCategory(product) : null;
   } catch {
     return null;
   }

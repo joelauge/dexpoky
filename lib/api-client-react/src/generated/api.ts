@@ -64,6 +64,7 @@ import type {
   ErrorEnvelope,
   GetCardsIdRecommendations200,
   GetCardsIdRecommendationsParams,
+  GetPortfolioBreakdownsParams,
   GetPricingLookupParams,
   GetRecentActivityParams,
   GetRecommendationsOpportunities200,
@@ -81,6 +82,7 @@ import type {
   PokemonResult,
   PokemonSetDetail,
   PokemonSetSummary,
+  PortfolioBreakdowns,
   PostRecommendationsKeyFeedbackBody,
   PriceLookup,
   RepriceOwnedCardsResponse,
@@ -4022,6 +4024,112 @@ export function useGetInventoryStats<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetInventoryStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get owned portfolio and separate wishlist value breakdowns
+ */
+export const getGetPortfolioBreakdownsUrl = (
+  params?: GetPortfolioBreakdownsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/inventory/portfolio-breakdowns?${stringifiedParams}`
+    : `/api/inventory/portfolio-breakdowns`;
+};
+
+export const getPortfolioBreakdowns = async (
+  params?: GetPortfolioBreakdownsParams,
+  options?: RequestInit,
+): Promise<PortfolioBreakdowns> => {
+  return customFetch<PortfolioBreakdowns>(
+    getGetPortfolioBreakdownsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPortfolioBreakdownsQueryKey = (
+  params?: GetPortfolioBreakdownsParams,
+) => {
+  return [
+    `/api/inventory/portfolio-breakdowns`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetPortfolioBreakdownsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPortfolioBreakdowns>>,
+  TError = ErrorType<void>,
+>(
+  params?: GetPortfolioBreakdownsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPortfolioBreakdowns>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPortfolioBreakdownsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPortfolioBreakdowns>>
+  > = ({ signal }) =>
+    getPortfolioBreakdowns(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPortfolioBreakdowns>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPortfolioBreakdownsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPortfolioBreakdowns>>
+>;
+export type GetPortfolioBreakdownsQueryError = ErrorType<void>;
+
+/**
+ * @summary Get owned portfolio and separate wishlist value breakdowns
+ */
+
+export function useGetPortfolioBreakdowns<
+  TData = Awaited<ReturnType<typeof getPortfolioBreakdowns>>,
+  TError = ErrorType<void>,
+>(
+  params?: GetPortfolioBreakdownsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPortfolioBreakdowns>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPortfolioBreakdownsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

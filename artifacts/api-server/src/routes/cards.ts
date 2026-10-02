@@ -258,7 +258,7 @@ router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> =>
 router.get("/cards", requireAuth, async (req, res) => {
   const startedAt = performance.now();
   const userId = (req as AuthRequest).userId;
-  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  const parsed = ListCardsQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid query params" });
     return;
