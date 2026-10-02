@@ -5,9 +5,9 @@ import * as THREE from "three";
 import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import type { Binder, BinderPage, Card } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
-import { addContactShadow, addPage, addSceneHardware, makeBox, makeFlipLeaf, type PortalPage } from "./binder-scene-geometry";
+import { addContactShadow, addPage, addSceneHardware, makeBox, makeRetainedPageTurn, type PortalPage } from "./binder-scene-geometry";
 import { clampViewAngle } from "./binder-scene-motion";
-import { pageGeometrySignature, stablePageCompositionKey } from "./binder-page-window";
+import { pageGeometrySignature, stablePageCompositionKey, pageTurnPlan } from "./binder-page-window";
 import { useBinderPageComposition } from "./use-binder-page-composition";
 
 type ViewAction = "left" | "right" | "up" | "down" | "reset";
@@ -20,9 +20,9 @@ type ViewerRuntime = {
   pageNodes: Map<string, PageCacheEntry>;
   updateShell: (binder: Binder, coverColor: string) => void;
   invalidate: () => void;
-  startFlip: (page: BinderPage, pageNumber: number, backwards: boolean) => PortalPage | null;
+  startFlip: (plan: NonNullable<ReturnType<typeof pageTurnPlan>>, pages: BinderPage[]) => boolean;
   cancelFlip: () => void;
-  getFlipPortal: () => PortalPage | null;
+  getTurnVisibleKeys: () => Set<string> | null;
 };
 type ThreeBinderViewerProps = {
   binder: Binder;
@@ -34,10 +34,22 @@ type ThreeBinderViewerProps = {
 };
 
 function PocketArtwork({ card, slot, lightSurface }: { card?: Card; slot: number; lightSurface: boolean }) {
+  const imageRef = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!image || !image.decode) return;
+    // Decode this existing element even while its cached page is hidden.
+    // No replacement Image or alternate artwork request is needed.
+    const decode = () => { void image.decode().catch(() => undefined); };
+    if (image.complete) decode();
+    else image.addEventListener("load", decode, { once: true });
+    return () => image.removeEventListener("load", decode);
+  }, [card?.imageUrl]);
   return (
     <>
       {card?.imageUrl ? (
         <img
+          ref={imageRef}
           src={card.imageUrl}
           alt={card.name}
           loading="eager"
@@ -243,7 +255,7 @@ function PagePortal({
               pageNumber={target.pageNumber}
               slot={slot}
               card={card}
-              selected={active && card?.id === selectedCardId}
+              selected={card?.id === selectedCardId}
               onSlotClick={onSlotClick}
               lightSurface
               active={active}
@@ -303,6 +315,7 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
   const runtimeRef = useRef<ViewerRuntime | null>(null);
   const activePortalsRef = useRef<PortalPage[]>([]);
   const priorSpread = useRef<number | null>(null);
+  const priorWindowSignature = useRef("");
   const lastShellSignature = useRef("");
   const [runtimeVersion, setRuntimeVersion] = useState(0);
   const [portalPages, setPortalPages] = useState<PortalPage[]>([]);
@@ -373,7 +386,8 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
     let dirty = true;
     let animating = false;
     let disposed = false;
-    let flip: ReturnType<typeof makeFlipLeaf> | null = null;
+    let flip: ReturnType<typeof makeRetainedPageTurn> | null = null;
+    let turnVisibleKeys: Set<string> | null = null;
     let flipStart = 0;
     let flipFrom = 0;
     let flipTo = -Math.PI;
@@ -401,6 +415,10 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
           animating = false;
           flip.dispose();
           flip = null;
+          turnVisibleKeys = null;
+          for (const target of activePortalsRef.current) {
+            pageNodes.get(stablePageCompositionKey(target.page))?.node.setVisible(!!target.active);
+          }
           setPortalPages(activePortalsRef.current);
         }
       }
@@ -479,23 +497,34 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
       animating = false;
       flip.dispose();
       flip = null;
+      turnVisibleKeys = null;
+      for (const target of activePortalsRef.current) {
+        pageNodes.get(stablePageCompositionKey(target.page))?.node.setVisible(!!target.active);
+      }
       setPortalPages(activePortalsRef.current);
       invalidate();
     };
-    const startFlip = (page: BinderPage, pageNumber: number, backwards: boolean) => {
+    const startFlip: ViewerRuntime["startFlip"] = (plan, pages) => {
       cancelFlip();
-      if (reduceMotion) return null;
-      const leafWidth = page.widthMm / 100;
-      const rightPageCenter = maxWidth / 2 + gap / 2;
-      const hingeX = rightPageCenter - leafWidth / 2;
-      flip = makeFlipLeaf(scene, page, pageNumber, hingeX);
+      if (reduceMotion) return false;
+      const front = pageNodes.get(stablePageCompositionKey(pages[plan.front]))?.node;
+      const back = pageNodes.get(stablePageCompositionKey(pages[plan.back]))?.node;
+      if (!front || !back) return false;
+      turnVisibleKeys = new Set(
+        [plan.front, plan.back, plan.stationary, plan.revealed]
+          .filter((index) => !!pages[index])
+          .map((index) => stablePageCompositionKey(pages[index])),
+      );
+      for (const [key, entry] of pageNodes) entry.node.setVisible(turnVisibleKeys.has(key));
+      flip = makeRetainedPageTurn(scene, front, back);
+      const backwards = plan.backwards;
       flipFrom = backwards ? -Math.PI : 0;
       flipTo = backwards ? 0 : -Math.PI;
       flip.pivot.rotation.y = flipFrom;
       flipStart = performance.now();
       animating = true;
       invalidate();
-      return flip.portal;
+      return true;
     };
     updateShell(binder, binder.coverColor);
 
@@ -586,7 +615,7 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
       invalidate,
       startFlip,
       cancelFlip,
-      getFlipPortal: () => flip?.portal ?? null,
+      getTurnVisibleKeys: () => turnVisibleKeys,
     };
     runtimeRef.current = runtime;
     activePortalsRef.current = [];
@@ -613,8 +642,8 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
       viewActionRef.current = () => {};
       webgl.domElement.removeEventListener("webglcontextlost", onContextLost);
       setPortalPages([]);
-      pageNodes.forEach(({ node }) => node.dispose());
       flip?.dispose();
+      pageNodes.forEach(({ node }) => node.dispose());
       for (const child of [...shell.children]) {
         shell.remove(child);
         if (child instanceof THREE.Mesh) {
@@ -645,7 +674,10 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
     const runtime = runtimeRef.current;
     if (!runtime) return;
     const oldSpread = priorSpread.current;
-    if (oldSpread !== null && oldSpread !== spreadIndex) runtime.cancelFlip();
+    if ((oldSpread !== null && oldSpread !== spreadIndex) ||
+        (runtime.getTurnVisibleKeys() && priorWindowSignature.current !== windowSignature)) {
+      runtime.cancelFlip();
+    }
     const windowIds = new Set(windowPages.map((page) => stablePageCompositionKey(page)));
     for (const [key, entry] of runtime.pageNodes) {
       if (windowIds.has(key)) continue;
@@ -671,22 +703,19 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
       }
       const pageIndex = binder.pages.findIndex(({ id }) => id === page.id);
       const active = activeKeys.has(stablePageCompositionKey(page, binder.id));
-      entry.node.setVisible(active);
+      const turnKeys = runtime.getTurnVisibleKeys();
+      entry.node.setVisible(turnKeys ? turnKeys.has(key) : active);
       nextPortals.push({ ...entry.node.portal, page, pageNumber: pageIndex + 1, active });
     }
     activePortalsRef.current = nextPortals;
-    const currentFlip = oldSpread === spreadIndex ? runtime.getFlipPortal() : null;
-    setPortalPages(currentFlip ? [...nextPortals, currentFlip] : nextPortals);
+    let turning = !!runtime.getTurnVisibleKeys();
     if (oldSpread !== null && oldSpread !== spreadIndex) {
-      const backwards = spreadIndex < oldSpread;
-      const turningPageIndex = backwards ? oldSpread : oldSpread + 1;
-      const turningPage = binder.pages[turningPageIndex];
-      if (turningPage && windowIds.has(stablePageCompositionKey(turningPage))) {
-        const leaf = runtime.startFlip(turningPage, turningPageIndex + 1, backwards);
-        if (leaf) setPortalPages([...nextPortals, leaf]);
-      }
+      const plan = pageTurnPlan(binder.pages.length, oldSpread, spreadIndex);
+      if (plan) turning = runtime.startFlip(plan, binder.pages);
     }
+    setPortalPages(turning ? nextPortals.map((target) => ({ ...target, active: false })) : nextPortals);
     priorSpread.current = spreadIndex;
+    priorWindowSignature.current = windowSignature;
     runtime.invalidate();
   }, [runtimeVersion, spreadIndex, windowSignature, binder.pages]);
 

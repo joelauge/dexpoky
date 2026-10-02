@@ -26,6 +26,24 @@ export function activeSpreadPageIndexes(pageCount: number, spreadStart: number, 
   return adjacentSpreadPageIndexes(pageCount, spreadStart, pagesPerSpread, 0);
 }
 
+/** The same physical sheet turns in both directions: odd front, next even back. */
+export function pageTurnPlan(pageCount: number, from: number, to: number) {
+  if (Math.abs(to - from) !== 2 || from < 0 || to < 0 ||
+      from >= pageCount || to >= pageCount || from % 2 || to % 2) return null;
+  const lower = Math.min(from, to);
+  const backwards = to < from;
+  const front = lower + 1;
+  const back = lower + 2;
+  if (back >= pageCount) return null;
+  return {
+    front,
+    back,
+    backwards,
+    stationary: backwards ? from + 1 : from,
+    revealed: backwards ? to : to + 1,
+  };
+}
+
 export function stablePageCompositionKey(page: Pick<BinderPageLayout, "id">, binderId?: string | number) {
   return `binder-page:${String(binderId ?? "")}:${String(page.id)}`;
 }

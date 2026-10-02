@@ -13,12 +13,12 @@ function pocketSlots(page: BinderPage) {
   return Array.from({ length: page.rows * page.columns }, (_, slot) => slot);
 }
 
-function setBowedSheet(geometry: THREE.PlaneGeometry, width: number, height: number, curl = 0, hinge = false) {
+function setBowedSheet(geometry: THREE.PlaneGeometry, width: number, height: number, curl = 0, hinge = false, fromRight = false) {
   const positions = geometry.attributes.position;
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i);
     const y = positions.getY(i);
-    positions.setZ(i, pageSurfaceOffset(x, y, width, height, curl, hinge));
+    positions.setZ(i, pageSurfaceOffset(fromRight ? -x : x, y, width, height, curl, hinge));
   }
   positions.needsUpdate = true;
   geometry.computeVertexNormals();
@@ -148,7 +148,7 @@ function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: 
         `height:${(tileHeight + 0.006) * PAGE_PIXELS.height / height}px`,
         "transform-origin:center center",
         "pointer-events:none",
-        "backface-visibility:visible",
+        "backface-visibility:hidden",
         "background:rgba(236,230,217,1)",
       ].join(";");
       const object = new CSS3DObject(host);
@@ -158,15 +158,16 @@ function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: 
       tiles.push({ x, y, object, host });
     }
   }
-  const update = (curl = 0) => {
+  const update = (curl = 0, fromHinge = hinge, fromRight = false) => {
     for (const tile of tiles) {
-      const normal = pageSurfaceRotation(tile.x, tile.y, width, height, curl, hinge);
+      const surfaceX = fromRight ? -tile.x : tile.x;
+      const normal = pageSurfaceRotation(surfaceX, tile.y, width, height, curl, fromHinge);
       tile.object.position.set(
         centerX + tile.x,
         tile.y,
-        baseZ + pageSurfaceOffset(tile.x, tile.y, width, height, curl, hinge) + 0.004,
+        baseZ + pageSurfaceOffset(surfaceX, tile.y, width, height, curl, fromHinge) + 0.004,
       );
-      tile.object.rotation.set(normal.x, normal.y, 0);
+      tile.object.rotation.set(normal.x, fromRight ? -normal.y : normal.y, 0);
     }
   };
   update();
@@ -188,7 +189,10 @@ function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: 
   };
 }
 
-export function addPage(scene: THREE.Scene, page: BinderPage, pageNumber: number, x: number) {
+export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: number, x: number) {
+  const scene = new THREE.Group();
+  let turning = false;
+  parentScene.add(scene);
   const width = page.widthMm / 100;
   const height = page.heightMm / 100;
   const board = makeBox(width, height, PAGE_DEPTH, 0xe4dccb);
@@ -225,7 +229,42 @@ export function addPage(scene: THREE.Scene, page: BinderPage, pageNumber: number
     pocketObjects.push(pocketObject);
     pockets.push({ slot: placement.slot, host: pocketHost });
   }
+  const updateCurl = (curl = 0, fromRight = false) => {
+    setBowedSheet(sheetGeometry, width, height, curl, true, fromRight);
+    backing.update(curl, true, fromRight);
+    header.position.z = 0.09 + pageSurfaceOffset(0, 0, width, height, curl, true) + 0.009;
+    for (let index = 0; index < placements.length; index++) {
+      const placement = placements[index];
+      const surfaceX = fromRight ? -placement.x : placement.x;
+      const normal = pageSurfaceRotation(surfaceX, placement.y, width, height, curl, true);
+      const object = pocketObjects[index];
+      object.position.z = 0.09 + pageSurfaceOffset(surfaceX, placement.y, width, height, curl, true) + 0.009;
+      object.rotation.set(normal.x, fromRight ? -normal.y : normal.y, 0);
+    }
+  };
   return {
+    group: scene,
+    updateCurl,
+    beginTurn(pivot: THREE.Group, backside: boolean) {
+      // Reparent the group, never the CSS3D hosts: their React portals and images
+      // remain attached to the same elements throughout the entire turn.
+      pivot.add(scene);
+      turning = true;
+      scene.rotation.y = backside ? Math.PI : 0;
+      scene.visible = true;
+      board.visible = false;
+      sheet.visible = header.visible = true;
+      pocketObjects.forEach((object) => { object.visible = true; });
+      backing.setVisible(true);
+      updateCurl(0, backside);
+    },
+    endTurn() {
+      parentScene.add(scene);
+      turning = false;
+      scene.rotation.set(0, 0, 0);
+      updateCurl();
+      board.visible = true;
+    },
     portal: { page, pageNumber, host: cssRoot, pockets, key: `page-${page.id}` } satisfies PortalPage,
     setPosition(nextX: number) {
       board.position.x = nextX;
@@ -237,13 +276,14 @@ export function addPage(scene: THREE.Scene, page: BinderPage, pageNumber: number
       backing.setCenterX(nextX);
     },
     setVisible(visible: boolean) {
-      board.visible = visible;
+      board.visible = visible && !turning;
       sheet.visible = visible;
       header.visible = visible;
       pocketObjects.forEach((object) => { object.visible = visible; });
       backing.setVisible(visible);
     },
     dispose() {
+      scene.removeFromParent();
       scene.remove(board, sheet, header, ...pocketObjects);
       board.geometry.dispose();
       (board.material as THREE.Material).dispose();
@@ -319,6 +359,37 @@ export function makeFlipLeaf(scene: THREE.Scene, page: BinderPage, pageNumber: n
       backing.dispose();
       host.remove();
       for (const pocket of pockets) pocket.host.remove();
+    },
+  };
+}
+
+/** Animate the already-composed faces without creating replacement artwork hosts. */
+export function makeRetainedPageTurn(
+  scene: THREE.Scene,
+  front: ReturnType<typeof addPage>,
+  back: ReturnType<typeof addPage>,
+) {
+  const pivot = new THREE.Group();
+  scene.add(pivot);
+  front.beginTurn(pivot, false);
+  back.beginTurn(pivot, true);
+  let disposed = false;
+  return {
+    pivot,
+    updateCurl(progress: number) {
+      const curl = pageTurnCurl(progress);
+      front.updateCurl(curl);
+      back.updateCurl(-curl, true);
+      // Both endpoints use the exact resting transforms, not a second flat
+      // representation that jumps into place when the temporary leaf disappears.
+      pivot.position.z = Math.sin(Math.PI * progress) * 0.1;
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      front.endTurn();
+      back.endTurn();
+      scene.remove(pivot);
     },
   };
 }
