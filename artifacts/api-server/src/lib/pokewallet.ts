@@ -9,6 +9,7 @@
  * `RATE_LIMITED` / `MISSING_KEY` / `ERROR` without try/catch noise.
  */
 import { logger } from "./logger.js";
+import { lookupVerifiedCatalogImage } from "./catalog-artwork.js";
 
 const BASE_URL = "https://api.pokewallet.io";
 
@@ -361,7 +362,9 @@ export function normalizeCatalogCard(raw: PokeWalletCard): NormalizedCatalogCard
     setCode: (info.set_code ?? "").trim(),
     cardNumber: (info.card_number ?? "").trim(),
     rarity: info.rarity ?? null,
-    imageUrl: raw.image_url ?? info.image_url ?? PWAL_PLACEHOLDER_IMAGE,
+    // A URL alone carries no verified cross-catalog printing identity.
+    // Enrichment supplies artwork only after checking the set and number.
+    imageUrl: PWAL_PLACEHOLDER_IMAGE,
     marketPrice: marketPrice != null ? Math.round(marketPrice * 100) / 100 : null,
     tcgplayerUrl: raw.tcgplayer?.url ?? null,
     cardmarketUrl: raw.cardmarket?.product_url ?? null,
@@ -370,107 +373,12 @@ export function normalizeCatalogCard(raw: PokeWalletCard): NormalizedCatalogCard
 
 // ──────────────────────────── TCGdex image backfill ──────────────────────────
 //
-// PokeWallet does not return image URLs. We backfill them from TCGdex by
-// querying `GET /v2/en/cards?name=&localId=` and appending `/high.webp` to the
-// returned `image` base. Cached in-memory for 24h. Safe no-op when the card
-// already has an image (e.g. TCGdex fallback path).
-
-const TCGDEX_BASE = "https://api.tcgdex.net/v2/en";
-const TCGDEX_TTL_MS = 24 * 60 * 60 * 1000;
-const tcgdexImageCache = new Map<string, CacheEntry<string | null>>();
-
-interface TcgdexCardSummary {
-  id: string;
-  localId: string;
-  name: string;
-  image?: string | null;
-}
-
-/** Strip `/91` suffix from PokeWallet card numbers like "054/091". */
-function normalizeLocalId(cardNumber: string): string {
-  const trimmed = cardNumber.trim();
-  if (!trimmed) return "";
-  return trimmed.split("/")[0]!.trim();
-}
-
-/**
- * Derive a TCGdex image URL from a card ID (e.g. "xy7-1", "xyp-XY95", "sm3-045").
- * Image URLs follow: https://assets.tcgdex.net/en/{group}/{setId}/{localId}/high.png
- * where {group} is the leading letter-prefix of setId, with trailing "p" stripped for promos.
- */
-function buildTcgdexImageUrlFromId(cardId: string): string {
-  const dash = cardId.lastIndexOf("-");
-  if (dash < 0) return "";
-  const setId = cardId.slice(0, dash).toLowerCase();
-  const localId = cardId.slice(dash + 1);
-  const letters = setId.match(/^[a-z]+/)?.[0] ?? setId;
-  const group = letters.endsWith("p") && letters.length > 2 ? letters.slice(0, -1) : letters;
-  return `https://assets.tcgdex.net/en/${group}/${setId}/${localId}/high.png`;
-}
-
-async function lookupTcgdexImage(
-  name: string,
-  cardNumber: string,
-): Promise<string | null> {
-  const localIdPadded = normalizeLocalId(cardNumber);      // "080"
-  if (!name.trim() || !localIdPadded) return null;
-
-  // Only compute the plain-integer form for numeric IDs (e.g. "080" → "80").
-  // Promo/alphanumeric IDs like "XY95" stay as-is; parseInt would produce NaN.
-  const parsedInt = parseInt(localIdPadded, 10);
-  const localIdInt = Number.isFinite(parsedInt) ? String(parsedInt) : localIdPadded;
-
-  // Cache keyed on the padded form (canonical)
-  const cacheKey = `${name.trim().toLowerCase()}::${localIdPadded}`;
-  const cached = tcgdexImageCache.get(cacheKey);
-  if (cached && cached.expires > Date.now()) return cached.data;
-
-  async function tryFetch(localId: string): Promise<TcgdexCardSummary | null> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
-    try {
-      const res = await fetch(
-        `${TCGDEX_BASE}/cards?name=${encodeURIComponent(name)}&localId=${encodeURIComponent(localId)}`,
-        { headers: { Accept: "application/json", "User-Agent": "DexPoky/1.0" }, signal: controller.signal },
-      );
-      if (!res.ok) return null;
-      const list = (await res.json()) as TcgdexCardSummary[];
-      if (!Array.isArray(list) || list.length === 0) return null;
-      // Prefer exact localId match; fall back to first result
-      return list.find((c) => c.localId === localId) ?? list[0] ?? null;
-    } catch {
-      return null;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  try {
-    // Try both the zero-padded form ("080") and the plain integer form ("80")
-    // in parallel — TCGdex sets vary in which convention they use.
-    const [paddedMatch, intMatch] = await Promise.all([
-      tryFetch(localIdPadded),
-      localIdPadded !== localIdInt ? tryFetch(localIdInt) : Promise.resolve(null),
-    ]);
-    const match = paddedMatch ?? intMatch;
-
-    // TCGdex list endpoints omit `image` — derive the URL from the card ID.
-    const full = match
-      ? (match.image ? `${match.image}/high.webp` : buildTcgdexImageUrlFromId(match.id))
-      : null;
-    tcgdexImageCache.set(cacheKey, { expires: Date.now() + TCGDEX_TTL_MS, data: full });
-    return full;
-  } catch (err) {
-    logger.debug({ err, name, localIdPadded }, "TCGdex image lookup failed");
-    tcgdexImageCache.set(cacheKey, { expires: Date.now() + TCGDEX_TTL_MS, data: null });
-    return null;
-  }
-}
+// Set-aware lookup lives separately from pricing/selection normalization.
 
 /**
  * Fill in `imageUrl` for any catalog cards missing one by querying TCGdex.
  * Bounded to ~5 concurrent lookups to be polite to the public TCGdex API.
- * Cards that already have an image are passed through unchanged.
+ * Unverified upstream URLs are not evidence of the printing's artwork.
  */
 export async function enrichCatalogCardImages(
   cards: NormalizedCatalogCard[],
@@ -484,15 +392,11 @@ export async function enrichCatalogCardImages(
       const i = cursor++;
       if (i >= cards.length) return;
       const card = cards[i]!;
-      if (card.imageUrl) {
-        out[i] = card;
-        continue;
-      }
       // Use clean PokeWallet name (e.g. "Charizard ex 054 091") trimmed of trailing
       // numbers — TCGdex matches better with just the card name.
       const lookupName = card.name.replace(/\s+\d{1,4}\s*\d*$/, "").trim() || card.pokemonName;
-      const image = await lookupTcgdexImage(lookupName, card.cardNumber);
-      out[i] = image ? { ...card, imageUrl: image } : card;
+      const image = await lookupVerifiedCatalogImage({ ...card, name: lookupName });
+      out[i] = { ...card, imageUrl: image ?? "" };
     }
   }
 

@@ -14,6 +14,7 @@ import {
   normalizeCatalogCard,
   buildPricingFromCatalog,
   enrichCatalogCardImages,
+  type PokeWalletCard,
 } from "../lib/pokewallet.js";
 import { eq, sql, ilike, and, inArray, type SQL } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -55,6 +56,19 @@ const scanLookupCache = new BoundedAsyncCache<{
   freshness: { identityTtlSeconds: number; pricingPolicy: string };
 }>(150, 15 * 60 * 1000);
 
+/** Artwork enrichment must never replace the selectable/priced catalog row. */
+async function scannerCatalogVariants(raw: PokeWalletCard[]): Promise<TcgResult[]> {
+  const catalog = await enrichCatalogCardImages(raw.map(normalizeCatalogCard));
+  return catalog.map((card) => ({
+    id: card.id,
+    name: card.name,
+    imageUrl: card.imageUrl,
+    setName: card.setName,
+    setId: card.setCode,
+    cardNumber: card.cardNumber,
+    rarity: card.rarity,
+  }));
+}
 export function buildOwnedCardConditions(
   userId: string,
   filters: { categoryId?: number; forSale?: boolean; search?: string; rarity?: string },
@@ -102,17 +116,29 @@ router.post("/cards/:id/confidence", requireAuth, async (req, res): Promise<void
     catalogCardId: cardsTable.catalogCardId, condition: cardsTable.condition,
   }).from(cardsTable).where(and(eq(cardsTable.id, id), eq(cardsTable.ownerClerkId, userId)));
   if (!saved) { res.status(404).json({ error: "Card not found" }); return; }
-  const pricing = saved.catalogCardId
-    ? await fetchPricingById(saved.catalogCardId, saved.name, undefined, {
-      name: saved.name, setName: saved.setName ?? undefined, cardNumber: saved.cardNumber ?? undefined,
-    })
-    : null;
-  const result = await evaluateCardConfidence({
-    observed: { ocrName: saved.name, ocrSetCode: saved.setId, ocrCardNumber: saved.cardNumber, visionConfidence: null },
-    candidate: { id: saved.catalogCardId ?? String(saved.id), name: saved.name, setId: saved.setId, setName: saved.setName, cardNumber: saved.cardNumber },
-    pricing,
-    condition: { value: saved.condition, source: "saved_card" },
-    context: { savedCardId: saved.id, pokemonName: saved.pokemonName },
+  const pricing = await fetchPricingById(cardId, name, rarity, ebayContext);
+  const result = await db.transaction(async (tx) => {
+    const createdIds: number[] = [];
+    for (const item of parsed.data.cards) {
+      const [created] = await tx.insert(cardsTable).values({
+        ownerClerkId: userId,
+        name: item.name,
+        pokemonName: item.name,
+        setName: item.setName,
+        setId: item.setId,
+        cardNumber: item.cardNumber,
+        rarity: item.rarity,
+        condition: item.condition ?? "near_mint",
+        imageUrl: item.imageUrl ?? null,
+        catalogCardId: item.catalogCardId,
+        estimatedValue: item.estimatedValue != null ? String(item.estimatedValue) : null,
+        originalScanUrl: item.originalScanUrl ?? null,
+        collectionId: item.collectionId ?? null,
+        forSale: false,
+      }).returning({ id: cardsTable.id });
+      createdIds.push(created.id);
+    }
+    return { createdIds };
   });
   res.setHeader("Cache-Control", "no-store");
   res.json(result);
@@ -148,8 +174,16 @@ const cardSelect = {
 };
 
 router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
-  const parsed = BulkCreateCardsBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Invalid request body", details: parsed.error }); return; }
+  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid media request", details: parsed.error });
+    return;
+  }
+  if (!Number.isSafeInteger(parsed.data.width) || !Number.isSafeInteger(parsed.data.height)) {
+    res.status(400).json({ error: "Media dimensions must be integers" });
+    return;
+  }
+
   const userId = (req as AuthRequest).userId;
   const collectionIds = [...new Set(parsed.data.cards.map((card) => card.collectionId).filter((id): id is number => id != null))];
   const existingCollections = collectionIds.length
@@ -189,13 +223,21 @@ router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> => {
-  const parsed = BulkUpdateCardsBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: "Invalid request body", details: parsed.error }); return; }
+  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid media request", details: parsed.error });
+    return;
+  }
+  if (!Number.isSafeInteger(parsed.data.width) || !Number.isSafeInteger(parsed.data.height)) {
+    res.status(400).json({ error: "Media dimensions must be integers" });
+    return;
+  }
+
   const userId = (req as AuthRequest).userId;
   const collectionId = parsed.data.collectionId;
   if (collectionId != null) {
-    const [collection] = await db.select({ id: collectionsTable.id }).from(collectionsTable)
-      .where(and(eq(collectionsTable.id, collectionId), eq(collectionsTable.ownerClerkId, userId)));
+      const [collection] = await db.select({ id: collectionsTable.id }).from(collectionsTable)
+        .where(and(eq(collectionsTable.id, data.collectionId), eq(collectionsTable.ownerClerkId, userId)));
     if (!collection) { res.status(400).json({ error: "Invalid collection" }); return; }
   }
   const owned = await db.select({ id: cardsTable.id }).from(cardsTable)
@@ -216,7 +258,7 @@ router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> =>
 router.get("/cards", requireAuth, async (req, res) => {
   const startedAt = performance.now();
   const userId = (req as AuthRequest).userId;
-  const parsed = ListCardsQueryParams.safeParse(req.query);
+  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid query params" });
     return;
@@ -247,12 +289,12 @@ router.get("/cards", requireAuth, async (req, res) => {
 
 router.post("/cards", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
-  const parsed = CreateCardBody.safeParse(req.body);
+  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request body", details: parsed.error });
     return;
   }
-  const data = parsed.data;
+  const data = bodyParsed.data;
   const source = (req.body.source as string | undefined) ?? "manual";
 
   if (data.categoryId != null) {
@@ -266,32 +308,17 @@ router.post("/cards", requireAuth, async (req, res) => {
     }
   }
   if (data.collectionId != null) {
-    const [collection] = await db.select({ id: collectionsTable.id }).from(collectionsTable)
-      .where(and(eq(collectionsTable.id, data.collectionId), eq(collectionsTable.ownerClerkId, userId)));
+      const [collection] = await db.select({ id: collectionsTable.id }).from(collectionsTable)
+        .where(and(eq(collectionsTable.id, data.collectionId), eq(collectionsTable.ownerClerkId, userId)));
     if (!collection) { res.status(400).json({ error: "Invalid collection" }); return; }
   }
 
-  const [card] = await db.insert(cardsTable).values({
-    ownerClerkId: userId,
-    name: data.name,
-    pokemonName: data.pokemonName,
-    rarity: data.rarity,
-    condition: data.condition,
-    forSale: data.forSale,
-    setName: data.setName ?? null,
-    setId: data.setId ?? null,
-    cardNumber: data.cardNumber ?? null,
-    imageUrl: data.imageUrl ?? null,
-    originalScanUrl: data.originalScanUrl ?? null,
-    catalogCardId: data.catalogCardId ?? null,
-    estimatedValue: data.estimatedValue != null ? String(data.estimatedValue) : null,
-    acquiredDate: data.acquiredDate ?? null,
-    categoryId: data.categoryId ?? null,
-    collectionId: data.collectionId ?? null,
-    listingPrice: data.listingPrice != null ? String(data.listingPrice) : null,
-    notes: data.notes ?? null,
-    cardStory: data.cardStory ?? null,
-  }).returning();
+  const [card] = await db
+    .select(cardSelect)
+    .from(cardsTable)
+    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
+    .where(eq(cardsTable.id, parsed.data.id));
 
   const [withCat] = await db
     .select(cardSelect)
@@ -327,7 +354,7 @@ router.get("/cards/lookup", (req, res, next) => {
   return next();
 }, async (req, res) => {
   const startedAt = performance.now();
-  const name = String(req.query.name ?? "").trim();
+  const name = String(req.query.name ?? "").trim() || undefined;
   if (!name) { res.status(400).json({ error: "name is required" }); return; }
 
   const resolveParam = req.query.resolvePrinting;
@@ -384,13 +411,9 @@ router.get("/cards/lookup", (req, res, next) => {
       // TCGdex is authoritative for OCR set/number identity. Keep this exact
       // hinted merge inside the identity-keyed catalog cache.
       if (cardNumber && setCode) {
-        const tcg = await searchTcgdex(name, cardNumber, setCode);
+        const tcg = await scannerTcgdexLookup(name, cardNumber, setCode);
         if (pw.ok && pw.data.results.length > 0) {
-          const catalog = await enrichCatalogCardImages(pw.data.results.map(normalizeCatalogCard));
-          const catalogVariants = catalog.map((v) => ({
-            id: v.id, name: v.name, imageUrl: v.imageUrl, setName: v.setName,
-            setId: v.setCode, cardNumber: v.cardNumber, rarity: v.rarity,
-          }));
+          const catalogVariants = await scannerCatalogVariants(pw.data.results);
           const variants = rankTcgResults([...tcg.variants, ...catalogVariants], name, cardNumber, setCode);
           const top = variants[0];
           const catalogTop = top ? pw.data.results.find((r) => r.id === top.id) : undefined;
@@ -411,17 +434,7 @@ router.get("/cards/lookup", (req, res, next) => {
         }
       }
       if (pw.ok && pw.data.results.length > 0) {
-        const normalized = pw.data.results.map(normalizeCatalogCard);
-        const enriched = await enrichCatalogCardImages(normalized);
-        const variants = enriched.map((v) => ({
-          id: v.id,
-          name: v.name,
-          imageUrl: v.imageUrl,
-          setName: v.setName,
-          setId: v.setCode,
-          cardNumber: v.cardNumber,
-          rarity: v.rarity,
-        }));
+        const variants = await scannerCatalogVariants(pw.data.results);
 
         // Preserve every name candidate, but rank using set + number first.
         const ranked = rankTcgResults(variants, name, cardNumber, setCode);
@@ -439,7 +452,7 @@ router.get("/cards/lookup", (req, res, next) => {
       }
 
       // Fallback to TCGdex using the original identifier hints and ranking.
-      const { variants, pricing } = await searchTcgdex(name, cardNumber, setCode);
+      const { variants, pricing } = await scannerTcgdexLookup(name, cardNumber, setCode);
       return {
         card: variants[0] ?? null,
         variants,
@@ -517,7 +530,7 @@ router.get("/cards/lookup", (req, res, next) => {
  * pricing chain.
  */
 router.get("/cards/pricing", async (req, res) => {
-  const cardId = String(req.query.cardId ?? "").trim();
+  const cardId = Number(req.params.id);
   const name = String(req.query.name ?? "").trim() || undefined;
   const rarity = String(req.query.rarity ?? "").trim() || undefined;
   const setName = String(req.query.setName ?? "").trim() || undefined;
@@ -545,7 +558,7 @@ router.post("/cards/:id/media", requireAuth, async (req, res): Promise<void> => 
     res.status(400).json({ error: "Invalid card id" });
     return;
   }
-  const parsed = AddCardMediaBody.safeParse(req.body);
+  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid media request", details: parsed.error });
     return;
@@ -556,8 +569,12 @@ router.post("/cards/:id/media", requireAuth, async (req, res): Promise<void> => 
   }
 
   const userId = (req as AuthRequest).userId;
-  const [card] = await db.select({ ownerClerkId: cardsTable.ownerClerkId })
-    .from(cardsTable).where(eq(cardsTable.id, cardId));
+  const [card] = await db
+    .select(cardSelect)
+    .from(cardsTable)
+    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
+    .where(eq(cardsTable.id, parsed.data.id));
   if (!card) { res.status(404).json({ error: "Card not found" }); return; }
   if (card.ownerClerkId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
 
@@ -610,17 +627,12 @@ router.post("/cards/:id/media", requireAuth, async (req, res): Promise<void> => 
     height: verified.height,
     ...(input.kind === "video" ? { durationSeconds: verified.durationSeconds } : {}),
   };
-  const [updated] = await db.update(cardsTable)
-    .set({
-      media: sql`coalesce(${cardsTable.media}, '[]'::jsonb) || ${JSON.stringify([media])}::jsonb`,
-      updatedAt: new Date(),
-    })
-    .where(and(
-      eq(cardsTable.id, cardId),
-      eq(cardsTable.ownerClerkId, userId),
-      sql`jsonb_array_length(coalesce(${cardsTable.media}, '[]'::jsonb)) < 20`,
-    ))
-    .returning({ id: cardsTable.id });
+  const [updated] = await db
+    .select(cardSelect)
+    .from(cardsTable)
+    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
+    .where(eq(cardsTable.id, paramsParsed.data.id));
   if (!updated) {
     const [current] = await db.select({
       ownerClerkId: cardsTable.ownerClerkId,
@@ -644,8 +656,12 @@ router.delete("/cards/:id/media/:mediaId", requireAuth, async (req, res): Promis
   }
   const mediaId = mediaIdParam;
   const userId = (req as AuthRequest).userId;
-  const [card] = await db.select({ ownerClerkId: cardsTable.ownerClerkId })
-    .from(cardsTable).where(eq(cardsTable.id, cardId));
+  const [card] = await db
+    .select(cardSelect)
+    .from(cardsTable)
+    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
+    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
+    .where(eq(cardsTable.id, parsed.data.id));
   if (!card) { res.status(404).json({ error: "Card not found" }); return; }
   if (card.ownerClerkId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
 
@@ -670,7 +686,7 @@ router.delete("/cards/:id/media/:mediaId", requireAuth, async (req, res): Promis
 });
 
 router.get("/cards/:id", async (req, res) => {
-  const parsed = GetCardParams.safeParse({ id: Number(req.params.id) });
+  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid id" });
     return;
@@ -708,7 +724,7 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
   const [existing] = await db
     .select({ ownerClerkId: cardsTable.ownerClerkId })
     .from(cardsTable)
-    .where(eq(cardsTable.id, paramsParsed.data.id));
+    .where(eq(cardsTable.id, parsed.data.id));
   if (!existing) {
     res.status(404).json({ error: "Card not found" });
     return;
@@ -797,3 +813,29 @@ router.delete("/cards/:id", requireAuth, async (req, res) => {
 });
 
 export default router;
+
+async function scannerTcgdexLookup(name: string, cardNumber?: string, setCode?: string) {
+  const result = await searchTcgdex(name, cardNumber, setCode);
+  // TCGdex list responses can omit artwork; the general lookup helper may
+  // derive a URL from the ID. Scanner suggestions require explicit artwork
+  // from a verified detail response instead, without changing IDs or pricing.
+  const enriched = await enrichCatalogCardImages(result.variants.map((card) => ({
+    id: card.id,
+    name: card.name,
+    pokemonName: card.name,
+    setName: card.setName,
+    setCode: card.setId,
+    cardNumber: card.cardNumber,
+    rarity: card.rarity,
+    imageUrl: "",
+    marketPrice: null,
+    tcgplayerUrl: null,
+    cardmarketUrl: null,
+  })));
+  return {
+    ...result,
+    variants: result.variants.map((card, index) => ({
+      ...card, imageUrl: enriched[index]?.imageUrl ?? "",
+    })),
+  };
+}

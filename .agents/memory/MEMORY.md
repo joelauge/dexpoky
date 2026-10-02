@@ -10,3 +10,5 @@
 - [Binder performance intent](binder-performance-intent.md) — keep binders highly performant and reuse the images already loaded for card sets.
 - [Component review expectations](component-review-expectations.md) — the user requests a harsh visual critic for changed DexPoky components; report rendered-verification limits.
 - [Persisted identity keys](persisted-identity-keys.md) — use PostgreSQL-safe identity tuple encoding and verify it with real storage, not only mocked inserts.
+- [Catalog artwork provenance](catalog-artwork-provenance.md) — same-name collector matches can cross sets; unavailable artwork is safer than inventing a printing.
+- [Route merge verification](route-merge-verification.md) — automated syncs can misplace similar handler blocks beyond visible conflicts; verify the merged routes.
