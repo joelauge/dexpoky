@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, CheckCircle2, Circle, AlertCircle, Heart, Loader2, ListPlus } from "lucide-react";
+import { Search, ChevronLeft, CheckCircle2, Circle, AlertCircle, Heart, Loader2, ListPlus, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getSetCompletion } from "@/lib/set-completion";
@@ -47,7 +47,18 @@ export default function SetDetail() {
   const [savingCardId, setSavingCardId] = useState<string | null>(null);
 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
+  const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({});
+  const selectedCardIds = useMemo(() => new Set(Object.keys(selectedQuantities)), [selectedQuantities]);
+  const selectedCopyCount = Object.values(selectedQuantities).reduce((total, count) => total + count, 0);
+  const changeSelectedQuantity = (id: string, delta: number) => {
+    setSelectedQuantities(current => {
+      const next = { ...current };
+      const count = Math.min(999, (current[id] ?? 0) + delta);
+      if (count <= 0) delete next[id];
+      else next[id] = count;
+      return next;
+    });
+  };
   const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
 
   const { data: set, isLoading: setLoad, error: setError } = useGetPokemonSet(setId, {
@@ -336,7 +347,7 @@ export default function SetDetail() {
                 className={cn("whitespace-nowrap flex-1 md:flex-none transition-colors", isSelectionMode && "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20")}
                 onClick={() => {
                   setIsSelectionMode(!isSelectionMode);
-                  setSelectedCardIds(new Set());
+                  setSelectedQuantities({});
                 }}
               >
                 <ListPlus className="h-4 w-4 mr-2" />
@@ -477,17 +488,40 @@ export default function SetDetail() {
 
               if (isSelectionMode) {
                 return (
-                  <button key={card.id} type="button" aria-pressed={isSelected}
+                  <div key={card.id}>
+                  <button type="button" aria-pressed={isSelected}
                     aria-label={`${isSelected ? "Deselect" : "Select"} ${card.name} #${card.localId}`}
                     className="group block w-full cursor-pointer focus:outline-none focus-visible:ring-2 ring-primary rounded-xl" onClick={(e) => {
                     e.preventDefault();
-                    const next = new Set(selectedCardIds);
-                    if (next.has(card.id)) next.delete(card.id);
-                    else next.add(card.id);
-                    setSelectedCardIds(next);
+                    setSelectedQuantities(current => {
+                      const next = { ...current };
+                      if (next[card.id]) delete next[card.id];
+                      else next[card.id] = 1;
+                      return next;
+                    });
                   }}>
                     {CardInner}
                   </button>
+                  {isSelected && (
+                    <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 p-1"
+                      role="group" aria-label={`Copies of ${card.name} #${card.localId} to add`}>
+                      <Button type="button" size="icon" variant="ghost" className="h-10 w-10 shrink-0"
+                        aria-label={`Remove one ${card.name} #${card.localId} from bulk selection`}
+                        onClick={() => changeSelectedQuantity(card.id, -1)}>
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className="min-w-8 text-center text-sm font-semibold tabular-nums" aria-live="polite">
+                        {selectedQuantities[card.id]}
+                      </span>
+                      <Button type="button" size="icon" variant="ghost" className="h-10 w-10 shrink-0"
+                        aria-label={`Add one ${card.name} #${card.localId} to bulk selection`}
+                        disabled={selectedQuantities[card.id] >= 999}
+                        onClick={() => changeSelectedQuantity(card.id, 1)}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  </div>
                 );
               }
 
@@ -502,7 +536,7 @@ export default function SetDetail() {
                     aria-label={`Add ${card.name} #${card.localId} to collection`}
                     className="block w-full cursor-pointer focus:outline-none focus-visible:ring-2 ring-primary rounded-xl"
                     onClick={() => {
-                      setSelectedCardIds(new Set([card.id]));
+                      setSelectedQuantities({ [card.id]: 1 });
                       setIsBulkAddOpen(true);
                     }}
                   >
@@ -543,17 +577,17 @@ export default function SetDetail() {
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border rounded-full shadow-2xl p-2 px-6 flex items-center gap-6 z-50"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 max-w-[calc(100%-1rem)] bg-card border rounded-2xl sm:rounded-full shadow-2xl p-2 px-3 sm:px-6 flex items-center gap-2 sm:gap-6 z-50"
           >
             <div className="font-semibold whitespace-nowrap">
-              {selectedCardIds.size} selected
+              {selectedCopyCount} {selectedCopyCount === 1 ? "copy" : "copies"}
             </div>
             <div className="h-6 w-px bg-border"></div>
             <div className="flex items-center gap-2">
               <Button onClick={() => setIsBulkAddOpen(true)} className="rounded-full shadow-sm">
                 Add to Collection
               </Button>
-              <Button variant="ghost" onClick={() => setSelectedCardIds(new Set())} className="rounded-full">
+              <Button variant="ghost" onClick={() => setSelectedQuantities({})} className="rounded-full">
                 Clear
               </Button>
             </div>
@@ -574,11 +608,12 @@ export default function SetDetail() {
               rarity: card.rarity,
               cardNumber: card.localId,
               ownedQuantity: completion.ownedCardIdsMap.get(card.id)?.length ?? 0,
+              copiesToAdd: selectedQuantities[card.id],
             };
           })}
           set={set}
           onSuccess={() => {
-            setSelectedCardIds(new Set());
+            setSelectedQuantities({});
             setIsSelectionMode(false);
           }}
         />

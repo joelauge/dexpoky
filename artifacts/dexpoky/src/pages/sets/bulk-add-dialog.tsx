@@ -58,6 +58,7 @@ interface BulkAddDialogProps {
     rarity?: string | null;
     cardNumber?: string | null;
     ownedQuantity?: number;
+    copiesToAdd?: number;
   }>;
   set: PokemonSetDetail;
   onSuccess: () => void;
@@ -86,13 +87,17 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
 
   useEffect(() => {
     photoSession.current += 1;
-    if (!open) {
+    if (open) {
+      setQuantities(Object.fromEntries(selectedCards.map(card => [card.id, String(card.copiesToAdd ?? 1)])));
+    } else {
       setQuantities({});
       setCardValues({});
       setUploadingPhotos({});
       setDetections({});
       setResult(null);
     }
+    // Snapshot the grid quantities when opening, not on parent refreshes while editing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
