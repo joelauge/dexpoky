@@ -54,8 +54,35 @@ describe("individual eBay comparable verification", () => {
     expect(verifiedEbaySales(row(), { ...target, setName: null }, now)).toEqual([]);
   });
   it("requires a documented unlimited edition for vintage printings", () => {
-    const vintage = { ...target, setName: "Base Set" };
+    const vintage = { ...target, setName: "Base Set", edition: "unlimited" as const };
     expect(verifiedEbaySales(row("Pikachu Base Set 001/010 English Non-Holo NM"), vintage, now)).toEqual([]);
     expect(verifiedEbaySales(row("Pikachu Base Set Unlimited 001/010 English Non-Holo NM"), vintage, now)).toHaveLength(1);
+    expect(verifiedEbaySales(row("Pikachu Base Set Unlimited 001/010 English Non-Holo NM"), { ...vintage, edition: "unknown" }, now)).toEqual([]);
+  });
+  it.each([
+    ["unlimited", "Unlimited"],
+    ["first_edition", "1st Edition"],
+    ["shadowless", "Shadowless"],
+    ["first_edition_shadowless", "First Edition Shadowless"],
+  ] as const)("requires exactly the explicitly chosen %s edition", (edition, titleEdition) => {
+    const title = `Pikachu Base Set ${titleEdition} 001/010 English Non-Holo NM`;
+    const selected = { ...target, setName: "Base Set", edition };
+    expect(verifiedEbaySales(row(title), selected, now)).toEqual([expect.objectContaining({ edition })]);
+    for (const other of ["unknown", "unlimited", "first_edition", "shadowless", "first_edition_shadowless"] as const) {
+      if (other !== edition) expect(verifiedEbaySales(row(title), { ...selected, edition: other }, now)).toEqual([]);
+    }
+    expect(verifiedEbaySales(row("Pikachu Base Set 001/010 English Non-Holo NM"), selected, now)).toEqual([]);
+  });
+  it.each([
+    "First Edition Unlimited", "Shadowless Unlimited", "1st", "First Edition possibly",
+    "First Edition Shadow", "First Edition Reprint", "First Edition Shadowless Unlimited",
+    "Non-First Edition", "Non-1st Edition", "Non-Shadowless", "Non-Unlimited",
+    "Not Unlimited", "No Unlimited", "Without Unlimited", "Non/First Edition",
+    "First Edition Non-Shadowless", "Non Unlimited Shadowless",
+  ])("keeps conflicting or ambiguous edition evidence excluded: %s", phrase => {
+    const title = `Pikachu Base Set ${phrase} 001/010 English Non-Holo NM`;
+    for (const edition of ["unknown", "unlimited", "first_edition", "shadowless", "first_edition_shadowless"] as const) {
+      expect(verifiedEbaySales(row(title), { ...target, setName: "Base Set", edition }, now)).toEqual([]);
+    }
   });
 });

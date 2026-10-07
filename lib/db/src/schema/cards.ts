@@ -35,6 +35,14 @@ export const conditionEnum = [
   "poor",
 ] as const;
 
+export const editionEnum = [
+  "unknown",
+  "unlimited",
+  "first_edition",
+  "shadowless",
+  "first_edition_shadowless",
+] as const;
+
 export interface CardMedia {
   id: string;
   url: string;
@@ -54,6 +62,7 @@ export const cardsTable = pgTable("cards", {
   cardNumber: text("card_number"),
   rarity: text("rarity").notNull(),
   condition: text("condition").notNull(),
+  edition: text("edition").notNull().default("unknown"),
   imageUrl: text("image_url"),
   originalScanUrl: text("original_scan_url"),
   media: jsonb("media").$type<CardMedia[]>().default(sql`'[]'::jsonb`).notNull(),

@@ -12,3 +12,4 @@
 - [Persisted identity keys](persisted-identity-keys.md) — use PostgreSQL-safe identity tuple encoding and verify it with real storage, not only mocked inserts.
 - [Catalog artwork provenance](catalog-artwork-provenance.md) — same-name collector matches can cross sets; unavailable artwork is safer than inventing a printing.
 - [Route merge verification](route-merge-verification.md) — automated syncs can misplace similar handler blocks beyond visible conflicts; verify the merged routes.
+- [OpenAPI update defaults](openapi-update-defaults.md) — defaults on shared enums can populate omitted update fields and erase recorded identity.

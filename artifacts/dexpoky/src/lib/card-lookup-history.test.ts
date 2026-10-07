@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { addLookupHistory, lookupHistoryPage, lookupHistoryStorageKey, parseLookupHistory, type LookupHistoryEntry } from "./card-lookup-history";
 
 const entry = (id: string, visitedAt = 1000): LookupHistoryEntry => ({
-  card: { id, name: "Pikachu", setName: "Base Set", cardNumber: "58", imageUrl: "https://assets.tcgdex.net/card.webp" },
+  card: { id, name: "Pikachu", setName: "Base Set", cardNumber: "58", imageUrl: "https://assets.tcgdex.net/card.webp", edition: "unknown" },
   finish: "normal", condition: "near_mint", visitedAt,
 });
 test("history paginates at ten cards without discarding older lookups", () => {
@@ -33,4 +33,16 @@ test("storage parsing rejects corrupt data and unsafe images", () => {
   assert.equal(parseLookupHistory(JSON.stringify([unsafe]))[0].card.imageUrl, null);
   assert.equal(parseLookupHistory(JSON.stringify([entry("a"), entry("a")])).length, 1);
   assert.notEqual(lookupHistoryStorageKey("one"), lookupHistoryStorageKey("two"));
+});
+test("history retains explicit editions, while legacy and invalid editions stay unknown", () => {
+  for (const edition of ["unlimited", "first_edition", "shadowless", "first_edition_shadowless"] as const) {
+    const selected = { ...entry("a"), card: { ...entry("a").card, edition } };
+    const stored = addLookupHistory([], selected);
+    assert.equal(stored[0].card.edition, edition);
+    assert.equal(parseLookupHistory(JSON.stringify(stored))[0].card.edition, edition);
+  }
+  const legacy = { ...entry("a"), card: { ...entry("a").card, edition: undefined } };
+  assert.equal(parseLookupHistory(JSON.stringify([legacy]))[0].card.edition, "unknown");
+  const invalid = { ...legacy, card: { ...legacy.card, edition: "first edition maybe" } };
+  assert.equal(parseLookupHistory(JSON.stringify([invalid]))[0].card.edition, "unknown");
 });

@@ -616,8 +616,8 @@ export function Layout({ children, hideMobileScanButton = false }: LayoutProps) 
         {/* Mobile bottom profile bar */}
         <MobileProfileBar />
 
-        {/* Floating Scan FAB — only when signed in, hidden on /scan page */}
-        {isSignedIn && location !== "/scan" && (
+        {/* Keep the floating action out of the price comparison/save controls. */}
+        {isSignedIn && location !== "/scan" && location !== "/card-lookup" && (
           <Link href="/scan">
             <button
               className={cn("fixed bottom-[4.5rem] right-5 md:bottom-6 z-50 flex items-center gap-2 bg-primary text-primary-foreground shadow-xl rounded-full px-5 py-3.5 font-bold text-sm active:scale-95 transition-transform hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2", hideMobileScanButton && "hidden md:flex")}

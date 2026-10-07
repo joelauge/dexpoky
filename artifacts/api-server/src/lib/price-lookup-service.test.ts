@@ -343,7 +343,7 @@ describe("lookupCardPrices", () => {
     providers.pwResult = { ok: false, reason: "NOT_FOUND" };
     installFetch({ tcgdex: detail });
     const result = await lookupCardPrices("tcgdex_smp-001", "normal");
-    expect(result.card).toMatchObject({ id: "smp-001", name: "Pikachu", setName: "Sample Set" });
+    expect(result.card).toMatchObject({ id: "tcgdex_smp-001", name: "Pikachu", setName: "Sample Set" });
   });
 
   it("makes Jev advice explicitly unavailable when its server-only key is missing", async () => {
@@ -361,7 +361,7 @@ describe("lookupCardPrices", () => {
       verifiedSales: [10, 20, 30].map((amount, i) => ({
         itemId: `12345678901${i}`, title: "Pikachu Sample Set 001/010 English Non-Holo NM",
         url: `https://www.ebay.com/itm/12345678901${i}`, soldAt: "2026-10-01", amount, currency: "USD",
-        finish: "normal", condition: "near_mint", evidence: "Explicit attributes in seller title and dated USD sold row.",
+        finish: "normal", condition: "near_mint", edition: "unknown", evidence: "Explicit attributes in seller title and dated USD sold row.",
       })),
     };
     const result = await lookupCardPrices("pk_pikachu", "normal");
@@ -373,5 +373,55 @@ describe("lookupCardPrices", () => {
     expect(incompatible.quotes[2]).toMatchObject({ status: "reference_only", eligible: false, amount: 999 });
     const wrongCondition = await lookupCardPrices("pk_pikachu", "normal", "mint");
     expect(wrongCondition.quotes[2].eligible).toBe(false);
+  });
+  it.each(["unlimited", "first_edition", "shadowless", "first_edition_shadowless"] as const)("only prices explicit %s sales, never generic market feeds", async edition => {
+    installFetch();
+    providers.card.card_info.set_name = "Base Set";
+    providers.ebay = {
+      median: 999, searchUrl: "https://www.ebay.com/sch/i.html",
+      verifiedSales: [{
+        itemId: "123456789012", title: `Pikachu Base Set ${edition.replace(/_/g, " ")} 001/010 English Non-Holo NM`,
+        url: "https://www.ebay.com/itm/123456789012", soldAt: "2026-10-01", amount: 120,
+        currency: "USD", finish: "normal", condition: "near_mint", edition, evidence: "Explicit seller attributes.",
+      }],
+    };
+    const result = await lookupCardPrices("pk_pikachu", "normal", "near_mint", edition);
+    expect(result.card.edition).toBe(edition);
+    expect(result.quotes.slice(0, 2).every(q => !q.eligible && q.status === "reference_only")).toBe(true);
+    expect(result.quotes[2]).toMatchObject({ eligible: true, edition, amount: 120 });
+    expect(result.averageSourceCount).toBe(1);
+    expect(result.averageUsd).toBe(120);
+    const wrong = await lookupCardPrices("pk_pikachu", "normal", "near_mint", edition === "unlimited" ? "shadowless" : "unlimited");
+    expect(wrong.quotes[2].eligible).toBe(false);
+    expect(wrong.averageUsd).toBeNull();
+  });
+  it.each([
+    ["first_edition", "Non-First Edition"],
+    ["first_edition", "Non-1st Edition"],
+    ["shadowless", "Non-Shadowless"],
+    ["unlimited", "Non-Unlimited"],
+    ["unlimited", "Not Unlimited"],
+  ] as const)("never makes a negated %s claim eligible: %s", async (edition, phrase) => {
+    installFetch();
+    providers.card.card_info.set_name = "Base Set";
+    providers.ebay = {
+      median: 999, searchUrl: "https://www.ebay.com/sch/i.html",
+      verifiedSales: [{
+        itemId: "123456789012", title: `Pikachu Base Set ${phrase} 001/010 English Non-Holo NM`,
+        url: "https://www.ebay.com/itm/123456789012", soldAt: "2026-10-01", amount: 120,
+        currency: "USD", finish: "normal", condition: "near_mint", edition, evidence: "Seller title.",
+      }],
+    };
+    const result = await lookupCardPrices("pk_pikachu", "normal", "near_mint", edition);
+    expect(result.quotes[2].eligible).toBe(false);
+    expect(result.averageUsd).toBeNull();
+  });
+  it("keeps vintage unknown edition prices reference-only", async () => {
+    installFetch();
+    providers.card.card_info.set_name = "Base Set";
+    const result = await lookupCardPrices("pk_pikachu", "normal");
+    expect(result.card.edition).toBe("unknown");
+    expect(result.quotes.every(q => !q.eligible)).toBe(true);
+    expect(result.averageUsd).toBeNull();
   });
 });

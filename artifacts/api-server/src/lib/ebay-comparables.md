@@ -16,8 +16,11 @@ Each accepted sale must supply:
   supported raw condition: mint, near mint or light played.
 - No unknown title qualifiers, edition conflicts, alternate Pokémon suffixes,
   bundles, lots, grading companies/slabs, promos, stamps, proxies or special
-  printings. Vintage sets require explicit Unlimited; catalog identities that
-  cannot resolve edition must not imply first-edition or shadowless prices.
+  printings. Vintage sets require an explicit lookup edition and an identical
+  seller-stated edition. Unknown is not Unlimited. First Edition, Shadowless,
+  and First Edition + Shadowless are distinct explicit selections; neither
+  attribute is inferred from the set, card image, catalog ID or search query.
+  Contradictory edition claims remain excluded.
 - A single USD item price on the US site, not a range, converted currency,
   zero price or best-offer amount.
 - A dated "Sold" marker and a canonical eBay item link/ID from the same row.
@@ -30,10 +33,13 @@ No AI decision can bypass these deterministic checks.
 
 Platform market/trend values are not condition-specific; an average mixes
 different pricing measures and is disclosed as such. Only eligible independent
-sources in the same finish and comparable USD currency can contribute.
+sources in the same finish, edition and comparable USD currency can contribute.
+Generic market feeds do not establish edition and stay reference-only for
+vintage cards or any explicitly selected edition.
 
 Saving recomputes eBay's value from the documented sales in the owner-scoped,
-expiring server lookup. It checks the owned printing, matching condition and
+expiring server lookup. It checks the owned printing and edition (even with
+the same catalog ID), matching condition and
 absence of pending/verified grading certificates, writes a transactional value
 and history entry with sale IDs/dates/prices, and does not create a recurring
 pricing rule. Normal future refreshes may replace the snapshot.

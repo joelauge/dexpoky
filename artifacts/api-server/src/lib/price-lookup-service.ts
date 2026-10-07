@@ -1,5 +1,6 @@
 import { fetchEbaySoldPricing } from "../routes/detect-helpers.js";
 import type { EbaySale, SaleCondition } from "./ebay-comparables.js";
+import { CARD_EDITIONS, isVintageEditionSet, sellerEdition, type CardEdition } from "./card-edition.js";
 import {
   normalizeCatalogCard,
   pwGetCard,
@@ -15,6 +16,7 @@ export type LookupFinish = "normal" | "holofoil" | "reverse_holofoil";
 export type PriceSource = "tcgplayer" | "cardmarket" | "ebay";
 
 export interface PriceQuote {
+  edition?: CardEdition;
   condition?: SaleCondition;
   verifiedSales?: EbaySale[];
   source: PriceSource;
@@ -39,6 +41,7 @@ export interface PriceComparison {
     setName: string | null;
     cardNumber: string | null;
     imageUrl: string | null;
+    edition: CardEdition;
   };
   finish: LookupFinish;
   quotes: PriceQuote[];
@@ -437,15 +440,16 @@ function eBayQuote(
   result: Awaited<ReturnType<typeof fetchEbaySoldPricing>>,
   finish: LookupFinish,
   condition: SaleCondition,
+  edition: CardEdition,
 ): PriceQuote {
   const sales = result?.verifiedSales ?? [];
-  if (sales.length && sales.every(s => s.finish === finish && s.condition === condition && s.currency === "USD")) {
+  if (sales.length && sales.every(s => s.finish === finish && s.condition === condition && s.currency === "USD" && s.edition === edition && sellerEdition(s.title) === edition)) {
     const sorted = sales.map(s => s.amount).sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     const amount = Math.round((sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2) * 100) / 100;
     return {
       source: "ebay", label: "eBay verified comparable sales", status: "available",
-      amount, currency: "USD", valueUsd: amount, finish, condition, verifiedSales: sales,
+      amount, currency: "USD", valueUsd: amount, finish, condition, edition, verifiedSales: sales,
       basis: `Median of ${sales.length} individually verified English raw-card sales in ${condition.replace(/_/g, " ")} condition, within 90 days. Item price only; shipping/tax excluded.`,
       updatedAt: sales.map(s => s.soldAt).sort().at(-1)!, url: result!.searchUrl,
       reason: "Attributes verified from seller-stated listing evidence, not card authentication. Platform market/trend quotes are not condition-specific.",
@@ -467,7 +471,7 @@ function eBayQuote(
     finish: null,
     updatedAt: null,
     url: result.searchUrl,
-    reason: "No individual sales passed all printing, English language, finish, condition, USD price and date checks. This search median is reference-only and cannot be saved or averaged.",
+    reason: "No individual sales passed all printing, edition, English language, finish, condition, USD price and date checks. This search median is reference-only and cannot be saved or averaged.",
     eligible: false,
   };
 }
@@ -622,17 +626,19 @@ export async function lookupCardPrices(
   catalogCardId: string,
   finish: LookupFinish,
   condition: SaleCondition = "near_mint",
+  edition: CardEdition = "unknown",
 ): Promise<PriceComparison> {
   if (!["normal", "holofoil", "reverse_holofoil"].includes(finish)) {
     throw new Error(`Unsupported finish "${String(finish)}"; expected normal, holofoil, or reverse_holofoil.`);
   }
+  if (!CARD_EDITIONS.includes(edition)) throw new Error("Unsupported card edition.");
   const identity = await resolveIdentity(catalogCardId);
   const [pwCard, csvCard, dexDetail, ebayResult] = await Promise.all([
     enrichPokeWallet(identity),
     isTcgcsvId(catalogCardId) ? getTcgcsvCard(catalogCardId) : Promise.resolve(null),
     enrichTcgDex(identity),
     fetchEbaySoldPricing(identity.name, identity.setName ?? undefined, identity.cardNumber ?? undefined, {
-      name: identity.name, setName: identity.setName, cardNumber: identity.cardNumber, finish, condition,
+      name: identity.name, setName: identity.setName, cardNumber: identity.cardNumber, finish, condition, edition,
     }),
   ]);
 
@@ -656,18 +662,30 @@ export async function lookupCardPrices(
   const quotes = [
     priceQuote("tcgplayer", tcgRaw, finish, fx, tcgBasis),
     priceQuote("cardmarket", cmRaw, finish, fx, cmBasis),
-    eBayQuote(ebayResult, finish, condition),
+    eBayQuote(ebayResult, finish, condition, edition),
   ];
+  // Generic market feeds establish finish, not edition. Never relabel them as
+  // First Edition/Shadowless/Unlimited prices or use them in vintage averages.
+  for (const quote of quotes) {
+    if (quote.source === "ebay") continue;
+    quote.edition = "unknown";
+    if (edition !== "unknown" || isVintageEditionSet(identity.setName)) {
+      quote.eligible = false;
+      quote.reason = "This provider does not establish edition. Its generic finish price is context only and cannot be saved or averaged for this printing.";
+      if (quote.status === "available") quote.status = "reference_only";
+    }
+  }
   const comparable = quotes.filter((quote) => quote.eligible && quote.valueUsd !== null);
   const averageUsd = comparable.length
     ? Math.round(comparable.reduce((sum, quote) => sum + quote.valueUsd!, 0) / comparable.length * 100) / 100
     : null;
   const card = {
-    id: identity.id,
+    id: catalogCardId,
     name: identity.name,
     setName: identity.setName,
     cardNumber: identity.cardNumber,
     imageUrl: identity.imageUrl,
+    edition,
   };
   const advice = await advise(quotes, averageUsd, fx);
   return {

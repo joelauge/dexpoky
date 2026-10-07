@@ -20,7 +20,7 @@ function Row({ q, selected, onSelect }: { q: PlatformPriceQuote; selected: boole
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-bold text-sm">{q.label}</p>
-          <p className="text-[11px] text-muted-foreground">{q.basis}{q.finish ? ` · ${q.finish.replace(/_/g, " ")}` : ""}</p>
+          <p className="text-[11px] text-muted-foreground">{q.basis}{q.finish ? ` · ${q.finish.replace(/_/g, " ")}` : ""}{q.edition ? ` · ${q.edition.replace(/_/g, " ")}` : ""}</p>
         </div>
         <div className="text-right shrink-0">
           {unavailable ? (
@@ -41,7 +41,7 @@ function Row({ q, selected, onSelect }: { q: PlatformPriceQuote; selected: boole
             {q.verifiedSales.map(s => (
               <li key={s.itemId} className="rounded-lg bg-muted/40 p-2">
                 <a href={s.url} target="_blank" rel="noreferrer" className="text-primary underline">{s.title} <ExternalLink className="inline h-3 w-3" /></a>
-                <p className="font-semibold mt-1">Sold {s.soldAt} · {usd(s.amount)} USD · {s.condition.replace(/_/g, " ")} · {s.finish.replace(/_/g, " ")}</p>
+                <p className="font-semibold mt-1">Sold {s.soldAt} · {usd(s.amount)} USD · {s.edition.replace(/_/g, " ")} · {s.condition.replace(/_/g, " ")} · {s.finish.replace(/_/g, " ")}</p>
                 <p className="text-muted-foreground mt-1">{s.evidence}</p>
               </li>
             ))}

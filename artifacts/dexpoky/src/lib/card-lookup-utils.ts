@@ -1,6 +1,15 @@
-import type { Card, PlatformPriceQuote, PriceLookup } from "@workspace/api-client-react";
+import type { Card, CardEdition, PlatformPriceQuote, PriceLookup } from "@workspace/api-client-react";
 
 export type Method = "tcgplayer" | "cardmarket" | "ebay" | "average";
+export type Edition = CardEdition;
+
+export const EDITIONS: { value: Edition; label: string }[] = [
+  { value: "unknown", label: "Unknown / not recorded" },
+  { value: "unlimited", label: "Unlimited" },
+  { value: "first_edition", label: "1st Edition" },
+  { value: "shadowless", label: "Shadowless" },
+  { value: "first_edition_shadowless", label: "1st Edition Shadowless" },
+];
 
 export function normText(s?: string | null): string {
   return (s ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -13,25 +22,37 @@ export function normNumber(s?: string | null): string {
 
 export type TargetMatch = { card: Card; via: "id" | "identity" };
 
+export type TargetCandidates = { targets: TargetMatch[]; identityCandidates: TargetMatch[] };
+
 export function findTargets(
   cards: Card[] | undefined,
   lookup: { id: string; name: string; setName: string | null; cardNumber: string | null },
-): TargetMatch[] {
-  if (!cards) return [];
+  edition: Edition = "unknown",
+): TargetCandidates {
+  if (!cards) return { targets: [], identityCandidates: [] };
   const n = normText(lookup.name);
   const s = normText(lookup.setName);
   const num = normNumber(lookup.cardNumber);
-  const out: TargetMatch[] = [];
+  const targets: TargetMatch[] = [];
+  const identityCandidates: TargetMatch[] = [];
   for (const c of cards) {
+    let via: TargetMatch["via"] | null = null;
     if (c.catalogCardId === lookup.id) {
-      out.push({ card: c, via: "id" });
-      continue;
+      via = "id";
+    } else if (n && s && num && normText(c.name) === n && normText(c.setName) === s && normNumber(c.cardNumber) === num) {
+      via = "identity";
     }
-    if (n && s && num && normText(c.name) === n && normText(c.setName) === s && normNumber(c.cardNumber) === num) {
-      out.push({ card: c, via: "identity" });
+    if (!via) continue;
+    const match = { card: c, via };
+    if ((c.edition ?? "unknown") === edition) {
+      targets.push(match);
+    } else {
+      identityCandidates.push(match);
     }
   }
-  return out.sort((a, b) => new Date(a.card.createdAt).getTime() - new Date(b.card.createdAt).getTime());
+  const byCreation = (a: TargetMatch, b: TargetMatch) =>
+    new Date(a.card.createdAt).getTime() - new Date(b.card.createdAt).getTime();
+  return { targets: targets.sort(byCreation), identityCandidates: identityCandidates.sort(byCreation) };
 }
 
 export const usd = (n: number | null | undefined) =>

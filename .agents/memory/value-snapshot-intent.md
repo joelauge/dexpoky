@@ -14,3 +14,9 @@ Do not present mirrored TCGPlayer feeds as separate platforms, or count unverifi
 **Why:** The connected catalog feeds can represent the same market, while the sold-listing scraper cannot prove finish and condition for each sale. An average of those feeds would imply independent, compatible evidence that is not available.
 
 **How to apply:** Keep native currencies and dates visible; average distinct platforms only after currency and finish compatibility pass. An eBay search median is never a saved-price fallback. Only individually documented, seller-stated compatible sales qualify; do not imply authentication or fill missing attributes from the search query.
+
+An edition selected by the owner is an assertion, not catalog-provider evidence or authentication. Keep First Edition and Shadowless independent: explicitly naming both is different from naming only one.
+
+**Why:** Vintage catalog IDs do not establish edition, and silently treating either attribute as implying the other can save the wrong printing's value.
+
+**How to apply:** Do not backfill Unknown copies as Unlimited or infer edition from names, images, queries or IDs. Generic finish prices must not become edition-specific values without provider evidence.

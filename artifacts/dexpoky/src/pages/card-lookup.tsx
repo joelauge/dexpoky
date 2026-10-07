@@ -3,7 +3,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import { ArrowLeft, RefreshCw, Sparkles, Search, X } from "lucide-react";
 import {
   useGetPricingLookup, getGetPricingLookupQueryKey, useListCards, getListCardsQueryKey,
-  type CatalogCard, type PriceLookupFinish, type ComparableSaleCondition, type EnsureSetCatalogCardResult,
+  type CatalogCard, type PriceLookupFinish, type ComparableSaleCondition, type EnsureSetCatalogCardResult, type CardEdition,
 } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CatalogSearch } from "@/components/catalog-search";
@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { QuoteTable } from "@/components/card-lookup/quote-table";
 import { SavePanel } from "@/components/card-lookup/save-panel";
 import { SetMembershipNotice } from "@/components/card-lookup/set-membership-notice";
-import { type Method, findTargets, when, errMessage, methodLabel } from "@/lib/card-lookup-utils";
+import { type Method, EDITIONS, findTargets, when, errMessage, methodLabel } from "@/lib/card-lookup-utils";
 import { useCardLookupHistory } from "@/hooks/use-card-lookup-history";
 import { LookupHistory } from "@/components/card-lookup/lookup-history";
 import type { LookupHistoryEntry } from "@/lib/card-lookup-history";
@@ -36,7 +36,7 @@ function SelectedCardArtwork({ cardId, name, urls, onImage }: { cardId: string; 
   useEffect(() => onImage(cardId, imageUrl ?? null), [cardId, imageUrl, onImage]);
 
   return (
-    <div className="aspect-[3/4] rounded-xl bg-muted/30 overflow-hidden flex items-center justify-center mb-3">
+    <div className={`${imageUrl ? "h-48 sm:h-auto sm:aspect-[3/4]" : "h-24 sm:h-36"} rounded-xl bg-muted/30 overflow-hidden flex items-center justify-center mb-3`}>
       {imageUrl ? (
         <img
           key={`${cardId}:${imageUrl}`}
@@ -46,7 +46,7 @@ function SelectedCardArtwork({ cardId, name, urls, onImage }: { cardId: string; 
           onError={() => setCandidateIndex((index) => index + 1)}
         />
       ) : (
-        <img src="/logo.png" alt="" aria-hidden="true" className="w-24 opacity-20 grayscale" />
+        <p className="text-xs text-muted-foreground">Card artwork unavailable</p>
       )}
     </div>
   );
@@ -58,6 +58,7 @@ export default function CardLookup() {
   const sp = new URLSearchParams(search);
   const qCatalog = sp.get("catalogCardId");
   const qCard = sp.get("cardId");
+  const explicitEdition = EDITIONS.find(item => item.value === sp.get("edition"))?.value;
 
   const { data: owned } = useListCards(undefined, { query: { queryKey: getListCardsQueryKey() } });
   const [finish, setFinish] = useState<PriceLookupFinish>("normal");
@@ -74,6 +75,12 @@ export default function CardLookup() {
   const onImage = useCallback((cardId: string, url: string | null) => setArtwork({ cardId, url }), []);
 
   const ownedFromLink = qCard && owned ? owned.find((c) => c.id === Number(qCard)) : undefined;
+  const edition: CardEdition = explicitEdition ?? ownedFromLink?.edition ?? "unknown";
+  const setEdition = (value: CardEdition) => {
+    const next = new URLSearchParams(search);
+    next.set("edition", value);
+    setLocation(`/card-lookup?${next.toString()}`);
+  };
   const linkNeedsSearch = !!qCard && !!owned && !qCatalog && (!ownedFromLink || !ownedFromLink.catalogCardId);
   const catalogId = qCatalog ?? (linkNeedsSearch ? null : ownedFromLink?.catalogCardId ?? null);
   const selectedCard = catalogId ? selectedCards[catalogId] : undefined;
@@ -98,13 +105,14 @@ export default function CardLookup() {
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(t); }, []);
   useEffect(() => { document.title = "Card Lookup | DexPoky"; }, []);
 
-  const params = { catalogCardId: catalogId ?? "", finish, condition };
+  const params = { catalogCardId: catalogId ?? "", finish, condition, edition };
   const q = useGetPricingLookup(params, {
     query: { enabled: !!catalogId, queryKey: getGetPricingLookupQueryKey(params), staleTime: Infinity, gcTime: 0 },
   });
   // A query observer may briefly expose cached data from a prior route. Never
   // render its price or art unless its server identity exactly matches selection.
-  const lookup = q.data?.card.id === catalogId ? q.data : undefined;
+  const lookup = q.data?.card.id === catalogId && q.data.card.edition === edition &&
+    q.data.finish === finish && q.data.condition === condition ? q.data : undefined;
   const expired = !!lookup && new Date(lookup.expiresAt).getTime() <= now;
 
   useEffect(() => {
@@ -118,9 +126,13 @@ export default function CardLookup() {
     });
   }, [lookup, selectedCard, history.userId, history.record, finish, condition]);
 
-  useEffect(() => { setMethod(null); }, [lookup?.lookupId]);
+  useEffect(() => { setMethod(null); }, [catalogId, finish, condition, edition, lookup?.lookupId]);
 
-  const targets = useMemo(() => (lookup ? findTargets(owned, lookup.card) : []), [owned, lookup]);
+  const matches = useMemo(
+    () => (lookup ? findTargets(owned, lookup.card, edition) : { targets: [], identityCandidates: [] }),
+    [owned, lookup, edition],
+  );
+  const { targets, identityCandidates } = matches;
   useEffect(() => {
     if (targets.length && !targets.some((t) => t.card.id === targetId)) {
       setTargetId(targets.length === 1 ? targets[0].card.id : null);
@@ -136,14 +148,15 @@ export default function CardLookup() {
   const clear = () => setLocation("/card-lookup");
   const openHistory = (entry: LookupHistoryEntry) => {
     searchScroll.current = window.scrollY;
-    if (lookup?.card.id === entry.card.id && finish === entry.finish && condition === entry.condition) {
+    if (lookup?.card.id === entry.card.id && edition === entry.card.edition &&
+      finish === entry.finish && condition === entry.condition) {
       history.record({ card: lookup.card, finish, condition, visitedAt: Date.now() });
     }
     setFinish(entry.finish);
     setCondition(entry.condition);
     setMethod(null);
     setTargetId(null);
-    setLocation(`/card-lookup?catalogCardId=${encodeURIComponent(entry.card.id)}`);
+    setLocation(`/card-lookup?catalogCardId=${encodeURIComponent(entry.card.id)}&edition=${encodeURIComponent(entry.card.edition)}`);
   };
   const shownCard = catalogId
     ? selectedCard ?? (lookup?.card.id === catalogId ? lookup.card : undefined) ?? history.entries.find((entry) => entry.card.id === catalogId)?.card
@@ -180,7 +193,11 @@ export default function CardLookup() {
                 />
                 <p className="font-black text-lg leading-tight">{shownCard.name}</p>
                 <p className="text-xs text-muted-foreground">{shownCard.setName ?? "Unknown set"}{shownCard.cardNumber ? ` · #${shownCard.cardNumber}` : ""}</p>
-                <p className="text-[10px] font-mono text-muted-foreground mt-1 break-all">{shownCard.id}</p>
+                <p className="text-xs text-muted-foreground">Edition: {EDITIONS.find((item) => item.value === (lookup?.card.edition ?? edition))?.label ?? "Unknown / not recorded"}</p>
+                <details className="mt-1 text-xs text-muted-foreground">
+                  <summary className="cursor-pointer">Catalog identifier</summary>
+                  <p className="font-mono break-all mt-1">{shownCard.id}</p>
+                </details>
                 <SetMembershipNotice key={catalogId} catalogCardId={catalogId} onVerified={onVerified} />
                 {lookup && <AddLookupCard key={`add-${catalogId}`} lookup={lookup} catalog={selectedCard} set={matchingSet}
                   setPending={verifiedSet?.catalogId !== catalogId}
@@ -203,6 +220,17 @@ export default function CardLookup() {
                 <img src="/logo.png" alt="" className="w-16 mx-auto opacity-20 grayscale mb-3" />
                 <p className="font-bold">No card selected</p>
                 <p className="text-sm text-muted-foreground">Pick a printing to see TCGplayer, Cardmarket and eBay side by side.</p>
+              </div>
+            )}
+
+            {catalogId && (
+              <div className="text-xs space-y-1">
+                <label className="font-semibold" htmlFor="lookup-edition">Edition</label>
+                <select id="lookup-edition" data-testid="select-lookup-edition" className="block rounded-lg border bg-card p-2" value={edition}
+                  onChange={(e) => setEdition(e.target.value as CardEdition)}>
+                  {EDITIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+                <p className="text-muted-foreground">Edition is a comparison choice, not inferred from catalog ID, name, search, or artwork. Recording it on a copy is your assertion, not authentication.</p>
               </div>
             )}
 
@@ -260,7 +288,8 @@ export default function CardLookup() {
                 <QuoteTable lookup={lookup} selected={method} onSelect={setMethod} />
                 <SavePanel
                   key={lookup.lookupId}
-                  lookup={lookup} expired={expired} method={method} targets={targets} targetId={targetId}
+                  lookup={lookup} expired={expired} method={method} targets={targets} identityCandidates={identityCandidates}
+                  edition={edition} targetId={targetId}
                   onTarget={setTargetId} onRefresh={() => q.refetch()} refreshing={q.isFetching}
                   onAddCard={() => setAddCardOpen(true)}
                 />

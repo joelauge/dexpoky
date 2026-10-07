@@ -41,7 +41,7 @@ app.use(router);
 
 function comparison(): PriceComparison {
   return {
-    card: { id: "base1-4", name: "Charizard", setName: "Base Set", cardNumber: "004/102", imageUrl: null },
+    card: { id: "base1-4", name: "Charizard", setName: "Sample Set", cardNumber: "004/102", imageUrl: null, edition: "unknown" },
     finish: "holofoil",
     quotes: [
       { source: "tcgplayer", label: "TCGPlayer", status: "available", amount: 10, currency: "USD", valueUsd: 10, basis: "Market", finish: "holofoil", updatedAt: null, url: null, reason: null, eligible: true },
@@ -60,7 +60,7 @@ async function getLookup(user = "owner") {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.lookup.mockResolvedValue(comparison());
-  mocks.selectCard.mockResolvedValue([{ id: 1, catalogCardId: "base1-4", name: "Charizard", setName: "Base Set", cardNumber: "004" }]);
+  mocks.selectCard.mockResolvedValue([{ id: 1, catalogCardId: "base1-4", name: "Charizard", setName: "Sample Set", cardNumber: "004", edition: "unknown" }]);
   mocks.insertHistory.mockResolvedValue([]);
   mocks.selectCerts.mockResolvedValue([]);
 });
@@ -68,7 +68,7 @@ beforeEach(() => {
 describe("price snapshot identity and arithmetic", () => {
   it("matches complete normalized printings but never names alone", () => {
     const printing = comparison().card;
-    expect(matchesLookupCard({ catalogCardId: null, name: "Charizard", setName: "Base Set", cardNumber: "4" }, printing)).toBe(true);
+    expect(matchesLookupCard({ catalogCardId: null, name: "Charizard", setName: "Sample Set", cardNumber: "4" }, printing)).toBe(true);
     expect(matchesLookupCard({ catalogCardId: null, name: "Charizard", setName: "Other Set", cardNumber: "4" }, printing)).toBe(false);
     expect(matchesLookupCard({ catalogCardId: null, name: "Charizard", setName: null, cardNumber: null }, printing)).toBe(false);
   });
@@ -94,9 +94,9 @@ describe("price lookup and snapshot endpoints", () => {
       ...result.quotes[2], status: "available", eligible: true, finish: "holofoil", condition: "near_mint",
       amount: 999, valueUsd: 999,
       verifiedSales: [{
-        itemId: "123456789012", title: "Charizard Base Set Unlimited 004/102 English Holo NM",
+        itemId: "123456789012", title: "Charizard Sample Set 004/102 English Holo NM",
         url: "https://www.ebay.com/itm/123456789012", soldAt: "2026-10-01", amount: 20,
-        currency: "USD", finish: "holofoil", condition: "near_mint", evidence: "Seller-stated exact raw printing and dated USD sale.",
+        currency: "USD", finish: "holofoil", condition: "near_mint", edition: "unknown", evidence: "Seller-stated exact raw printing and dated USD sale.",
       }],
     };
     return result;
@@ -146,6 +146,64 @@ describe("price lookup and snapshot endpoints", () => {
   it("requires sign-in and validates finish", async () => {
     expect((await request(app).get("/pricing/lookup?catalogCardId=base1-4")).status).toBe(401);
     expect((await request(app).get("/pricing/lookup?catalogCardId=base1-4&finish=graded").set("x-test-user", "owner")).status).toBe(400);
+    expect((await request(app).get("/pricing/lookup?catalogCardId=base1-4&edition=maybe").set("x-test-user", "owner")).status).toBe(400);
+  });
+  it.each(["unlimited", "first_edition", "shadowless", "first_edition_shadowless"] as const)("binds %s lookup to the same owned edition even with the same catalog ID", async edition => {
+    const result = verifiedComparison();
+    result.card.edition = edition;
+    result.card.setName = "Base Set";
+    result.quotes[2].edition = edition;
+    result.quotes[2].verifiedSales![0].edition = edition;
+    result.quotes[2].verifiedSales![0].title = `Charizard Base Set ${edition.replace(/_/g, " ")} 004/102 English Holo NM`;
+    mocks.lookup.mockResolvedValue(result);
+    const lookup = await request(app).get(`/pricing/lookup?catalogCardId=base1-4&finish=holofoil&edition=${edition}`).set("x-test-user", "owner");
+    expect(lookup.status).toBe(200);
+    expect(mocks.lookup).toHaveBeenCalledWith("base1-4", "holofoil", "near_mint", edition);
+    for (const ownedEdition of ["unknown", "unlimited", "first_edition", "shadowless", "first_edition_shadowless"]) {
+      if (ownedEdition === edition) continue;
+      mocks.selectCard.mockResolvedValue([{ catalogCardId: "base1-4", name: "Charizard", condition: "near_mint", edition: ownedEdition }]);
+      const save = await request(app).post("/cards/1/value-snapshot").set("x-test-user", "owner").send({ lookupId: lookup.body.lookupId, method: "ebay" });
+      expect(save.status).toBe(409);
+    }
+    expect(mocks.updateValue).not.toHaveBeenCalled();
+    mocks.selectCard.mockResolvedValue([{ catalogCardId: "base1-4", name: "Charizard", condition: "near_mint", edition }]);
+    const save = await request(app).post("/cards/1/value-snapshot").set("x-test-user", "owner").send({ lookupId: lookup.body.lookupId, method: "ebay" });
+    expect(save.status).toBe(200);
+    expect(save.body.value).toBe(20);
+    expect(save.body.source).toContain(`edition=${edition}`);
+    expect(snapshotValue(result, "tcgplayer")).toBeNull();
+    result.quotes[2].verifiedSales![0].edition = edition === "unlimited" ? "shadowless" : "unlimited";
+    expect(snapshotValue(result, "ebay")).toBeNull();
+  });
+  it("does not accept editionless vintage sales or market quotes even if marked eligible", () => {
+    const result = verifiedComparison();
+    result.card.setName = "Base Set";
+    expect(snapshotValue(result, "ebay")).toBeNull();
+    expect(snapshotValue(result, "average")).toBeNull();
+  });
+  it.each([
+    ["first_edition", "Non-First Edition"],
+    ["first_edition", "Non-1st Edition"],
+    ["shadowless", "Non-Shadowless"],
+    ["unlimited", "Non-Unlimited"],
+    ["unlimited", "Not Unlimited"],
+  ] as const)("never saves a negated %s claim: %s", async (edition, phrase) => {
+    const result = verifiedComparison();
+    result.card.edition = edition;
+    result.card.setName = "Base Set";
+    result.quotes[2].edition = edition;
+    result.quotes[2].verifiedSales![0].edition = edition;
+    result.quotes[2].verifiedSales![0].title = `Charizard Base Set ${phrase} 004/102 English Holo NM`;
+    expect(snapshotValue(result, "ebay")).toBeNull();
+    expect(snapshotValue(result, "average")).toBeNull();
+    mocks.lookup.mockResolvedValue(result);
+    mocks.selectCard.mockResolvedValue([{ catalogCardId: "base1-4", name: "Charizard", condition: "near_mint", edition }]);
+    const lookup = await getLookup();
+    const save = await request(app).post("/cards/1/value-snapshot").set("x-test-user", "owner")
+      .send({ lookupId: lookup.body.lookupId, method: "ebay" });
+    expect(save.status).toBe(400);
+    expect(mocks.updateValue).not.toHaveBeenCalled();
+    expect(mocks.insertHistory).not.toHaveBeenCalled();
   });
   it("returns quotes and owner-scoped expiring server snapshot", async () => {
     const res = await getLookup();

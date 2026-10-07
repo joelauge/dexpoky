@@ -116,29 +116,18 @@ router.post("/cards/:id/confidence", requireAuth, async (req, res): Promise<void
     catalogCardId: cardsTable.catalogCardId, condition: cardsTable.condition,
   }).from(cardsTable).where(and(eq(cardsTable.id, id), eq(cardsTable.ownerClerkId, userId)));
   if (!saved) { res.status(404).json({ error: "Card not found" }); return; }
-  const pricing = await fetchPricingById(cardId, name, rarity, ebayContext);
-  const result = await db.transaction(async (tx) => {
-    const createdIds: number[] = [];
-    for (const item of parsed.data.cards) {
-      const [created] = await tx.insert(cardsTable).values({
-        ownerClerkId: userId,
-        name: item.name,
-        pokemonName: item.name,
-        setName: item.setName,
-        setId: item.setId,
-        cardNumber: item.cardNumber,
-        rarity: item.rarity,
-        condition: item.condition ?? "near_mint",
-        imageUrl: item.imageUrl ?? null,
-        catalogCardId: item.catalogCardId,
-        estimatedValue: item.estimatedValue != null ? String(item.estimatedValue) : null,
-        originalScanUrl: item.originalScanUrl ?? null,
-        collectionId: item.collectionId ?? null,
-        forSale: false,
-      }).returning({ id: cardsTable.id });
-      createdIds.push(created.id);
-    }
-    return { createdIds };
+  const result = await evaluateCardConfidence({
+    observed: {},
+    candidate: {
+      id: String(saved.id),
+      name: saved.name,
+      setId: saved.setId,
+      setName: saved.setName,
+      cardNumber: saved.cardNumber,
+    },
+    pricing: null,
+    condition: { value: saved.condition, source: "saved_card" },
+    context: { savedCardId: id },
   });
   res.setHeader("Cache-Control", "no-store");
   res.json(result);
@@ -153,6 +142,7 @@ const cardSelect = {
   cardNumber: cardsTable.cardNumber,
   rarity: cardsTable.rarity,
   condition: cardsTable.condition,
+  edition: cardsTable.edition,
   imageUrl: cardsTable.imageUrl,
   originalScanUrl: cardsTable.originalScanUrl,
   media: cardsTable.media,
@@ -174,13 +164,9 @@ const cardSelect = {
 };
 
 router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
-  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  const parsed = BulkCreateCardsBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid media request", details: parsed.error });
-    return;
-  }
-  if (!Number.isSafeInteger(parsed.data.width) || !Number.isSafeInteger(parsed.data.height)) {
-    res.status(400).json({ error: "Media dimensions must be integers" });
+    res.status(400).json({ error: "Invalid request body", details: parsed.error });
     return;
   }
 
@@ -204,6 +190,7 @@ router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
         cardNumber: item.cardNumber,
         rarity: item.rarity,
         condition: item.condition ?? "near_mint",
+        edition: item.edition ?? "unknown",
         imageUrl: item.imageUrl ?? null,
         catalogCardId: item.catalogCardId,
         estimatedValue: item.estimatedValue != null ? String(item.estimatedValue) : null,
@@ -223,13 +210,9 @@ router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> => {
-  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  const parsed = BulkUpdateCardsBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid media request", details: parsed.error });
-    return;
-  }
-  if (!Number.isSafeInteger(parsed.data.width) || !Number.isSafeInteger(parsed.data.height)) {
-    res.status(400).json({ error: "Media dimensions must be integers" });
+    res.status(400).json({ error: "Invalid request body", details: parsed.error });
     return;
   }
 
@@ -237,7 +220,7 @@ router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> =>
   const collectionId = parsed.data.collectionId;
   if (collectionId != null) {
       const [collection] = await db.select({ id: collectionsTable.id }).from(collectionsTable)
-        .where(and(eq(collectionsTable.id, data.collectionId), eq(collectionsTable.ownerClerkId, userId)));
+        .where(and(eq(collectionsTable.id, collectionId), eq(collectionsTable.ownerClerkId, userId)));
     if (!collection) { res.status(400).json({ error: "Invalid collection" }); return; }
   }
   const owned = await db.select({ id: cardsTable.id }).from(cardsTable)
@@ -246,6 +229,7 @@ router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> =>
   const update: Record<string, unknown> = { updatedAt: new Date() };
   if (parsed.data.collectionId !== undefined) update.collectionId = parsed.data.collectionId;
   if (parsed.data.condition !== undefined) update.condition = parsed.data.condition;
+  if (parsed.data.edition !== undefined) update.edition = parsed.data.edition;
   if (parsed.data.estimatedValue !== undefined) update.estimatedValue = parsed.data.estimatedValue == null ? null : String(parsed.data.estimatedValue);
   await db.update(cardsTable).set(update).where(and(eq(cardsTable.ownerClerkId, userId), inArray(cardsTable.id, parsed.data.cardIds)));
   const updated = await db.select(cardSelect).from(cardsTable)
@@ -316,6 +300,7 @@ router.post("/cards", requireAuth, async (req, res) => {
   const [card] = await db.insert(cardsTable).values({
     ...data,
     ownerClerkId: userId,
+    edition: data.edition ?? "unknown",
     estimatedValue: data.estimatedValue == null ? null : String(data.estimatedValue),
     acquiredDate: data.acquiredDate ? new Date(data.acquiredDate) : null,
   }).returning();
@@ -724,7 +709,7 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
   const [existing] = await db
     .select({ ownerClerkId: cardsTable.ownerClerkId })
     .from(cardsTable)
-    .where(eq(cardsTable.id, parsed.data.id));
+    .where(eq(cardsTable.id, paramsParsed.data.id));
   if (!existing) {
     res.status(404).json({ error: "Card not found" });
     return;
@@ -743,6 +728,7 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
   if (data.cardNumber !== undefined) updateData.cardNumber = data.cardNumber;
   if (data.rarity !== undefined) updateData.rarity = data.rarity;
   if (data.condition !== undefined) updateData.condition = data.condition;
+  if (data.edition !== undefined) updateData.edition = data.edition;
   if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
   if (data.originalScanUrl !== undefined) updateData.originalScanUrl = data.originalScanUrl;
   if (data.catalogCardId !== undefined) updateData.catalogCardId = data.catalogCardId;

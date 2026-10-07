@@ -7,6 +7,7 @@ import { requireAuth, type AuthRequest } from "../middlewares/requireAuth.js";
 import { lookupCardPrices, type PriceComparison } from "../lib/price-lookup-service.js";
 import { logger } from "../lib/logger.js";
 import { isGradedSlabListingTitle } from "../lib/grading.js";
+import { isVintageEditionSet, sellerEdition } from "../lib/card-edition.js";
 
 const router = Router();
 const LOOKUP_TTL_MS = 30 * 60 * 1000;
@@ -23,9 +24,10 @@ function number(value: string | null | undefined): string {
 }
 
 export function matchesLookupCard(
-  card: { catalogCardId: string | null; name: string; setName: string | null; cardNumber: string | null },
+  card: { catalogCardId: string | null; name: string; setName: string | null; cardNumber: string | null; edition?: string | null },
   printing: PriceComparison["card"],
 ): boolean {
+  if ((card.edition ?? "unknown") !== printing.edition) return false;
   if (card.catalogCardId === printing.id) return true;
   // Catalog namespaces differ. Allow only a complete exact identity, never a name-only match.
   return !!text(card.name) && !!text(card.setName) && !!number(card.cardNumber)
@@ -37,9 +39,14 @@ export function matchesLookupCard(
 export function snapshotValue(comparison: PriceComparison, method: Method): number | null {
   const quotes = comparison.quotes.filter(quote =>
     quote.eligible && quote.status === "available"
+    && (quote.edition ?? "unknown") === comparison.card.edition
+    && (quote.source === "ebay" || (comparison.card.edition === "unknown" && !isVintageEditionSet(comparison.card.setName)))
     && (quote.source !== "ebay" || (quote.condition === comparison.condition
       && !!quote.verifiedSales?.length && quote.verifiedSales.every(s =>
         s.currency === "USD" && s.finish === comparison.finish && s.condition === comparison.condition
+        && s.edition === comparison.card.edition
+        && sellerEdition(s.title) === s.edition
+        && (s.edition !== "unknown" || !isVintageEditionSet(comparison.card.setName))
         && s.amount > 0 && Number.isFinite(s.amount) && !!s.soldAt && !!s.url && !!s.evidence)))
     && quote.finish === comparison.finish && quote.valueUsd != null
     && Number.isFinite(quote.valueUsd) && quote.valueUsd >= 0);
@@ -62,7 +69,7 @@ router.get("/pricing/lookup", requireAuth, async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Choose a valid card printing and finish." }); return; }
   res.setHeader("Cache-Control", "no-store");
   try {
-    const comparison = await lookupCardPrices(parsed.data.catalogCardId, parsed.data.finish, parsed.data.condition);
+    const comparison = await lookupCardPrices(parsed.data.catalogCardId, parsed.data.finish, parsed.data.condition, parsed.data.edition);
     const now = Date.now();
     for (const [key, entry] of lookups) if (entry.expires <= now) lookups.delete(key);
     const lookupId = randomUUID();
@@ -100,7 +107,7 @@ router.post("/cards/:cardId/value-snapshot", requireAuth, async (req, res) => {
     : parsed.data.method;
   const ebay = lookup.comparison.quotes.find(q => q.source === "ebay");
   const usesEbay = contributors.split("+").includes("ebay");
-  const source = `snapshot:${parsed.data.method}:${contributors}:${lookup.comparison.finish}${lookup.comparison.fx ? `:EURUSD=${lookup.comparison.fx.eurToUsd}@${lookup.comparison.fx.date}` : ""}${usesEbay ? `:condition=${lookup.comparison.condition}:ebay-sales=${ebay!.verifiedSales!.map(s => `${s.itemId}@${s.soldAt}=$${s.amount}`).join(",")}` : ""}`;
+  const source = `snapshot:${parsed.data.method}:${contributors}:${lookup.comparison.finish}:edition=${lookup.comparison.card.edition}${lookup.comparison.fx ? `:EURUSD=${lookup.comparison.fx.eurToUsd}@${lookup.comparison.fx.date}` : ""}${usesEbay ? `:condition=${lookup.comparison.condition}:ebay-sales=${ebay!.verifiedSales!.map(s => `${s.itemId}@${s.soldAt}=$${s.amount}`).join(",")}` : ""}`;
   const recordedAt = new Date();
   const outcome = await db.transaction(async tx => {
     const [card] = await tx.select().from(cardsTable)
@@ -119,7 +126,7 @@ router.post("/cards/:cardId/value-snapshot", requireAuth, async (req, res) => {
     return "saved" as const;
   });
   if (outcome === "not_found") { res.status(404).json({ error: "Owned card not found." }); return; }
-  if (outcome === "mismatch") { res.status(409).json({ error: "This price is for a different printing. Search for your exact card." }); return; }
+  if (outcome === "mismatch") { res.status(409).json({ error: "This price is for a different printing or edition. Select your exact card and record the matching edition on your owned copy." }); return; }
   if (outcome === "condition_mismatch") { res.status(409).json({ error: "Verified eBay sales require an ungraded owned copy in the selected condition. Change the lookup condition or choose another source." }); return; }
   res.json(SaveCardValueSnapshotResponse.parse({ cardId, value, currency: "USD", method: parsed.data.method, source, recordedAt: recordedAt.toISOString() }));
 });

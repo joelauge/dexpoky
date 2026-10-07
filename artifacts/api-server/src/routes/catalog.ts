@@ -30,6 +30,10 @@ type CatalogPayload = {
 };
 const catalogCache = new BoundedAsyncCache<CatalogPayload>(200, 10 * 60 * 1000);
 
+function withUnknownEdition<T extends NormalizedCatalogCard>(card: T): T & { edition: "unknown" } {
+  return { ...card, edition: "unknown" };
+}
+
 function normalizeTcgcsvCard(card: TcgResult, marketPrice: number | null): NormalizedCatalogCard {
   return {
     id: card.id,
@@ -207,7 +211,7 @@ router.get("/catalog/search", async (req, res) => {
   const alreadyCached = catalogCache.get(key);
   if (alreadyCached) {
     recordLookup("catalog", performance.now() - startedAt, { cache: "hit", jev: "skipped" });
-    res.json(alreadyCached);
+    res.json({ ...alreadyCached, results: alreadyCached.results.map(withUnknownEdition) });
     return;
   }
   const externalStartedAt = performance.now();
@@ -287,7 +291,7 @@ router.get("/catalog/search", async (req, res) => {
     externalMs: loaded.status === "miss" ? performance.now() - externalStartedAt : undefined,
     jev: jevStatus,
   });
-  res.json(loaded.value);
+  res.json({ ...loaded.value, results: loaded.value.results.map(withUnknownEdition) });
 });
 
 /**
@@ -315,7 +319,7 @@ router.get("/catalog/cards/:id", async (req, res) => {
     }
     const pricing = await getTcgcsvPricing(id);
     res.json({
-      card: normalizeTcgcsvCard(card, pricing.marketPrice ?? null),
+      card: withUnknownEdition(normalizeTcgcsvCard(card, pricing.marketPrice ?? null)),
       pricing,
     });
     return;
@@ -325,7 +329,7 @@ router.get("/catalog/cards/:id", async (req, res) => {
   if (pw.ok) {
     const [enriched] = await enrichCatalogCardImages([normalizeCatalogCard(pw.data)]);
     res.json({
-      card: enriched,
+      card: withUnknownEdition(enriched),
       pricing: buildPricingFromCatalog(pw.data),
     });
     return;

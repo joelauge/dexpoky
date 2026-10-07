@@ -288,6 +288,18 @@ export const GetPricingLookupQueryParams = zod.object({
     .describe(
       "Raw-card condition required for verified eBay sales. Platform market\/trend quotes are not condition-specific.",
     ),
+  edition: zod
+    .enum([
+      "unknown",
+      "unlimited",
+      "first_edition",
+      "shadowless",
+      "first_edition_shadowless",
+    ])
+    .optional()
+    .describe(
+      "Explicitly selected printing identity; never inferred from catalog data.",
+    ),
 });
 
 export const getPricingLookupResponseFinishDefault = `normal`;
@@ -307,6 +319,13 @@ export const GetPricingLookupResponse = zod.object({
     setName: zod.string().nullable(),
     cardNumber: zod.string().nullable(),
     imageUrl: zod.string().nullable(),
+    edition: zod.enum([
+      "unknown",
+      "unlimited",
+      "first_edition",
+      "shadowless",
+      "first_edition_shadowless",
+    ]),
   }),
   finish: zod
     .enum(["normal", "holofoil", "reverse_holofoil"])
@@ -328,6 +347,15 @@ export const GetPricingLookupResponse = zod.object({
       url: zod.string().nullable(),
       reason: zod.string().nullable(),
       eligible: zod.boolean(),
+      edition: zod
+        .enum([
+          "unknown",
+          "unlimited",
+          "first_edition",
+          "shadowless",
+          "first_edition_shadowless",
+        ])
+        .optional(),
       condition: zod
         .enum(["mint", "near_mint", "light_played"])
         .default(getPricingLookupResponseQuotesItemConditionDefault),
@@ -350,6 +378,13 @@ export const GetPricingLookupResponse = zod.object({
               .default(
                 getPricingLookupResponseQuotesItemVerifiedSalesItemConditionDefault,
               ),
+            edition: zod.enum([
+              "unknown",
+              "unlimited",
+              "first_edition",
+              "shadowless",
+              "first_edition_shadowless",
+            ]),
             evidence: zod.string(),
           }),
         )
@@ -787,6 +822,13 @@ export const ListCardsResponseItem = zod.object({
     "played",
     "poor",
   ]),
+  edition: zod.enum([
+    "unknown",
+    "unlimited",
+    "first_edition",
+    "shadowless",
+    "first_edition_shadowless",
+  ]),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
   media: zod
@@ -848,6 +890,15 @@ export const CreateCardBody = zod.object({
     "played",
     "poor",
   ]),
+  edition: zod
+    .enum([
+      "unknown",
+      "unlimited",
+      "first_edition",
+      "shadowless",
+      "first_edition_shadowless",
+    ])
+    .optional(),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
   catalogCardId: zod.string().nullish(),
@@ -899,6 +950,13 @@ export const GetCardResponse = zod.object({
     "light_played",
     "played",
     "poor",
+  ]),
+  edition: zod.enum([
+    "unknown",
+    "unlimited",
+    "first_edition",
+    "shadowless",
+    "first_edition_shadowless",
   ]),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
@@ -968,6 +1026,15 @@ export const UpdateCardBody = zod.object({
       "poor",
     ])
     .optional(),
+  edition: zod
+    .enum([
+      "unknown",
+      "unlimited",
+      "first_edition",
+      "shadowless",
+      "first_edition_shadowless",
+    ])
+    .optional(),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
   catalogCardId: zod.string().nullish(),
@@ -1012,6 +1079,13 @@ export const UpdateCardResponse = zod.object({
     "light_played",
     "played",
     "poor",
+  ]),
+  edition: zod.enum([
+    "unknown",
+    "unlimited",
+    "first_edition",
+    "shadowless",
+    "first_edition_shadowless",
   ]),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
@@ -1297,6 +1371,15 @@ export const BulkCreateCardsBody = zod.object({
             "poor",
           ])
           .default(bulkCreateCardsBodyCardsItemConditionDefault),
+        edition: zod
+          .enum([
+            "unknown",
+            "unlimited",
+            "first_edition",
+            "shadowless",
+            "first_edition_shadowless",
+          ])
+          .optional(),
       }),
     )
     .min(1),
@@ -1321,6 +1404,15 @@ export const BulkUpdateCardsBody = zod.object({
       "light_played",
       "played",
       "poor",
+    ])
+    .optional(),
+  edition: zod
+    .enum([
+      "unknown",
+      "unlimited",
+      "first_edition",
+      "shadowless",
+      "first_edition_shadowless",
     ])
     .optional(),
   estimatedValue: zod
@@ -1363,6 +1455,13 @@ export const BulkUpdateCardsResponse = zod.object({
         "light_played",
         "played",
         "poor",
+      ]),
+      edition: zod.enum([
+        "unknown",
+        "unlimited",
+        "first_edition",
+        "shadowless",
+        "first_edition_shadowless",
       ]),
       imageUrl: zod.string().nullish(),
       originalScanUrl: zod.string().nullish(),
@@ -1535,6 +1634,13 @@ export const ListListingsResponseItem = zod.object({
       "light_played",
       "played",
       "poor",
+    ]),
+    edition: zod.enum([
+      "unknown",
+      "unlimited",
+      "first_edition",
+      "shadowless",
+      "first_edition_shadowless",
     ]),
     imageUrl: zod.string().nullish(),
     originalScanUrl: zod.string().nullish(),
@@ -1748,6 +1854,13 @@ export const GetListingResponse = zod.object({
       "played",
       "poor",
     ]),
+    edition: zod.enum([
+      "unknown",
+      "unlimited",
+      "first_edition",
+      "shadowless",
+      "first_edition_shadowless",
+    ]),
     imageUrl: zod.string().nullish(),
     originalScanUrl: zod.string().nullish(),
     media: zod
@@ -1845,6 +1958,13 @@ export const UpdateListingResponse = zod.object({
       "light_played",
       "played",
       "poor",
+    ]),
+    edition: zod.enum([
+      "unknown",
+      "unlimited",
+      "first_edition",
+      "shadowless",
+      "first_edition_shadowless",
     ]),
     imageUrl: zod.string().nullish(),
     originalScanUrl: zod.string().nullish(),
@@ -2031,6 +2151,13 @@ export const GetRecentActivityResponseItem = zod.object({
     "light_played",
     "played",
     "poor",
+  ]),
+  edition: zod.enum([
+    "unknown",
+    "unlimited",
+    "first_edition",
+    "shadowless",
+    "first_edition_shadowless",
   ]),
   imageUrl: zod.string().nullish(),
   originalScanUrl: zod.string().nullish(),
@@ -2402,6 +2529,13 @@ export const GetDeckResponse = zod.object({
             "played",
             "poor",
           ]),
+          edition: zod.enum([
+            "unknown",
+            "unlimited",
+            "first_edition",
+            "shadowless",
+            "first_edition_shadowless",
+          ]),
           imageUrl: zod.string().nullish(),
           originalScanUrl: zod.string().nullish(),
           media: zod
@@ -2649,6 +2783,18 @@ export const SearchCatalogResponse = zod.object({
       cardNumber: zod.string(),
       rarity: zod.string().nullish(),
       imageUrl: zod.string(),
+      edition: zod
+        .enum([
+          "unknown",
+          "unlimited",
+          "first_edition",
+          "shadowless",
+          "first_edition_shadowless",
+        ])
+        .optional()
+        .describe(
+          "Defaults to unknown; catalog metadata is not evidence of an individual card's edition.",
+        ),
       marketPrice: zod.number().nullish(),
       tcgplayerUrl: zod.string().nullish(),
       cardmarketUrl: zod.string().nullish(),
@@ -2682,6 +2828,18 @@ export const GetCatalogCardResponse = zod.object({
     cardNumber: zod.string(),
     rarity: zod.string().nullish(),
     imageUrl: zod.string(),
+    edition: zod
+      .enum([
+        "unknown",
+        "unlimited",
+        "first_edition",
+        "shadowless",
+        "first_edition_shadowless",
+      ])
+      .optional()
+      .describe(
+        "Defaults to unknown; catalog metadata is not evidence of an individual card's edition.",
+      ),
     marketPrice: zod.number().nullish(),
     tcgplayerUrl: zod.string().nullish(),
     cardmarketUrl: zod.string().nullish(),

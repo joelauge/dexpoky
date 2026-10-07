@@ -23,6 +23,7 @@ const mockTables = vi.hoisted(() => ({
     cardNumber: "cards.cardNumber",
     rarity: "cards.rarity",
     condition: "cards.condition",
+    edition: "cards.edition",
     imageUrl: "cards.imageUrl",
     originalScanUrl: "cards.originalScanUrl",
     catalogCardId: "cards.catalogCardId",
@@ -199,6 +200,7 @@ describe("card CRUD handler request schemas", () => {
       cardNumber: "1",
       rarity: "rare",
       condition: "near_mint",
+      edition: "first_edition",
       forSale: false,
       estimatedValue: 12.5,
     });
@@ -210,6 +212,7 @@ describe("card CRUD handler request schemas", () => {
       ownerClerkId: TEST_USER_ID,
       name: "Synthetic Dragon",
       setId: "syn1",
+      edition: "first_edition",
       estimatedValue: "12.5",
     });
   });
@@ -223,6 +226,7 @@ describe("card CRUD handler request schemas", () => {
     const response = await request(app).put("/cards/13").send({
       name: "Updated Synthetic Dragon",
       cardNumber: "7",
+      edition: "shadowless",
       estimatedValue: 18.4,
     });
 
@@ -232,8 +236,29 @@ describe("card CRUD handler request schemas", () => {
     expect(dbOperations.find((operation) => operation.op === "update.set")?.values).toMatchObject({
       name: "Updated Synthetic Dragon",
       cardNumber: "7",
+      edition: "shadowless",
       estimatedValue: "18.4",
     });
+  });
+  it("does not clear an owned edition when updating unrelated fields", async () => {
+    selectResults.push(
+      [{ ownerClerkId: TEST_USER_ID }],
+      [{ id: 13, edition: "shadowless", ownerClerkId: TEST_USER_ID }],
+    );
+    const response = await request(app).put("/cards/13").send({ notes: "Kept separately" });
+    expect(response.status).toBe(200);
+    expect(dbOperations.find(operation => operation.op === "update.set")?.values).not.toHaveProperty("edition");
+  });
+  it("does not clear editions during an unrelated bulk update", async () => {
+    selectResults.push([{ id: 31 }], [{ id: 31, edition: "first_edition", ownerClerkId: TEST_USER_ID }]);
+    const response = await request(app).put("/cards/bulk-update").send({ cardIds: [31], condition: "near_mint" });
+    expect(response.status).toBe(200);
+    expect(dbOperations.find(operation => operation.op === "update.set")?.values).not.toHaveProperty("edition");
+  });
+  it("rejects unknown edition enum values without writing", async () => {
+    const response = await request(app).put("/cards/13").send({ edition: "probably first" });
+    expect(response.status).toBe(400);
+    expect(dbOperations.some(operation => operation.op === "update.set")).toBe(false);
   });
 
   it("accepts valid POST /cards/bulk entries and runs the transaction", async () => {
@@ -251,6 +276,7 @@ describe("card CRUD handler request schemas", () => {
         imageUrl: null,
         estimatedValue: 3.5,
         condition: "near_mint",
+        edition: "first_edition_shadowless",
       }],
     });
 
@@ -261,6 +287,7 @@ describe("card CRUD handler request schemas", () => {
       ownerClerkId: TEST_USER_ID,
       catalogCardId: "synthetic-set-1",
       name: "Synthetic Set Card",
+      edition: "first_edition_shadowless",
     });
   });
 
@@ -276,6 +303,7 @@ describe("card CRUD handler request schemas", () => {
     const response = await request(app).put("/cards/bulk-update").send({
       cardIds: [31, 32],
       condition: "excellent",
+      edition: "unlimited",
       estimatedValue: 6.75,
     });
 
@@ -284,6 +312,7 @@ describe("card CRUD handler request schemas", () => {
     expect(dbOperations.some((operation) => operation.op === "update.set")).toBe(true);
     expect(dbOperations.find((operation) => operation.op === "update.set")?.values).toMatchObject({
       condition: "excellent",
+      edition: "unlimited",
       estimatedValue: "6.75",
     });
   });

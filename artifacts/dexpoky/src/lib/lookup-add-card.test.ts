@@ -27,3 +27,9 @@ test("unknown rarity is confirmed by the collector rather than invented", () => 
   assert.equal(lookupRarity("Double Rare"), "rare");
   assert.equal(lookupRarity("Special Illustration Rare"), "secret_rare");
 });
+test("adding from an edition comparison does not infer the owned copy's edition", () => {
+  const lookup = { card: { id: "exact", name: "Pikachu", edition: "first_edition" } } as PriceLookup;
+  const body = lookupCardInput({ lookup, imageUrl: null, rarity: "common", condition: "mint", collectionId: null });
+  assert.equal(body.edition, undefined);
+  assert.equal(body.estimatedValue, undefined);
+});

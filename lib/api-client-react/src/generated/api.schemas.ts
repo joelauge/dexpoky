@@ -140,6 +140,16 @@ export const PriceLookupFinish = {
   reverse_holofoil: "reverse_holofoil",
 } as const;
 
+export type CardEdition = (typeof CardEdition)[keyof typeof CardEdition];
+
+export const CardEdition = {
+  unknown: "unknown",
+  unlimited: "unlimited",
+  first_edition: "first_edition",
+  shadowless: "shadowless",
+  first_edition_shadowless: "first_edition_shadowless",
+} as const;
+
 export interface PriceLookupCard {
   id: string;
   name: string;
@@ -149,6 +159,7 @@ export interface PriceLookupCard {
   cardNumber: string | null;
   /** @nullable */
   imageUrl: string | null;
+  edition: CardEdition;
 }
 
 export type PlatformPriceQuoteSource =
@@ -203,6 +214,7 @@ export interface VerifiedEbaySale {
   currency: VerifiedEbaySaleCurrency;
   finish: string;
   condition: ComparableSaleCondition;
+  edition: CardEdition;
   evidence: string;
 }
 
@@ -225,6 +237,7 @@ export interface PlatformPriceQuote {
   /** @nullable */
   reason: string | null;
   eligible: boolean;
+  edition?: CardEdition;
   condition?: ComparableSaleCondition;
   verifiedSales?: VerifiedEbaySale[];
 }
@@ -267,7 +280,7 @@ export interface PriceLookup {
   expiresAt: string;
   card: PriceLookupCard;
   finish: PriceLookupFinish;
-  condition?: ComparableSaleCondition;
+  condition: ComparableSaleCondition;
   quotes: PlatformPriceQuote[];
   /** @nullable */
   averageUsd: number | null;
@@ -445,6 +458,7 @@ export interface Card {
   cardNumber?: string;
   rarity: CardRarity;
   condition: CardCondition;
+  edition: CardEdition;
   imageUrl?: string | null;
   originalScanUrl?: string | null;
   media?: CardMedia[];
@@ -531,6 +545,7 @@ export interface CreateCardBody {
   cardNumber?: string;
   rarity: CreateCardBodyRarity;
   condition: CreateCardBodyCondition;
+  edition?: CardEdition;
   imageUrl?: string | null;
   originalScanUrl?: string | null;
   catalogCardId?: string | null;
@@ -578,6 +593,7 @@ export interface UpdateCardBody {
   cardNumber?: string;
   rarity?: UpdateCardBodyRarity;
   condition?: UpdateCardBodyCondition;
+  edition?: CardEdition;
   imageUrl?: string | null;
   originalScanUrl?: string | null;
   catalogCardId?: string | null;
@@ -654,6 +670,7 @@ export interface BulkCreateCardInput {
   originalScanUrl?: string | null;
   collectionId?: number | null;
   condition?: BulkCreateCardInputCondition;
+  edition?: CardEdition;
 }
 
 export interface BulkCreateCardsInput {
@@ -690,6 +707,7 @@ export interface BulkUpdateCardsInput {
   cardIds: number[];
   collectionId?: number | null;
   condition?: BulkUpdateCardsInputCondition;
+  edition?: CardEdition;
   /**
    * @minimum 0
    * @maximum 99999999.99
@@ -1335,6 +1353,8 @@ export interface CatalogCard {
   cardNumber: string;
   rarity?: string | null;
   imageUrl: string;
+  /** Defaults to unknown; catalog metadata is not evidence of an individual card's edition. */
+  edition?: CardEdition;
   marketPrice?: number | null;
   tcgplayerUrl?: string | null;
   cardmarketUrl?: string | null;
@@ -2061,6 +2081,10 @@ export type GetPricingLookupParams = {
    * Raw-card condition required for verified eBay sales. Platform market/trend quotes are not condition-specific.
    */
   condition?: ComparableSaleCondition;
+  /**
+   * Explicitly selected printing identity; never inferred from catalog data.
+   */
+  edition?: CardEdition;
 };
 
 export type LookupCardsParams = {

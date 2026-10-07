@@ -3,10 +3,10 @@ import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
-import { useSaveCardValueSnapshot, type Card, type PriceLookup, type CardValueSnapshot } from "@workspace/api-client-react";
+import { useSaveCardValueSnapshot, useUpdateCard, type Card, type CardEdition, type PriceLookup, type CardValueSnapshot } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { type Method, type TargetMatch, methodLabel, methodValue, usd, errMessage, isExpiredErr, when } from "@/lib/card-lookup-utils";
+import { EDITIONS, type Method, type TargetMatch, methodLabel, methodValue, usd, errMessage, isExpiredErr, when } from "@/lib/card-lookup-utils";
 
 const PREFIXES = ["/api/cards", "/api/inventory", "/api/collections", "/api/categories", "/api/stats"];
 
@@ -15,6 +15,8 @@ interface Props {
   expired: boolean;
   method: Method | null;
   targets: TargetMatch[];
+  identityCandidates: TargetMatch[];
+  edition: CardEdition;
   targetId: number | null;
   onTarget: (id: number) => void;
   onRefresh: () => void;
@@ -22,12 +24,14 @@ interface Props {
   onAddCard: () => void;
 }
 
-export function SavePanel({ lookup, expired, method, targets, targetId, onTarget, onRefresh, refreshing, onAddCard }: Props) {
+export function SavePanel({ lookup, expired, method, targets, identityCandidates, edition, targetId, onTarget, onRefresh, refreshing, onAddCard }: Props) {
   const qc = useQueryClient();
   const save = useSaveCardValueSnapshot();
+  const setEdition = useUpdateCard();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [saved, setSaved] = useState<{ snap: CardValueSnapshot; copy: Card } | null>(null);
+  const [editionError, setEditionError] = useState<unknown>(null);
 
   const target = targets.find((t) => t.card.id === targetId)?.card ?? null;
   const value = method ? methodValue(lookup, method) : null;
@@ -35,6 +39,18 @@ export function SavePanel({ lookup, expired, method, targets, targetId, onTarget
   const conditionMismatch = usesEbay && !!target && target.condition !== lookup.condition;
   const dup = targets.length > 1;
   const copyLabel = (c: Card, i: number) => `${dup ? `Copy ${i + 1} of ${targets.length} · ` : ""}ID ${c.id} · ${c.condition.replace(/_/g, " ")}`;
+  const editionLabel = (value: CardEdition) => EDITIONS.find((item) => item.value === value)?.label ?? value;
+  const recordEdition = (candidate: TargetMatch) => {
+    setEditionError(null);
+    setEdition.mutate({ id: candidate.card.id, data: { edition } }, {
+      onSuccess: () => {
+        void qc.invalidateQueries({ predicate: (q) =>
+          typeof q.queryKey[0] === "string" && PREFIXES.some((prefix) => (q.queryKey[0] as string).startsWith(prefix)) });
+        toast.success("Owner-asserted edition recorded on this copy", { position: "top-center" });
+      },
+      onError: (error) => setEditionError(error),
+    });
+  };
 
   const confirm = () => {
     if (!target || !method || value == null || conditionMismatch || refreshing || save.isPending || Date.parse(lookup.expiresAt) <= Date.now()) return;
@@ -46,14 +62,14 @@ export function SavePanel({ lookup, expired, method, targets, targetId, onTarget
           setSaved({ snap, copy: target });
           setOpen(false);
           qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && PREFIXES.some((p) => (q.queryKey[0] as string).startsWith(p)) });
-          toast.success("Today's value saved to this copy");
+          toast.success("Today's value saved to this copy", { position: "top-center" });
         },
         onError: (e) => setError(e),
       },
     );
   };
 
-  if (targets.length === 0) {
+  if (targets.length === 0 && identityCandidates.length === 0) {
     return (
       <div className="rounded-xl border border-dashed p-4 text-sm" data-testid="panel-no-target">
         <p className="font-bold mb-1">No owned copy of this exact printing</p>
@@ -66,18 +82,35 @@ export function SavePanel({ lookup, expired, method, targets, targetId, onTarget
   return (
     <div className="space-y-3" data-testid="panel-save">
       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Save to one owned copy</p>
-      <div className="space-y-2">
+      {identityCandidates.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2" data-testid="panel-edition-candidates">
+          <p className="font-semibold text-sm">Matching copies recorded as another edition</p>
+          <p className="text-xs text-muted-foreground">Do not save a value to these copies until their edition matches this lookup. If you know the copy's edition, you may explicitly record your owner assertion here; this does not authenticate the card.</p>
+          {identityCandidates.map((candidate) => (
+            <div key={candidate.card.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background p-2 text-xs">
+              <span>ID {candidate.card.id} · currently {editionLabel(candidate.card.edition ?? "unknown")}</span>
+              <Button size="sm" variant="outline" onClick={() => recordEdition(candidate)} disabled={setEdition.isPending}
+                data-testid={`button-record-edition-${candidate.card.id}`}>
+                Record as {editionLabel(edition)}
+              </Button>
+            </div>
+          ))}
+          {editionError != null && <p className="text-xs text-destructive" role="alert">{errMessage(editionError)}</p>}
+        </div>
+      )}
+
+      {targets.length > 0 && <div className="space-y-2">
         {targets.map((t, i) => (
           <label key={t.card.id} className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer text-sm ${targetId === t.card.id ? "border-primary bg-primary/5" : ""}`}>
             <input type="radio" name="target" checked={targetId === t.card.id} onChange={() => onTarget(t.card.id)} data-testid={`radio-target-${t.card.id}`} />
             <span className="flex-1 min-w-0">
               <span className="font-semibold block truncate">{copyLabel(t.card, i)}</span>
-              <span className="text-xs text-muted-foreground">Current value {usd(t.card.estimatedValue)} · matched by {t.via === "id" ? "catalog ID" : "name, set and number"}</span>
+              <span className="text-xs text-muted-foreground">Edition {editionLabel(t.card.edition ?? "unknown")} · current value {usd(t.card.estimatedValue)} · matched by {t.via === "id" ? "catalog ID" : "name, set and number"}</span>
             </span>
             <Link href={`/collection/${t.card.id}`} className="text-xs text-primary hover:underline" data-testid={`link-copy-${t.card.id}`}>Open</Link>
           </label>
         ))}
-      </div>
+      </div>}
 
       {expired && (
         <div className="flex items-center justify-between gap-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 p-3 text-xs">
@@ -89,7 +122,7 @@ export function SavePanel({ lookup, expired, method, targets, targetId, onTarget
       )}
 
       {conditionMismatch && <p className="text-xs text-destructive">This copy is {target?.condition.replace(/_/g, " ")}; eBay sales are {lookup.condition?.replace(/_/g, " ")}. Change the lookup condition or choose another source.</p>}
-      <Button className="w-full" disabled={!target || !method || value == null || conditionMismatch || expired || refreshing || save.isPending} onClick={() => { setError(null); setOpen(true); }} data-testid="button-review-save">
+      <Button className="w-full disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground disabled:border-border" disabled={!target || !method || value == null || conditionMismatch || expired || refreshing || save.isPending} onClick={() => { setError(null); setOpen(true); }} data-testid="button-review-save">
         Review and save today's value
       </Button>
       {!method && <p className="text-xs text-muted-foreground">Choose a source or the compatible average above. Nothing is chosen for you.</p>}
@@ -117,6 +150,7 @@ export function SavePanel({ lookup, expired, method, targets, targetId, onTarget
               <p className="tabular-nums"><span className="text-muted-foreground">Value:</span> {usd(target.estimatedValue)} <span className="mx-1">to</span> <strong>{usd(value)}</strong></p>
               <p><span className="text-muted-foreground">Method:</span> {method ? methodLabel(method) : ""}</p>
                <p><span className="text-muted-foreground">Finish:</span> {lookup.finish.replace(/_/g, " ")}</p>
+               <p><span className="text-muted-foreground">Edition:</span> {editionLabel(lookup.card.edition)}</p>
                {method === "average" && <p><span className="text-muted-foreground">Sources:</span> {lookup.quotes.filter(q => q.eligible).map(q => q.label).join(", ")}</p>}
               <p className="text-xs rounded-lg bg-muted/50 p-3">This is a one-time snapshot of today's value. It does not create a rule, and future price refreshes may replace it.</p>
             </div>

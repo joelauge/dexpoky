@@ -1,4 +1,5 @@
 import { isGradedSlabListingTitle } from "./grading.js";
+import { isVintageEditionSet, sellerEdition, type CardEdition } from "./card-edition.js";
 
 export type SaleCondition = "mint" | "near_mint" | "light_played";
 export interface EbaySale {
@@ -10,6 +11,7 @@ export interface EbaySale {
   currency: "USD";
   finish: string;
   condition: SaleCondition;
+  edition: CardEdition;
   evidence: string;
 }
 export interface EbayTarget {
@@ -18,6 +20,7 @@ export interface EbayTarget {
   cardNumber: string | null;
   finish: string;
   condition: SaleCondition;
+  edition?: CardEdition;
 }
 
 function plain(html: string): string {
@@ -54,8 +57,12 @@ export function verifiedEbaySales(html: string, target: EbayTarget, now = new Da
     const block = raw.split(/<\/li>/i)[0]!;
     const title = plain(block.match(/class=["']s-item__title[^"']*["'][^>]*>([\s\S]*?)<\/(?:span|div|h3)>/i)?.[1] ?? "");
     if (!contains(title, target.name) || !contains(title, target.setName)) continue;
-    if (isGradedSlabListingTitle(title) || /\b(?:graded|slab|lot|bundle|pair|playset|pack|sealed|proxy|replica|custom|reprint|jumbo|oversized|world championship|first edition|1st|shadowless|error|misprint|stamped|stamp|promo|japanese|german|french|italian|spanish|korean|chinese)\b|\b\d+\s*(?:cards|pcs|copies)\b|\bx\s*\d+\b|\b\d+\s*x\b/i.test(title)) continue;
+    if (isGradedSlabListingTitle(title) || /\b(?:graded|slab|lot|bundle|pair|playset|pack|sealed|proxy|replica|custom|reprint|jumbo|oversized|world championship|error|misprint|stamped|stamp|promo|japanese|german|french|italian|spanish|korean|chinese)\b|\b\d+\s*(?:cards|pcs|copies)\b|\bx\s*\d+\b|\b\d+\s*x\b/i.test(title)) continue;
     if (!/\b(?:english|eng)\b/i.test(title)) continue;
+    const edition = target.edition ?? "unknown";
+    const statedEdition = sellerEdition(title);
+    if (statedEdition === null || statedEdition !== edition) continue;
+    if (edition === "unknown" && isVintageEditionSet(target.setName)) continue;
     // Do not accept a matching substring with an extra Pokémon suffix, another
     // set/edition, an uncertain condition, or other unrecognized qualifiers.
     // Conservative coverage is intentional: ambiguous titles stay reference-only.
@@ -63,12 +70,10 @@ export function verifiedEbaySales(html: string, target: EbayTarget, now = new Da
     for (const phrase of [target.name, target.setName]) {
       remainder = remainder.replace(` ${normalized(phrase)} `, " ");
     }
+    remainder = remainder.replace(/\b(?:first|1st) edition\b|\bshadowless\b|\bunlimited\b/g, " ");
     remainder = remainder.replace(/\b[a-z]*\d+\s+[a-z]*\d+\b/g, " ");
     const allowedWords = new Set(["pokemon", "tcg", "card", "raw", "english", "eng", "near", "mint", "nm", "lightly", "played", "lp", "holo", "holofoil", "foil", "reverse", "normal", "non", "unlimited"]);
     if (remainder.trim().split(/\s+/).some(word => word && !allowedWords.has(word))) continue;
-    // Vintage sets have catalog identities that do not establish edition.
-    // Require explicit Unlimited, rather than silently pricing 1st/shadowless.
-    if (/\b(?:base set|jungle|fossil|team rocket|gym|neo)\b/i.test(target.setName) && !/\bunlimited\b/i.test(title)) continue;
     const numbers = [...title.matchAll(/\b([a-z]*\d+)\s*\/\s*([a-z]*\d+)\b/gi)];
     const normNum = (s: string) => s.toLowerCase().replace(/^0+(?=\d)/, "");
     const expected = target.cardNumber.replace(/\s/g, "").split("/");
@@ -107,8 +112,8 @@ export function verifiedEbaySales(html: string, target: EbayTarget, now = new Da
     seen.add(itemId);
     sales.push({
       itemId, title, url: `https://www.ebay.com/itm/${itemId}`, soldAt, amount, currency: "USD", finish,
-      condition: target.condition,
-      evidence: "Seller title explicitly matches name, set, printed number, English language, finish and raw condition; sold row supplies USD item price and sale date. Shipping/tax excluded. Seller claims, not authentication.",
+      condition: target.condition, edition,
+      evidence: `Seller title explicitly matches name, set, printed number, English language, finish and raw condition${edition !== "unknown" ? `, and ${edition.replace(/_/g, " ")} edition` : ""}; sold row supplies USD item price and sale date. Shipping/tax excluded. Seller claims, not authentication.`,
     });
   }
   return sales;

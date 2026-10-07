@@ -151,6 +151,10 @@ paths:
           name: condition
           description: Raw-card condition required for verified eBay sales. Platform market/trend quotes are not condition-specific.
           schema: { $ref: "#/components/schemas/ComparableSaleCondition" }
+        - in: query
+          name: edition
+          description: Explicitly selected printing identity; never inferred from catalog data.
+          schema: { $ref: "#/components/schemas/CardEdition", default: unknown }
       responses:
         "200":
           description: Platform prices and comparable average
@@ -2040,15 +2044,19 @@ components:
       type: string
       enum: [normal, holofoil, reverse_holofoil]
       default: normal
+    CardEdition:
+      type: string
+      enum: [unknown, unlimited, first_edition, shadowless, first_edition_shadowless]
     PriceLookupCard:
       type: object
-      required: [id, name, setName, cardNumber, imageUrl]
+      required: [id, name, setName, cardNumber, imageUrl, edition]
       properties:
         id: { type: string }
         name: { type: string }
         setName: { type: [string, "null"] }
         cardNumber: { type: [string, "null"] }
         imageUrl: { type: [string, "null"] }
+        edition: { $ref: "#/components/schemas/CardEdition" }
     PlatformPriceQuote:
       type: object
       required: [source, label, status, amount, currency, valueUsd, basis, finish, updatedAt, url, reason, eligible]
@@ -2065,6 +2073,7 @@ components:
         url: { type: [string, "null"] }
         reason: { type: [string, "null"] }
         eligible: { type: boolean }
+        edition: { $ref: "#/components/schemas/CardEdition" }
         condition: { $ref: "#/components/schemas/ComparableSaleCondition" }
         verifiedSales:
           type: array
@@ -2075,7 +2084,7 @@ components:
       enum: [mint, near_mint, light_played]
     VerifiedEbaySale:
       type: object
-      required: [itemId, title, url, soldAt, amount, currency, finish, condition, evidence]
+      required: [itemId, title, url, soldAt, amount, currency, finish, condition, edition, evidence]
       properties:
         itemId: { type: string }
         title: { type: string }
@@ -2085,6 +2094,7 @@ components:
         currency: { type: string, enum: [USD] }
         finish: { type: string }
         condition: { $ref: "#/components/schemas/ComparableSaleCondition" }
+        edition: { $ref: "#/components/schemas/CardEdition" }
         evidence: { type: string }
     PriceLookupFx:
       type: object
@@ -2102,7 +2112,7 @@ components:
         message: { type: string }
     PriceLookup:
       type: object
-      required: [lookupId, observedAt, expiresAt, card, finish, quotes, averageUsd, averageSourceCount, fx, advice]
+      required: [lookupId, observedAt, expiresAt, card, finish, condition, quotes, averageUsd, averageSourceCount, fx, advice]
       properties:
         lookupId: { type: string }
         observedAt: { type: string, format: date-time }
@@ -2227,6 +2237,8 @@ components:
         condition:
           type: string
           enum: [mint, near_mint, excellent, good, light_played, played, poor]
+        edition:
+          $ref: "#/components/schemas/CardEdition"
         imageUrl:
           type: string
           nullable: true
@@ -2283,6 +2295,7 @@ components:
         - pokemonName
         - rarity
         - condition
+        - edition
         - forSale
         - createdAt
         - updatedAt
@@ -2361,6 +2374,8 @@ components:
         condition:
           type: string
           enum: [mint, near_mint, excellent, good, light_played, played, poor]
+        edition:
+          $ref: "#/components/schemas/CardEdition"
         imageUrl:
           type: string
           nullable: true
@@ -2421,6 +2436,8 @@ components:
         condition:
           type: string
           enum: [mint, near_mint, excellent, good, light_played, played, poor]
+        edition:
+          $ref: "#/components/schemas/CardEdition"
         imageUrl:
           type: string
           nullable: true
@@ -2499,6 +2516,8 @@ components:
           type: string
           enum: [mint, near_mint, excellent, good, light_played, played, poor]
           default: near_mint
+        edition:
+          $ref: "#/components/schemas/CardEdition"
 
     BulkCreateCardsInput:
       type: object
@@ -2538,6 +2557,8 @@ components:
         condition:
           type: string
           enum: [mint, near_mint, excellent, good, light_played, played, poor]
+        edition:
+          $ref: "#/components/schemas/CardEdition"
         estimatedValue: { type: number, minimum: 0, maximum: 99999999.99, nullable: true }
 
     BulkUpdateCardsResponse:
@@ -3446,6 +3467,9 @@ components:
           nullable: true
         imageUrl:
           type: string
+        edition:
+          $ref: "#/components/schemas/CardEdition"
+          description: Defaults to unknown; catalog metadata is not evidence of an individual card's edition.
         marketPrice:
           type: number
           nullable: true
