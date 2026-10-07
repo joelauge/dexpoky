@@ -7,7 +7,7 @@ Card Lookup saves the user's chosen value for today only. Do not turn it into a 
 
 **Why:** The user explicitly selected “Save today’s value only,” rather than a recurring pricing rule.
 
-**How to apply:** Keep price comparisons advisory until the owner confirms one source or a compatible average for a specific owned copy. Explain that future normal refreshes can replace the snapshot.
+**How to apply:** Keep price comparisons advisory until the owner confirms one source or a compatible average for a specific owned copy. Explain that future normal refreshes can replace the snapshot. A newly added copy can also acquire a value through later normal refreshes; describe adding as not saving a comparison quote, not a promise that its value will remain unset.
 
 Do not present mirrored TCGPlayer feeds as separate platforms, or count unverified eBay sold-listing medians as exact-printing prices.
 

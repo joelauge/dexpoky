@@ -5,17 +5,20 @@ import {
   getGetPokemonSetQueryKey,
   getListPokemonSetsQueryKey,
   useEnsureSetCatalogCard,
+  type EnsureSetCatalogCardResult,
 } from "@workspace/api-client-react";
 import { ArrowUpRight, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /** Verification adds catalog metadata only; it never creates an owned copy. */
-export function SetMembershipNotice({ catalogCardId }: { catalogCardId: string }) {
+export function SetMembershipNotice({ catalogCardId, onVerified }: { catalogCardId: string; onVerified?: (result: EnsureSetCatalogCardResult | null) => void }) {
   const queryClient = useQueryClient();
   const started = useRef(false);
   const { mutate, data, isPending, isError } = useEnsureSetCatalogCard({
     mutation: {
+      onError: () => onVerified?.(null),
       onSuccess: (result) => {
+        onVerified?.(result);
         if (result.status === "unmatched" || !result.setId) return;
         void queryClient.invalidateQueries({ queryKey: getGetPokemonSetQueryKey(result.setId) });
         void queryClient.invalidateQueries({ queryKey: getListPokemonSetsQueryKey() });
@@ -53,7 +56,7 @@ export function SetMembershipNotice({ catalogCardId }: { catalogCardId: string }
           <Link href={`/sets/${encodeURIComponent(data!.setId!)}`} className="mt-2 inline-flex items-center gap-1 font-semibold text-primary hover:underline" data-testid="link-card-checklist">
             View checklist <ArrowUpRight className="h-3 w-3" />
           </Link>
-          <p className="mt-1.5 text-muted-foreground">Your collection hasn’t changed.</p>
+          <p className="mt-1.5 text-muted-foreground">Checklist verification alone does not add an owned copy.</p>
         </>
       ) : data ? (
         <p className="text-muted-foreground">{data.message}</p>

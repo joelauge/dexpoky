@@ -289,9 +289,9 @@ router.get("/cards", requireAuth, async (req, res) => {
 
 router.post("/cards", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
-  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request body", details: parsed.error });
+  const bodyParsed = CreateCardBody.safeParse(req.body);
+  if (!bodyParsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: bodyParsed.error });
     return;
   }
   const data = bodyParsed.data;
@@ -313,12 +313,12 @@ router.post("/cards", requireAuth, async (req, res) => {
     if (!collection) { res.status(400).json({ error: "Invalid collection" }); return; }
   }
 
-  const [card] = await db
-    .select(cardSelect)
-    .from(cardsTable)
-    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
-    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
-    .where(eq(cardsTable.id, parsed.data.id));
+  const [card] = await db.insert(cardsTable).values({
+    ...data,
+    ownerClerkId: userId,
+    estimatedValue: data.estimatedValue == null ? null : String(data.estimatedValue),
+    acquiredDate: data.acquiredDate ? new Date(data.acquiredDate) : null,
+  }).returning();
 
   const [withCat] = await db
     .select(cardSelect)

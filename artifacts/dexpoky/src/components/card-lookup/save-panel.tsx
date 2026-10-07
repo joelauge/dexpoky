@@ -19,9 +19,10 @@ interface Props {
   onTarget: (id: number) => void;
   onRefresh: () => void;
   refreshing: boolean;
+  onAddCard: () => void;
 }
 
-export function SavePanel({ lookup, expired, method, targets, targetId, onTarget, onRefresh, refreshing }: Props) {
+export function SavePanel({ lookup, expired, method, targets, targetId, onTarget, onRefresh, refreshing, onAddCard }: Props) {
   const qc = useQueryClient();
   const save = useSaveCardValueSnapshot();
   const [open, setOpen] = useState(false);
@@ -57,7 +58,7 @@ export function SavePanel({ lookup, expired, method, targets, targetId, onTarget
       <div className="rounded-xl border border-dashed p-4 text-sm" data-testid="panel-no-target">
         <p className="font-bold mb-1">No owned copy of this exact printing</p>
         <p className="text-muted-foreground text-xs mb-3">You can compare prices here, but there is nothing to save to. Add this printing to your collection first.</p>
-         <Link href="/collection/new" className="text-primary text-xs font-semibold hover:underline" data-testid="link-collection">Add a card to your collection</Link>
+        <Button size="sm" variant="outline" onClick={onAddCard} data-testid="button-add-missing-lookup-card">Add this card to your collection/set</Button>
       </div>
     );
   }

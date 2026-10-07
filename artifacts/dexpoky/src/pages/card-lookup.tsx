@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { ArrowLeft, RefreshCw, Sparkles, Search, X } from "lucide-react";
 import {
   useGetPricingLookup, getGetPricingLookupQueryKey, useListCards, getListCardsQueryKey,
-  type CatalogCard, type PriceLookupFinish, type ComparableSaleCondition,
+  type CatalogCard, type PriceLookupFinish, type ComparableSaleCondition, type EnsureSetCatalogCardResult,
 } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CatalogSearch } from "@/components/catalog-search";
@@ -16,6 +16,7 @@ import { type Method, findTargets, when, errMessage, methodLabel } from "@/lib/c
 import { useCardLookupHistory } from "@/hooks/use-card-lookup-history";
 import { LookupHistory } from "@/components/card-lookup/lookup-history";
 import type { LookupHistoryEntry } from "@/lib/card-lookup-history";
+import { AddLookupCard } from "@/components/card-lookup/add-lookup-card";
 
 const FINISHES: { v: PriceLookupFinish; l: string }[] = [
   { v: "normal", l: "Normal" }, { v: "holofoil", l: "Holofoil" }, { v: "reverse_holofoil", l: "Reverse holo" },
@@ -27,11 +28,12 @@ function isRealCardImage(url: string | null | undefined): url is string {
   return !["logo", "dexpoky", "pwa", "placeholder"].some((marker) => normalized.includes(marker));
 }
 
-function SelectedCardArtwork({ cardId, name, urls }: { cardId: string; name: string; urls: (string | null | undefined)[] }) {
+function SelectedCardArtwork({ cardId, name, urls, onImage }: { cardId: string; name: string; urls: (string | null | undefined)[]; onImage: (cardId: string, url: string | null) => void }) {
   const candidates = [...new Set(urls.filter(isRealCardImage))];
   const [candidateIndex, setCandidateIndex] = useState(0);
   useEffect(() => setCandidateIndex(0), [cardId, candidates.join("|")]);
   const imageUrl = candidates[candidateIndex];
+  useEffect(() => onImage(cardId, imageUrl ?? null), [cardId, imageUrl, onImage]);
 
   return (
     <div className="aspect-[3/4] rounded-xl bg-muted/30 overflow-hidden flex items-center justify-center mb-3">
@@ -66,11 +68,20 @@ export default function CardLookup() {
   const [selectedCards, setSelectedCards] = useState<Record<string, CatalogCard>>({});
   const history = useCardLookupHistory();
   const recordedLookup = useRef<string | null>(null);
+  const [addCardOpen, setAddCardOpen] = useState(false);
+  const [verifiedSet, setVerifiedSet] = useState<{ catalogId: string; result: EnsureSetCatalogCardResult | null } | null>(null);
+  const [artwork, setArtwork] = useState<{ cardId: string; url: string | null } | null>(null);
+  const onImage = useCallback((cardId: string, url: string | null) => setArtwork({ cardId, url }), []);
 
   const ownedFromLink = qCard && owned ? owned.find((c) => c.id === Number(qCard)) : undefined;
   const linkNeedsSearch = !!qCard && !!owned && !qCatalog && (!ownedFromLink || !ownedFromLink.catalogCardId);
   const catalogId = qCatalog ?? (linkNeedsSearch ? null : ownedFromLink?.catalogCardId ?? null);
   const selectedCard = catalogId ? selectedCards[catalogId] : undefined;
+  const onVerified = useCallback((result: EnsureSetCatalogCardResult | null) => {
+    if (catalogId) setVerifiedSet({ catalogId, result });
+  }, [catalogId]);
+  const matchingSet = verifiedSet?.catalogId === catalogId && verifiedSet.result?.status !== "unmatched" && verifiedSet.result?.setId
+    ? { id: verifiedSet.result.setId, name: verifiedSet.result.setName ?? "Detected set" } : undefined;
   const searchScroll = useRef(0);
   const previousCatalogId = useRef(catalogId);
 
@@ -165,11 +176,16 @@ export default function CardLookup() {
                   cardId={catalogId}
                   name={shownCard.name}
                   urls={[selectedCard?.imageUrl, lookup?.card.id === catalogId ? lookup.card.imageUrl : undefined]}
+                  onImage={onImage}
                 />
                 <p className="font-black text-lg leading-tight">{shownCard.name}</p>
                 <p className="text-xs text-muted-foreground">{shownCard.setName ?? "Unknown set"}{shownCard.cardNumber ? ` · #${shownCard.cardNumber}` : ""}</p>
                 <p className="text-[10px] font-mono text-muted-foreground mt-1 break-all">{shownCard.id}</p>
-                <SetMembershipNotice key={catalogId} catalogCardId={catalogId} />
+                <SetMembershipNotice key={catalogId} catalogCardId={catalogId} onVerified={onVerified} />
+                {lookup && <AddLookupCard key={`add-${catalogId}`} lookup={lookup} catalog={selectedCard} set={matchingSet}
+                  setPending={verifiedSet?.catalogId !== catalogId}
+                  imageUrl={artwork?.cardId === catalogId ? artwork.url : lookup.card.imageUrl}
+                  open={addCardOpen} onOpenChange={setAddCardOpen} onCreated={(card) => setTargetId(card.id)} />}
                 <Button variant="outline" size="sm" className="mt-3 w-full" onClick={clear} data-testid="button-change-card"><X className="h-3.5 w-3.5 mr-1" />Choose a different card</Button>
               </div>
             ) : (
@@ -246,6 +262,7 @@ export default function CardLookup() {
                   key={lookup.lookupId}
                   lookup={lookup} expired={expired} method={method} targets={targets} targetId={targetId}
                   onTarget={setTargetId} onRefresh={() => q.refetch()} refreshing={q.isFetching}
+                  onAddCard={() => setAddCardOpen(true)}
                 />
                 <Link href="/collection" className="text-xs text-muted-foreground hover:text-foreground underline">Back to collection</Link>
               </>
