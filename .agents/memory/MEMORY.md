@@ -16,3 +16,4 @@
 - [Catalog artwork provenance](catalog-artwork-provenance.md) — same-name collector matches can cross sets; unavailable artwork is safer than inventing a printing.
 - [Route merge verification](route-merge-verification.md) — automated syncs can misplace similar handler blocks beyond visible conflicts; verify the merged routes.
 - [OpenAPI update defaults](openapi-update-defaults.md) — defaults on shared enums can populate omitted update fields and erase recorded identity.
+- [Replit overlays](replit-overlays.md) — app development banners and publishing feedback widgets are separate; verify the environment where the user sees the overlay.
