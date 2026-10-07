@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import type { Binder, BinderPage } from "@workspace/api-client-react";
 import { pagePocketClearance, pageSurfaceOffset, pageSurfaceRotation, pageSurfaceShift, pageTurnAmplitude, pageTurnCurl } from "./binder-scene-motion";
+import { pageBackingStrip } from "./binder-paper-strips";
 
 export type PortalSlot = { slot: number; host: HTMLDivElement };
 export type PortalPage = { page: BinderPage; pageNumber: number; host: HTMLDivElement; pockets: PortalSlot[]; key: string; leaf?: boolean; active?: boolean };
@@ -150,20 +151,19 @@ function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: 
   const width = page.widthMm / 100;
   const height = page.heightMm / 100;
   const columns = 12;
-  const rows = 7;
   const tileWidth = width / columns;
-  const tileHeight = height / rows;
-  const tiles: { x: number; y: number; object: CSS3DObject; host: HTMLDivElement }[] = [];
-  for (let row = 0; row < rows; row++) {
-    for (let column = 0; column < columns; column++) {
-      const x = -width / 2 + (column + 0.5) * tileWidth;
-      const y = height / 2 - (row + 0.5) * tileHeight;
+  const tiles: { left: number; right: number; object: CSS3DObject; host: HTMLDivElement }[] = [];
+  // Full-height chord facets share exact edges. Overlapping tangent patches
+  // cross each other when curled and show through translucent empty sleeves.
+  for (let column = 0; column < columns; column++) {
+      const left = -width / 2 + column * tileWidth;
+      const right = -width / 2 + (column + 1) * tileWidth;
       const host = document.createElement("div");
       host.className = "binder-three-page-backing";
       host.setAttribute("aria-hidden", "true");
       host.style.cssText = [
-        `width:${(tileWidth + 0.006) * PAGE_PIXELS.width / width}px`,
-        `height:${(tileHeight + 0.006) * PAGE_PIXELS.height / height}px`,
+        `width:${PAGE_PIXELS.width / columns}px`,
+        `height:${PAGE_PIXELS.height}px`,
         "transform-origin:center center",
         "pointer-events:none",
         "backface-visibility:hidden",
@@ -173,18 +173,18 @@ function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: 
       host.style.pointerEvents = "none";
       object.scale.set(width / PAGE_PIXELS.width, height / PAGE_PIXELS.height, 1);
       parent.add(object);
-      tiles.push({ x, y, object, host });
-    }
+      tiles.push({ left, right, object, host });
   }
   const update = (curl = 0, fromHinge = hinge, fromRight = false) => {
     for (const tile of tiles) {
-      const surfaceX = fromRight ? -tile.x : tile.x;
-      const normal = pageSurfaceRotation(surfaceX, tile.y, width, height, curl, fromHinge);
-      placeSurfaceObject(tile.object, tile.x, tile.y, width, height, centerX, baseZ + 0.004,
+      const strip = pageBackingStrip(tile.left, tile.right, width, height, baseZ + 0.004,
         curl, fromHinge, fromRight);
+      tile.object.position.set(centerX + strip.x, 0, strip.z);
+      tile.object.rotation.set(0, strip.rotation, 0);
+      tile.object.scale.set(strip.length / (PAGE_PIXELS.width / columns), height / PAGE_PIXELS.height, 1);
       // CSS artwork sits above WebGL, so the visible backing needs its own
       // directional shading to make the moving curvature readable.
-      const shade = Math.round(18 * Math.min(1, Math.abs(normal.y) / 1.8));
+      const shade = Math.round(18 * Math.min(1, Math.abs(strip.rotation) / 1.8));
       tile.host.style.backgroundColor = `rgb(${236 - shade}, ${230 - shade}, ${217 - shade})`;
     }
   };

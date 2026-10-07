@@ -20,3 +20,9 @@ Keep Three's outer CSS3D hosts absolutely positioned; put relatively positioned 
 **Why:** A diagnostic accidentally overrode the outer host with `position: relative`, creating extreme offscreen bounds despite valid world positions. That initially produced a false application failure.
 
 **How to apply:** Match real portal host styles in diagnostic harnesses and check host styles/world projection before attributing strange bounding rectangles to app geometry.
+
+Include empty gradient sleeves and stationary/revealed pages in binder rendering acceptance, not just opaque card artwork.
+
+**Why:** The user reported the defect persisted in empty sleeves after image-only diagnostics passed. An opaque sleeve base reduced banding but did not remove intersections between overlapping tangent paper patches. The user confirmed “That's SO much better” after the paper joins were also corrected.
+
+**How to apply:** Use the real sleeve UI in diagnostics. Preserve its gradient, and prefer backing facets with shared edges over overlapping tangent patches; opacity alone is not proof that the underlying geometry is sound.

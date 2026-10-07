@@ -95,7 +95,7 @@ function pocketSlots(page: BinderPage) {
   return Array.from({ length: page.rows * page.columns }, (_, slot) => slot);
 }
 
-function PocketSurface({ slot, card, selected, lightSurface }: {
+export function PocketSurface({ slot, card, selected, lightSurface }: {
   slot: number;
   card?: Card;
   selected: boolean;
@@ -103,12 +103,14 @@ function PocketSurface({ slot, card, selected, lightSurface }: {
 }) {
   return (
     <div
+      // Composite the plastic gradient over opaque paper, not other CSS3D pages.
+      style={lightSurface ? { backgroundColor: "#ece6d9" } : undefined}
       className={cn(
         "relative flex h-full w-full min-h-0 select-none items-center justify-center overflow-hidden rounded-[1.4%] border bg-gradient-to-br from-white/15 via-slate-100/5 to-slate-950/15 text-center text-[clamp(9px,1.2vw,15px)]",
         lightSurface ? "shadow-[inset_0_1px_5px_#0002,inset_0_0_0_1px_#71685830]" : "shadow-[inset_0_1px_5px_#0002,inset_0_0_0_1px_#ffffff24]",
         lightSurface ? "border-[#716858]/50 text-[#3f3a33]/80" : "border-white/40 text-white/65",
         selected && "z-10 outline outline-[3px] outline-offset-[-3px] outline-amber-200",
-        card && (lightSurface ? "border-[#716858]/45 bg-white/10" : "border-white/55 bg-white/10"),
+        card && (lightSurface ? "border-[#716858]/45" : "border-white/55 bg-white/10"),
       )}
     >
       <PocketArtwork card={card} slot={slot} lightSurface={lightSurface} />
