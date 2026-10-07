@@ -938,6 +938,8 @@ export interface PokemonResult {
 export interface PokemonSetSummary {
   id: string;
   name: string;
+  /** Catalog set acronym, preferring the official printed abbreviation */
+  shortCode?: string | null;
   logoUrl?: string | null;
   symbolUrl?: string | null;
   seriesName?: string | null;

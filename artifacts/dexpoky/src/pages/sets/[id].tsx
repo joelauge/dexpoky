@@ -249,6 +249,12 @@ export default function SetDetail() {
               <div className="flex-1 w-full flex flex-col justify-center py-2">
                 <div className="flex items-center gap-3 flex-wrap mb-2">
                   <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">{set.name}</h1>
+                  {set.shortCode && (
+                    <Badge variant="outline" aria-label={`Set acronym: ${set.shortCode}`}
+                      className="shrink-0 border-primary/25 bg-primary/5 px-3 py-1 font-mono text-sm font-bold tracking-wider text-primary">
+                      {set.shortCode}
+                    </Badge>
+                  )}
                   {set.seriesName && (
                     <Badge variant="secondary" className="bg-secondary/60 text-secondary-foreground hover:bg-secondary/80 text-sm">
                       {set.seriesName}

@@ -142,3 +142,48 @@ test("cached artwork hosts survive both turn directions and land at the exact re
     globalThis.document = originalDocument;
   }
 });
+
+test("unequal-sized sheet faces share the same world-space bend in both directions", () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => new Host() } as unknown as Document;
+  const scene = new THREE.Scene();
+  const front = addPage(scene, {
+    id: "small", rows: 3, columns: 3, widthMm: 250, heightMm: 310, slots: [],
+  }, 2, 1.61);
+  const back = addPage(scene, {
+    id: "large", rows: 4, columns: 3, widthMm: 310, heightMm: 410, slots: [],
+  }, 3, -1.92);
+  const sheets = [front, back].map((face) => face.group.children.find((child) =>
+    child instanceof THREE.Mesh && child.geometry instanceof THREE.PlaneGeometry,
+  ) as THREE.Mesh<THREE.PlaneGeometry>);
+  const rest = sheets.map((sheet) => Array.from(sheet.geometry.attributes.position.array));
+  try {
+    for (const backwards of [false, true]) {
+      const turn = makeRetainedPageTurn(scene, front, back, backwards);
+      try {
+        for (const progress of [0.25, 0.5, 0.75]) {
+          turn.pivot.rotation.y = backwards ? -Math.PI * (1 - progress) : -Math.PI * progress;
+          turn.updateCurl(progress);
+          scene.updateMatrixWorld(true);
+          for (let index = 0; index < sheets[0].geometry.attributes.position.count; index++) {
+            const mirrored = Math.floor(index / 19) * 19 + 18 - index % 19;
+            const bends = sheets.map((sheet, face) => {
+              const vertex = face === 0 ? index : mirrored;
+              const position = sheet.geometry.attributes.position;
+              const curled = new THREE.Vector3().fromBufferAttribute(position, vertex).applyMatrix4(sheet.matrixWorld);
+              const resting = new THREE.Vector3().fromArray(rest[face], vertex * 3).applyMatrix4(sheet.matrixWorld);
+              return curled.sub(resting);
+            });
+            assert.ok(bends[0].distanceTo(bends[1]) < 1e-6, "paired faces retain the same normalized arc");
+          }
+        }
+      } finally {
+        turn.dispose();
+      }
+    }
+  } finally {
+    front.dispose();
+    back.dispose();
+    globalThis.document = originalDocument;
+  }
+});

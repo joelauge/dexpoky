@@ -2885,6 +2885,10 @@ components:
           type: string
         name:
           type: string
+        shortCode:
+          type: string
+          nullable: true
+          description: Catalog set acronym, preferring the official printed abbreviation
         logoUrl:
           type: string
           nullable: true

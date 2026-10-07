@@ -445,7 +445,7 @@ export function Layout({ children, hideMobileScanButton = false }: LayoutProps) 
     { href: "/binders", label: "Binders", icon: BookMarked },
     { href: "/card-lookup", label: "Card Lookup", icon: BadgeDollarSign },
     { href: "/wishlist", label: "Wishlist", icon: Heart },
-    { href: "/decks", label: "Decks", icon: Library },
+    { href: "/decks", label: "Player Decks", icon: Library },
     { href: "/share", label: "Share/Sell", icon: Share2 },
     { href: "/rules", label: "Rules", icon: BookOpen },
   ];

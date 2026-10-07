@@ -2225,6 +2225,12 @@ export const SearchPokemonResponse = zod.array(SearchPokemonResponseItem);
 export const ListPokemonSetsResponseItem = zod.object({
   id: zod.string(),
   name: zod.string(),
+  shortCode: zod
+    .string()
+    .nullish()
+    .describe(
+      "Catalog set acronym, preferring the official printed abbreviation",
+    ),
   logoUrl: zod.string().nullish(),
   symbolUrl: zod.string().nullish(),
   seriesName: zod.string().nullish(),
@@ -2250,6 +2256,12 @@ export const GetPokemonSetResponse = zod
   .object({
     id: zod.string(),
     name: zod.string(),
+    shortCode: zod
+      .string()
+      .nullish()
+      .describe(
+        "Catalog set acronym, preferring the official printed abbreviation",
+      ),
     logoUrl: zod.string().nullish(),
     symbolUrl: zod.string().nullish(),
     seriesName: zod.string().nullish(),

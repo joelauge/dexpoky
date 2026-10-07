@@ -54,6 +54,29 @@ afterEach(() => {
 });
 
 describe("Pokemon set routes", () => {
+  it.each([
+    [{ official: "CRI", tcgOnline: "ME04" }, "CRI"],
+    [{ official: "", tcgOnline: "BS" }, "BS"],
+    [undefined, null],
+  ])("returns catalog acronyms without guessing initials (%j)", async (abbreviation, expectedCode) => {
+    vi.stubGlobal("fetch", vi.fn(async (rawUrl: string | URL) => {
+      const url = new URL(String(rawUrl));
+      if (url.hostname === "api.tcgdex.net") {
+        const set = { id: "me04", name: "Chaos Rising", abbreviation, cards: [] };
+        return json(url.pathname.endsWith("/sets") ? [set] : set);
+      }
+      if (url.pathname.endsWith("/groups")) return json(tcgcsvEnvelope([]));
+      return json({}, 404);
+    }));
+    const app = await mountRouter();
+    const detail = await request(app).get("/pokemon/sets/me04");
+    expect(detail.status).toBe(200);
+    expect(detail.body.shortCode).toBe(expectedCode);
+    const index = await request(app).get("/pokemon/sets");
+    expect(index.status).toBe(200);
+    expect(index.body[0].shortCode).toBe(expectedCode);
+  });
+
   it("lists only verified MEE source-only cards and counts its numbered checklist", async () => {
     const energyKinds = ["Grass", "Fire", "Water", "Lightning", "Psychic", "Fighting", "Darkness", "Metal"];
     const products = Array.from({ length: 16 }, (_, index) =>
@@ -96,6 +119,7 @@ describe("Pokemon set routes", () => {
       expect.objectContaining({
         id: "tcgcsv_24461",
         name: "Mega Evolution Energies",
+        shortCode: "MEE",
         totalCards: 16,
         releaseDate: null,
         seriesName: null,
@@ -108,6 +132,7 @@ describe("Pokemon set routes", () => {
     const detail = await request(app).get("/pokemon/sets/tcgcsv_24461");
     expect(detail.status).toBe(200);
     expect(detail.body.totalCards).toBe(16);
+    expect(detail.body.shortCode).toBe("MEE");
     expect(detail.body.cards).toHaveLength(16);
     expect(detail.body.cards[0]).toMatchObject({
       id: "tcgcsv_24461_7000",

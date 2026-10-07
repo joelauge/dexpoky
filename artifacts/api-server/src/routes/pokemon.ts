@@ -40,6 +40,7 @@ interface SetBrief {
 interface TcgDexSet {
   id: string;
   name: string;
+  abbreviation?: { official?: string | null; tcgOnline?: string | null };
   logo?: string;
   symbol?: string;
   releaseDate?: string;
@@ -112,6 +113,7 @@ function normalizeSet(set: TcgDexSet) {
   return {
     id: set.id,
     name: set.name,
+    shortCode: set.abbreviation?.official?.trim() || set.abbreviation?.tcgOnline?.trim() || null,
     logoUrl: assetUrl(set.logo),
     symbolUrl: assetUrl(set.symbol),
     seriesName: set.serie?.name ?? null,
@@ -171,6 +173,7 @@ function sourceOnlySet(group: TcgcsvPokemonGroup, cards: TcgcsvSetCard[]) {
   return {
     id: `tcgcsv_${group.groupId}`,
     name: "Mega Evolution Energies",
+    shortCode: group.abbreviation.trim() || null,
     logoUrl: null,
     symbolUrl: null,
     seriesName: null,
@@ -196,6 +199,7 @@ async function tcgDexSetDetail(
   const cards = set.cards ?? [];
   let mergedCards = mergeTcgcsvSetCards(asMergeSet(set), []);
   let catalogSetIds = [set.id];
+  let shortCode = normalizeSet(set).shortCode;
   let catalogWarning: string | undefined;
   let catalogVerified = false;
   if (!groups) {
@@ -206,6 +210,7 @@ async function tcgDexSetDetail(
       : groups.filter((group) => tcgcsvGroupMatchesSet(group, asMergeSet(set)));
     if (candidates.length === 1) {
       const group = candidates[0]!;
+      shortCode ??= group.abbreviation.trim() || null;
       catalogSetIds = [set.id, `tcgcsv_${group.groupId}`];
       const tcgcsvCards = await getTcgcsvPokemonGroupCards(group.groupId);
       if (tcgcsvCards === null) {
@@ -232,6 +237,7 @@ async function tcgDexSetDetail(
   const providerCards = mergedCards.filter((card) => card.id.startsWith("tcgcsv_"));
   return {
     ...normalizeSet(set),
+    shortCode,
     totalCards: mergedCards.length,
     catalogSetIds,
     ...(catalogWarning || supplementalWarning
@@ -408,6 +414,7 @@ router.get("/pokemon/sets", async (req, res) => {
       }
       return {
         ...base,
+        shortCode: base.shortCode || group.abbreviation.trim() || null,
         totalCards,
         catalogSetIds: [set.id, `tcgcsv_${group.groupId}`],
       };
@@ -422,6 +429,7 @@ router.get("/pokemon/sets", async (req, res) => {
       if (totalCards > 0) listedSets.push({
         id: `tcgcsv_${group.groupId}`,
         name: "Mega Evolution Energies",
+        shortCode: group.abbreviation.trim() || null,
         logoUrl: null,
         symbolUrl: null,
         seriesName: null,

@@ -20,3 +20,9 @@ Preserved image URLs or flat-view DOM nodes do not prove that the 3D page turn h
 **Why:** The user still observed a forward-turn left-page redraw after flat-view image reuse had passed. Animation-face and landing handoffs can visibly change without any image reload.
 
 **How to apply:** Check forward and reverse animation faces and their landing transforms separately. When WebGL rendering is unavailable, report that limitation rather than treating fallback-view checks as 3D visual verification.
+
+Visible page bending must be verified with actual mid-animation frames, not only numerical geometry checks.
+
+**Why:** The user repeated that the binder pages still looked perfectly solid after earlier changes.
+
+**How to apply:** Inspect forward and reverse midpoint frames from the actual rendering geometry. A native CSS3D diagnostic can establish visible curvature when WebGL is unavailable, but explicitly distinguish it from the full interactive WebGL viewer.
