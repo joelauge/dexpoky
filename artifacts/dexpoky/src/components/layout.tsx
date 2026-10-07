@@ -46,6 +46,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 interface LayoutProps {
   children: ReactNode;
+  hideMobileScanButton?: boolean;
 }
 
 function PokeBallIcon({ className }: { className?: string }) {
@@ -428,7 +429,7 @@ function MobileProfileBar() {
   );
 }
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, hideMobileScanButton = false }: LayoutProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { isSignedIn } = useUser();
@@ -619,7 +620,7 @@ export function Layout({ children }: LayoutProps) {
         {isSignedIn && location !== "/scan" && (
           <Link href="/scan">
             <button
-              className="fixed bottom-[4.5rem] right-5 md:bottom-6 z-50 flex items-center gap-2 bg-primary text-primary-foreground shadow-xl rounded-full px-5 py-3.5 font-bold text-sm active:scale-95 transition-transform hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className={cn("fixed bottom-[4.5rem] right-5 md:bottom-6 z-50 flex items-center gap-2 bg-primary text-primary-foreground shadow-xl rounded-full px-5 py-3.5 font-bold text-sm active:scale-95 transition-transform hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2", hideMobileScanButton && "hidden md:flex")}
               aria-label="Scan a card"
             >
               <Scan className="h-5 w-5" />

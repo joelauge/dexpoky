@@ -13,6 +13,9 @@ import { QuoteTable } from "@/components/card-lookup/quote-table";
 import { SavePanel } from "@/components/card-lookup/save-panel";
 import { SetMembershipNotice } from "@/components/card-lookup/set-membership-notice";
 import { type Method, findTargets, when, errMessage, methodLabel } from "@/lib/card-lookup-utils";
+import { useCardLookupHistory } from "@/hooks/use-card-lookup-history";
+import { LookupHistory } from "@/components/card-lookup/lookup-history";
+import type { LookupHistoryEntry } from "@/lib/card-lookup-history";
 
 const FINISHES: { v: PriceLookupFinish; l: string }[] = [
   { v: "normal", l: "Normal" }, { v: "holofoil", l: "Holofoil" }, { v: "reverse_holofoil", l: "Reverse holo" },
@@ -61,6 +64,8 @@ export default function CardLookup() {
   const [targetId, setTargetId] = useState<number | null>(qCard ? Number(qCard) : null);
   const [now, setNow] = useState(Date.now());
   const [selectedCards, setSelectedCards] = useState<Record<string, CatalogCard>>({});
+  const history = useCardLookupHistory();
+  const recordedLookup = useRef<string | null>(null);
 
   const ownedFromLink = qCard && owned ? owned.find((c) => c.id === Number(qCard)) : undefined;
   const linkNeedsSearch = !!qCard && !!owned && !qCatalog && (!ownedFromLink || !ownedFromLink.catalogCardId);
@@ -91,6 +96,17 @@ export default function CardLookup() {
   const lookup = q.data?.card.id === catalogId ? q.data : undefined;
   const expired = !!lookup && new Date(lookup.expiresAt).getTime() <= now;
 
+  useEffect(() => {
+    if (!lookup || !history.userId) return;
+    const key = `${history.userId}:${lookup.lookupId}`;
+    if (recordedLookup.current === key) return;
+    recordedLookup.current = key;
+    history.record({
+      card: { ...lookup.card, imageUrl: lookup.card.imageUrl ?? (isRealCardImage(selectedCard?.imageUrl) ? selectedCard.imageUrl : null) },
+      finish, condition, visitedAt: Date.now(),
+    });
+  }, [lookup, selectedCard, history.userId, history.record, finish, condition]);
+
   useEffect(() => { setMethod(null); }, [lookup?.lookupId]);
 
   const targets = useMemo(() => (lookup ? findTargets(owned, lookup.card) : []), [owned, lookup]);
@@ -107,13 +123,24 @@ export default function CardLookup() {
     setLocation(`/card-lookup?catalogCardId=${encodeURIComponent(c.id)}`);
   };
   const clear = () => setLocation("/card-lookup");
+  const openHistory = (entry: LookupHistoryEntry) => {
+    searchScroll.current = window.scrollY;
+    if (lookup?.card.id === entry.card.id && finish === entry.finish && condition === entry.condition) {
+      history.record({ card: lookup.card, finish, condition, visitedAt: Date.now() });
+    }
+    setFinish(entry.finish);
+    setCondition(entry.condition);
+    setMethod(null);
+    setTargetId(null);
+    setLocation(`/card-lookup?catalogCardId=${encodeURIComponent(entry.card.id)}`);
+  };
   const shownCard = catalogId
-    ? selectedCard ?? (lookup?.card.id === catalogId ? lookup.card : undefined)
+    ? selectedCard ?? (lookup?.card.id === catalogId ? lookup.card : undefined) ?? history.entries.find((entry) => entry.card.id === catalogId)?.card
     : undefined;
   const advice = lookup?.advice;
 
   return (
-    <Layout>
+    <Layout hideMobileScanButton>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24">
         <h1 className="text-3xl sm:text-4xl font-black tracking-tight mb-1">Card Lookup</h1>
         <p className="text-muted-foreground mb-6 max-w-xl text-sm">Find the exact printing, compare platform prices side by side, then choose what to save to one card you own.</p>
@@ -225,6 +252,7 @@ export default function CardLookup() {
             )}
           </section>
         </div>
+        <LookupHistory entries={history.entries} storageAvailable={history.storageAvailable} userId={history.userId} onOpen={openHistory} />
       </div>
     </Layout>
   );

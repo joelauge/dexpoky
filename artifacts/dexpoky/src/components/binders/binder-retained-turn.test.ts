@@ -37,6 +37,55 @@ class Host {
   remove() { this.parentNode?.removeChild(this); }
 }
 
+test("flexed sheet vertices mirror across faces, do not drift, and restore exactly", () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => new Host() } as unknown as Document;
+  const scene = new THREE.Scene();
+  const page = (id: string): BinderPage => ({
+    id, rows: 3, columns: 3, widthMm: 250, heightMm: 310, slots: [],
+  });
+  const front = addPage(scene, page("curl-front"), 2, 1.61);
+  const back = addPage(scene, page("curl-back"), 3, -1.61);
+  try {
+    const sheet = (face: ReturnType<typeof addPage>) => {
+      const mesh = face.group.children.find((child) =>
+        child instanceof THREE.Mesh && child.geometry instanceof THREE.PlaneGeometry,
+      ) as THREE.Mesh<THREE.PlaneGeometry>;
+      assert.ok(mesh, "retained page has a sheet mesh");
+      return mesh.geometry.attributes.position;
+    };
+    const positions = [sheet(front), sheet(back)];
+    const resting = positions.map((position) => Array.from(position.array));
+    const turn = makeRetainedPageTurn(scene, front, back);
+    try {
+      turn.updateCurl(0.5);
+      const curled = positions.map((position) => Array.from(position.array));
+      for (let repeat = 0; repeat < 20; repeat++) turn.updateCurl(0.5);
+      positions.forEach((position, face) => assert.deepEqual(Array.from(position.array), curled[face]));
+      const columns = 19; // PlaneGeometry's 18 horizontal segments.
+      for (let index = 0; index < positions[0].count; index++) {
+        const mirrored = Math.floor(index / columns) * columns + columns - 1 - index % columns;
+        const frontDx = positions[0].getX(index) - resting[0][index * 3];
+        const backDx = positions[1].getX(mirrored) - resting[1][mirrored * 3];
+        const frontDz = positions[0].getZ(index) - resting[0][index * 3 + 2];
+        const backDz = positions[1].getZ(mirrored) - resting[1][mirrored * 3 + 2];
+        assert.ok(Math.abs(frontDx + backDx) < 1e-6, "mirrored faces have the same lateral pull");
+        assert.ok(Math.abs(frontDz + backDz) < 1e-6, "mirrored faces have the same bend");
+      }
+      for (const progress of [0, 1]) {
+        turn.updateCurl(progress);
+        positions.forEach((position, face) => assert.deepEqual(Array.from(position.array), resting[face]));
+      }
+    } finally {
+      turn.dispose();
+    }
+  } finally {
+    front.dispose();
+    back.dispose();
+    globalThis.document = originalDocument;
+  }
+});
+
 test("cached artwork hosts survive both turn directions and land at the exact resting transforms", () => {
   const originalDocument = globalThis.document;
   globalThis.document = { createElement: () => new Host() } as unknown as Document;

@@ -11,9 +11,11 @@ Binder work must be "highly performant and use the images we're already loading 
 
 The 3D view should have more "flexible" pages and allow the user to "somewhat move around the 3D space" or have it slightly respond to mouse or device movement.
 
-**Why:** The user explicitly requested these qualities for the binder viewer.
+Pages should visibly "curl" when turned.
 
-**How to apply:** Keep page motion flexible and spatial movement restrained while preserving the performance and existing-artwork requirements above.
+**Why:** The user explicitly requested these qualities for the binder viewer and repeated the flexibility request as curling during page turns.
+
+**How to apply:** Keep page motion visibly flexible during turns, not just gently bowed at rest, and spatial movement restrained while preserving the performance and existing-artwork requirements above.
 
 Remove ring/zip/folio selectors and their differences in the 3D window. Focus on flexible pages and look/feel "as good as a triple-A game studio."
 

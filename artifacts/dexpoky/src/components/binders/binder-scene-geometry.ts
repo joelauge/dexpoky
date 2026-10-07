@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import type { Binder, BinderPage } from "@workspace/api-client-react";
-import { pageSurfaceOffset, pageSurfaceRotation, pageTurnCurl } from "./binder-scene-motion";
+import { pageSurfaceOffset, pageSurfaceRotation, pageSurfaceShift, pageTurnAmplitude, pageTurnCurl } from "./binder-scene-motion";
 
 export type PortalSlot = { slot: number; host: HTMLDivElement };
 export type PortalPage = { page: BinderPage; pageNumber: number; host: HTMLDivElement; pockets: PortalSlot[]; key: string; leaf?: boolean; active?: boolean };
@@ -15,9 +15,13 @@ function pocketSlots(page: BinderPage) {
 
 function setBowedSheet(geometry: THREE.PlaneGeometry, width: number, height: number, curl = 0, hinge = false, fromRight = false) {
   const positions = geometry.attributes.position;
+  // Base coordinates are captured once so repeated updates never accumulate drift.
+  const base = (geometry.userData.baseX ??= Float32Array.from({ length: positions.count }, (_, i) => positions.getX(i))) as Float32Array;
   for (let i = 0; i < positions.count; i++) {
-    const x = positions.getX(i);
+    const x = base[i];
     const y = positions.getY(i);
+    const shift = pageSurfaceShift(fromRight ? -x : x, width, curl, hinge);
+    positions.setX(i, x + (fromRight ? -shift : shift));
     positions.setZ(i, pageSurfaceOffset(fromRight ? -x : x, y, width, height, curl, hinge));
   }
   positions.needsUpdate = true;
@@ -161,9 +165,10 @@ function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: 
   const update = (curl = 0, fromHinge = hinge, fromRight = false) => {
     for (const tile of tiles) {
       const surfaceX = fromRight ? -tile.x : tile.x;
+      const shift = pageSurfaceShift(surfaceX, width, curl, fromHinge);
       const normal = pageSurfaceRotation(surfaceX, tile.y, width, height, curl, fromHinge);
       tile.object.position.set(
-        centerX + tile.x,
+        centerX + tile.x + (fromRight ? -shift : shift),
         tile.y,
         baseZ + pageSurfaceOffset(surfaceX, tile.y, width, height, curl, fromHinge) + 0.004,
       );
@@ -229,15 +234,22 @@ export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: 
     pocketObjects.push(pocketObject);
     pockets.push({ slot: placement.slot, host: pocketHost });
   }
+  let pageX = x;
   const updateCurl = (curl = 0, fromRight = false) => {
     setBowedSheet(sheetGeometry, width, height, curl, true, fromRight);
     backing.update(curl, true, fromRight);
+    const headerShift = pageSurfaceShift(0, width, curl, true);
+    const headerNormal = pageSurfaceRotation(0, 0, width, height, curl, true);
+    header.position.x = pageX + (fromRight ? -headerShift : headerShift);
     header.position.z = 0.09 + pageSurfaceOffset(0, 0, width, height, curl, true) + 0.009;
+    header.rotation.set(headerNormal.x, fromRight ? -headerNormal.y : headerNormal.y, 0);
     for (let index = 0; index < placements.length; index++) {
       const placement = placements[index];
       const surfaceX = fromRight ? -placement.x : placement.x;
       const normal = pageSurfaceRotation(surfaceX, placement.y, width, height, curl, true);
       const object = pocketObjects[index];
+      const shift = pageSurfaceShift(surfaceX, width, curl, true);
+      object.position.x = pageX + placement.x + (fromRight ? -shift : shift);
       object.position.z = 0.09 + pageSurfaceOffset(surfaceX, placement.y, width, height, curl, true) + 0.009;
       object.rotation.set(normal.x, fromRight ? -normal.y : normal.y, 0);
     }
@@ -245,6 +257,7 @@ export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: 
   return {
     group: scene,
     updateCurl,
+    turnAmplitude: pageTurnAmplitude(width, height),
     beginTurn(pivot: THREE.Group, backside: boolean) {
       // Reparent the group, never the CSS3D hosts: their React portals and images
       // remain attached to the same elements throughout the entire turn.
@@ -267,6 +280,7 @@ export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: 
     },
     portal: { page, pageNumber, host: cssRoot, pockets, key: `page-${page.id}` } satisfies PortalPage,
     setPosition(nextX: number) {
+      pageX = nextX;
       board.position.x = nextX;
       sheet.position.x = nextX;
       header.position.x = nextX;
@@ -377,7 +391,7 @@ export function makeRetainedPageTurn(
   return {
     pivot,
     updateCurl(progress: number) {
-      const curl = pageTurnCurl(progress);
+      const curl = pageTurnCurl(progress, (front.turnAmplitude + back.turnAmplitude) / 2);
       front.updateCurl(curl);
       back.updateCurl(-curl, true);
       // Both endpoints use the exact resting transforms, not a second flat
