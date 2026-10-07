@@ -43,7 +43,7 @@ export function clampViewAngle(value: number, limit: number) {
   return Math.max(-limit, Math.min(limit, value));
 }
 /** Peak turn bend, scaled to the sheet so small and large pages both visibly flex. */
-export function pageTurnAmplitude(width: number, _height: number, pocketWidth?: number) {
+export function pageTurnAmplitude(width: number, _height: number, pocketWidth?: number, pocketPitch?: number) {
   if (pocketWidth === undefined) return width * 0.9;
   // A wide rigid pocket cannot follow a tight arc without hovering far above
   // the paper. Keep the normal lift under 4% of page width; usual grids still
@@ -51,7 +51,21 @@ export function pageTurnAmplitude(width: number, _height: number, pocketWidth?: 
   const maxLift = width * 0.04;
   const halfPocket = pocketWidth / 2;
   const minRadius = (halfPocket * halfPocket + maxLift * maxLift) / (2 * maxLift) + 0.094;
-  return width * Math.min(1.8, width / minRadius) / 2;
+  const limit = Math.min(1.8, width / minRadius);
+  if (!pocketPitch || pocketPitch <= pocketWidth) return width * limit / 2;
+  // On the concave face, lifting rigid pockets toward the normal shortens
+  // their spacing. Corner-to-paper clearance alone cannot prevent neighboring
+  // pocket planes from intersecting. Bound the arc by their tangent intersection.
+  const margin = (pocketPitch - pocketWidth) * 0.12;
+  let low = 0, high = limit;
+  for (let iteration = 0; iteration < 24; iteration++) {
+    const angle = (low + high) / 2;
+    const radius = width / angle;
+    const lift = pagePocketClearance(width, pocketWidth, width * angle / 2, 0.094);
+    const intersection = (radius - 0.099 - lift) * Math.tan(pocketPitch / (2 * radius));
+    if (intersection >= halfPocket + margin) low = angle; else high = angle;
+  }
+  return width * low / 2;
 }
 
 /** Exact horizontal pull-in of the arc, based only on resting coordinates. */

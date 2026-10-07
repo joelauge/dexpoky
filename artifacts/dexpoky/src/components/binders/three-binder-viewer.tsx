@@ -3,13 +3,15 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as THREE from "three";
 import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
-import type { Binder, BinderPage, Card } from "@workspace/api-client-react";
+import type { Binder, BinderPage } from "@workspace/api-client-react";
+import type { DisplayCard } from "@/lib/binders/model";
 import { cn } from "@/lib/utils";
 import { addContactShadow, addPage, addSceneHardware, makeBox, makeRetainedPageTurn, type PortalPage } from "./binder-scene-geometry";
 import { updateBinderCssFacing } from "./binder-scene-facing";
 import { clampViewAngle } from "./binder-scene-motion";
 import { pageGeometrySignature, stablePageCompositionKey, pageTurnPlan } from "./binder-page-window";
 import { useBinderPageComposition } from "./use-binder-page-composition";
+import { binderPixelRatio } from "./binder-render-size";
 
 type ViewAction = "left" | "right" | "up" | "down" | "reset";
 type ViewMotion = { targetYaw: number; targetPitch: number; currentYaw: number; currentPitch: number };
@@ -27,14 +29,15 @@ type ViewerRuntime = {
 };
 type ThreeBinderViewerProps = {
   binder: Binder;
-  cards: Card[];
+  cards: DisplayCard[];
   spreadIndex: number;
   selectedCardId: number | null;
   onSlotClick: (pageId: string, slot: number) => void;
   onTurn: (direction: 1 | -1) => void;
+  onTurningChange?: (turning: boolean) => void;
 };
 
-function PocketArtwork({ card, slot, lightSurface }: { card?: Card; slot: number; lightSurface: boolean }) {
+function PocketArtwork({ card, slot, lightSurface }: { card?: DisplayCard; slot: number; lightSurface: boolean }) {
   const imageRef = useRef<HTMLImageElement>(null);
   useEffect(() => {
     const image = imageRef.current;
@@ -56,7 +59,7 @@ function PocketArtwork({ card, slot, lightSurface }: { card?: Card; slot: number
           loading="eager"
           decoding="async"
           draggable={false}
-          className="h-full w-full object-contain"
+          className={cn("h-full w-full object-contain", card.id < 0 && "opacity-60 saturate-50")}
         />
       ) : card ? (
         <span className={cn("p-2 leading-tight", lightSurface ? "text-slate-800" : "text-white")}>
@@ -72,6 +75,7 @@ function PocketArtwork({ card, slot, lightSurface }: { card?: Card; slot: number
           <small className="uppercase">Empty slot</small>
         </span>
       )}
+      {card && card.id < 0 && <span data-testid="badge-wishlist" className="pointer-events-none absolute left-[4%] top-[5%] z-10 rounded-sm bg-amber-300 px-1.5 py-0.5 text-[.7em] font-bold uppercase tracking-wider text-amber-950 shadow">Wishlist</span>}
       {card && <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/80 via-black/50 to-transparent px-1 pb-0.5 pt-3 text-[10px] text-white/95">{card.name}</span>}
       <span
         aria-hidden="true"
@@ -97,7 +101,7 @@ function pocketSlots(page: BinderPage) {
 
 export function PocketSurface({ slot, card, selected, lightSurface }: {
   slot: number;
-  card?: Card;
+  card?: DisplayCard;
   selected: boolean;
   lightSurface: boolean;
 }) {
@@ -111,6 +115,7 @@ export function PocketSurface({ slot, card, selected, lightSurface }: {
         lightSurface ? "border-[#716858]/50 text-[#3f3a33]/80" : "border-white/40 text-white/65",
         selected && "z-10 outline outline-[3px] outline-offset-[-3px] outline-amber-200",
         card && (lightSurface ? "border-[#716858]/45" : "border-white/55 bg-white/10"),
+        card && card.id < 0 && "border-dashed border-amber-500",
       )}
     >
       <PocketArtwork card={card} slot={slot} lightSurface={lightSurface} />
@@ -129,7 +134,7 @@ function PocketInteraction({
   page: BinderPage;
   pageNumber: number;
   slot: number;
-  card?: Card;
+  card?: DisplayCard;
   selected: boolean;
   onSlotClick: (pageId: string, slot: number) => void;
 }) {
@@ -148,7 +153,7 @@ function PocketInteraction({
       role="button"
       tabIndex={0}
       aria-disabled={false}
-      aria-label={`${card ? `${card.name}, ` : ""}page ${pageNumber}, pocket ${slot + 1}`}
+      aria-label={`${card ? `${card.id < 0 ? "Wishlist: " : ""}${card.name}, ` : ""}page ${pageNumber}, pocket ${slot + 1}`}
       data-testid={`binder-slot-${page.id}-${slot}`}
       onClick={() => onSlotClick(page.id, slot)}
       onKeyDown={(event) => {
@@ -183,7 +188,7 @@ function PortfolioPocket({
   page: BinderPage;
   pageNumber: number;
   slot: number;
-  card?: Card;
+  card?: DisplayCard;
   selected: boolean;
   onSlotClick: (pageId: string, slot: number) => void;
   lightSurface?: boolean;
@@ -206,7 +211,7 @@ function PortfolioPocket({
   );
 }
 
-function LeafPocketArt({ card, slot }: { card?: Card; slot: number }) {
+function LeafPocketArt({ card, slot }: { card?: DisplayCard; slot: number }) {
   return (
     <div aria-hidden="true" className="h-full w-full">
       <PocketSurface slot={slot} card={card} selected={false} lightSurface />
@@ -225,7 +230,7 @@ function PagePortal({
 }: {
   target: PortalPage;
   binder: Binder;
-  cardsById: Map<number, Card>;
+  cardsById: Map<number, DisplayCard>;
   selectedCardId: number | null;
   onSlotClick: (pageId: string, slot: number) => void;
   inactive?: boolean;
@@ -316,6 +321,8 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const motionRef = useRef<ViewMotion>({ targetYaw: 0, targetPitch: 0, currentYaw: 0, currentPitch: 0 });
+  const turningCallback = useRef(props.onTurningChange);
+  turningCallback.current = props.onTurningChange;
   const viewActionRef = useRef<(action: ViewAction) => void>(() => {});
   const runtimeRef = useRef<ViewerRuntime | null>(null);
   const activePortalsRef = useRef<PortalPage[]>([]);
@@ -359,7 +366,8 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
       setUnavailable(true);
       return;
     }
-    webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    const gl = webgl.getContext();
+    const maxBufferSize = Number(gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)) || 4096;
     webgl.setClearColor(0x000000, 0);
     webgl.outputColorSpace = THREE.SRGBColorSpace;
     webgl.domElement.className = "absolute inset-0 h-full w-full";
@@ -386,6 +394,7 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
     let cameraBaseY = camera.position.y;
     let maxWidth = 2.5;
     let pageHeight = 3.2;
+    let bufferWidth = 0, bufferHeight = 0, bufferRatio = 0;
     const gap = 0.12;
     let frame = 0;
     let dirty = true;
@@ -418,6 +427,7 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
         dirty = true;
         if (progress >= 1) {
           animating = false;
+          turningCallback.current?.(false);
           flip.dispose();
           flip = null;
           turnVisibleKeys = null;
@@ -454,8 +464,13 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
     const resize = () => {
       const width = Math.max(host.clientWidth, 1);
       const height = Math.max(host.clientHeight, 1);
-      webgl.setSize(width, height, false);
-      css.setSize(width, height);
+      const ratio = binderPixelRatio(width, height, window.devicePixelRatio || 1, maxBufferSize);
+      if (width !== bufferWidth || height !== bufferHeight || ratio !== bufferRatio) {
+        // Allocate once, not once at the old size and again at the new size.
+        webgl.setDrawingBufferSize(width, height, ratio);
+        css.setSize(width, height);
+        bufferWidth = width; bufferHeight = height; bufferRatio = ratio;
+      }
       camera.aspect = width / height;
       const spreadWidth = maxWidth * 2 + gap + 0.4;
       const visibleWidthScale = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect * 2;
@@ -501,6 +516,7 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
     const cancelFlip = () => {
       if (!flip) return;
       animating = false;
+      turningCallback.current?.(false);
       flip.dispose();
       flip = null;
       turnVisibleKeys = null;
@@ -529,6 +545,7 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
       flip.pivot.rotation.y = flipFrom;
       flipStart = performance.now();
       animating = true;
+      turningCallback.current?.(true);
       invalidate();
       return true;
     };
@@ -605,6 +622,8 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
     viewRoot?.addEventListener("pointerleave", resetParallax);
     motionQuery?.addEventListener("change", onPreferenceChange);
     const observer = new ResizeObserver(resize);
+    window.addEventListener("resize", resize);
+    document.addEventListener("fullscreenchange", resize);
     observer.observe(host);
     resize();
     const onContextLost = (event: Event) => {
@@ -638,6 +657,9 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
       disposed = true;
       if (frame) cancelAnimationFrame(frame);
       observer.disconnect();
+      window.removeEventListener("resize", resize);
+      document.removeEventListener("fullscreenchange", resize);
+      turningCallback.current?.(false);
       if (dragPointer !== null && viewRoot?.hasPointerCapture(dragPointer)) viewRoot.releasePointerCapture(dragPointer);
       viewRoot?.removeEventListener("pointerdown", onPointerDown);
       viewRoot?.removeEventListener("pointermove", onPointerMove);

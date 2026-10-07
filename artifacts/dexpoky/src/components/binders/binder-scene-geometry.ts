@@ -265,7 +265,8 @@ export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: 
   return {
     group: scene,
     updateCurl,
-    turnAmplitude: pageTurnAmplitude(width, height, placements[0].cellWidth),
+    turnAmplitude: pageTurnAmplitude(width, height, placements[0].cellWidth,
+      page.columns > 1 ? placements[1].x - placements[0].x : undefined),
     getHingeX(backside = false) {
       return (backside ? -pageX : pageX) - width / 2;
     },

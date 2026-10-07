@@ -19,7 +19,7 @@ export interface BinderSlot {
    * @maximum 24
    */
   slot: number;
-  /** @minimum 1 */
+  /** Positive owned-card ID, or negative wishlist-item ID. Zero is invalid. */
   cardId: number;
 }
 
@@ -91,6 +91,7 @@ export interface BinderInput {
 }
 
 export interface BinderUpdate {
+  isPublic?: boolean;
   /**
    * @minLength 1
    * @maxLength 80
@@ -109,6 +110,9 @@ export interface BinderUpdate {
 }
 
 export interface Binder {
+  isPublic?: boolean;
+  /** @nullable */
+  shareToken?: string | null;
   id: number;
   name: string;
   style: BinderStyle;
@@ -120,6 +124,7 @@ export interface Binder {
 }
 
 export interface BinderSummary {
+  isPublic?: boolean;
   id: number;
   name: string;
   style: BinderStyle;
@@ -129,6 +134,98 @@ export interface BinderSummary {
   cardCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export type CardMediaKind = (typeof CardMediaKind)[keyof typeof CardMediaKind];
+
+export const CardMediaKind = {
+  image: "image",
+  video: "video",
+} as const;
+
+export interface CardMedia {
+  id: string;
+  /** App Storage serving path */
+  url: string;
+  kind: CardMediaKind;
+  /**
+   * @minimum 1
+   * @maximum 16384
+   */
+  width: number;
+  /**
+   * @minimum 1
+   * @maximum 16384
+   */
+  height: number;
+  /**
+   * @minimum 0
+   * @maximum 60
+   */
+  durationSeconds?: number | null;
+}
+
+export interface BinderDisplayCard {
+  id: number;
+  name: string;
+  /** @nullable */
+  imageUrl: string | null;
+  /** @nullable */
+  catalogCardId?: string | null;
+  /** @nullable */
+  setId?: string | null;
+  /** @nullable */
+  setName?: string | null;
+  /** @nullable */
+  cardNumber?: string | null;
+  /** @nullable */
+  condition?: string | null;
+  media?: CardMedia[];
+}
+
+export interface PublicBinder {
+  binder: Binder;
+  cards: BinderDisplayCard[];
+  isOwner: boolean;
+  ownerName: string;
+}
+
+export type BinderContactInputIntent =
+  (typeof BinderContactInputIntent)[keyof typeof BinderContactInputIntent];
+
+export const BinderContactInputIntent = {
+  give: "give",
+  sell: "sell",
+  trade: "trade",
+  buy: "buy",
+} as const;
+
+export interface BinderContactInput {
+  intent: BinderContactInputIntent;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  message: string;
+  /** Signed binder card identity the visitor inspected; reject if this pocket has changed. */
+  targetCardId?: number;
+  /**
+   * @minimum 0
+   * @maximum 9999999.99
+   */
+  amount?: number;
+  /** @minimum 1 */
+  offeredCardId?: number;
+  /** @maxItems 10 */
+  offeredCardIds?: number[];
+  /** @maxItems 10 */
+  sellerImages?: string[];
+  /** @maxLength 2000 */
+  sellerVideo?: string;
+}
+
+export interface BinderContactResult {
+  threadId: number;
 }
 
 export type PriceLookupFinish =
@@ -419,35 +516,6 @@ export const CardCondition = {
   played: "played",
   poor: "poor",
 } as const;
-
-export type CardMediaKind = (typeof CardMediaKind)[keyof typeof CardMediaKind];
-
-export const CardMediaKind = {
-  image: "image",
-  video: "video",
-} as const;
-
-export interface CardMedia {
-  id: string;
-  /** App Storage serving path */
-  url: string;
-  kind: CardMediaKind;
-  /**
-   * @minimum 1
-   * @maximum 16384
-   */
-  width: number;
-  /**
-   * @minimum 1
-   * @maximum 16384
-   */
-  height: number;
-  /**
-   * @minimum 0
-   * @maximum 60
-   */
-  durationSeconds?: number | null;
-}
 
 export interface Card {
   id: number;

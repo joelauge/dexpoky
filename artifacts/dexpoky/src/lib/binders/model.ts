@@ -9,6 +9,13 @@ export const GRID_PRESETS: Array<{ count: number; rows: number; columns: number 
 ];
 export const DEFAULTS = { rows: 3, columns: 3, widthMm: 250, heightMm: 310, pageCount: 4 };
 
+/** Minimal safe card shape for rendering. Negative ids are wishlist placeholders. */
+export type DisplayCard = Pick<Card, "id" | "name" | "imageUrl">;
+export const isWishlistId = (id: number) => id < 0;
+export const wishlistDisplay = (w: { id: number; name: string; imageUrl?: string | null }): DisplayCard => ({
+  id: -w.id, name: w.name, imageUrl: w.imageUrl ?? null,
+});
+
 export type Pages = BinderPage[];
 export type SlotRef = { pageId: string; slot: number };
 export type Selection = ({ type: "library"; cardId: number }) | ({ type: "slot" } & SlotRef) | null;
@@ -27,9 +34,10 @@ export function usageOf(pages: Pages): Map<number, number> {
   return m;
 }
 
-export function serialize(b: Pick<Binder, "name" | "style" | "coverColor" | "pages">): string {
+export function serialize(b: Pick<Binder, "name" | "style" | "coverColor" | "pages" | "isPublic">): string {
   return JSON.stringify({
     n: b.name,
+    u: !!b.isPublic,
     s: b.style,
     c: b.coverColor.toLowerCase(),
     p: b.pages.map((p) => ({ ...p, slots: [...p.slots].sort((a, c) => a.slot - c.slot) })),
@@ -55,6 +63,7 @@ export type OpResult = { pages: Pages; replacedCardId?: number } | { error: stri
 
 export function placeFromLibrary(pages: Pages, cards: Map<number, Card>, ref: SlotRef, cardId: number): OpResult {
   const card = cards.get(cardId);
+  if (cardId <= 0) return { error: "Only owned cards can be placed from the tray." };
   if (!card) return { error: "That card is not in your collection." };
   const page = pages.find((p) => p.id === ref.pageId);
   if (!page || ref.slot < 0 || ref.slot >= page.rows * page.columns) return { error: "That pocket does not exist." };
@@ -76,6 +85,16 @@ export function moveSlot(pages: Pages, from: SlotRef, to: SlotRef): OpResult {
   let next = withSlot(pages, to, a);
   next = withSlot(next, from, b);
   return { pages: next };
+}
+
+/** Reserve an empty pocket for a wishlist item (stored as the negative item id). */
+export function placeWishlist(pages: Pages, ref: SlotRef, wishlistItemId: number): OpResult {
+  if (!Number.isInteger(wishlistItemId) || wishlistItemId <= 0) return { error: "That wishlist card is not valid." };
+  const page = pages.find((p) => p.id === ref.pageId);
+  if (!page || ref.slot < 0 || ref.slot >= page.rows * page.columns) return { error: "That pocket does not exist." };
+  if (cardAt(pages, ref) !== undefined) return { error: "That pocket is already taken." };
+  if ((usageOf(pages).get(-wishlistItemId) ?? 0) > 0) return { error: "That wishlist card already has a pocket in this binder." };
+  return { pages: withSlot(pages, ref, -wishlistItemId) };
 }
 
 export const clearSlot = (pages: Pages, ref: SlotRef): Pages => withSlot(pages, ref, undefined);

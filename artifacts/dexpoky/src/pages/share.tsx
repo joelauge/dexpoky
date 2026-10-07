@@ -5,7 +5,7 @@ import {
   useListCards, useListCategories,
   useCreateWantedListing, useListMyWantedListings, useDeleteWantedListing,
   useListWantedMatches, useUpdateWantedListing,
-  getListWantedMatchesQueryKey,
+  getListWantedMatchesQueryKey, useGetPublicBinder, getGetPublicBinderQueryKey, useContactBinderWishlist, getListThreadsQueryKey,
 } from "@workspace/api-client-react";
 import type { WantedListing } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ import { formatDistanceToNow } from "date-fns";
 import { CatalogSearch } from "@/components/catalog-search";
 import { HoloCard } from "@/components/holo-card";
 import { ImageUploader } from "@/components/image-uploader";
+import { matchesWishlistTarget, explainContactError } from "@/lib/binders/match";
 import type { CatalogCard } from "@workspace/api-client-react";
 
 type ExpiryOption = "never" | "7d" | "30d" | "3m" | "custom";
@@ -500,9 +501,13 @@ export default function SharePage() {
   const search = useSearch();
   const qc = useQueryClient();
 
-  const { preCardId, preCategoryId, preMode } = useMemo(() => {
+  const { preCardId, preCategoryId, preMode, binderToken, binderPageId, binderSlot } = useMemo(() => {
     const p = new URLSearchParams(search);
+    const slotRaw = p.get("binderSlot");
     return {
+      binderToken: p.get("binder") || null,
+      binderPageId: p.get("binderPage") || null,
+      binderSlot: slotRaw !== null && /^\d+$/.test(slotRaw) ? parseInt(slotRaw) : null,
       preCardId: p.get("card") ? parseInt(p.get("card")!) : null,
       preCategoryId: p.get("categoryId") ? parseInt(p.get("categoryId")!) : null,
       preMode: (p.get("mode") === "looking" ? "looking" : "sell") as PageMode,
@@ -513,6 +518,27 @@ export default function SharePage() {
   const { data: categories = [] } = useListCategories();
 
   const availableCards = allCards.filter(c => !c.forSale);
+
+  // Binder offer context: sell a matching owned copy to a binder owner's wishlist pocket.
+  const binderCtx = !!(binderToken && binderPageId && binderSlot !== null && preMode === "sell");
+  const publicQ = useGetPublicBinder(binderToken ?? "", { query: { enabled: binderCtx, queryKey: getGetPublicBinderQueryKey(binderToken ?? ""), retry: false } });
+  const ctxTarget = useMemo(() => {
+    const d = publicQ.data;
+    if (!binderCtx || !d) return null;
+    const id = d.binder.pages.find((pg) => pg.id === binderPageId)?.slots.find((sl) => sl.slot === binderSlot)?.cardId;
+    return id !== undefined && id < 0 ? d.cards.find((c) => c.id === id) ?? null : null;
+  }, [binderCtx, publicQ.data, binderPageId, binderSlot]);
+  const ctxMatches = useMemo(() => (ctxTarget ? availableCards.filter(c => matchesWishlistTarget(c, ctxTarget)) : []), [ctxTarget, availableCards]);
+  const ctxMatchKey = ctxMatches.map(c => c.id).join(",");
+  const contactBinder = useContactBinderWishlist();
+  let ctxProblem: string | null = null;
+  if (binderCtx) {
+    if (publicQ.isLoading) ctxProblem = "Loading the binder";
+    else if (publicQ.isError) ctxProblem = (publicQ.error as { status?: number } | null)?.status === 404 ? "This binder is private or no longer shared, so you cannot send an offer." : "Could not load the binder. Check your connection and retry.";
+    else if (publicQ.data?.isOwner) ctxProblem = "This is your own binder. You cannot make an offer to yourself.";
+    else if (publicQ.data && !ctxTarget) ctxProblem = "That wishlist pocket changed or is no longer there. Go back to the binder and choose again.";
+    else if (ctxTarget && ctxMatches.length === 0) ctxProblem = "You do not own a copy of this exact printing that is free to sell. Add the matching card to your collection first.";
+  }
 
   const initialSellType: SellType = preCategoryId ? "category" : "single";
 
@@ -607,6 +633,16 @@ export default function SharePage() {
     return availableCards;
   }, [sellType, selectedCardIds, selectedCategoryId, availableCards]);
 
+  useEffect(() => {
+    if (!binderCtx || !ctxTarget) return;
+    const ids = ctxMatchKey ? ctxMatchKey.split(",").map(Number) : [];
+    setSelectedCardIds((cur) => {
+      const keep = cur.length === 1 && ids.includes(cur[0]) ? cur : ids.length ? [ids.includes(preCardId ?? -1) ? (preCardId as number) : ids[0]] : [];
+      return keep.length === cur.length && keep.every((v, i) => v === cur[i]) ? cur : keep;
+    });
+    setSellType("single");
+  }, [binderCtx, ctxTarget, ctxMatchKey, preCardId]);
+
   const totalValue = activeCards.reduce((sum, c) => sum + parseFloat(String(c.estimatedValue ?? 0)), 0);
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
 
@@ -685,6 +721,33 @@ export default function SharePage() {
   const handleGenerate = () => {
     const finalPrice = parseFloat(price || "0");
     if (finalPrice <= 0) { toast.error("Please enter a valid price"); return; }
+    if (binderCtx) {
+      const copy = activeCards[0];
+      if (ctxProblem || !ctxTarget || !binderToken || !binderPageId || binderSlot === null || !copy || activeCards.length !== 1 || !ctxMatches.some(c => c.id === copy.id)) {
+        toast.error(ctxProblem ?? "Choose a matching copy first.");
+        return;
+      }
+      contactBinder.mutate({
+        token: binderToken, pageId: binderPageId, slot: binderSlot,
+        data: {
+          intent: "sell",
+          targetCardId: ctxTarget.id,
+          message: `I can sell you my copy of ${ctxTarget.name} (${copy.condition}) for $${finalPrice.toFixed(2)}, card only. Shipping is not included and we can agree it here.`,
+          amount: finalPrice,
+          offeredCardId: copy.id,
+          ...(listingImagePaths.length > 0 ? { sellerImages: listingImagePaths } : {}),
+          ...(listingVideo ? { sellerVideo: listingVideo } : {}),
+        },
+      }, {
+        onSuccess: (r) => {
+          qc.invalidateQueries({ queryKey: getListThreadsQueryKey() });
+          qc.invalidateQueries({ queryKey: ["/api/threads"] });
+          setLocation(`/inbox?thread=${r.threadId}`);
+        },
+        onError: (e) => toast.error(explainContactError(e)),
+      });
+      return;
+    }
 
     // Private / P2P: skip marketplace, build a direct view link
     if (isPrivateListing) {
@@ -846,7 +909,7 @@ export default function SharePage() {
         </div>
 
         {/* Mode toggle — only show on step 1 */}
-        {step === 1 && (
+        {step === 1 && !binderCtx && (
           <div className="flex items-center gap-1 p-1 bg-muted rounded-xl mb-6">
             <button
               type="button"
@@ -876,7 +939,28 @@ export default function SharePage() {
         {mode === "sell" && (
           <>
             {/* ── Step 1: What are you sharing? ── */}
-            {step === 1 && (
+            {binderCtx && (
+              <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" data-testid="banner-binder-context">
+                <p className="font-semibold">Offer to {publicQ.data?.ownerName ?? "a binder owner"}</p>
+                <p>{ctxTarget ? `${ctxTarget.name}${ctxTarget.setName ? `, ${ctxTarget.setName}` : ""}${ctxTarget.cardNumber ? ` No. ${ctxTarget.cardNumber}` : ""}` : "Checking the wishlist pocket"}. This sends a private offer to their inbox and does not create a marketplace listing.</p>
+                {ctxProblem && <p role="alert" className="mt-1 font-medium text-destructive" data-testid="text-binder-context-problem">{ctxProblem}</p>}
+                {publicQ.isError && (publicQ.error as { status?: number } | null)?.status !== 404 && <Button size="sm" variant="outline" className="mt-2" onClick={() => publicQ.refetch()}>Retry</Button>}
+              </div>
+            )}
+            {step === 1 && binderCtx && (
+              <div className="space-y-4" data-testid="step-binder-context">
+                <p className="text-sm font-semibold text-muted-foreground">Choose the copy to offer</p>
+                {ctxMatches.map(c => (
+                  <button key={c.id} type="button" onClick={() => setSelectedCardIds([c.id])} aria-pressed={selectedCardIds[0] === c.id}
+                    className={`flex w-full items-center gap-3 rounded-2xl border-2 bg-card p-3 text-left ${selectedCardIds[0] === c.id ? "border-primary" : "border-transparent"}`}>
+                    {c.imageUrl ? <img src={c.imageUrl} alt={c.name} className="h-16 w-12 rounded object-contain" /> : <div className="h-16 w-12 rounded bg-muted" />}
+                    <span className="min-w-0"><span className="block truncate font-semibold">{c.name}</span><span className="text-xs text-muted-foreground">{c.condition} · Market value ${parseFloat(String(c.estimatedValue ?? 0)).toFixed(2)}</span></span>
+                  </button>
+                ))}
+                <Button className="w-full h-12 rounded-xl font-semibold" disabled={!!ctxProblem || activeCards.length !== 1} onClick={handleContinue} data-testid="button-binder-continue">Continue</Button>
+              </div>
+            )}
+            {step === 1 && !binderCtx && (
               <div className="space-y-4">
                 <p className="text-sm font-semibold text-muted-foreground">What are you sharing?</p>
 
@@ -1216,7 +1300,7 @@ export default function SharePage() {
                 >
                   <ArrowLeft className="h-3 w-3" /> Back
                 </button>
-                <p className="text-sm font-semibold text-muted-foreground">Set your price & shipping</p>
+                <p className="text-sm font-semibold text-muted-foreground">{binderCtx ? "Set your price" : "Set your price & shipping"}</p>
 
                 {/* Summary pill */}
                 <div className="flex items-center gap-3 bg-card border rounded-2xl p-3">
@@ -1236,9 +1320,11 @@ export default function SharePage() {
                     <p className="text-sm font-semibold truncate">{summaryLabel}</p>
                     <p className="text-xs text-muted-foreground">Market value: ${totalValue.toFixed(2)}</p>
                   </div>
-                  <Badge variant="outline" className="text-xs shrink-0">
-                    {SELL_TYPES.find(t => t.id === sellType)?.label}
-                  </Badge>
+                  {!binderCtx && (
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {SELL_TYPES.find(t => t.id === sellType)?.label}
+                    </Badge>
+                  )}
                 </div>
 
                 {sellType === "single" && (
@@ -1287,7 +1373,7 @@ export default function SharePage() {
                 )}
 
                 <div className="bg-card rounded-2xl border p-4 space-y-4">
-                  <div className="space-y-1.5">
+                  {!binderCtx && <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Page title</label>
                     <Input
                       value={linkTitle}
@@ -1295,7 +1381,7 @@ export default function SharePage() {
                       className="rounded-xl"
                       placeholder={summaryLabel}
                     />
-                  </div>
+                  </div>}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Your asking price</label>
                     <div className="relative">
@@ -1311,7 +1397,12 @@ export default function SharePage() {
                     <p className="text-xs text-muted-foreground">Market value: ${totalValue.toFixed(2)}</p>
                   </div>
 
-                  <div className="border-t pt-4 space-y-4">
+                  {binderCtx && (
+                    <p className="rounded-xl bg-muted p-3 text-xs text-muted-foreground" data-testid="note-binder-shipping">
+                      Your price is for the card only. Shipping is not included and is agreed directly with the owner in the inbox conversation.
+                    </p>
+                  )}
+                  {!binderCtx && <div className="border-t pt-4 space-y-4">
                     {/* Shipping toggle */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
@@ -1370,21 +1461,22 @@ export default function SharePage() {
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </div>}
                 </div>
 
                 <div className="bg-primary/5 border border-primary/15 rounded-xl p-3 flex items-center justify-between">
-                  <span className="text-sm text-primary font-medium">Buyer pays total</span>
-                  <span className="text-lg font-black text-primary">${buyerTotal.toFixed(2)}</span>
+                  <span className="text-sm text-primary font-medium">{binderCtx ? "Your offer (card only, excludes shipping)" : "Buyer pays total"}</span>
+                  <span className="text-lg font-black text-primary">${(binderCtx ? parseFloat(price || "0") : buyerTotal).toFixed(2)}</span>
                 </div>
 
                 <Button
                   className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-semibold rounded-xl"
                   onClick={handleGenerate}
-                  disabled={createListing.isPending || createGroupShare.isPending}
+                  disabled={createListing.isPending || createGroupShare.isPending || (binderCtx && (!!ctxProblem || contactBinder.isPending || activeCards.length !== 1))}
+                  data-testid="button-generate"
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
-                  {(createListing.isPending || createGroupShare.isPending) ? "Creating…" : "Generate share link"}
+                  {binderCtx ? (contactBinder.isPending ? "Sending…" : "Send offer") : (createListing.isPending || createGroupShare.isPending) ? "Creating…" : "Generate share link"}
                 </Button>
               </div>
             )}

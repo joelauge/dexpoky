@@ -6,20 +6,24 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  getGetBinderQueryKey, getListBindersQueryKey, getListCardsQueryKey, useCreateBinder, useDeleteBinder, useGetBinder,
+  getGetBinderQueryKey, getListBindersQueryKey, getListCardsQueryKey, getListWishlistQueryKey, useListWishlist, useCreateBinder, useDeleteBinder, useGetBinder,
   useListBinders, useListCards, useUpdateBinder, type Binder,
 } from "@workspace/api-client-react";
-import { ChevronLeft, ChevronRight, FilePlus2, Plus, RotateCcw, Save, Settings2, Trash2, X } from "lucide-react";
+import { Copy, ExternalLink, Share2, ChevronLeft, ChevronRight, FilePlus2, Plus, RotateCcw, Save, Settings2, Trash2, X } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { WishlistSlotDialog } from "@/components/binders/wishlist-slot-dialog";
+import { ShareBinderDialog } from "@/components/binders/share-binder-dialog";
+import { binderShareUrl } from "@/lib/binders/share";
 import { BinderLibrary } from "@/components/binders/binder-library";
 import { FlatSpread } from "@/components/binders/flat-spread";
 import { ConfirmDialog, CreateBinderDialog, PageSettingsDialog, type CreateValues } from "@/components/binders/binder-dialogs";
 import {
-  MAX_PAGES, cardAt, clearSlot, isConflict, maxSpread, moveSlot, newPage, placeFromLibrary, resizePage, serialize,
+  MAX_PAGES, cardAt, clearSlot, isConflict, maxSpread, moveSlot, newPage, placeFromLibrary, placeWishlist, wishlistDisplay, resizePage, serialize,
   usageOf, type OpResult, type Selection, type SlotRef,
 } from "@/lib/binders/model";
 
@@ -57,6 +61,12 @@ export default function BindersPage() {
   const [draft, setDraft] = useState<Binder | null>(null);
   const [baseJson, setBaseJson] = useState("");
   const [spread, setSpread] = useState(0);
+  const [turning, setTurning] = useState(false);
+  const turningRef = useRef(false);
+  const onTurningChange = useCallback((value: boolean) => {
+    turningRef.current = value;
+    setTurning(value);
+  }, []);
   const [sel, setSel] = useState<Selection>(null);
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [dragging, setDragging] = useState<{ cardId?: number } | null>(null);
@@ -67,12 +77,22 @@ export default function BindersPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removePageOpen, setRemovePageOpen] = useState(false);
   const [pageSettingsOpen, setPageSettingsOpen] = useState(false);
+  const [wishTarget, setWishTarget] = useState<SlotRef | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [flat, setFlat] = useState(() => !hasWebGL());
 
   const list = useListBinders({ query: { queryKey: getListBindersQueryKey(), staleTime: 15000, refetchOnMount: "always" } });
   const cardsQ = useListCards();
   const cards = cardsQ.data;
   const cardMap = useMemo(() => new Map((cards ?? []).map((c) => [c.id, c])), [cards]);
+  const wishQ = useListWishlist();
+  const wishlist = useMemo(() => wishQ.data ?? [], [wishQ.data]);
+  const displayCards = useMemo(() => [
+    ...(cards ?? []).map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl ?? null })),
+    ...wishlist.map(wishlistDisplay),
+  ], [cards, wishlist]);
+  const displayMap = useMemo(() => new Map(displayCards.map((c) => [c.id, c])), [displayCards]);
   const binderQ = useGetBinder(selectedId ?? 0, { query: { enabled: !!selectedId, queryKey: getGetBinderQueryKey(selectedId ?? 0), staleTime: 15000, refetchOnMount: "always" } });
   const create = useCreateBinder();
   const update = useUpdateBinder();
@@ -130,6 +150,7 @@ export default function BindersPage() {
   const usage = useMemo(() => usageOf(draft?.pages ?? []), [draft?.pages]);
   const pageCount = draft?.pages.length ?? 0;
   const turn = useCallback((d: 1 | -1) => {
+    if (turningRef.current) return;
     setSpread((s) => Math.min(maxSpread(pageCount), Math.max(0, s + d * 2)));
   }, [pageCount]);
 
@@ -138,7 +159,7 @@ export default function BindersPage() {
     if ("error" in r) { toast.error(r.error); return false; }
     edit((d) => ({ ...d, pages: r.pages }));
     if (r.replacedCardId !== undefined) {
-      toast.info(`${cardMap.get(r.replacedCardId)?.name ?? "Previous card"} returned to the tray.`);
+      toast.info(r.replacedCardId < 0 ? "Wishlist placeholder removed." : `${cardMap.get(r.replacedCardId)?.name ?? "Previous card"} returned to the tray.`);
     } else if (msg) toast.success(msg);
     return true;
   };
@@ -154,6 +175,8 @@ export default function BindersPage() {
       if (apply(moveSlot(draft.pages, sel, ref))) setSel(null);
     } else if (cardAt(draft.pages, ref) !== undefined) {
       setSel({ type: "slot", ...ref });
+    } else {
+      setWishTarget(ref);
     }
   };
 
@@ -196,29 +219,38 @@ export default function BindersPage() {
     setSel(null);
   };
 
-  const save = () => {
-    if (!draft || !dirty || update.isPending) return;
-    const snap = serialize(draft);
+  const save = (opts?: { publish?: boolean; onDone?: (ok: boolean, message?: string) => void }) => {
+    const publish = !!opts?.publish;
+    if (!draft || update.isPending || (!dirty && !publish)) return;
+    const startPublic = !!draft.isPublic;
+    // A publish request forces isPublic only while the user has not toggled it since.
+    const norm = (c: Binder): Binder => (publish && !!c.isPublic === startPublic ? { ...c, isPublic: true } : c);
+    const snap = serialize(norm(draft));
     const savedId = draft.id;
     update.mutate(
-      { id: savedId, data: { name: draft.name.trim() || "Untitled binder", style: draft.style, coverColor: draft.coverColor, revision: draft.revision, pages: draft.pages } },
+      { id: savedId, data: { isPublic: publish ? true : !!draft.isPublic, name: draft.name.trim() || "Untitled binder", style: draft.style, coverColor: draft.coverColor, revision: draft.revision, pages: draft.pages } },
       {
         onSuccess: (b) => {
           qc.setQueryData(getGetBinderQueryKey(b.id), b);
           qc.invalidateQueries({ queryKey: getListBindersQueryKey() });
+          qc.invalidateQueries({ queryKey: getListWishlistQueryKey() });
+          qc.invalidateQueries({ queryKey: getListCardsQueryKey() });
           const cur = draftRef.current;
+          opts?.onDone?.(true);
           if (!cur || cur.id !== savedId || selectedIdRef.current !== savedId) return;
-          if (serialize(cur) === snap) {
+          if (serialize(norm(cur)) === snap) {
             loadDraft(b);
             toast.success("Layout saved.");
           } else {
-            setDraft({ ...cur, revision: b.revision, updatedAt: b.updatedAt });
+            setDraft({ ...norm(cur), revision: b.revision, updatedAt: b.updatedAt, shareToken: b.shareToken });
             setBaseJson(serialize(b));
             setConflict(null);
             toast.info("Saved. Newer changes you made while saving are still unsaved.");
           }
         },
         onError: (err) => {
+          const status = (err as { status?: number })?.status;
+          opts?.onDone?.(false, status === 409 ? "This binder was changed elsewhere. Use the banner on the page to reload it, then try again." : status === 400 ? "The server rejected this layout. Fix it and try again." : "Could not save. Your draft is kept, try again.");
           if (draftRef.current?.id !== savedId) return;
           const msg = (err as { data?: { error?: string } })?.data?.error;
           if (isConflict(err)) setConflict({ kind: "revision", message: "This binder was changed elsewhere since you opened it. Your draft is kept untouched." });
@@ -343,15 +375,42 @@ export default function BindersPage() {
               <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3">
                 <Input data-testid="input-binder-name" value={draft.name} maxLength={80} onChange={(e) => edit((d) => ({ ...d, name: e.target.value }))} className="h-9 w-56 font-semibold" aria-label="Binder name" />
                 <input data-testid="input-binder-color" aria-label="Cover color" type="color" value={draft.coverColor} onChange={(e) => edit((d) => ({ ...d, coverColor: e.target.value }))} className="h-9 w-12 cursor-pointer rounded border bg-transparent" />
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <Switch checked={!!draft.isPublic} onCheckedChange={(v) => edit((d) => ({ ...d, isPublic: v }))} aria-label="Share publicly" data-testid="switch-binder-public" />
+                  {draft.isPublic ? "Public" : "Private"}
+                </label>
                 <div className="ml-auto flex flex-wrap items-center gap-2">
                   <span data-testid="status-unsaved" className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", dirty ? "bg-amber-500/15 text-amber-700" : "bg-emerald-500/15 text-emerald-700")}>
                     {dirty ? "Unsaved changes" : "All changes saved"}
                   </span>
                   <Button variant="outline" size="sm" disabled={!dirty || update.isPending} className="gap-1.5" onClick={() => loadDraft(binderQ.data ?? draft)} data-testid="button-discard-changes"><RotateCcw className="h-4 w-4" /> Discard</Button>
-                  <Button size="sm" disabled={!dirty || update.isPending} onClick={save} className="gap-1.5" data-testid="button-save-layout"><Save className="h-4 w-4" /> {update.isPending ? "Saving" : "Save layout"}</Button>
+                  <Button size="sm" disabled={!dirty || update.isPending} onClick={() => save()} className="gap-1.5" data-testid="button-save-layout"><Save className="h-4 w-4" /> {update.isPending ? "Saving" : "Save layout"}</Button>
+                  <Button size="sm" variant="secondary" disabled={update.isPending} onClick={() => { setShareError(null); setShareOpen(true); }} className="gap-1.5 border border-primary/40 font-semibold" data-testid="button-share-binder"><Share2 className="h-4 w-4" /> Share</Button>
                   <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" disabled={update.isPending} onClick={() => setDeleteOpen(true)} data-testid="button-delete-binder"><Trash2 className="h-4 w-4" /> Delete</Button>
                 </div>
               </div>
+
+              {(draft.isPublic || binderQ.data?.isPublic) && (() => {
+                const live = !!binderQ.data?.isPublic && !!binderQ.data.shareToken;
+                const url = live ? binderShareUrl(binderQ.data!.shareToken!) : null;
+                const pendingChange = !!draft.isPublic !== !!binderQ.data?.isPublic;
+                return (
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3 text-sm" data-testid="share-panel">
+                    <span className="min-w-48 flex-1" data-testid="text-share-state">
+                      {pendingChange
+                        ? (draft.isPublic ? "Not shared yet. Save the layout to publish this binder." : "Still public until you save. Save the layout to make it private.")
+                        : "Anyone with the link can view this binder, pockets only. Collection details and values stay private."}
+                    </span>
+                    {url && (
+                      <>
+                        <Button size="sm" variant="outline" className="gap-1.5" data-testid="button-copy-share"
+                          onClick={() => navigator.clipboard.writeText(url).then(() => toast.success("Link copied."), () => toast.error("Could not copy the link."))}><Copy className="h-4 w-4" /> Copy link</Button>
+                        <Button size="sm" variant="outline" className="gap-1.5" data-testid="button-open-share" onClick={() => window.open(url, "_blank", "noopener")}><ExternalLink className="h-4 w-4" /> Open</Button>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
 
               {conflict && (
                 <div className="flex flex-wrap items-center gap-3 rounded-xl border border-destructive/50 bg-destructive/10 p-3 text-sm" data-testid="banner-conflict" role="alert">
@@ -366,13 +425,13 @@ export default function BindersPage() {
                   <div className="group relative min-h-[360px] overflow-hidden rounded-xl border " data-drag={!!dragging} style={{ height: "min(62dvh, 620px)", background: `radial-gradient(ellipse at 50% 40%, ${draft.coverColor}33, #14161c 85%)` }} data-testid="binder-stage">
                     {draft.pages.length > 0 && (
                       <ViewerBoundary key={String(flat)} fallback={
-                        <FlatSpread binder={draft} cards={cards ?? []} spreadIndex={spread} selectedCardId={selectedCardId} selectedSlot={sel?.type === "slot" ? sel : null} onSlotClick={handleSlot} />
+                        <FlatSpread binder={draft} cards={displayCards} spreadIndex={spread} selectedCardId={selectedCardId} selectedSlot={sel?.type === "slot" ? sel : null} onSlotClick={handleSlot} />
                       }>
                         {flat ? (
-                          <div className="h-full overflow-y-auto"><FlatSpread binder={draft} cards={cards ?? []} spreadIndex={spread} selectedCardId={selectedCardId} selectedSlot={sel?.type === "slot" ? sel : null} onSlotClick={handleSlot} /></div>
+                          <div className="h-full overflow-y-auto"><FlatSpread binder={draft} cards={displayCards} spreadIndex={spread} selectedCardId={selectedCardId} selectedSlot={sel?.type === "slot" ? sel : null} onSlotClick={handleSlot} /></div>
                         ) : (
                           <Suspense fallback={<Skeleton className="h-full w-full" />}>
-                            <ThreeViewer binder={draft} cards={cards ?? []} spreadIndex={spread} selectedCardId={selectedCardId} onSlotClick={handleSlot} onTurn={turn} />
+                            <ThreeViewer binder={draft} cards={displayCards} spreadIndex={spread} selectedCardId={selectedCardId} onSlotClick={handleSlot} onTurn={turn} onTurningChange={onTurningChange} />
                           </Suspense>
                         )}
                       </ViewerBoundary>
@@ -383,27 +442,27 @@ export default function BindersPage() {
 
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="icon" disabled={spread <= 0} onClick={() => turn(-1)} aria-label="Previous spread" data-testid="button-binder-prev"><ChevronLeft className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" disabled={turning || spread <= 0} onClick={() => turn(-1)} aria-label="Previous spread" data-testid="button-binder-prev"><ChevronLeft className="h-4 w-4" /></Button>
                       <span className="min-w-28 text-center text-sm font-medium" data-testid="text-spread">
                         Pages {spread + 1}{draft.pages[spread + 1] ? `-${spread + 2}` : ""} of {pageCount}
                       </span>
-                      <Button variant="outline" size="icon" disabled={spread >= maxSpread(pageCount)} onClick={() => turn(1)} aria-label="Next spread" data-testid="button-binder-next"><ChevronRight className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" disabled={turning || spread >= maxSpread(pageCount)} onClick={() => turn(1)} aria-label="Next spread" data-testid="button-binder-next"><ChevronRight className="h-4 w-4" /></Button>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => setFlat((f) => !f)} data-testid="button-toggle-view">{flat ? "Use 3D view" : "Use flat view"}</Button>
+                    <Button variant="ghost" size="sm" disabled={turning} onClick={() => setFlat((f) => !f)} data-testid="button-toggle-view">{flat ? "Use 3D view" : "Use flat view"}</Button>
                   </div>
 
                   <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm" data-testid="selection-bar">
                     {sel ? (
                       <>
                         <span className="flex-1">
-                          {sel.type === "library" ? `Placing ${cardMap.get(sel.cardId)?.name ?? "card"}: click a pocket (turn pages first if needed).` : `Moving ${cardMap.get(selectedCardId ?? -1)?.name ?? "card"}: click a destination pocket to move or swap.`}
+                          {sel.type === "library" ? `Placing ${cardMap.get(sel.cardId)?.name ?? "card"}: click a pocket (turn pages first if needed).` : `Moving ${(selectedCardId !== null && selectedCardId < 0 ? "wishlist " : "") + (displayMap.get(selectedCardId ?? 0)?.name ?? "card")}: click a destination pocket to move or swap.`}
                         </span>
                         {sel.type === "slot" && (
-                          <Button size="sm" variant="outline" onClick={() => { edit((d) => ({ ...d, pages: clearSlot(d.pages, sel) })); setSel(null); toast.info("Card returned to the tray."); }} data-testid="button-clear-placement">Clear placement</Button>
+                          <Button size="sm" variant="outline" onClick={() => { edit((d) => ({ ...d, pages: clearSlot(d.pages, sel) })); setSel(null); toast.info(selectedCardId !== null && selectedCardId < 0 ? "Wishlist placeholder removed." : "Card returned to the tray."); }} data-testid="button-clear-placement">{selectedCardId !== null && selectedCardId < 0 ? "Remove wishlist placeholder" : "Clear placement"}</Button>
                         )}
                         <Button size="sm" variant="ghost" onClick={() => setSel(null)} data-testid="button-clear-selection"><X className="h-4 w-4" /></Button>
                       </>
-                    ) : <span className="text-muted-foreground">Drag a card into a pocket, or click a card then a pocket. {placedCount} placed.</span>}
+                    ) : <span className="text-muted-foreground">Drag a card into a pocket, or click a card then a pocket. Click an empty pocket to reserve it for a wishlist card. {placedCount} placed.</span>}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2" data-testid="page-strip">
@@ -426,19 +485,37 @@ export default function BindersPage() {
             </div>
 
             <DragOverlay dropAnimation={null}>
-              {dragging?.cardId !== undefined && cardMap.get(dragging.cardId)?.imageUrl ? (
-                <img src={cardMap.get(dragging.cardId)!.imageUrl!} alt="" className="h-36 w-auto rounded-md shadow-2xl" />
+              {dragging?.cardId !== undefined && displayMap.get(dragging.cardId)?.imageUrl ? (
+                <img src={displayMap.get(dragging.cardId)!.imageUrl!} alt="" className="h-36 w-auto rounded-md shadow-2xl" />
               ) : null}
             </DragOverlay>
           </DndContext>
         )}
       </div>
 
+      {draft && (
+        <ShareBinderDialog open={shareOpen} onOpenChange={setShareOpen} binderName={draft.name}
+          liveUrl={binderQ.data?.isPublic && binderQ.data.shareToken && binderQ.data.id === draft.id ? binderShareUrl(binderQ.data.shareToken) : null}
+          needsSave={dirty || !draft.isPublic || !binderQ.data?.isPublic} dirty={dirty} saving={update.isPending} error={shareError}
+          onPublish={() => { setShareError(null); save({ publish: true, onDone: (ok, m) => { if (!ok) setShareError(m ?? "Could not save."); } }); }} />
+      )}
+
       <CreateBinderDialog open={createOpen} onOpenChange={setCreateOpen} pending={create.isPending} onCreate={onCreate} />
 
       {draft && activePage && pageSettingsOpen && (
         <PageSettingsDialog key={activePage.id} open onOpenChange={setPageSettingsOpen} page={activePage} index={activeIndex}
           onApply={(dims) => { edit((d) => ({ ...d, pages: resizePage(d.pages, activePage.id, dims) })); setSel(null); setPageSettingsOpen(false); }} />
+      )}
+
+      {draft && (
+        <WishlistSlotDialog open={!!wishTarget} onOpenChange={(o) => !o && setWishTarget(null)} wishlist={wishlist}
+          usedIds={new Set([...usage.keys()].filter((k) => k < 0).map((k) => -k))}
+          onPick={(item) => {
+            const t = wishTarget;
+            const cur = draftRef.current;
+            if (!t || !cur) return;
+            apply(placeWishlist(cur.pages, t, item.id), `${item.name} reserved as a wishlist card. Save to keep it.`);
+          }} />
       )}
 
       <ConfirmDialog testId="create-discard" open={pendingCreate} onOpenChange={setPendingCreate}

@@ -1,4 +1,4 @@
-import { index, pgTable, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { index, pgTable, serial, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -14,6 +14,8 @@ export const bindersTable = pgTable(
     style: text("style").$type<BinderStyle>().notNull(),
     coverColor: text("cover_color").notNull(),
     revision: integer("revision").default(1).notNull(),
+    isPublic: boolean("is_public").default(false).notNull(),
+    shareToken: text("share_token").unique(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

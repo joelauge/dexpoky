@@ -1,20 +1,22 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import type { Binder, BinderPage, Card } from "@workspace/api-client-react";
+import type { Binder, BinderPage } from "@workspace/api-client-react";
+import type { DisplayCard } from "@/lib/binders/model";
 import { cn } from "@/lib/utils";
 import { stablePageCompositionKey } from "./binder-page-window";
 import { useBinderPageComposition } from "./use-binder-page-composition";
 
-function PocketSurface({ card, selected }: { card?: Card; selected: boolean }) {
+function PocketSurface({ card, selected }: { card?: DisplayCard; selected: boolean }) {
   return (
-    <div className={cn("relative h-full w-full overflow-hidden rounded-md border-2 border-dashed border-white/30 bg-black/10 transition", selected && "ring-2 ring-primary", card && "border-solid border-white/10")}>
+    <div className={cn("relative h-full w-full overflow-hidden rounded-md border-2 border-dashed border-white/30 bg-black/10 transition", selected && "ring-2 ring-primary", card && "border-solid border-white/10", card && card.id < 0 && "border-dashed border-amber-300")}>
+      {card && card.id < 0 && <span data-testid="badge-wishlist" className="absolute left-1 top-1 z-[1] rounded-sm bg-amber-300 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-950">Wishlist</span>}
       {card && (card.imageUrl
-        ? <img src={card.imageUrl} alt={card.name} loading="eager" decoding="async" draggable={false} className="h-full w-full object-cover" />
+        ? <img src={card.imageUrl} alt={card.name} loading="eager" decoding="async" draggable={false} className={cn("h-full w-full object-cover", card.id < 0 && "opacity-60")} />
         : <span className="flex h-full items-center justify-center p-1 text-center text-[10px] text-white">{card.name}</span>)}
     </div>
   );
 }
 
-function PocketInteraction({ page, slot, card, selected, onClick }: { page: BinderPage; slot: number; card?: Card; selected: boolean; onClick: () => void }) {
+function PocketInteraction({ page, slot, card, selected, onClick }: { page: BinderPage; slot: number; card?: DisplayCard; selected: boolean; onClick: () => void }) {
   const drop = useDroppable({ id: `pocket-${page.id}-${slot}`, data: { type: "slot", pageId: page.id, slot } });
   const drag = useDraggable({
     id: `slot-card-${page.id}-${slot}`,
@@ -29,7 +31,7 @@ function PocketInteraction({ page, slot, card, selected, onClick }: { page: Bind
       role="button"
       tabIndex={0}
       aria-disabled={false}
-      aria-label={`${card?.name ?? "Empty pocket"}, pocket ${slot + 1}`}
+      aria-label={`${card ? (card.id < 0 ? `Wishlist: ${card.name}` : card.name) : "Empty pocket, choose a wishlist card"}, pocket ${slot + 1}`}
       data-testid={`slot-${page.id}-${slot}`}
       onClick={onClick}
       onKeyDown={(event) => {
@@ -50,7 +52,7 @@ function PocketInteraction({ page, slot, card, selected, onClick }: { page: Bind
   );
 }
 
-function Pocket({ page, slot, card, selected, onClick, active }: { page: BinderPage; slot: number; card?: Card; selected: boolean; onClick: () => void; active: boolean }) {
+function Pocket({ page, slot, card, selected, onClick, active }: { page: BinderPage; slot: number; card?: DisplayCard; selected: boolean; onClick: () => void; active: boolean }) {
   return (
     <div className="relative aspect-[5/7] h-full w-full min-h-0 touch-none">
       <PocketSurface card={card} selected={active && selected} />
@@ -62,7 +64,7 @@ function Pocket({ page, slot, card, selected, onClick, active }: { page: BinderP
 export function FlatSpread({
   binder, cards, spreadIndex, selectedCardId, selectedSlot, onSlotClick,
 }: {
-  binder: Binder; cards: Card[]; spreadIndex: number; selectedCardId: number | null;
+  binder: Binder; cards: DisplayCard[]; spreadIndex: number; selectedCardId: number | null;
   selectedSlot?: { pageId: string; slot: number } | null;
   onSlotClick: (pageId: string, slot: number) => void;
 }) {

@@ -48,6 +48,44 @@ tags:
     description: Privacy-safe trust signals and private transaction report triage
 
 paths:
+  /public/binders/{token}:
+    get:
+      operationId: getPublicBinder
+      tags: [collections]
+      summary: View a public binder without signing in
+      parameters:
+        - { in: path, name: token, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Public binder with safe display-only cards
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicBinder" }
+        "404": { description: Binder is private or not found }
+  /public/binders/{token}/slots/{pageId}/{slot}/thread:
+    post:
+      operationId: contactBinderWishlist
+      tags: [messages]
+      summary: Start a buy, trade, or wishlist sell offer for a currently displayed public binder pocket
+      parameters:
+        - { in: path, name: token, required: true, schema: { type: string } }
+        - { in: path, name: pageId, required: true, schema: { type: string } }
+        - { in: path, name: slot, required: true, schema: { type: integer, minimum: 0 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BinderContactInput" }
+      responses:
+        "200":
+          description: Existing or new Inbox conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BinderContactResult" }
+        "400": { description: Invalid message }
+        "401": { description: Sign in required }
+        "403": { description: Cannot contact yourself }
+        "404": { description: Public wishlist pocket no longer available }
   /binders:
     get:
       operationId: listBinders
@@ -1971,7 +2009,9 @@ components:
       required: [slot, cardId]
       properties:
         slot: { type: integer, minimum: 0, maximum: 24 }
-        cardId: { type: integer, minimum: 1 }
+        cardId:
+          type: integer
+          description: Positive owned-card ID, or negative wishlist-item ID. Zero is invalid.
     BinderPage:
       type: object
       additionalProperties: false
@@ -2004,6 +2044,7 @@ components:
       additionalProperties: false
       required: [name, style, coverColor, revision, pages]
       properties:
+        isPublic: { type: boolean }
         name: { type: string, minLength: 1, maxLength: 80 }
         style: { $ref: "#/components/schemas/BinderStyle" }
         coverColor: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
@@ -2017,6 +2058,8 @@ components:
       type: object
       required: [id, name, style, coverColor, revision, pages, createdAt, updatedAt]
       properties:
+        isPublic: { type: boolean }
+        shareToken: { type: ["string", "null"] }
         id: { type: integer }
         name: { type: string }
         style: { $ref: "#/components/schemas/BinderStyle" }
@@ -2031,6 +2074,7 @@ components:
       type: object
       required: [id, name, style, coverColor, revision, pageCount, cardCount, createdAt, updatedAt]
       properties:
+        isPublic: { type: boolean }
         id: { type: integer }
         name: { type: string }
         style: { $ref: "#/components/schemas/BinderStyle" }
@@ -2040,6 +2084,56 @@ components:
         cardCount: { type: integer }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    BinderDisplayCard:
+      type: object
+      required: [id, name, imageUrl]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        imageUrl: { type: ["string", "null"] }
+        catalogCardId: { type: ["string", "null"] }
+        setId: { type: ["string", "null"] }
+        setName: { type: ["string", "null"] }
+        cardNumber: { type: ["string", "null"] }
+        condition: { type: ["string", "null"] }
+        media:
+          type: array
+          items: { $ref: "#/components/schemas/CardMedia" }
+    PublicBinder:
+      type: object
+      required: [binder, cards, isOwner, ownerName]
+      properties:
+        binder: { $ref: "#/components/schemas/Binder" }
+        cards:
+          type: array
+          items: { $ref: "#/components/schemas/BinderDisplayCard" }
+        isOwner: { type: boolean }
+        ownerName: { type: string }
+    BinderContactInput:
+      type: object
+      required: [intent, message]
+      properties:
+        intent: { type: string, enum: [give, sell, trade, buy] }
+        message: { type: string, minLength: 1, maxLength: 2000 }
+        targetCardId:
+          type: integer
+          description: Signed binder card identity the visitor inspected; reject if this pocket has changed.
+        amount: { type: number, minimum: 0, maximum: 9999999.99 }
+        offeredCardId: { type: integer, minimum: 1 }
+        offeredCardIds:
+          type: array
+          maxItems: 10
+          items: { type: integer, minimum: 1 }
+        sellerImages:
+          type: array
+          maxItems: 10
+          items: { type: string, maxLength: 2000 }
+        sellerVideo: { type: string, maxLength: 2000 }
+    BinderContactResult:
+      type: object
+      required: [threadId]
+      properties:
+        threadId: { type: integer }
     PriceLookupFinish:
       type: string
       enum: [normal, holofoil, reverse_holofoil]

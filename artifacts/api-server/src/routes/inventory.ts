@@ -32,7 +32,7 @@ router.get("/inventory/portfolio-breakdowns", requireAuth, async (req, res) => {
       setCode: wishlistItemsTable.setCode, lastSeenPrice: wishlistItemsTable.lastSeenPrice,
     }).from(wishlistItemsTable).where(eq(wishlistItemsTable.ownerClerkId, userId)),
     db.selectDistinct({
-      cardId: binderSlotsTable.cardId, binderId: bindersTable.id, binderName: bindersTable.name,
+      cardId: cardsTable.id, binderId: bindersTable.id, binderName: bindersTable.name,
     }).from(binderSlotsTable)
       .innerJoin(binderPagesTable, eq(binderPagesTable.id, binderSlotsTable.pageId))
       .innerJoin(bindersTable, eq(bindersTable.id, binderPagesTable.binderId))

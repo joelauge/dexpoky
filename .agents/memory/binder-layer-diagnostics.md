@@ -26,3 +26,9 @@ Include empty gradient sleeves and stationary/revealed pages in binder rendering
 **Why:** The user reported the defect persisted in empty sleeves after image-only diagnostics passed. An opaque sleeve base reduced banding but did not remove intersections between overlapping tangent paper patches. The user confirmed “That's SO much better” after the paper joins were also corrected.
 
 **How to apply:** Use the real sleeve UI in diagnostics. Preserve its gradient, and prefer backing facets with shared edges over overlapping tangent patches; opacity alone is not proof that the underlying geometry is sound.
+
+The normal Binders page, shared binder page, and fullscreen shared binder must meet the same visual-quality standard.
+
+**Why:** The user reported that the large shared viewer was less smooth than the small normal viewer and had many fullscreen artifacts. They asked for it to be “persistently awesome across sharepage and fullscreen sharepage viewing.”
+
+**How to apply:** Compare these surfaces during actual forward and reverse turns, including empty sleeves and landing frames. Do not accept a small-view-only result as proof of shared/fullscreen quality.

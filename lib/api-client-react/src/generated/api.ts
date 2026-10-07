@@ -24,6 +24,8 @@ import type {
   AssistantMessageBody,
   AssistantResponse,
   Binder,
+  BinderContactInput,
+  BinderContactResult,
   BinderInput,
   BinderSummary,
   BinderUpdate,
@@ -85,6 +87,7 @@ import type {
   PortfolioBreakdowns,
   PostRecommendationsKeyFeedbackBody,
   PriceLookup,
+  PublicBinder,
   RepriceOwnedCardsResponse,
   RulebookResponse,
   RulebookSearchResult,
@@ -121,6 +124,214 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary View a public binder without signing in
+ */
+export const getGetPublicBinderUrl = (token: string) => {
+  return `/api/public/binders/${token}`;
+};
+
+export const getPublicBinder = async (
+  token: string,
+  options?: RequestInit,
+): Promise<PublicBinder> => {
+  return customFetch<PublicBinder>(getGetPublicBinderUrl(token), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPublicBinderQueryKey = (token: string) => {
+  return [`/api/public/binders/${token}`] as const;
+};
+
+export const getGetPublicBinderQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPublicBinder>>,
+  TError = ErrorType<void>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicBinder>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPublicBinderQueryKey(token);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicBinder>>> = ({
+    signal,
+  }) => getPublicBinder(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPublicBinder>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPublicBinderQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPublicBinder>>
+>;
+export type GetPublicBinderQueryError = ErrorType<void>;
+
+/**
+ * @summary View a public binder without signing in
+ */
+
+export function useGetPublicBinder<
+  TData = Awaited<ReturnType<typeof getPublicBinder>>,
+  TError = ErrorType<void>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicBinder>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPublicBinderQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Start a buy, trade, or wishlist sell offer for a currently displayed public binder pocket
+ */
+export const getContactBinderWishlistUrl = (
+  token: string,
+  pageId: string,
+  slot: number,
+) => {
+  return `/api/public/binders/${token}/slots/${pageId}/${slot}/thread`;
+};
+
+export const contactBinderWishlist = async (
+  token: string,
+  pageId: string,
+  slot: number,
+  binderContactInput: BinderContactInput,
+  options?: RequestInit,
+): Promise<BinderContactResult> => {
+  return customFetch<BinderContactResult>(
+    getContactBinderWishlistUrl(token, pageId, slot),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(binderContactInput),
+    },
+  );
+};
+
+export const getContactBinderWishlistMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof contactBinderWishlist>>,
+    TError,
+    {
+      token: string;
+      pageId: string;
+      slot: number;
+      data: BodyType<BinderContactInput>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof contactBinderWishlist>>,
+  TError,
+  {
+    token: string;
+    pageId: string;
+    slot: number;
+    data: BodyType<BinderContactInput>;
+  },
+  TContext
+> => {
+  const mutationKey = ["contactBinderWishlist"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof contactBinderWishlist>>,
+    {
+      token: string;
+      pageId: string;
+      slot: number;
+      data: BodyType<BinderContactInput>;
+    }
+  > = (props) => {
+    const { token, pageId, slot, data } = props ?? {};
+
+    return contactBinderWishlist(token, pageId, slot, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ContactBinderWishlistMutationResult = NonNullable<
+  Awaited<ReturnType<typeof contactBinderWishlist>>
+>;
+export type ContactBinderWishlistMutationBody = BodyType<BinderContactInput>;
+export type ContactBinderWishlistMutationError = ErrorType<void>;
+
+/**
+ * @summary Start a buy, trade, or wishlist sell offer for a currently displayed public binder pocket
+ */
+export const useContactBinderWishlist = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof contactBinderWishlist>>,
+    TError,
+    {
+      token: string;
+      pageId: string;
+      slot: number;
+      data: BodyType<BinderContactInput>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof contactBinderWishlist>>,
+  TError,
+  {
+    token: string;
+    pageId: string;
+    slot: number;
+    data: BodyType<BinderContactInput>;
+  },
+  TContext
+> => {
+  return useMutation(getContactBinderWishlistMutationOptions(options));
+};
 
 /**
  * @summary List the authenticated owner's saved 3D binders

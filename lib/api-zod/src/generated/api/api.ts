@@ -8,9 +8,191 @@
 import * as zod from "zod";
 
 /**
+ * @summary View a public binder without signing in
+ */
+export const GetPublicBinderParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const getPublicBinderResponseBinderPagesItemIdMax = 64;
+
+export const getPublicBinderResponseBinderPagesItemIdRegExp = new RegExp(
+  "^[a-zA-Z0-9_-]+$",
+);
+export const getPublicBinderResponseBinderPagesItemRowsMax = 5;
+
+export const getPublicBinderResponseBinderPagesItemColumnsMax = 5;
+
+export const getPublicBinderResponseBinderPagesItemWidthMmMin = 150;
+export const getPublicBinderResponseBinderPagesItemWidthMmMax = 400;
+
+export const getPublicBinderResponseBinderPagesItemHeightMmMin = 180;
+export const getPublicBinderResponseBinderPagesItemHeightMmMax = 500;
+
+export const getPublicBinderResponseBinderPagesItemSlotsItemSlotMin = 0;
+export const getPublicBinderResponseBinderPagesItemSlotsItemSlotMax = 24;
+
+export const getPublicBinderResponseBinderPagesItemSlotsMax = 25;
+
+export const getPublicBinderResponseCardsItemMediaItemWidthMax = 16384;
+
+export const getPublicBinderResponseCardsItemMediaItemHeightMax = 16384;
+
+export const getPublicBinderResponseCardsItemMediaItemDurationSecondsMin = 0;
+export const getPublicBinderResponseCardsItemMediaItemDurationSecondsMax = 60;
+
+export const GetPublicBinderResponse = zod.object({
+  binder: zod.object({
+    isPublic: zod.boolean().optional(),
+    shareToken: zod.string().nullish(),
+    id: zod.number(),
+    name: zod.string(),
+    style: zod.enum(["ring", "zip", "folio"]),
+    coverColor: zod.string(),
+    revision: zod.number(),
+    pages: zod.array(
+      zod.object({
+        id: zod
+          .string()
+          .min(1)
+          .max(getPublicBinderResponseBinderPagesItemIdMax)
+          .regex(getPublicBinderResponseBinderPagesItemIdRegExp),
+        rows: zod
+          .number()
+          .min(1)
+          .max(getPublicBinderResponseBinderPagesItemRowsMax),
+        columns: zod
+          .number()
+          .min(1)
+          .max(getPublicBinderResponseBinderPagesItemColumnsMax),
+        widthMm: zod
+          .number()
+          .min(getPublicBinderResponseBinderPagesItemWidthMmMin)
+          .max(getPublicBinderResponseBinderPagesItemWidthMmMax),
+        heightMm: zod
+          .number()
+          .min(getPublicBinderResponseBinderPagesItemHeightMmMin)
+          .max(getPublicBinderResponseBinderPagesItemHeightMmMax),
+        slots: zod
+          .array(
+            zod.object({
+              slot: zod
+                .number()
+                .min(getPublicBinderResponseBinderPagesItemSlotsItemSlotMin)
+                .max(getPublicBinderResponseBinderPagesItemSlotsItemSlotMax),
+              cardId: zod
+                .number()
+                .describe(
+                  "Positive owned-card ID, or negative wishlist-item ID. Zero is invalid.",
+                ),
+            }),
+          )
+          .max(getPublicBinderResponseBinderPagesItemSlotsMax),
+      }),
+    ),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+  cards: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      imageUrl: zod.string().nullable(),
+      catalogCardId: zod.string().nullish(),
+      setId: zod.string().nullish(),
+      setName: zod.string().nullish(),
+      cardNumber: zod.string().nullish(),
+      condition: zod.string().nullish(),
+      media: zod
+        .array(
+          zod.object({
+            id: zod.string(),
+            url: zod.string().describe("App Storage serving path"),
+            kind: zod.enum(["image", "video"]),
+            width: zod
+              .number()
+              .min(1)
+              .max(getPublicBinderResponseCardsItemMediaItemWidthMax),
+            height: zod
+              .number()
+              .min(1)
+              .max(getPublicBinderResponseCardsItemMediaItemHeightMax),
+            durationSeconds: zod
+              .number()
+              .min(getPublicBinderResponseCardsItemMediaItemDurationSecondsMin)
+              .max(getPublicBinderResponseCardsItemMediaItemDurationSecondsMax)
+              .nullish(),
+          }),
+        )
+        .optional(),
+    }),
+  ),
+  isOwner: zod.boolean(),
+  ownerName: zod.string(),
+});
+
+/**
+ * @summary Start a buy, trade, or wishlist sell offer for a currently displayed public binder pocket
+ */
+export const contactBinderWishlistPathSlotMin = 0;
+
+export const ContactBinderWishlistParams = zod.object({
+  token: zod.coerce.string(),
+  pageId: zod.coerce.string(),
+  slot: zod.coerce.number().min(contactBinderWishlistPathSlotMin),
+});
+
+export const contactBinderWishlistBodyMessageMax = 2000;
+
+export const contactBinderWishlistBodyAmountMin = 0;
+export const contactBinderWishlistBodyAmountMax = 9999999.99;
+
+export const contactBinderWishlistBodyOfferedCardIdsMax = 10;
+
+export const contactBinderWishlistBodySellerImagesItemMax = 2000;
+
+export const contactBinderWishlistBodySellerImagesMax = 10;
+
+export const contactBinderWishlistBodySellerVideoMax = 2000;
+
+export const ContactBinderWishlistBody = zod.object({
+  intent: zod.enum(["give", "sell", "trade", "buy"]),
+  message: zod.string().min(1).max(contactBinderWishlistBodyMessageMax),
+  targetCardId: zod
+    .number()
+    .optional()
+    .describe(
+      "Signed binder card identity the visitor inspected; reject if this pocket has changed.",
+    ),
+  amount: zod
+    .number()
+    .min(contactBinderWishlistBodyAmountMin)
+    .max(contactBinderWishlistBodyAmountMax)
+    .optional(),
+  offeredCardId: zod.number().min(1).optional(),
+  offeredCardIds: zod
+    .array(zod.number().min(1))
+    .max(contactBinderWishlistBodyOfferedCardIdsMax)
+    .optional(),
+  sellerImages: zod
+    .array(zod.string().max(contactBinderWishlistBodySellerImagesItemMax))
+    .max(contactBinderWishlistBodySellerImagesMax)
+    .optional(),
+  sellerVideo: zod
+    .string()
+    .max(contactBinderWishlistBodySellerVideoMax)
+    .optional(),
+});
+
+export const ContactBinderWishlistResponse = zod.object({
+  threadId: zod.number(),
+});
+
+/**
  * @summary List the authenticated owner's saved 3D binders
  */
 export const ListBindersResponseItem = zod.object({
+  isPublic: zod.boolean().optional(),
   id: zod.number(),
   name: zod.string(),
   style: zod.enum(["ring", "zip", "folio"]),
@@ -87,6 +269,8 @@ export const getBinderResponsePagesItemSlotsItemSlotMax = 24;
 export const getBinderResponsePagesItemSlotsMax = 25;
 
 export const GetBinderResponse = zod.object({
+  isPublic: zod.boolean().optional(),
+  shareToken: zod.string().nullish(),
   id: zod.number(),
   name: zod.string(),
   style: zod.enum(["ring", "zip", "folio"]),
@@ -116,7 +300,11 @@ export const GetBinderResponse = zod.object({
               .number()
               .min(getBinderResponsePagesItemSlotsItemSlotMin)
               .max(getBinderResponsePagesItemSlotsItemSlotMax),
-            cardId: zod.number().min(1),
+            cardId: zod
+              .number()
+              .describe(
+                "Positive owned-card ID, or negative wishlist-item ID. Zero is invalid.",
+              ),
           }),
         )
         .max(getBinderResponsePagesItemSlotsMax),
@@ -159,6 +347,7 @@ export const updateBinderBodyPagesItemSlotsMax = 25;
 export const updateBinderBodyPagesMax = 60;
 
 export const UpdateBinderBody = zod.object({
+  isPublic: zod.boolean().optional(),
   name: zod.string().min(1).max(updateBinderBodyNameMax),
   style: zod.enum(["ring", "zip", "folio"]),
   coverColor: zod.string().regex(updateBinderBodyCoverColorRegExp),
@@ -188,7 +377,11 @@ export const UpdateBinderBody = zod.object({
                 .number()
                 .min(updateBinderBodyPagesItemSlotsItemSlotMin)
                 .max(updateBinderBodyPagesItemSlotsItemSlotMax),
-              cardId: zod.number().min(1),
+              cardId: zod
+                .number()
+                .describe(
+                  "Positive owned-card ID, or negative wishlist-item ID. Zero is invalid.",
+                ),
             }),
           )
           .max(updateBinderBodyPagesItemSlotsMax),
@@ -219,6 +412,8 @@ export const updateBinderResponsePagesItemSlotsItemSlotMax = 24;
 export const updateBinderResponsePagesItemSlotsMax = 25;
 
 export const UpdateBinderResponse = zod.object({
+  isPublic: zod.boolean().optional(),
+  shareToken: zod.string().nullish(),
   id: zod.number(),
   name: zod.string(),
   style: zod.enum(["ring", "zip", "folio"]),
@@ -248,7 +443,11 @@ export const UpdateBinderResponse = zod.object({
               .number()
               .min(updateBinderResponsePagesItemSlotsItemSlotMin)
               .max(updateBinderResponsePagesItemSlotsItemSlotMax),
-            cardId: zod.number().min(1),
+            cardId: zod
+              .number()
+              .describe(
+                "Positive owned-card ID, or negative wishlist-item ID. Zero is invalid.",
+              ),
           }),
         )
         .max(updateBinderResponsePagesItemSlotsMax),

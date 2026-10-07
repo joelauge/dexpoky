@@ -174,13 +174,22 @@ async function buildTradeCoachEvidence(
         .from(listingsTable)
         .innerJoin(cardsTable, eq(cardsTable.id, listingsTable.cardId))
         .where(eq(listingsTable.id, thread.listingId))
-    : [];
+    : thread.binderSellerCardId
+      ? await db.select({
+          name: cardsTable.name, catalogCardId: cardsTable.catalogCardId, condition: cardsTable.condition,
+          // A public binder is not consent to disclose its owner's recorded valuation.
+          estimatedValue: sql<string | null>`NULL`,
+        }).from(cardsTable).where(and(eq(cardsTable.id, thread.binderSellerCardId), eq(cardsTable.ownerClerkId, thread.sellerClerkId)))
+      : [];
   const [wanted] = thread.wantedListingId
     ? await db
         .select({ catalogCardId: wantedListingsTable.catalogCardId })
         .from(wantedListingsTable)
         .where(eq(wantedListingsTable.id, thread.wantedListingId))
-    : [];
+    : thread.binderWishlistItemId
+      ? await db.select({ catalogCardId: wishlistItemsTable.catalogCardId }).from(wishlistItemsTable)
+          .where(and(eq(wishlistItemsTable.id, thread.binderWishlistItemId), eq(wishlistItemsTable.ownerClerkId, thread.buyerClerkId)))
+      : [];
 
   const proposalCatalogIds = proposalRows
     .map((card) => card.catalogCardId)

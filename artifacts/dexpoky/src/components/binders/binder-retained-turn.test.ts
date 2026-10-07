@@ -4,8 +4,48 @@ import * as THREE from "three";
 import type { BinderPage } from "@workspace/api-client-react";
 import { addPage, makeRetainedPageTurn } from "./binder-scene-geometry";
 import { pageTurnPlan } from "./binder-page-window";
-import { pagePocketClearance, pageSurfaceOffset, pageSurfaceShift } from "./binder-scene-motion";
+import { pagePocketClearance, pageSurfaceOffset, pageSurfaceShift, pageTurnCurl } from "./binder-scene-motion";
 import { updateBinderCssFacing } from "./binder-scene-facing";
+
+test("CPU geometry: adjacent pocket planes remain separated through forward and reverse curl across layouts", () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => new Host() } as unknown as Document;
+  const scene = new THREE.Scene();
+  try {
+    for (const widthMm of [150, 250, 400]) for (const columns of [2, 3, 4, 6]) {
+    const page = addPage(scene, {
+      id: "neighbor-clearance", rows: 3, columns, widthMm, heightMm: 310, slots: [],
+    }, 2, 1.31);
+    try {
+    const pockets = page.group.children.filter((child) =>
+      (child as THREE.Object3D & { element?: Host }).element?.className === "binder-three-pocket-root",
+    );
+    const width = (widthMm / 100 * 0.91 * (1 - 0.022 * (columns - 1))) / columns;
+    const height = (3.1 * 0.85 * (1 - 0.022 * 2)) / 3;
+    for (const fromRight of [false, true]) for (let step = 0; step <= 100; step++) {
+      page.updateCurl((fromRight ? -1 : 1) * pageTurnCurl(step / 100, page.turnAmplitude), fromRight);
+      for (let row = 0; row < 3; row++) for (let column = 0; column < columns - 1; column++) {
+        const a = pockets[row * columns + column], b = pockets[row * columns + column + 1];
+        const tangent = new THREE.Vector3(1, 0, 0).applyEuler(a.rotation);
+        const normal = new THREE.Vector3(0, 0, 1).applyEuler(b.rotation);
+        const point = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, b.position).intersectLine(
+          new THREE.Line3(a.position.clone(), a.position.clone().addScaledVector(tangent, width / 2)),
+          new THREE.Vector3(),
+        );
+        if (!point) continue;
+        const local = point.sub(b.position).applyQuaternion(b.quaternion.clone().invert());
+        assert.ok(Math.abs(local.x) > width / 2 || Math.abs(local.y) > height / 2,
+          `neighbor pockets cross: ${widthMm}mm/${columns} columns, reverse=${fromRight}, progress=${step / 100}, row=${row}, column=${column}`);
+      }
+    }
+    } finally {
+      page.dispose();
+    }
+    }
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
 
 test("forward and backward turns use the same sheet faces, with the correct underlying pages", () => {
   assert.deepEqual(pageTurnPlan(8, 0, 2), { front: 1, back: 2, backwards: false, stationary: 0, revealed: 3 });

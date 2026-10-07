@@ -6,6 +6,7 @@ import {
   binderSlotsTable,
   bindersTable,
   cardsTable,
+  wishlistItemsTable,
   db,
 } from "@workspace/db";
 import {
@@ -22,7 +23,10 @@ import {
   validateUpdateBinder,
 } from "./binders-validation.js";
 
+import { readBinderPages } from "./binder-read.js";
+import publicBindersRouter from "./public-binders.js";
 const router = Router();
+router.use(publicBindersRouter);
 
 function parseBinderId(params: unknown): number | null {
   const parsed = GetBinderParams.safeParse(params);
@@ -37,6 +41,7 @@ router.get("/binders", requireAuth, async (req, res): Promise<void> => {
     style: bindersTable.style,
     coverColor: bindersTable.coverColor,
     revision: bindersTable.revision,
+    isPublic: bindersTable.isPublic,
     pageCount: sql<number>`count(distinct ${binderPagesTable.id})::int`,
     cardCount: sql<number>`count(${cardsTable.id})::int`,
     createdAt: bindersTable.createdAt,
@@ -92,6 +97,8 @@ router.post("/binders", requireAuth, async (req, res): Promise<void> => {
     style: created.style,
     coverColor: created.coverColor,
     revision: created.revision,
+    isPublic: created.isPublic,
+    shareToken: created.shareToken,
     pages: pageIds.map((id) => ({
       id,
       rows: parsed.data.rows,
@@ -112,44 +119,16 @@ router.get("/binders/:id", requireAuth, async (req, res): Promise<void> => {
   const [binder] = await db.select().from(bindersTable)
     .where(and(eq(bindersTable.id, id), eq(bindersTable.ownerClerkId, userId)));
   if (!binder) { res.status(404).json({ error: "Binder not found" }); return; }
-  const pages = await db.select({
-    id: binderPagesTable.id,
-    rows: binderPagesTable.rows,
-    columns: binderPagesTable.columns,
-    widthMm: binderPagesTable.widthMm,
-    heightMm: binderPagesTable.heightMm,
-  }).from(binderPagesTable)
-    .where(eq(binderPagesTable.binderId, binder.id))
-    .orderBy(binderPagesTable.position);
-  const slots = pages.length
-    ? await db.select({
-      pageId: binderSlotsTable.pageId,
-      slot: binderSlotsTable.slot,
-      cardId: binderSlotsTable.cardId,
-    }).from(binderSlotsTable)
-      .innerJoin(binderPagesTable, eq(binderPagesTable.id, binderSlotsTable.pageId))
-      .innerJoin(cardsTable, and(
-        eq(cardsTable.id, binderSlotsTable.cardId),
-        eq(cardsTable.ownerClerkId, userId),
-      ))
-      .where(eq(binderPagesTable.binderId, binder.id))
-    : [];
-  const slotsByPage = new Map<string, Array<{ slot: number; cardId: number }>>();
-  for (const entry of slots) {
-    const pageSlots = slotsByPage.get(entry.pageId) ?? [];
-    pageSlots.push({ slot: entry.slot, cardId: entry.cardId });
-    slotsByPage.set(entry.pageId, pageSlots);
-  }
+  const pages = await readBinderPages(binder.id, userId);
   res.json({
     id: binder.id,
     name: binder.name,
     style: binder.style,
     coverColor: binder.coverColor,
     revision: binder.revision,
-    pages: pages.map((page) => ({
-      ...page,
-      slots: slotsByPage.get(page.id) ?? [],
-    })),
+    isPublic: binder.isPublic,
+    shareToken: binder.shareToken,
+    pages,
     createdAt: binder.createdAt,
     updatedAt: binder.updatedAt,
   });
@@ -183,13 +162,21 @@ router.put("/binders/:id", requireAuth, async (req, res): Promise<void> => {
       return { kind: "invalid" as const, error: "Page ID already belongs to another binder" };
     }
 
-    const cardIds = [...new Set(parsed.data.pages.flatMap((page) => page.slots.map((slot) => slot.cardId)))];
+    const allIds = [...new Set(parsed.data.pages.flatMap((page) => page.slots.map((slot) => slot.cardId)))];
+    const cardIds = allIds.filter(id => id > 0);
+    const wishlistIds = allIds.filter(id => id < 0).map(id => -id);
     if (cardIds.length) {
       const ownedCards = await tx.select({ id: cardsTable.id }).from(cardsTable)
         .where(and(eq(cardsTable.ownerClerkId, userId), inArray(cardsTable.id, cardIds)))
         .for("share");
       const ownershipError = validateOwnedCardIds(cardIds, ownedCards.map((card) => card.id));
       if (ownershipError) return { kind: "invalid" as const, error: ownershipError };
+    }
+    if (wishlistIds.length) {
+      const ownedWishlist = await tx.select({ id: wishlistItemsTable.id }).from(wishlistItemsTable)
+        .where(and(eq(wishlistItemsTable.ownerClerkId, userId), inArray(wishlistItemsTable.id, wishlistIds)))
+        .for("share");
+      if (ownedWishlist.length !== wishlistIds.length) return { kind: "invalid" as const, error: "One or more wishlist cards are not on your wishlist" };
     }
 
     await tx.delete(binderPagesTable).where(eq(binderPagesTable.binderId, binder.id));
@@ -205,7 +192,8 @@ router.put("/binders/:id", requireAuth, async (req, res): Promise<void> => {
     const slotRows = parsed.data.pages.flatMap((page) => page.slots.map((slot) => ({
       pageId: page.id,
       slot: slot.slot,
-      cardId: slot.cardId,
+      cardId: slot.cardId > 0 ? slot.cardId : null,
+      wishlistItemId: slot.cardId < 0 ? -slot.cardId : null,
     })));
     if (slotRows.length) await tx.insert(binderSlotsTable).values(slotRows);
     const now = new Date();
@@ -213,6 +201,8 @@ router.put("/binders/:id", requireAuth, async (req, res): Promise<void> => {
       name: parsed.data.name,
       style: parsed.data.style,
       coverColor: parsed.data.coverColor,
+      isPublic: parsed.data.isPublic ?? binder.isPublic,
+      shareToken: (parsed.data.isPublic ?? binder.isPublic) ? binder.shareToken ?? randomUUID() : binder.shareToken,
       revision: binder.revision + 1,
       updatedAt: now,
     }).where(and(
@@ -230,6 +220,8 @@ router.put("/binders/:id", requireAuth, async (req, res): Promise<void> => {
     style: result.binder.style,
     coverColor: result.binder.coverColor,
     revision: result.binder.revision,
+    isPublic: result.binder.isPublic,
+    shareToken: result.binder.shareToken,
     pages: parsed.data.pages,
     createdAt: result.binder.createdAt,
     updatedAt: result.binder.updatedAt,

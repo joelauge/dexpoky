@@ -24,6 +24,7 @@ export type CreateBinderInput = {
 };
 
 export type UpdateBinderInput = {
+  isPublic?: boolean;
   name: string;
   style: "ring" | "zip" | "folio";
   coverColor: string;
@@ -77,7 +78,7 @@ export function validateUpdateBinder(input: unknown): ValidationResult<UpdateBin
     if (dimensionError) return { success: false, error: dimensionError };
     const slotIndices = new Set<number>();
     for (const { slot, cardId } of page.slots) {
-      if (!Number.isInteger(slot) || !Number.isInteger(cardId)) {
+      if (!Number.isInteger(slot) || !Number.isInteger(cardId) || cardId === 0 || slot < 0) {
         return { success: false, error: "Pocket indices and card IDs must be integers" };
       }
       if (slot >= page.rows * page.columns) {
@@ -85,7 +86,7 @@ export function validateUpdateBinder(input: unknown): ValidationResult<UpdateBin
       }
       if (slotIndices.has(slot)) return { success: false, error: "Pocket indices must be unique per page" };
       if (placedCardIds.has(cardId)) {
-        return { success: false, error: "Each owned card can only be placed once in a binder" };
+        return { success: false, error: cardId > 0 ? "Each owned card can only be placed once in a binder" : "Each wishlist card can only be placed once in a binder" };
       }
       placedCardIds.add(cardId);
       slotIndices.add(slot);

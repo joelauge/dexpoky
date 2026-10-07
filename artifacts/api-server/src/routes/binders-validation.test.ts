@@ -57,4 +57,9 @@ describe("binder request validation", () => {
     expect(validateOwnedCardIds([3, 4], [3, 4])).toBeNull();
     expect(validateOwnedCardIds([3, 5], [3, 4])).toContain("not in your collection");
   });
+  it("allows wishlist pockets but rejects duplicate wishlist placements and zero IDs", () => {
+    expect(validateUpdateBinder(update([page({ slots: [{ slot: 0, cardId: -7 }] })])).success).toBe(true);
+    expect(validateUpdateBinder(update([page({ slots: [{ slot: 0, cardId: -7 }, { slot: 1, cardId: -7 }] })])).success).toBe(false);
+    expect(validateUpdateBinder(update([page({ slots: [{ slot: 0, cardId: 0 }] })])).success).toBe(false);
+  });
 });

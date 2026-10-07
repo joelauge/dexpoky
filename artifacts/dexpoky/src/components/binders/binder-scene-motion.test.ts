@@ -50,6 +50,23 @@ test("turning curl peaks mid-turn and settles at both endpoints", () => {
   assert.ok(Math.abs(pageTurnCurl(2)) < 1e-10);
 });
 
+test("runtime pocket pitch constrains curl while preserving visible bend and tangent separation", () => {
+  for (const width of [1.5, 2.5, 4]) for (const columns of [2, 3, 4, 6]) {
+    const gap = width * 0.91 * 0.022;
+    const pocketWidth = (width * 0.91 - gap * (columns - 1)) / columns;
+    const pitch = pocketWidth + gap;
+    const amplitude = pageTurnAmplitude(width, 3.1, pocketWidth, pitch);
+    assert.ok(amplitude > width * 0.1 && amplitude <= pageTurnAmplitude(width, 3.1, pocketWidth));
+    for (let step = 1; step < 100; step++) {
+      const curl = pageTurnCurl(step / 100, amplitude);
+      const radius = width * width / (2 * curl);
+      const lift = pagePocketClearance(width, pocketWidth, curl, 0.094);
+      const intersection = (radius - 0.099 - lift) * Math.tan(pitch / (2 * radius));
+      assert.ok(intersection >= pocketWidth / 2 + gap * 0.12 - 1e-9);
+    }
+  }
+});
+
 test("curl leaves the hinge anchored and bends the outer edge", () => {
   assert.equal(pageSurfaceOffset(-1.25, 0, 2.5, 3.1, 0.12, true), 0);
   const edge = pageSurfaceOffset(1.25, 0, 2.5, 3.1, 0.12, true);
