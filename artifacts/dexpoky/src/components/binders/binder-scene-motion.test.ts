@@ -1,12 +1,45 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clampViewAngle, pageSurfaceOffset, pageSurfaceRotation, pageSurfaceShift, pageTurnAmplitude, pageTurnCurl } from "./binder-scene-motion";
+import { clampViewAngle, pagePocketClearance, pageSurfaceOffset, pageSurfaceRotation, pageSurfaceShift, pageTurnAmplitude, pageTurnCurl } from "./binder-scene-motion";
 
 test("resting sheets bow gently while their horizontal edges stay anchored", () => {
   assert.equal(pageSurfaceOffset(-1.25, 0, 2.5, 3.1), 0);
   assert.equal(pageSurfaceOffset(1.25, 0, 2.5, 3.1), 0);
   assert.ok(pageSurfaceOffset(0, 0, 2.5, 3.1) > 0);
   assert.ok(pageSurfaceOffset(0, 0, 2.5, 3.1) < 0.03);
+});
+
+test("rigid card corners clear the offset paper arc at every supported pocket width", () => {
+  for (const width of [1.5, 2.5, 4]) {
+    for (const columns of [1, 2, 3, 4, 6]) {
+      const gridWidth = width * 0.91;
+      const pocketWidth = (gridWidth - gridWidth * 0.022 * (columns - 1)) / columns;
+      assert.equal(pagePocketClearance(width, pocketWidth, 0, 0.094), 0);
+      for (const progress of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+        const curl = pageTurnCurl(progress, pageTurnAmplitude(width, 3.1));
+        const radius = width * width / (2 * curl);
+        const clearance = pagePocketClearance(width, pocketWidth, curl, 0.094);
+        assert.ok(Number.isFinite(clearance) && clearance >= 0);
+        assert.equal(clearance, pagePocketClearance(width, pocketWidth, -curl, 0.094));
+        const cornerDistance = Math.hypot(radius - 0.099 - clearance, pocketWidth / 2);
+        assert.ok(cornerDistance < radius - 0.094, "the paper cannot intersect either rigid card edge");
+      }
+    }
+  }
+});
+
+test("wide pockets limit their bend rather than floating far above the paper", () => {
+  for (const width of [1.5, 2.5, 4]) {
+    for (const columns of [1, 2, 3, 4, 6]) {
+      const gridWidth = width * 0.91;
+      const pocketWidth = (gridWidth - gridWidth * 0.022 * (columns - 1)) / columns;
+      const curl = pageTurnAmplitude(width, 3.1, pocketWidth);
+      const lift = pagePocketClearance(width, pocketWidth, curl, 0.094);
+      assert.ok(lift <= width * 0.04 + 1e-10, "the rigid pocket's additional lift is bounded");
+      assert.ok(curl > 0, "wide pockets still visibly flex");
+      if (columns >= 3) assert.equal(curl, width * 0.9, "ordinary grids keep their full bend");
+    }
+  }
 });
 
 test("turning curl peaks mid-turn and settles at both endpoints", () => {

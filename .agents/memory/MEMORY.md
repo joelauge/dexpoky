@@ -8,6 +8,7 @@
 - [Bulk-entry quantity placement](bulk-entry-quantity-placement.md) — adjust pending copy counts with +/− directly on selected cards in the Sets grid, not only in a dialog.
 - [Card lookup snapshots](value-snapshot-intent.md) — save today’s chosen value only, not a recurring rule; mirrors and unverified sold results are not independent compatible prices.
 - [Binder performance intent](binder-performance-intent.md) — keep binders highly performant and reuse the images already loaded for card sets.
+- [Binder layer diagnostics](binder-layer-diagnostics.md) — CSS3D card-paper intersections are distinct from GPU z-fighting; inspect card edges during actual turns.
 - [Component review expectations](component-review-expectations.md) — the user requests a harsh visual critic for changed DexPoky components; report rendered-verification limits.
 - [Persisted identity keys](persisted-identity-keys.md) — use PostgreSQL-safe identity tuple encoding and verify it with real storage, not only mocked inserts.
 - [Catalog artwork provenance](catalog-artwork-provenance.md) — same-name collector matches can cross sets; unavailable artwork is safer than inventing a printing.

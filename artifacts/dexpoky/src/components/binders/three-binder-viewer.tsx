@@ -6,6 +6,7 @@ import { CSS3DRenderer } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import type { Binder, BinderPage, Card } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 import { addContactShadow, addPage, addSceneHardware, makeBox, makeRetainedPageTurn, type PortalPage } from "./binder-scene-geometry";
+import { updateBinderCssFacing } from "./binder-scene-facing";
 import { clampViewAngle } from "./binder-scene-motion";
 import { pageGeometrySignature, stablePageCompositionKey, pageTurnPlan } from "./binder-page-window";
 import { useBinderPageComposition } from "./use-binder-page-composition";
@@ -437,6 +438,7 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
       }
       if (dirty) {
         webgl.render(scene, camera);
+        updateBinderCssFacing(scene, camera);
         css.render(scene, camera);
         dirty = false;
       }

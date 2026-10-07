@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import type { Binder, BinderPage } from "@workspace/api-client-react";
-import { pageSurfaceOffset, pageSurfaceRotation, pageSurfaceShift, pageTurnAmplitude, pageTurnCurl } from "./binder-scene-motion";
+import { pagePocketClearance, pageSurfaceOffset, pageSurfaceRotation, pageSurfaceShift, pageTurnAmplitude, pageTurnCurl } from "./binder-scene-motion";
 
 export type PortalSlot = { slot: number; host: HTMLDivElement };
 export type PortalPage = { page: BinderPage; pageNumber: number; host: HTMLDivElement; pockets: PortalSlot[]; key: string; leaf?: boolean; active?: boolean };
@@ -132,6 +132,20 @@ function makePocketHost(placement: ReturnType<typeof pagePlacements>[number]) {
   return host;
 }
 
+/** Keep CSS faces apart along the bent surface normal, not the world Z axis. */
+function placeSurfaceObject(object: CSS3DObject, x: number, y: number, width: number, height: number,
+  centerX: number, depth: number, curl = 0, hinge = false, fromRight = false) {
+  const surfaceX = fromRight ? -x : x;
+  const rotation = pageSurfaceRotation(surfaceX, y, width, height, curl, hinge);
+  object.rotation.set(rotation.x, fromRight ? -rotation.y : rotation.y, 0);
+  const normal = new THREE.Vector3(0, 0, 1).applyEuler(object.rotation);
+  object.position.set(
+    centerX + x + (fromRight ? -1 : 1) * pageSurfaceShift(surfaceX, width, curl, hinge) + normal.x * depth,
+    y + normal.y * depth,
+    pageSurfaceOffset(surfaceX, y, width, height, curl, hinge) + normal.z * depth,
+  );
+}
+
 function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: number, baseZ: number, hinge = false) {
   const width = page.widthMm / 100;
   const height = page.heightMm / 100;
@@ -165,14 +179,9 @@ function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: 
   const update = (curl = 0, fromHinge = hinge, fromRight = false) => {
     for (const tile of tiles) {
       const surfaceX = fromRight ? -tile.x : tile.x;
-      const shift = pageSurfaceShift(surfaceX, width, curl, fromHinge);
       const normal = pageSurfaceRotation(surfaceX, tile.y, width, height, curl, fromHinge);
-      tile.object.position.set(
-        centerX + tile.x + (fromRight ? -shift : shift),
-        tile.y,
-        baseZ + pageSurfaceOffset(surfaceX, tile.y, width, height, curl, fromHinge) + 0.004,
-      );
-      tile.object.rotation.set(normal.x, fromRight ? -normal.y : normal.y, 0);
+      placeSurfaceObject(tile.object, tile.x, tile.y, width, height, centerX, baseZ + 0.004,
+        curl, fromHinge, fromRight);
       // CSS artwork sits above WebGL, so the visible backing needs its own
       // directional shading to make the moving curvature readable.
       const shade = Math.round(18 * Math.min(1, Math.abs(normal.y) / 1.8));
@@ -201,6 +210,7 @@ function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: 
 export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: number, x: number) {
   const scene = new THREE.Group();
   let turning = false;
+  let turnBackside = false;
   parentScene.add(scene);
   const width = page.widthMm / 100;
   const height = page.heightMm / 100;
@@ -242,26 +252,20 @@ export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: 
   const updateCurl = (curl = 0, fromRight = false) => {
     setBowedSheet(sheetGeometry, width, height, curl, true, fromRight);
     backing.update(curl, true, fromRight);
-    const headerShift = pageSurfaceShift(0, width, curl, true);
-    const headerNormal = pageSurfaceRotation(0, 0, width, height, curl, true);
-    header.position.x = pageX + (fromRight ? -headerShift : headerShift);
-    header.position.z = 0.09 + pageSurfaceOffset(0, 0, width, height, curl, true) + 0.009;
-    header.rotation.set(headerNormal.x, fromRight ? -headerNormal.y : headerNormal.y, 0);
+    placeSurfaceObject(header, 0, 0, width, height, pageX, 0.099, curl, true, fromRight);
     for (let index = 0; index < placements.length; index++) {
       const placement = placements[index];
-      const surfaceX = fromRight ? -placement.x : placement.x;
-      const normal = pageSurfaceRotation(surfaceX, placement.y, width, height, curl, true);
       const object = pocketObjects[index];
-      const shift = pageSurfaceShift(surfaceX, width, curl, true);
-      object.position.x = pageX + placement.x + (fromRight ? -shift : shift);
-      object.position.z = 0.09 + pageSurfaceOffset(surfaceX, placement.y, width, height, curl, true) + 0.009;
-      object.rotation.set(normal.x, fromRight ? -normal.y : normal.y, 0);
+      const clearance = pagePocketClearance(width, placement.cellWidth, curl, 0.094);
+      placeSurfaceObject(object, placement.x, placement.y, width, height, pageX,
+        0.099 + clearance, curl, true, fromRight);
     }
   };
+  updateCurl();
   return {
     group: scene,
     updateCurl,
-    turnAmplitude: pageTurnAmplitude(width, height),
+    turnAmplitude: pageTurnAmplitude(width, height, placements[0].cellWidth),
     getHingeX(backside = false) {
       return (backside ? -pageX : pageX) - width / 2;
     },
@@ -270,10 +274,14 @@ export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: 
       // remain attached to the same elements throughout the entire turn.
       pivot.add(scene);
       turning = true;
+      turnBackside = backside;
       scene.rotation.y = backside ? Math.PI : 0;
       scene.visible = true;
       board.visible = false;
-      sheet.visible = header.visible = true;
+      // One double-sided GPU sheet represents the leaf. Drawing its curved
+      // reverse mesh as well makes two displaced surfaces intersect mid-turn.
+      sheet.visible = !backside;
+      header.visible = true;
       pocketObjects.forEach((object) => { object.visible = true; });
       backing.setVisible(true);
       updateCurl(0, backside);
@@ -281,26 +289,25 @@ export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: 
     endTurn() {
       parentScene.add(scene);
       turning = false;
+      turnBackside = false;
       scene.rotation.set(0, 0, 0);
       scene.position.set(0, 0, 0);
       scene.scale.set(1, 1, 1);
       updateCurl();
       board.visible = true;
+      sheet.visible = true;
     },
     portal: { page, pageNumber, host: cssRoot, pockets, key: `page-${page.id}` } satisfies PortalPage,
     setPosition(nextX: number) {
       pageX = nextX;
       board.position.x = nextX;
       sheet.position.x = nextX;
-      header.position.x = nextX;
-      for (let index = 0; index < pocketObjects.length; index++) {
-        pocketObjects[index].position.x = nextX + placements[index].x;
-      }
       backing.setCenterX(nextX);
+      updateCurl();
     },
     setVisible(visible: boolean) {
       board.visible = visible && !turning;
-      sheet.visible = visible;
+      sheet.visible = visible && !(turning && turnBackside);
       header.visible = visible;
       pocketObjects.forEach((object) => { object.visible = visible; });
       backing.setVisible(visible);
@@ -403,6 +410,11 @@ export function makeRetainedPageTurn(
   const backHeight = back.portal.page.heightMm;
   const frontHinge = front.getHingeX();
   const backHinge = back.getHingeX(true);
+  // Paired faces must use the same arc, even if one has wider rigid pockets.
+  const bendRatio = Math.min(
+    front.turnAmplitude / (frontWidth / 100),
+    back.turnAmplitude / (backWidth / 100),
+  );
   let disposed = false;
   return {
     pivot,
@@ -421,8 +433,8 @@ export function makeRetainedPageTurn(
       back.group.scale.set(backScale, height / backHeight, backScale);
       front.group.position.x = hinge - frontScale * frontHinge;
       back.group.position.x = hinge - backScale * backHinge;
-      front.updateCurl(pageTurnCurl(progress, front.turnAmplitude));
-      back.updateCurl(-pageTurnCurl(progress, back.turnAmplitude), true);
+      front.updateCurl(pageTurnCurl(progress, bendRatio * frontWidth / 100));
+      back.updateCurl(-pageTurnCurl(progress, bendRatio * backWidth / 100), true);
       // Both endpoints use the exact resting transforms, not a second flat
       // representation that jumps into place when the temporary leaf disappears.
       pivot.position.z = Math.sin(Math.PI * progress) * 0.1;

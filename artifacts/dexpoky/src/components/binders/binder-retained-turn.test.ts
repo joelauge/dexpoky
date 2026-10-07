@@ -4,6 +4,8 @@ import * as THREE from "three";
 import type { BinderPage } from "@workspace/api-client-react";
 import { addPage, makeRetainedPageTurn } from "./binder-scene-geometry";
 import { pageTurnPlan } from "./binder-page-window";
+import { pagePocketClearance, pageSurfaceOffset, pageSurfaceShift } from "./binder-scene-motion";
+import { updateBinderCssFacing } from "./binder-scene-facing";
 
 test("forward and backward turns use the same sheet faces, with the correct underlying pages", () => {
   assert.deepEqual(pageTurnPlan(8, 0, 2), { front: 1, back: 2, backwards: false, stationary: 0, revealed: 3 });
@@ -115,6 +117,13 @@ test("cached artwork hosts survive both turn directions and land at the exact re
     };
     for (const backwards of [false, true, false, true]) {
       const turn = makeRetainedPageTurn(scene, front, back, backwards);
+      const sheet = (face: ReturnType<typeof addPage>) => face.group.children.find((child) =>
+        child instanceof THREE.Mesh && child.geometry instanceof THREE.PlaneGeometry,
+      )!;
+      assert.equal(sheet(front).visible, true);
+      assert.equal(sheet(back).visible, false, "only one GPU sheet renders the double-sided turning leaf");
+      back.setVisible(true);
+      assert.equal(sheet(back).visible, false, "visibility refresh cannot reintroduce an intersecting reverse mesh");
       for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
         turn.pivot.rotation.y = backwards ? -Math.PI * (1 - progress) : -Math.PI * progress;
         turn.updateCurl(progress);
@@ -134,11 +143,96 @@ test("cached artwork hosts survive both turn directions and land at the exact re
       assertResting(1);
       assert.equal(front.group.parent, scene);
       assert.equal(back.group.parent, scene);
+      assert.equal(sheet(front).visible, true);
+      assert.equal(sheet(back).visible, true);
     }
     front.dispose();
     back.dispose();
     assert.equal(scene.children.length, 0);
   } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test("pocket separation follows the local surface normal, including folds past vertical", () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => new Host() } as unknown as Document;
+  const scene = new THREE.Scene();
+  const page = addPage(scene, {
+    id: "clearance", rows: 3, columns: 3, widthMm: 250, heightMm: 310, slots: [],
+  }, 2, 1.61);
+  try {
+    const pockets = page.group.children.filter((child) =>
+      (child as THREE.Object3D & { element?: Host }).element?.className === "binder-three-pocket-root",
+    );
+    const width = 2.5, height = 3.1;
+    const gridWidth = width * 0.91;
+    const gap = gridWidth * 0.022;
+    const cellWidth = (gridWidth - gap * 2) / 3;
+    const gridHeight = height * 0.85;
+    const gapY = gridHeight * 0.022;
+    const cellHeight = (gridHeight - gapY * 2) / 3;
+    for (const fromRight of [false, true]) {
+      const curl = fromRight ? -page.turnAmplitude : page.turnAmplitude;
+      page.updateCurl(curl, fromRight);
+      pockets.forEach((object, slot) => {
+        const x = -width / 2 + width * 0.045 + slot % 3 * (cellWidth + gap) + cellWidth / 2;
+        const y = height / 2 - height * 0.105 - Math.floor(slot / 3) * (cellHeight + gapY) - cellHeight / 2;
+        const surfaceX = fromRight ? -x : x;
+        const surface = new THREE.Vector3(
+          1.61 + x + (fromRight ? -1 : 1) * pageSurfaceShift(surfaceX, width, curl, true),
+          y, pageSurfaceOffset(surfaceX, y, width, height, curl, true),
+        );
+        const normal = new THREE.Vector3(0, 0, 1).applyEuler(object.rotation);
+        const separation = object.position.clone().sub(surface);
+        const expected = 0.099 + pagePocketClearance(width, cellWidth, curl, 0.094);
+        assert.ok(Math.abs(separation.dot(normal) - expected) < 1e-10);
+        assert.ok(separation.clone().cross(normal).length() < 1e-10, "clearance must not collapse at edge-on angles");
+      });
+    }
+  } finally {
+    page.dispose();
+    globalThis.document = originalDocument;
+  }
+});
+
+test("back-facing CSS paper cannot bleed through visible reverse artwork", () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => new Host() } as unknown as Document;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+  camera.position.set(0, 0.792, 7.2);
+  camera.lookAt(0, 0, 0);
+  const page = (id: string): BinderPage => ({
+    id, rows: 3, columns: 3, widthMm: 240, heightMm: 330, slots: [],
+  });
+  const front = addPage(scene, page("facing-front"), 2, 1.32);
+  const back = addPage(scene, page("facing-back"), 3, -1.32);
+  try {
+    const turn = makeRetainedPageTurn(scene, front, back);
+    try {
+      const progress = 0.84375;
+      turn.pivot.rotation.y = -Math.PI * progress;
+      turn.updateCurl(progress);
+      updateBinderCssFacing(scene, camera);
+      front.portal.pockets.forEach(({ host }) => assert.equal(host.style.visibility, "hidden"));
+      back.portal.pockets.forEach(({ host }) => assert.equal(host.style.visibility, ""));
+      const frontPaper = front.group.children.filter((child) =>
+        (child as THREE.Object3D & { element?: Host }).element?.className === "binder-three-page-backing",
+      );
+      frontPaper.forEach((child) => assert.equal(
+        (child as THREE.Object3D & { element: Host }).element.style.visibility, "hidden",
+      ));
+    } finally {
+      turn.dispose();
+    }
+    updateBinderCssFacing(scene, camera);
+    [front, back].forEach((face) => face.portal.pockets.forEach(({ host }) =>
+      assert.equal(host.style.visibility, "", "settled artwork is visible again without replacing its host"),
+    ));
+  } finally {
+    front.dispose();
+    back.dispose();
     globalThis.document = originalDocument;
   }
 });
@@ -151,7 +245,7 @@ test("unequal-sized sheet faces share the same world-space bend in both directio
     id: "small", rows: 3, columns: 3, widthMm: 250, heightMm: 310, slots: [],
   }, 2, 1.61);
   const back = addPage(scene, {
-    id: "large", rows: 4, columns: 3, widthMm: 310, heightMm: 410, slots: [],
+    id: "large", rows: 4, columns: 1, widthMm: 310, heightMm: 410, slots: [],
   }, 3, -1.92);
   const sheets = [front, back].map((face) => face.group.children.find((child) =>
     child instanceof THREE.Mesh && child.geometry instanceof THREE.PlaneGeometry,

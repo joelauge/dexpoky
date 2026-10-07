@@ -43,8 +43,15 @@ export function clampViewAngle(value: number, limit: number) {
   return Math.max(-limit, Math.min(limit, value));
 }
 /** Peak turn bend, scaled to the sheet so small and large pages both visibly flex. */
-export function pageTurnAmplitude(width: number, _height: number) {
-  return width * 0.9;
+export function pageTurnAmplitude(width: number, _height: number, pocketWidth?: number) {
+  if (pocketWidth === undefined) return width * 0.9;
+  // A wide rigid pocket cannot follow a tight arc without hovering far above
+  // the paper. Keep the normal lift under 4% of page width; usual grids still
+  // get the full bend, while wide pockets use a physically shallower arc.
+  const maxLift = width * 0.04;
+  const halfPocket = pocketWidth / 2;
+  const minRadius = (halfPocket * halfPocket + maxLift * maxLift) / (2 * maxLift) + 0.094;
+  return width * Math.min(1.8, width / minRadius) / 2;
 }
 
 /** Exact horizontal pull-in of the arc, based only on resting coordinates. */
@@ -56,4 +63,14 @@ export function pageSurfaceShift(x: number, width: number, curl = 0, hinge = tru
   return Math.abs(angle) < 1e-5
     ? -width * angle * angle * s ** 3 / 6
     : width * (Math.sin(angle * s) / angle - s);
+}
+
+/** Clearance for a rigid pocket above a curved sheet, measured along its normal. */
+export function pagePocketClearance(width: number, pocketWidth: number, curl: number, surfaceDepth = 0) {
+  const angle = Math.abs(2 * curl / width);
+  if (angle < 1e-5) return 0;
+  const radius = Math.max(1e-6, width / angle - surfaceDepth);
+  const halfPocket = Math.min(pocketWidth / 2, radius);
+  // Sagitta at the pocket's tangent-plane edge; rationalized for small bends.
+  return halfPocket * halfPocket / (radius + Math.sqrt(radius * radius - halfPocket * halfPocket));
 }
