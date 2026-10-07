@@ -4,22 +4,32 @@ export function pageSurfaceOffset(x: number, y: number, width: number, height: n
   const restBow = 0.022 * Math.max(0, 1 - nx * nx) * (0.84 + 0.16 * Math.max(0, 1 - ny * ny));
   const fromHinge = hinge ? (x + width / 2) / width : Math.abs(nx);
   const s = Math.max(0, Math.min(1, fromHinge));
-  return restBow + curl * (0.65 * s * s + 0.35 * s * s * s) * (0.82 + 0.18 * Math.max(0, 1 - ny * ny));
+  // Integrate a rotating tangent along the sheet instead of lifting an almost
+  // planar edge. This is a length-preserving circular arc, anchored at the spine.
+  const angle = 2 * curl / width;
+  const bend = Math.abs(angle) < 1e-5
+    ? width * angle * s * s / 2
+    : width * (1 - Math.cos(angle * s)) / angle;
+  return restBow + bend;
 }
 
 export function pageSurfaceRotation(x: number, y: number, width: number, height: number, curl = 0, hinge = false) {
   const epsilon = 0.012;
-  const dx = (pageSurfaceOffset(x + epsilon, y, width, height, curl, hinge) - pageSurfaceOffset(x - epsilon, y, width, height, curl, hinge)) / (2 * epsilon);
+  const left = Math.max(-width / 2, x - epsilon);
+  const right = Math.min(width / 2, x + epsilon);
+  const span = right - left;
+  const dx = (pageSurfaceOffset(right, y, width, height, curl, hinge) - pageSurfaceOffset(left, y, width, height, curl, hinge)) / span;
   const dy = (pageSurfaceOffset(x, y + epsilon, width, height, curl, hinge) - pageSurfaceOffset(x, y - epsilon, width, height, curl, hinge)) / (2 * epsilon);
   const horizontalTangent = 1 + (
-    pageSurfaceShift(x + epsilon, width, curl, hinge) -
-    pageSurfaceShift(x - epsilon, width, curl, hinge)
-  ) / (2 * epsilon);
+    pageSurfaceShift(right, width, curl, hinge) -
+    pageSurfaceShift(left, width, curl, hinge)
+  ) / span;
   // Normal of the actual pulled-in sheet, not just the undeformed x/z graph.
-  const normalY = -horizontalTangent * dy;
   return {
-    x: Math.atan2(-normalY, horizontalTangent),
-    y: Math.atan2(-dx, Math.hypot(normalY, horizontalTangent)),
+    x: Math.atan(dy),
+    // Preserve the sign of the horizontal tangent: the outer edge really folds
+    // past 90°, rather than having its normal flattened back onto the front.
+    y: Math.atan2(-dx, horizontalTangent * Math.hypot(1, dy)),
   };
 }
 
@@ -33,15 +43,17 @@ export function clampViewAngle(value: number, limit: number) {
   return Math.max(-limit, Math.min(limit, value));
 }
 /** Peak turn bend, scaled to the sheet so small and large pages both visibly flex. */
-export function pageTurnAmplitude(width: number, height: number) {
-  return Math.max(0.1, Math.min(0.62, 0.15 * width + 0.02 * height));
+export function pageTurnAmplitude(width: number, _height: number) {
+  return width * 0.9;
 }
 
-/** Small-slope arc-length correction toward the hinge, based only on resting coordinates. */
+/** Exact horizontal pull-in of the arc, based only on resting coordinates. */
 export function pageSurfaceShift(x: number, width: number, curl = 0, hinge = true) {
   if (!curl) return 0;
   const s = Math.max(0, Math.min(1, hinge ? (x + width / 2) / width : Math.abs(x / (width / 2))));
   if (s === 0) return 0;
-  const integral = (1.69 * s ** 3) / 3 + (2.73 * s ** 4) / 4 + (1.1025 * s ** 5) / 5;
-  return -0.5 * curl * curl * integral / width;
+  const angle = 2 * curl / width;
+  return Math.abs(angle) < 1e-5
+    ? -width * angle * angle * s ** 3 / 6
+    : width * (Math.sin(angle * s) / angle - s);
 }

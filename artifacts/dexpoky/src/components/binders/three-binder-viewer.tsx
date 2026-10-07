@@ -234,8 +234,10 @@ function PagePortal({
     <>
       {createPortal(
         <div className="pointer-events-none box-border h-full w-full p-[3.4%]" aria-hidden={!active || inactive} aria-label={`Binder page ${target.pageNumber}`}>
-          <div className="relative h-full w-full rounded-[1.2%] border border-[#7d7464]/35 shadow-[inset_0_0_0_1px_#ffffff35,inset_0_0_18px_#675a4418]">
-            <div className="absolute inset-x-[1.2%] top-[1.2%] flex h-[6.2%] items-center justify-between border-b border-[#716858]/40 px-[2%] text-[14px] font-semibold uppercase tracking-[.16em] text-slate-700/75">
+          {/* A full-page CSS border/shadow would remain a rigid rectangle above
+              the curved sheet. Keep this portal transparent and text-only. */}
+          <div className="relative h-full w-full">
+            <div className="absolute inset-x-[1.2%] top-[1.2%] flex h-[6.2%] items-center justify-between px-[2%] text-[14px] font-semibold uppercase tracking-[.16em] text-slate-700/75">
               <span>{target.leaf ? "Turning page" : `Page ${target.pageNumber}`}</span>
               <span className="text-slate-600/55">{page.rows} × {page.columns}</span>
             </div>
@@ -406,8 +408,8 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
     const render = (time: number) => {
       if (disposed) return;
       if (animating && flip) {
-        const progress = Math.min(1, (time - flipStart) / 520);
-        const eased = 1 - Math.pow(1 - progress, 3);
+        const progress = Math.min(1, (time - flipStart) / 760);
+        const eased = progress * progress * (3 - 2 * progress);
         flip.pivot.rotation.y = flipFrom + (flipTo - flipFrom) * eased;
         flip.updateCurl(eased);
         dirty = true;
@@ -516,8 +518,8 @@ export function ThreeBinderViewer(props: ThreeBinderViewerProps) {
           .map((index) => stablePageCompositionKey(pages[index])),
       );
       for (const [key, entry] of pageNodes) entry.node.setVisible(turnVisibleKeys.has(key));
-      flip = makeRetainedPageTurn(scene, front, back);
       const backwards = plan.backwards;
+      flip = makeRetainedPageTurn(scene, front, back, backwards);
       flipFrom = backwards ? -Math.PI : 0;
       flipTo = backwards ? 0 : -Math.PI;
       flip.pivot.rotation.y = flipFrom;

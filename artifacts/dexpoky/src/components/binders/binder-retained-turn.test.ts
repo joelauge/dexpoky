@@ -114,7 +114,7 @@ test("cached artwork hosts survive both turn directions and land at the exact re
       });
     };
     for (const backwards of [false, true, false, true]) {
-      const turn = makeRetainedPageTurn(scene, front, back);
+      const turn = makeRetainedPageTurn(scene, front, back, backwards);
       for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
         turn.pivot.rotation.y = backwards ? -Math.PI * (1 - progress) : -Math.PI * progress;
         turn.updateCurl(progress);

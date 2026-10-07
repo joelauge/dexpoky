@@ -135,7 +135,7 @@ function makePocketHost(placement: ReturnType<typeof pagePlacements>[number]) {
 function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: number, baseZ: number, hinge = false) {
   const width = page.widthMm / 100;
   const height = page.heightMm / 100;
-  const columns = 5;
+  const columns = 12;
   const rows = 7;
   const tileWidth = width / columns;
   const tileHeight = height / rows;
@@ -173,6 +173,10 @@ function addCurvedCssBacking(parent: THREE.Object3D, page: BinderPage, centerX: 
         baseZ + pageSurfaceOffset(surfaceX, tile.y, width, height, curl, fromHinge) + 0.004,
       );
       tile.object.rotation.set(normal.x, fromRight ? -normal.y : normal.y, 0);
+      // CSS artwork sits above WebGL, so the visible backing needs its own
+      // directional shading to make the moving curvature readable.
+      const shade = Math.round(18 * Math.min(1, Math.abs(normal.y) / 1.8));
+      tile.host.style.backgroundColor = `rgb(${236 - shade}, ${230 - shade}, ${217 - shade})`;
     }
   };
   update();
@@ -258,6 +262,9 @@ export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: 
     group: scene,
     updateCurl,
     turnAmplitude: pageTurnAmplitude(width, height),
+    getHingeX(backside = false) {
+      return (backside ? -pageX : pageX) - width / 2;
+    },
     beginTurn(pivot: THREE.Group, backside: boolean) {
       // Reparent the group, never the CSS3D hosts: their React portals and images
       // remain attached to the same elements throughout the entire turn.
@@ -275,6 +282,8 @@ export function addPage(parentScene: THREE.Scene, page: BinderPage, pageNumber: 
       parentScene.add(scene);
       turning = false;
       scene.rotation.set(0, 0, 0);
+      scene.position.set(0, 0, 0);
+      scene.scale.set(1, 1, 1);
       updateCurl();
       board.visible = true;
     },
@@ -382,18 +391,38 @@ export function makeRetainedPageTurn(
   scene: THREE.Scene,
   front: ReturnType<typeof addPage>,
   back: ReturnType<typeof addPage>,
+  backwards = false,
 ) {
   const pivot = new THREE.Group();
   scene.add(pivot);
   front.beginTurn(pivot, false);
   back.beginTurn(pivot, true);
+  const frontWidth = front.portal.page.widthMm;
+  const backWidth = back.portal.page.widthMm;
+  const frontHeight = front.portal.page.heightMm;
+  const backHeight = back.portal.page.heightMm;
+  const frontHinge = front.getHingeX();
+  const backHinge = back.getHingeX(true);
   let disposed = false;
   return {
     pivot,
     updateCurl(progress: number) {
-      const curl = pageTurnCurl(progress, (front.turnAmplitude + back.turnAmplitude) / 2);
-      front.updateCurl(curl);
-      back.updateCurl(-curl, true);
+      // Editable page sizes must still form one turning surface. Morph its bounds
+      // between the visible source/destination sizes, keeping both sides aligned
+      // along the same hinge and normalized arc. Only the hidden face is scaled
+      // at each endpoint, so the visible landing transform remains exact.
+      const phase = backwards ? 1 - progress : progress;
+      const width = frontWidth + (backWidth - frontWidth) * phase;
+      const height = frontHeight + (backHeight - frontHeight) * phase;
+      const hinge = frontHinge + (backHinge - frontHinge) * phase;
+      const frontScale = width / frontWidth;
+      const backScale = width / backWidth;
+      front.group.scale.set(frontScale, height / frontHeight, frontScale);
+      back.group.scale.set(backScale, height / backHeight, backScale);
+      front.group.position.x = hinge - frontScale * frontHinge;
+      back.group.position.x = hinge - backScale * backHinge;
+      front.updateCurl(pageTurnCurl(progress, front.turnAmplitude));
+      back.updateCurl(-pageTurnCurl(progress, back.turnAmplitude), true);
       // Both endpoints use the exact resting transforms, not a second flat
       // representation that jumps into place when the temporary leaf disappears.
       pivot.position.z = Math.sin(Math.PI * progress) * 0.1;
