@@ -9,24 +9,29 @@ const SESSION_KEY = "dexpoky_welcomed_back";
 
 interface WelcomeBackModalProps {
   username?: string | null;
+  replay?: boolean;
+  onClose?: () => void;
 }
 
-export function WelcomeBackModal({ username }: WelcomeBackModalProps) {
-  const [open, setOpen] = useState(false);
+export function WelcomeBackModal({ username, replay = false, onClose }: WelcomeBackModalProps) {
+  const [open, setOpen] = useState(replay);
   const [active, setActive] = useState<FeatureId>("scan");
   const [, navigate] = useLocation();
 
   useEffect(() => {
+    if (replay) return;
     if (!sessionStorage.getItem(SESSION_KEY)) {
       const t = setTimeout(() => setOpen(true), 400);
       return () => clearTimeout(t);
     }
     return undefined;
-  }, []);
+  }, [replay]);
 
   function handleClose() {
-    sessionStorage.setItem(SESSION_KEY, "1");
+    // Intentional replays must not reset the automatic welcome's session marker.
+    if (!replay) sessionStorage.setItem(SESSION_KEY, "1");
     setOpen(false);
+    onClose?.();
   }
 
   function go(href: string) {
@@ -41,7 +46,7 @@ export function WelcomeBackModal({ username }: WelcomeBackModalProps) {
           <img src={`${import.meta.env.BASE_URL}logo.png`} alt="DexPoky" className="h-12 w-12 object-contain" />
           <div className="min-w-0">
             <DialogTitle className="text-xl font-extrabold tracking-tight leading-tight">
-              {username ? `Welcome back, ${username}!` : "Welcome back!"}
+              {replay ? "DexPoky feature tour" : username ? `Welcome back, ${username}!` : "Welcome back!"}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-1">
               Your trading hub, in five moves.
@@ -58,9 +63,10 @@ export function WelcomeBackModal({ username }: WelcomeBackModalProps) {
           <button
             type="button"
             onClick={handleClose}
+            data-testid="button-close-feature-tour"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors min-h-10"
           >
-            Go to dashboard <ArrowRight className="inline h-3 w-3 ml-0.5" />
+            {replay ? "Close tour" : "Go to dashboard"} <ArrowRight className="inline h-3 w-3 ml-0.5" />
           </button>
         </div>
       </DialogContent>

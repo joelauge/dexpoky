@@ -29,7 +29,9 @@ import {
   Album,
   BadgeDollarSign,
   BookMarked,
+  RotateCcw,
 } from "lucide-react";
+import { WelcomeBackModal } from "@/components/welcome-back-modal";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -94,7 +96,7 @@ function JoinCTA({ collapsed }: { collapsed?: boolean }) {
   );
 }
 
-function UserWidget({ collapsed }: { collapsed: boolean }) {
+function UserWidget({ collapsed, onReplayTour }: { collapsed: boolean; onReplayTour: () => void }) {
   const { user, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [location, setLocation] = useLocation();
@@ -213,6 +215,10 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onReplayTour} data-testid="button-replay-feature-tour-collapsed" className="flex items-center gap-2 cursor-pointer">
+              <RotateCcw className="h-4 w-4" /> Replay feature tour
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => signOut(() => setLocation("/marketplace"))}
               className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
@@ -283,6 +289,10 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onReplayTour} data-testid="button-replay-feature-tour-desktop" className="flex items-center gap-2 cursor-pointer">
+              <RotateCcw className="h-4 w-4" /> Replay feature tour
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => signOut(() => setLocation("/marketplace"))}
               className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
@@ -296,7 +306,7 @@ function UserWidget({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-function MobileProfileBar() {
+function MobileProfileBar({ onReplayTour }: { onReplayTour: () => void }) {
   const [open, setOpen] = useState(false);
   const [location, setLocation] = useLocation();
   const { user, isSignedIn } = useUser();
@@ -367,7 +377,7 @@ function MobileProfileBar() {
       <div
         className={cn(
           "overflow-hidden transition-all duration-200 ease-out bg-card border-t border-x rounded-t-2xl shadow-2xl",
-          open ? "max-h-80 opacity-100" : "max-h-0 opacity-0 pointer-events-none",
+          open ? "max-h-[70dvh] overflow-y-auto opacity-100" : "max-h-0 opacity-0 pointer-events-none",
         )}
       >
         <div className="px-2 pt-3 pb-2 space-y-0.5">
@@ -391,6 +401,15 @@ function MobileProfileBar() {
               )}
             </button>
           ))}
+          <div className="my-1 mx-4 border-t" />
+          <button
+            onClick={() => { close(); onReplayTour(); }}
+            data-testid="button-replay-feature-tour-mobile"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+          >
+            <RotateCcw className="h-5 w-5 shrink-0" />
+            Replay feature tour
+          </button>
           <div className="my-1 mx-4 border-t" />
           <button
             onClick={() => { close(); signOut(() => setLocation("/marketplace")); }}
@@ -432,6 +451,7 @@ function MobileProfileBar() {
 export function Layout({ children, hideMobileScanButton = false }: LayoutProps) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [replayTour, setReplayTour] = useState(false);
   const { isSignedIn } = useUser();
 
   const publicNavItems = [
@@ -604,7 +624,7 @@ export function Layout({ children, hideMobileScanButton = false }: LayoutProps) 
 
           {/* User widget at bottom */}
           <div className="border-t py-3">
-            <UserWidget collapsed={collapsed} />
+            <UserWidget collapsed={collapsed} onReplayTour={() => setReplayTour(true)} />
           </div>
         </aside>
 
@@ -614,7 +634,10 @@ export function Layout({ children, hideMobileScanButton = false }: LayoutProps) 
         </main>
 
         {/* Mobile bottom profile bar */}
-        <MobileProfileBar />
+        <MobileProfileBar onReplayTour={() => setReplayTour(true)} />
+        {isSignedIn && replayTour && (
+          <WelcomeBackModal replay onClose={() => setReplayTour(false)} />
+        )}
 
         {/* Keep the floating action out of the price comparison/save controls. */}
         {isSignedIn && location !== "/scan" && location !== "/card-lookup" && (
