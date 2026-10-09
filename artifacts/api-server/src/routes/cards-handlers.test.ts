@@ -26,6 +26,7 @@ const mockTables = vi.hoisted(() => ({
     edition: "cards.edition",
     imageUrl: "cards.imageUrl",
     originalScanUrl: "cards.originalScanUrl",
+    media: "cards.media",
     catalogCardId: "cards.catalogCardId",
     estimatedValue: "cards.estimatedValue",
     acquiredDate: "cards.acquiredDate",
@@ -53,6 +54,27 @@ const mockTables = vi.hoisted(() => ({
 }));
 
 const mockEvaluateCardConfidence = vi.hoisted(() => vi.fn());
+const mockFetchPricingById = vi.hoisted(() => vi.fn());
+const mockGetAuth = vi.hoisted(() => vi.fn());
+const mockInspectMedia = vi.hoisted(() => vi.fn());
+const mockVerifyUploadClaim = vi.hoisted(() => vi.fn());
+const mockGetObjectFile = vi.hoisted(() => vi.fn());
+
+vi.mock("@clerk/express", () => ({ getAuth: mockGetAuth }));
+vi.mock("./detect-helpers.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./detect-helpers.js")>(),
+  fetchPricingById: mockFetchPricingById,
+}));
+vi.mock("../lib/objectStorage.js", () => ({
+  ObjectStorageService: class {
+    getObjectEntityFile = mockGetObjectFile;
+  },
+}));
+vi.mock("../lib/card-media.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../lib/card-media.js")>(),
+  inspectStoredCardMedia: mockInspectMedia,
+  verifyCardMediaUploadClaim: mockVerifyUploadClaim,
+}));
 
 vi.mock("@workspace/db", () => ({
   db: mockDb,
@@ -130,6 +152,10 @@ function makeUpdateChain(table: unknown): any {
     dbOperations.push({ op: "update.where", args });
     return chain;
   };
+  chain.returning = (projection?: unknown) => {
+    dbOperations.push({ op: "update.returning", table, projection });
+    return Promise.resolve(returningResults.shift() ?? []);
+  };
   chain.then = (
     resolve: (value: unknown) => unknown,
     reject?: (reason: unknown) => unknown,
@@ -153,7 +179,12 @@ beforeEach(() => {
     dbOperations.push({ op: "update", table });
     return makeUpdateChain(table);
   });
-  mockDb.delete.mockReset();
+  mockDb.delete.mockReset().mockImplementation((table: unknown) => ({
+    where: (...args: unknown[]) => {
+      dbOperations.push({ op: "delete.where", table, args });
+      return Promise.resolve();
+    },
+  }));
   mockDb.transaction.mockReset().mockImplementation(
     async (callback: (tx: typeof mockDb) => Promise<unknown>) => {
       dbOperations.push({ op: "transaction" });
@@ -164,7 +195,25 @@ beforeEach(() => {
     confidence: 0.93,
     summary: "Synthetic saved-card assessment",
   });
+  mockGetAuth.mockReset().mockReturnValue({ userId: TEST_USER_ID });
+  mockFetchPricingById.mockReset().mockResolvedValue({ marketPrice: 12.5 });
+  mockVerifyUploadClaim.mockReset().mockReturnValue(true);
+  mockInspectMedia.mockReset().mockResolvedValue({ width: 800, height: 1100 });
+  mockGetObjectFile.mockReset().mockResolvedValue({});
 });
+
+function expectOwnedWhere(operationName: string, table: { ownerClerkId: string } = mockTables.cardsTable) {
+  expect(dbOperations.filter((op) => op.op === operationName)).toEqual(
+    expect.arrayContaining([expect.objectContaining({
+      args: [expect.objectContaining({
+        op: "and",
+        conditions: expect.arrayContaining([
+          { op: "eq", column: table.ownerClerkId, value: TEST_USER_ID },
+        ]),
+      })],
+    })]),
+  );
+}
 
 describe("card CRUD handler request schemas", () => {
   it("accepts a valid GET /cards query and reaches the owned-card select", async () => {
@@ -178,6 +227,7 @@ describe("card CRUD handler request schemas", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual(rows);
     expect(dbOperations.some((operation) => operation.op === "select.orderBy")).toBe(true);
+    expectOwnedWhere("select.where");
   });
 
   it("accepts a valid POST /cards body and inserts an owned card", async () => {
@@ -315,6 +365,8 @@ describe("card CRUD handler request schemas", () => {
       edition: "unlimited",
       estimatedValue: "6.75",
     });
+    expectOwnedWhere("select.where");
+    expectOwnedWhere("update.where");
   });
 
   it("scores saved-card confidence through evaluateCardConfidence, without creating a transaction", async () => {
@@ -340,5 +392,198 @@ describe("card CRUD handler request schemas", () => {
     }));
     expect(mockDb.transaction).not.toHaveBeenCalled();
     expect(mockDb.insert).not.toHaveBeenCalled();
+    expectOwnedWhere("select.where");
+  });
+});
+
+const validCard = {
+  name: "Synthetic Dragon", pokemonName: "Synthetic Dragon",
+  rarity: "rare", condition: "near_mint", forSale: false,
+};
+const validBulkCard = {
+  catalogCardId: "synthetic-1", name: "Synthetic Dragon", setName: "Synthetic Set",
+  setId: "syn1", cardNumber: "1", rarity: "rare", imageUrl: null,
+};
+const validMedia = {
+  url: "/api/storage/objects/uploads/synthetic-image",
+  kind: "image", width: 800, height: 1100, uploadClaim: "synthetic-proof",
+};
+
+describe("card handler validation and scoped ownership", () => {
+  it.each([
+    ["post", "/cards", {}],
+    ["post", "/cards/bulk", { cards: [] }],
+    ["put", "/cards/bulk-update", { cardIds: [] }],
+    ["put", "/cards/abc", { name: "Changed" }],
+    ["put", "/cards/1", { condition: "invalid" }],
+    ["get", "/cards/abc", undefined],
+    ["get", "/cards?categoryId=abc", undefined],
+    ["delete", "/cards/abc", undefined],
+    ["post", "/cards/abc/confidence", {}],
+    ["post", "/cards/1/media", { ...validMedia, width: 1.5 }],
+  ] as const)("rejects invalid %s %s without DB operations", async (method, path, body) => {
+    const response = await request(app)[method](path).send(body);
+    expect(response.status).toBe(400);
+    expect(dbOperations).toEqual([]);
+  });
+
+  it.each(["put", "delete"] as const)("blocks %s for another owner's card", async (method) => {
+    selectResults.push([{ ownerClerkId: "another-owner" }]);
+    const response = await request(app)[method]("/cards/13").send({ name: "Changed" });
+    expect(response.status).toBe(403);
+    expect(mockDb.update).not.toHaveBeenCalled();
+    expect(mockDb.delete).not.toHaveBeenCalled();
+  });
+
+  it.each(["get", "put", "delete"] as const)("returns 404 for missing cards on %s", async (method) => {
+    selectResults.push([]);
+    const response = await request(app)[method]("/cards/13").send({ name: "Changed" });
+    expect(response.status).toBe(404);
+    expect(mockDb.update).not.toHaveBeenCalled();
+    expect(mockDb.delete).not.toHaveBeenCalled();
+  });
+
+  it("reads the owner's card and deletes only the requested card", async () => {
+    selectResults.push([{ id: 13, ownerClerkId: TEST_USER_ID, forSale: false }]);
+    expect((await request(app).get("/cards/13")).status).toBe(200);
+    selectResults.push([{ ownerClerkId: TEST_USER_ID }]);
+    expect((await request(app).delete("/cards/13")).status).toBe(204);
+    expect(dbOperations.find((op) => op.op === "delete.where")?.args).toEqual([
+      { op: "eq", column: mockTables.cardsTable.id, value: 13 },
+    ]);
+  });
+
+  it.each([false, true])("limits non-owner reads to for-sale cards (%s)", async (forSale) => {
+    selectResults.push([{ id: 13, ownerClerkId: "another-owner", forSale }]);
+    expect((await request(app).get("/cards/13")).status).toBe(forSale ? 200 : 403);
+  });
+
+  it("refuses confidence scoring when the owned-card query has no match", async () => {
+    selectResults.push([]);
+    expect((await request(app).post("/cards/13/confidence").send({})).status).toBe(404);
+    expectOwnedWhere("select.where");
+    expect(mockEvaluateCardConfidence).not.toHaveBeenCalled();
+    expect(mockFetchPricingById).not.toHaveBeenCalled();
+  });
+
+  it("derives confidence pricing and identity from the saved card, not the request body", async () => {
+    selectResults.push([{
+      id: 13, catalogCardId: "synthetic-1", name: "Synthetic Dragon",
+      setId: "syn1", setName: "Synthetic Set", cardNumber: "1", condition: "mint",
+    }]);
+    const response = await request(app).post("/cards/13/confidence").send({
+      candidate: { id: "untrusted" }, pricing: { marketPrice: 999 },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(mockFetchPricingById).toHaveBeenCalledWith("synthetic-1", "Synthetic Dragon", undefined, {
+      name: "Synthetic Dragon", setName: "Synthetic Set", cardNumber: "1",
+    });
+    expect(mockEvaluateCardConfidence).toHaveBeenCalledWith(expect.objectContaining({
+      candidate: expect.objectContaining({ id: "synthetic-1" }),
+      pricing: { marketPrice: 12.5 },
+    }));
+    expect(mockDb.insert).not.toHaveBeenCalled();
+  });
+
+  it.each(["categoryId", "collectionId"])("rejects foreign %s when creating a card", async (field) => {
+    selectResults.push([]);
+    const response = await request(app).post("/cards").send({ ...validCard, [field]: 99 });
+    expect(response.status).toBe(400);
+    expectOwnedWhere("select.where", field === "categoryId" ? mockTables.categoriesTable : mockTables.collectionsTable);
+    expect(mockDb.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects foreign collections before bulk inserts", async () => {
+    selectResults.push([]);
+    const response = await request(app).post("/cards/bulk").send({
+      cards: [{ ...validBulkCard, collectionId: 99 }],
+    });
+    expect(response.status).toBe(400);
+    expectOwnedWhere("select.where", mockTables.collectionsTable);
+    expect(mockDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses a mixed-owner bulk update without writing anything", async () => {
+    selectResults.push([{ id: 31 }]);
+    const response = await request(app).put("/cards/bulk-update").send({
+      cardIds: [31, 32], condition: "mint",
+    });
+    expect(response.status).toBe(403);
+    expectOwnedWhere("select.where");
+    expect(mockDb.update).not.toHaveBeenCalled();
+  });
+
+  it.each(["single", "bulk"])("rejects a foreign collection on %s update", async (mode) => {
+    if (mode === "single") selectResults.push([{ ownerClerkId: TEST_USER_ID }]);
+    selectResults.push([]);
+    const response = mode === "single"
+      ? await request(app).put("/cards/13").send({ collectionId: 99 })
+      : await request(app).put("/cards/bulk-update").send({ cardIds: [13], collectionId: 99 });
+    expect(response.status).toBe(400);
+    expectOwnedWhere("select.where", mockTables.collectionsTable);
+    expect(mockDb.update).not.toHaveBeenCalled();
+  });
+
+  it("assigns an owned collection in a bulk update and permits clearing the saved value", async () => {
+    selectResults.push([{ id: 99 }], [{ id: 13 }], [{ id: 13, collectionId: 99, estimatedValue: null }]);
+    const response = await request(app).put("/cards/bulk-update").send({
+      cardIds: [13], collectionId: 99, estimatedValue: null,
+    });
+    expect(response.status).toBe(200);
+    expect(dbOperations.find((op) => op.op === "update.set")?.values).toMatchObject({
+      collectionId: 99, estimatedValue: null,
+    });
+    expectOwnedWhere("select.where", mockTables.collectionsTable);
+    expectOwnedWhere("update.where");
+  });
+});
+
+describe("restored pricing and gallery operations", () => {
+  it("accepts the string catalog cardId query and retains exact pricing context", async () => {
+    const response = await request(app).get("/cards/pricing").query({
+      cardId: "synthetic-1", name: "Synthetic Dragon", setName: "Synthetic Set", cardNumber: "1",
+    });
+    expect(response.status).toBe(200);
+    expect(mockFetchPricingById).toHaveBeenCalledWith("synthetic-1", "Synthetic Dragon", undefined, {
+      name: "Synthetic Dragon", setName: "Synthetic Set", cardNumber: "1",
+    });
+  });
+
+  it("saves verified media with an owner-scoped atomic append and gallery limit", async () => {
+    selectResults.push([{ ownerClerkId: TEST_USER_ID }]);
+    returningResults.push([{ id: 13 }]);
+    const response = await request(app).post("/cards/13/media").send(validMedia);
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ url: validMedia.url, width: 800, height: 1100, kind: "image" });
+    expect(mockVerifyUploadClaim).toHaveBeenCalledWith("synthetic-proof", TEST_USER_ID, "/objects/uploads/synthetic-image");
+    expect(mockInspectMedia).toHaveBeenCalledOnce();
+    expectOwnedWhere("update.where");
+    expect(JSON.stringify(dbOperations.find((op) => op.op === "update.where"))).toContain("< 20");
+    expect(dbOperations.find((op) => op.op === "update.set")?.values).toMatchObject({
+      media: expect.objectContaining({ op: "sql" }),
+    });
+  });
+
+  it("returns the gallery-limit conflict when an atomic append cannot save", async () => {
+    selectResults.push([{ ownerClerkId: TEST_USER_ID }], [{ id: 13, ownerClerkId: TEST_USER_ID }]);
+    returningResults.push([]);
+    expect((await request(app).post("/cards/13/media").send(validMedia)).status).toBe(409);
+  });
+
+  it("removes media from only an owned card", async () => {
+    selectResults.push([{ ownerClerkId: TEST_USER_ID }]);
+    returningResults.push([{ id: 13 }]);
+    const response = await request(app).delete("/cards/13/media/11111111-1111-4111-8111-111111111111");
+    expect(response.status).toBe(204);
+    expectOwnedWhere("update.where");
+  });
+
+  it.each(["post", "delete"] as const)("blocks %s media changes for another owner", async (method) => {
+    selectResults.push([{ ownerClerkId: "another-owner" }]);
+    const path = method === "post" ? "/cards/13/media" : "/cards/13/media/11111111-1111-4111-8111-111111111111";
+    expect((await request(app)[method](path).send(validMedia)).status).toBe(403);
+    expect(mockDb.update).not.toHaveBeenCalled();
+    expect(mockInspectMedia).not.toHaveBeenCalled();
   });
 });
