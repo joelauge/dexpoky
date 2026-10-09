@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { trackEvent } from "@/lib/analytics";
 import { Layout } from "@/components/layout";
 import { useListCards } from "@workspace/api-client-react";
 import { Link, useLocation, useSearch } from "wouter";
@@ -130,6 +131,7 @@ export default function Sell() {
       return res.json();
     },
     onSuccess: (newListing) => {
+      trackEvent("listing_created", { source: "marketplace" });
       qc.invalidateQueries({ queryKey: ["/api/marketplace"] });
       qc.invalidateQueries({ queryKey: ["/api/cards"] });
       setCreatedListing(newListing);

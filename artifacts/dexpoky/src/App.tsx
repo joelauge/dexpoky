@@ -52,6 +52,7 @@ import TermsOfServicePage from "@/pages/terms-of-service";
 import PrivacyPolicyPage from "@/pages/privacy-policy";
 import { UsernameGate } from "@/components/username-gate";
 import { usePaymentSSE } from "@/hooks/use-payment-sse";
+import { AuthAnalytics } from "@/components/auth-analytics";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -294,6 +295,7 @@ function ClerkProviderWithRoutes() {
         <TooltipProvider>
           <ScrollToTop />
           <ClerkAuthSync />
+          <AuthAnalytics />
           <InviteRefSync />
           <ClerkQueryClientCacheInvalidator />
           <PaymentSSEGlobal />

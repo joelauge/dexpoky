@@ -1,3 +1,4 @@
+import { trackEvent } from "@/lib/analytics";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -60,6 +61,7 @@ export function AddLookupCard({ lookup, catalog, set, setPending, imageUrl, open
       data: lookupCardInput({ lookup, catalog, set, imageUrl, rarity, condition, collectionId: selectedCollection?.id ?? null }),
     }, {
       onSuccess: (card) => {
+        trackEvent("add_to_collection", { source: "card_lookup", quantity: 1 });
         qc.setQueryData<Card[]>(getListCardsQueryKey(), (cards) => [
           ...(cards ?? []).filter((c) => c.id !== card.id), card,
         ]);

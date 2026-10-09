@@ -1,3 +1,4 @@
+import { trackEvent } from "@/lib/analytics";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -251,6 +252,7 @@ export default function ScanPage() {
             setPhase("idle");
             return;
           }
+          trackEvent("card_scan", { source: "single_scan" });
         },
       });
       lookupCard(data.pokemonName, data.confidence, {

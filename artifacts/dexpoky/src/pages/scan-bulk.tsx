@@ -1,3 +1,4 @@
+import { trackEvent } from "@/lib/analytics";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -314,6 +315,7 @@ export default function ScanBulkPage() {
 
       // 3. Look up TCG variants + pricing
       if (isAborted()) return;
+      trackEvent("card_scan", { source: "bulk_scan" });
       const lookupParams = new URLSearchParams({ name: idData.pokemonName });
       if (idData.cardNumber) lookupParams.set("cardNumber", idData.cardNumber);
       if (idData.setCode) lookupParams.set("setCode", idData.setCode);
@@ -602,6 +604,7 @@ export default function ScanBulkPage() {
         };
 
         await createCard.mutateAsync({ data: body });
+        trackEvent("add_to_collection", { source: "bulk_scan", quantity: 1 });
         updateEntry(entry.id, { status: "saved" });
         saved++; setSavedCount(saved);
       } catch (err: unknown) {

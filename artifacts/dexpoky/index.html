@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <script>
+      (function () {
+        if (!['dexpoky.com', 'www.dexpoky.com'].includes(window.location.hostname)) return;
+
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function () { window.dataLayer.push(arguments); };
+        window.gtag('js', new Date());
+        window.gtag('config', 'G-M3PSJ96EG4');
+
+        var tag = document.createElement('script');
+        tag.async = true;
+        tag.src = 'https://www.googletagmanager.com/gtag/js?id=G-M3PSJ96EG4';
+        document.head.appendChild(tag);
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <title>DexPoky — Pokémon Card Marketplace</title>

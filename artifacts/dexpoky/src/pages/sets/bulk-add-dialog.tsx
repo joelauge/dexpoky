@@ -1,3 +1,4 @@
+import { trackEvent } from "@/lib/analytics";
 import { useEffect, useRef, useState } from "react";
 import { 
   useBulkCreateCards, 
@@ -224,6 +225,9 @@ export function BulkAddDialog({ open, onOpenChange, selectedCards, set, onSucces
 
     bulkCreate.mutate({ data: { cards } }, {
       onSuccess: (res) => {
+        if (res.created.length > 0) {
+          trackEvent("add_to_collection", { source: "set_checklist", quantity: res.created.length });
+        }
         if (res.skipped?.length > 0) {
           toast.warning(`Created ${res.created.length} cards, skipped ${res.skipped.length}`);
           setResult({ created: res.created.length, skipped: res.skipped });

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { trackEvent } from "@/lib/analytics";
 import { useSearch } from "wouter";
 import { Layout } from "@/components/layout";
 import {
@@ -723,6 +724,9 @@ function TradeThread({
         throw new Error(j.error ?? "Action failed");
       }
       const updated = await res.json();
+      if (body.action === "counter") {
+        trackEvent("trade_offer_sent", { source: "inbox" });
+      }
       setOffer(updated);
       setActiveAction(null);
       setCounterAmount(""); setCounterNote("");

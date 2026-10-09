@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { trackEvent } from "@/lib/analytics";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -76,6 +77,7 @@ export function OwnedOfferPanel(p: Common) {
     setError(null);
     contact.mutate({ token: p.token, pageId: p.pageId, slot: p.slot, data }, {
       onSuccess: (r) => {
+        if (data.intent === "trade") trackEvent("trade_offer_sent", { source: "binder" });
         qc.invalidateQueries({ queryKey: getListThreadsQueryKey() });
         qc.invalidateQueries({ queryKey: ["/api/threads"] });
         setLocation(`/inbox?thread=${r.threadId}`);

@@ -1,3 +1,4 @@
+import { trackEvent } from "@/lib/analytics";
 import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useForm } from "react-hook-form";
@@ -218,6 +219,7 @@ export default function NewCard() {
     else if (pickedCatalog) payload.catalogCardId = pickedCatalog.id;
     createCard.mutate({ data: payload as typeof data }, {
       onSuccess: (newCard) => {
+        trackEvent("add_to_collection", { source: "collection_form", quantity: 1 });
         saveLastCategoryId(data.categoryId);
         saveLastCondition(data.condition);
         toast.success("Card added to your collection!");
