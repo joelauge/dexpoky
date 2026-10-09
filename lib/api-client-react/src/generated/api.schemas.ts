@@ -5,6 +5,63 @@
  * DexPoky API specification
  * OpenAPI spec version: 0.1.0
  */
+export type ConfirmedPurchaseCurrency =
+  (typeof ConfirmedPurchaseCurrency)[keyof typeof ConfirmedPurchaseCurrency];
+
+export const ConfirmedPurchaseCurrency = {
+  USD: "USD",
+} as const;
+
+export type ConfirmedPurchaseSource =
+  (typeof ConfirmedPurchaseSource)[keyof typeof ConfirmedPurchaseSource];
+
+export const ConfirmedPurchaseSource = {
+  marketplace: "marketplace",
+  inbox: "inbox",
+  dex_agent: "dex_agent",
+} as const;
+
+export type ConfirmedPurchaseItemsItemItemId =
+  (typeof ConfirmedPurchaseItemsItemItemId)[keyof typeof ConfirmedPurchaseItemsItemItemId];
+
+export const ConfirmedPurchaseItemsItemItemId = {
+  pokemon_card: "pokemon_card",
+} as const;
+
+export type ConfirmedPurchaseItemsItemItemCategory =
+  (typeof ConfirmedPurchaseItemsItemItemCategory)[keyof typeof ConfirmedPurchaseItemsItemItemCategory];
+
+export const ConfirmedPurchaseItemsItemItemCategory = {
+  pokemon_card: "pokemon_card",
+} as const;
+
+export type ConfirmedPurchaseItemsItemQuantity =
+  (typeof ConfirmedPurchaseItemsItemQuantity)[keyof typeof ConfirmedPurchaseItemsItemQuantity];
+
+export const ConfirmedPurchaseItemsItemQuantity = {
+  NUMBER_1: 1,
+} as const;
+
+export type ConfirmedPurchaseItemsItem = {
+  item_id: ConfirmedPurchaseItemsItemItemId;
+  item_category: ConfirmedPurchaseItemsItemItemCategory;
+  price: number;
+  quantity: ConfirmedPurchaseItemsItemQuantity;
+};
+
+export interface ConfirmedPurchase {
+  /**
+   * Opaque sale key, never an account or payment-provider ID
+   * @pattern ^dp_[a-f0-9]{64}$
+   */
+  transaction_id: string;
+  /** @exclusiveMinimum 0 */
+  value: number;
+  currency: ConfirmedPurchaseCurrency;
+  source: ConfirmedPurchaseSource;
+  items: ConfirmedPurchaseItemsItem[];
+}
+
 export type BinderStyle = (typeof BinderStyle)[keyof typeof BinderStyle];
 
 export const BinderStyle = {

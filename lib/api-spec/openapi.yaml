@@ -48,6 +48,21 @@ tags:
     description: Privacy-safe trust signals and private transaction report triage
 
 paths:
+  /analytics/purchases:
+    get:
+      operationId: listConfirmedPurchases
+      summary: Buyer-only GA4-safe receipts from completed USD settlements
+      responses:
+        "200":
+          description: Deduplicated purchase receipts; private and not cacheable
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConfirmedPurchase"
+        "401":
+          description: Authentication required
   /public/binders/{token}:
     get:
       operationId: getPublicBinder
@@ -2000,6 +2015,40 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    ConfirmedPurchase:
+      type: object
+      required: [transaction_id, value, currency, source, items]
+      properties:
+        transaction_id:
+          type: string
+          pattern: '^dp_[a-f0-9]{64}$'
+          description: Opaque sale key, never an account or payment-provider ID
+        value:
+          type: number
+          exclusiveMinimum: 0
+        currency:
+          type: string
+          enum: [USD]
+        source:
+          type: string
+          enum: [marketplace, inbox, dex_agent]
+        items:
+          type: array
+          items:
+            type: object
+            required: [item_id, item_category, price, quantity]
+            properties:
+              item_id:
+                type: string
+                enum: [pokemon_card]
+              item_category:
+                type: string
+                enum: [pokemon_card]
+              price:
+                type: number
+              quantity:
+                type: integer
+                enum: [1]
     BinderStyle:
       type: string
       enum: [ring, zip, folio]

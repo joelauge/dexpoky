@@ -1,3 +1,5 @@
+import type { ConfirmedPurchase } from "./purchase-analytics";
+
 const eventNames = ["sign_up", "login", "card_scan", "listing_created", "trade_offer_sent", "add_to_collection"] as const;
 const methods = ["password", "email_code", "email_link", "google", "github", "apple", "twitter", "x", "passkey", "other"] as const;
 const sources = ["single_scan", "bulk_scan", "collection_form", "card_lookup", "set_checklist", "marketplace", "inbox", "binder"] as const;
@@ -13,7 +15,12 @@ export type AnalyticsEventParams = {
 
 declare global {
   interface Window {
-    gtag?: (command: "event", name: AnalyticsEventName, params: AnalyticsEventParams) => void;
+    gtag?: {
+      (command: "event", name: AnalyticsEventName, params: AnalyticsEventParams): void;
+      (command: "event", name: "purchase", params: ConfirmedPurchase & {
+        page_location: string; page_title: string; page_referrer: string;
+      }): void;
+    };
   }
 }
 

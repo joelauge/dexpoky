@@ -1,3 +1,4 @@
+import { purchasesChanged } from "@/lib/purchase-analytics";
 import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useGetListing } from "@workspace/api-client-react";
@@ -655,6 +656,7 @@ export default function ListingDetail() {
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error ?? "Could not confirm purchase");
+          purchasesChanged();
           toast.success("Purchase confirmed! The card is yours.");
           refetch();
         } catch (err) {

@@ -557,7 +557,8 @@ router.post("/marketplace/:id/confirm-purchase", requireAuth, async (req, res) =
     res.status(400).json({ error: "Payment not completed", payment_status: session.payment_status });
     return;
   }
-  if (session.metadata?.listingId !== String(id) || session.metadata?.buyerClerkId !== buyerClerkId) {
+  if (session.metadata?.kind !== "marketplace_purchase" ||
+      session.metadata?.listingId !== String(id) || session.metadata?.buyerClerkId !== buyerClerkId) {
     res.status(403).json({ error: "Session does not match this listing/buyer" });
     return;
   }
@@ -600,6 +601,9 @@ router.post("/marketplace/:id/confirm-purchase", requireAuth, async (req, res) =
       price: parseFloat(String(updated.price)),
       listingType: updated.listingType,
       stripeSessionId: sessionId,
+      // Paid total, not the listing's asking price (auction Buy Now can differ).
+      amountCents: session.amount_total,
+      currency: session.currency,
     },
   });
 

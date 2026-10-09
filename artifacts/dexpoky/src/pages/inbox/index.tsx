@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { trackEvent } from "@/lib/analytics";
+import { purchasesChanged } from "@/lib/purchase-analytics";
 import { useSearch } from "wouter";
 import { Layout } from "@/components/layout";
 import {
@@ -489,6 +490,7 @@ function TradeThread({
       const res = await authFetch(`/api/threads/${thread.id}/payment/wallet`, { method: "POST" });
       const json = await res.json();
       if (json.success) {
+        purchasesChanged();
         toast.success("Payment sent from your wallet!");
         await fetchOffer();
       } else {
@@ -537,6 +539,7 @@ function TradeThread({
         return;
       }
       toast.success("Payment sent! Funds are on the way to the seller.");
+      purchasesChanged();
       setShopPin("");
       setOffer(json);
     } catch {

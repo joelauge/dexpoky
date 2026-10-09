@@ -8,6 +8,35 @@
 import * as zod from "zod";
 
 /**
+ * @summary Buyer-only GA4-safe receipts from completed USD settlements
+ */
+export const listConfirmedPurchasesResponseTransactionIdRegExp = new RegExp(
+  "^dp_[a-f0-9]{64}$",
+);
+export const listConfirmedPurchasesResponseValueExclusiveMin = 0;
+
+export const ListConfirmedPurchasesResponseItem = zod.object({
+  transaction_id: zod
+    .string()
+    .regex(listConfirmedPurchasesResponseTransactionIdRegExp)
+    .describe("Opaque sale key, never an account or payment-provider ID"),
+  value: zod.number().gt(listConfirmedPurchasesResponseValueExclusiveMin),
+  currency: zod.enum(["USD"]),
+  source: zod.enum(["marketplace", "inbox", "dex_agent"]),
+  items: zod.array(
+    zod.object({
+      item_id: zod.enum(["pokemon_card"]),
+      item_category: zod.enum(["pokemon_card"]),
+      price: zod.number(),
+      quantity: zod.literal(1),
+    }),
+  ),
+});
+export const ListConfirmedPurchasesResponse = zod.array(
+  ListConfirmedPurchasesResponseItem,
+);
+
+/**
  * @summary View a public binder without signing in
  */
 export const GetPublicBinderParams = zod.object({

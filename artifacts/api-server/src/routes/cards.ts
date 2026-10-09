@@ -116,29 +116,22 @@ router.post("/cards/:id/confidence", requireAuth, async (req, res): Promise<void
     catalogCardId: cardsTable.catalogCardId, condition: cardsTable.condition,
   }).from(cardsTable).where(and(eq(cardsTable.id, id), eq(cardsTable.ownerClerkId, userId)));
   if (!saved) { res.status(404).json({ error: "Card not found" }); return; }
-  const result = await db.transaction(async (tx) => {
-    const createdIds: number[] = [];
-    for (const item of parsed.data.cards) {
-      const [created] = await tx.insert(cardsTable).values({
-        ownerClerkId: userId,
-        name: item.name,
-        pokemonName: item.name,
-        setName: item.setName,
-        setId: item.setId,
-        cardNumber: item.cardNumber,
-        rarity: item.rarity,
-        condition: item.condition ?? "near_mint",
-        edition: item.edition ?? "unknown",
-        imageUrl: item.imageUrl ?? null,
-        catalogCardId: item.catalogCardId,
-        estimatedValue: item.estimatedValue != null ? String(item.estimatedValue) : null,
-        originalScanUrl: item.originalScanUrl ?? null,
-        collectionId: item.collectionId ?? null,
-        forSale: false,
-      }).returning({ id: cardsTable.id });
-      createdIds.push(created.id);
-    }
-    return { createdIds };
+  const pricing = saved.catalogCardId
+    ? await fetchPricingById(saved.catalogCardId, saved.name, undefined, {
+      name: saved.name, setName: saved.setName ?? undefined, cardNumber: saved.cardNumber ?? undefined,
+    }) : null;
+  const result = await evaluateCardConfidence({
+    observed: {},
+    candidate: {
+      id: saved.catalogCardId ?? String(saved.id),
+      name: saved.name,
+      setId: saved.setId,
+      setName: saved.setName,
+      cardNumber: saved.cardNumber,
+    },
+    pricing,
+    condition: { value: saved.condition, source: "saved_card" },
+    context: { savedCardId: id },
   });
   res.setHeader("Cache-Control", "no-store");
   res.json(result);
@@ -175,13 +168,9 @@ const cardSelect = {
 };
 
 router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
-  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  const parsed = BulkCreateCardsBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid media request", details: parsed.error });
-    return;
-  }
-  if (!Number.isSafeInteger(parsed.data.width) || !Number.isSafeInteger(parsed.data.height)) {
-    res.status(400).json({ error: "Media dimensions must be integers" });
+    res.status(400).json({ error: "Invalid request body", details: parsed.error });
     return;
   }
 
@@ -225,13 +214,9 @@ router.post("/cards/bulk", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> => {
-  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  const parsed = BulkUpdateCardsBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid media request", details: parsed.error });
-    return;
-  }
-  if (!Number.isSafeInteger(parsed.data.width) || !Number.isSafeInteger(parsed.data.height)) {
-    res.status(400).json({ error: "Media dimensions must be integers" });
+    res.status(400).json({ error: "Invalid request body", details: parsed.error });
     return;
   }
 
@@ -239,7 +224,7 @@ router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> =>
   const collectionId = parsed.data.collectionId;
   if (collectionId != null) {
       const [collection] = await db.select({ id: collectionsTable.id }).from(collectionsTable)
-        .where(and(eq(collectionsTable.id, data.collectionId), eq(collectionsTable.ownerClerkId, userId)));
+        .where(and(eq(collectionsTable.id, collectionId), eq(collectionsTable.ownerClerkId, userId)));
     if (!collection) { res.status(400).json({ error: "Invalid collection" }); return; }
   }
   const owned = await db.select({ id: cardsTable.id }).from(cardsTable)
@@ -261,7 +246,7 @@ router.put("/cards/bulk-update", requireAuth, async (req, res): Promise<void> =>
 router.get("/cards", requireAuth, async (req, res) => {
   const startedAt = performance.now();
   const userId = (req as AuthRequest).userId;
-  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  const parsed = ListCardsQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid query params" });
     return;
@@ -292,7 +277,7 @@ router.get("/cards", requireAuth, async (req, res) => {
 
 router.post("/cards", requireAuth, async (req, res) => {
   const userId = (req as AuthRequest).userId;
-  const bodyParsed = UpdateCardBody.safeParse(req.body);
+  const bodyParsed = CreateCardBody.safeParse(req.body);
   if (!bodyParsed.success) {
     res.status(400).json({ error: "Invalid request body", details: bodyParsed.error });
     return;
@@ -316,12 +301,14 @@ router.post("/cards", requireAuth, async (req, res) => {
     if (!collection) { res.status(400).json({ error: "Invalid collection" }); return; }
   }
 
-  const [card] = await db
-    .select(cardSelect)
-    .from(cardsTable)
-    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
-    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
-    .where(eq(cardsTable.id, parsed.data.id));
+  const [card] = await db.insert(cardsTable).values({
+    ...data,
+    ownerClerkId: userId,
+    edition: data.edition ?? "unknown",
+    estimatedValue: data.estimatedValue == null ? null : String(data.estimatedValue),
+    listingPrice: data.listingPrice == null ? null : String(data.listingPrice),
+    acquiredDate: data.acquiredDate ? new Date(data.acquiredDate) : null,
+  }).returning();
 
   const [withCat] = await db
     .select(cardSelect)
@@ -533,7 +520,7 @@ router.get("/cards/lookup", (req, res, next) => {
  * pricing chain.
  */
 router.get("/cards/pricing", async (req, res) => {
-  const cardId = Number(req.params.id);
+  const cardId = String(req.query.cardId ?? "").trim();
   const name = String(req.query.name ?? "").trim() || undefined;
   const rarity = String(req.query.rarity ?? "").trim() || undefined;
   const setName = String(req.query.setName ?? "").trim() || undefined;
@@ -561,7 +548,7 @@ router.post("/cards/:id/media", requireAuth, async (req, res): Promise<void> => 
     res.status(400).json({ error: "Invalid card id" });
     return;
   }
-  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  const parsed = AddCardMediaBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid media request", details: parsed.error });
     return;
@@ -577,7 +564,7 @@ router.post("/cards/:id/media", requireAuth, async (req, res): Promise<void> => 
     .from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
     .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
-    .where(eq(cardsTable.id, parsed.data.id));
+    .where(eq(cardsTable.id, cardId));
   if (!card) { res.status(404).json({ error: "Card not found" }); return; }
   if (card.ownerClerkId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
 
@@ -631,11 +618,17 @@ router.post("/cards/:id/media", requireAuth, async (req, res): Promise<void> => 
     ...(input.kind === "video" ? { durationSeconds: verified.durationSeconds } : {}),
   };
   const [updated] = await db
-    .select(cardSelect)
-    .from(cardsTable)
-    .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
-    .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
-    .where(eq(cardsTable.id, paramsParsed.data.id));
+    .update(cardsTable)
+    .set({
+      media: sql`coalesce(${cardsTable.media}, '[]'::jsonb) || ${JSON.stringify([media])}::jsonb`,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(cardsTable.id, cardId),
+      eq(cardsTable.ownerClerkId, userId),
+      sql`jsonb_array_length(coalesce(${cardsTable.media}, '[]'::jsonb)) < 20`,
+    ))
+    .returning({ id: cardsTable.id });
   if (!updated) {
     const [current] = await db.select({
       ownerClerkId: cardsTable.ownerClerkId,
@@ -664,7 +657,7 @@ router.delete("/cards/:id/media/:mediaId", requireAuth, async (req, res): Promis
     .from(cardsTable)
     .leftJoin(categoriesTable, eq(categoriesTable.id, cardsTable.categoryId))
     .leftJoin(collectionsTable, eq(collectionsTable.id, cardsTable.collectionId))
-    .where(eq(cardsTable.id, parsed.data.id));
+    .where(eq(cardsTable.id, cardId));
   if (!card) { res.status(404).json({ error: "Card not found" }); return; }
   if (card.ownerClerkId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
 
@@ -689,7 +682,7 @@ router.delete("/cards/:id/media/:mediaId", requireAuth, async (req, res): Promis
 });
 
 router.get("/cards/:id", async (req, res) => {
-  const parsed = DeleteCardParams.safeParse({ id: Number(req.params.id) });
+  const parsed = GetCardParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid id" });
     return;
@@ -727,7 +720,7 @@ router.put("/cards/:id", requireAuth, async (req, res) => {
   const [existing] = await db
     .select({ ownerClerkId: cardsTable.ownerClerkId })
     .from(cardsTable)
-    .where(eq(cardsTable.id, parsed.data.id));
+    .where(eq(cardsTable.id, paramsParsed.data.id));
   if (!existing) {
     res.status(404).json({ error: "Card not found" });
     return;
