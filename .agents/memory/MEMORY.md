@@ -18,3 +18,4 @@
 - [OpenAPI update defaults](openapi-update-defaults.md) — defaults on shared enums can populate omitted update fields and erase recorded identity.
 - [Replit overlays](replit-overlays.md) — app development banners and publishing feedback widgets are separate; verify the environment where the user sees the overlay.
 - [GA4 page-view authority](ga4-page-view-authority.md) — enhanced measurement already tracks history changes; do not add manual SPA route-change page views.
+- [Repository authority](repository-authority.md) — Replit is the source of truth when syncing DexPoky with joelauge/dexpoky.
