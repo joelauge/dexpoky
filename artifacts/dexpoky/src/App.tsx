@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
 const BindersPage = lazy(() => import("@/pages/binders/index"));
+const GodPackPage = lazy(() => import("@/pages/godpack"));
 import Dashboard from "@/pages/dashboard";
 import LandingPage from "@/pages/landing/index";
 import SetsIndex from "@/pages/sets/index";
@@ -344,6 +345,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/view/group/:code" component={GroupShareView} />
             <Route path="/s/:code" component={ShortLinkRedirect} />
             <Route path="/w/:code" component={WantedPublicPage} />
+            <Route path="/godpack" component={() => <Suspense fallback={<div className="min-h-[100dvh] bg-[#0c1838]" />}><GodPackPage /></Suspense>} />
             <Route path="/support" component={SupportPage} />
             <Route path="/terms-of-service" component={TermsOfServicePage} />
             <Route path="/privacy-policy" component={PrivacyPolicyPage} />
